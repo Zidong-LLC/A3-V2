@@ -99,7 +99,7 @@ Mostrar resumen completo:
 ### 5.2 Mensaje de Confirmación
 "Hemos recibido tu orden. Tu motorizado será notificado."
 
-### 5.3 Chat Permanece Abierto
+### 5.5 Chat Permanece Abierto
 - **No se cierra** la conversación
 - Cliente puede hacer preguntas adicionales
 - Cliente puede consultar estado de su orden

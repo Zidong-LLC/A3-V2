@@ -207,7 +207,7 @@ Mantener el mismo stack (no hay razón para cambiarlo, funcionó bien):
 ```
 Backend:        Python 3.12+ + Flask
 Base de datos:  Supabase (PostgreSQL) — mismo proyecto, mismas tablas
-IA:             OpenAI API — modelo gpt-5.4-nano (rápido, barato, suficiente)
+IA:             OpenAI API — modelo gpt-5.5 (rápido, barato, suficiente)
 Mensajería:     Telegram Bot API (webhook)
 Infra:          Render (web service)
 ```
@@ -219,7 +219,7 @@ TELEGRAM_WEBHOOK_SECRET
 SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
 OPENAI_API_KEY
-OPENAI_MODEL=gpt-5.4-nano
+OPENAI_MODEL=gpt-5.5
 APP_TIMEZONE=America/Bogota
 CUTOFF_TIME=17:30
 FLASK_SECRET_KEY

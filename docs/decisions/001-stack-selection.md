@@ -16,7 +16,7 @@ Mantener exactamente el mismo stack:
 |---|---|---|
 | Backend | Python 3.12 + Flask | FastAPI — overhead innecesario para un webhook simple |
 | Base de datos | Supabase (PostgreSQL) | Otro — el esquema ya existe en producción |
-| IA | OpenAI gpt-5.4-nano | gpt-4o — más caro sin mejora observable para este caso |
+| IA | OpenAI gpt-5.5 | gpt-4o — más caro sin mejora observable para este caso |
 | Mensajería | Telegram Bot API | WhatsApp — alcance V1 |
 | Hosting | Render | Railway — ya configurado, funciona |
 
@@ -24,5 +24,5 @@ Mantener exactamente el mismo stack:
 
 - El esquema de Supabase NO se modifica. Nuevas columnas solo con ADR aprobado.
 - Flask es suficiente: un solo endpoint de webhook + `/health`. No justifica FastAPI.
-- gpt-5.4-nano: rápido y estable para respuestas conversacionales cortas.
+- gpt-5.5: rápido y estable para respuestas conversacionales cortas.
 - WhatsApp queda para V2 cuando Telegram esté estabilizado.

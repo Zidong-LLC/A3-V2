@@ -86,7 +86,7 @@ El agente hace exactamente 4 cosas:
 ### Stack (no cambiar)
 - Python 3.12+ + Flask
 - Supabase (PostgreSQL) — modelo de datos existente, no modificar
-- OpenAI API (gpt-5.4-nano)
+- OpenAI API (gpt-5.5)
 - Telegram Bot API
 - Render
 

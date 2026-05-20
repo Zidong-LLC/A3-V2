@@ -15,7 +15,7 @@ TELEGRAM_WEBHOOK_SECRET     string aleatorio para validar el webhook
 SUPABASE_URL                URL del proyecto Supabase
 SUPABASE_SERVICE_ROLE_KEY   service role key (no la anon key)
 OPENAI_API_KEY              API key de OpenAI
-OPENAI_MODEL                gpt-5.4-nano
+OPENAI_MODEL                gpt-5.5
 APP_TIMEZONE                America/Bogota
 CUTOFF_HOUR                 17
 CUTOFF_MINUTE               30
@@ -61,4 +61,4 @@ Render mantiene historial de deploys. En caso de problema:
 | 403 en webhook | `TELEGRAM_WEBHOOK_SECRET` no coincide | Verificar variable en Render |
 | Error de Supabase | `SUPABASE_SERVICE_ROLE_KEY` vencida | Rotar en dashboard de Supabase |
 | Bot no responde | Webhook no configurado | Correr `set_webhook.py` |
-| Timeout en OpenAI | Modelo saturado | Reintentar, gpt-5.4-nano tiene alta disponibilidad |
+| Timeout en OpenAI | Modelo saturado | Reintentar, gpt-5.5 tiene alta disponibilidad |

@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A3 Plataforma - Acceso</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <div class="brand-lockup">
+      <div class="brand-mark">A3</div>
+      <div>
+        <h1>Control Center</h1>
+        <p>Acceso privado de operaciones</p>
+      </div>
+    </div>
+
+    <form method="post" action="{{ url_for('dashboard.login') }}" class="login-form">
+      <label>Usuario
+        <input name="username" type="text" autocomplete="username" required>
+      </label>
+      <label>Contrasena
+        <input name="password" type="password" autocomplete="current-password" required>
+      </label>
+      <button type="submit">Ingresar</button>
+      {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+    </form>
+  </main>
+</body>
+</html>

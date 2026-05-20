@@ -4,6 +4,7 @@ Ejecutar cuando set_webhook.py fue llamado por error y Chatwoot dejó de recibir
 """
 import json
 import os
+import urllib.parse
 import urllib.request
 
 from dotenv import load_dotenv
@@ -27,4 +28,6 @@ urllib.request.urlopen(req).read()
 
 req2 = urllib.request.urlopen(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getWebhookInfo")
 info = json.loads(req2.read())["result"]
-print(f"Webhook restaurado: {info['url']}")
+url = info.get("url", "")
+parsed = urllib.parse.urlparse(url)
+print(f"Webhook restaurado en host: {parsed.netloc or 'sin-url'}")

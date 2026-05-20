@@ -2,7 +2,7 @@ import re
 from datetime import datetime, timezone
 from supabase import create_client, Client
 from app.config import SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-from app.rules import INTENT_TO_SERVICE_AREA, get_scheduled_pickup_date
+from app.rules import INTENT_TO_SERVICE_AREA, calculate_profile_adjusted_total, get_scheduled_pickup_date
 
 _client: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
@@ -74,12 +74,85 @@ def save_message(chat_id: str, content: str, role: str) -> None:
 # ── Client identification ─────────────────────────────────────────────────────
 
 def _normalize_nit(nit: str) -> str:
-    return re.sub(r"[^0-9]", "", nit)
+    return re.sub(r"[^0-9]", "", nit or "")
+
+
+def _normalize_tax_id_compact(tax_id: str) -> str:
+    return re.sub(r"[^0-9A-Za-z]", "", tax_id or "").upper()
+
+
+def _normalize_lookup_key(value: str | None) -> str:
+    text = (value or "").strip().lower()
+    text = text.translate(str.maketrans("áéíóúüñ", "aeiouun"))
+    return re.sub(r"[^a-z0-9]+", "_", text).strip("_")
+
+
+_ROMAN_TO_ARABIC = {
+    "i": "1",
+    "ii": "2",
+    "iii": "3",
+    "iv": "4",
+    "v": "5",
+    "vi": "6",
+    "vii": "7",
+    "viii": "8",
+    "ix": "9",
+    "x": "10",
+}
+_ARABIC_TO_ROMAN = {value: key for key, value in _ROMAN_TO_ARABIC.items()}
+
+
+def _profile_lookup_variants(value: str | None) -> set[str]:
+    key = _normalize_lookup_key(value)
+    if not key:
+        return set()
+
+    parts = key.split("_")
+    variants = {
+        key,
+        "_".join(_ROMAN_TO_ARABIC.get(part, part) for part in parts),
+        "_".join(_ARABIC_TO_ROMAN.get(part, part) for part in parts),
+    }
+    for variant in list(variants):
+        if variant.startswith("perfil_"):
+            variants.add(variant.removeprefix("perfil_"))
+        else:
+            variants.add(f"perfil_{variant}")
+    return {variant for variant in variants if variant}
+
+
+def _catalog_profile_matches(value: str | None, row: dict) -> bool:
+    lookups = _profile_lookup_variants(value)
+    targets = _profile_lookup_variants(row.get("code")) | _profile_lookup_variants(row.get("name"))
+    for lookup in lookups:
+        for target in targets:
+            if lookup == target or (len(lookup) >= 3 and lookup in target):
+                return True
+    return False
+
+
+def _compact_lookup_key(value: str | None) -> str:
+    return re.sub(r"[^a-z0-9]", "", _normalize_lookup_key(value))
+
+
+def _name_matches(query: str | None, candidate: str | None) -> bool:
+    query_key = _compact_lookup_key(query)
+    candidate_key = _compact_lookup_key(candidate)
+    if not query_key or not candidate_key:
+        return False
+    if query_key == candidate_key:
+        return True
+    return (
+        len(query_key) >= 5 and query_key in candidate_key
+    ) or (
+        len(candidate_key) >= 5 and candidate_key in query_key
+    )
 
 
 def _nit_candidates(tax_id: str) -> list[str]:
     raw = (tax_id or "").strip()
     clean = _normalize_nit(raw)
+    compact = _normalize_tax_id_compact(raw)
 
     candidates: list[str] = []
 
@@ -88,7 +161,17 @@ def _nit_candidates(tax_id: str) -> list[str]:
             candidates.append(value)
 
     add(raw)
+    add(raw.upper())
     add(clean)
+
+    if raw.endswith(".0"):
+        add(_normalize_nit(raw[:-2]))
+
+    if len(compact) > 1 and compact[:-1].isdigit():
+        base = compact[:-1]
+        dv = compact[-1]
+        add(base)
+        add(f"{base}-{dv}")
 
     if len(clean) > 1:
         base = clean[:-1]
@@ -99,10 +182,24 @@ def _nit_candidates(tax_id: str) -> list[str]:
     return candidates
 
 
+def _nit_base_candidates(tax_id: str) -> list[str]:
+    bases: list[str] = []
+    for candidate in _nit_candidates(tax_id):
+        base = candidate.split("-", 1)[0]
+        clean = _normalize_nit(base)
+        if len(clean) >= 5 and clean not in bases:
+            bases.append(clean)
+    return bases
+
+
 def identify_client(name: str = None, tax_id: str = None) -> dict | None:
     if tax_id:
         for nit in _nit_candidates(tax_id):
             result = _client.table("clients").select("*").eq("tax_id", nit).eq("is_active", True).execute()
+            if result.data:
+                return result.data[0]
+        for base in _nit_base_candidates(tax_id):
+            result = _client.table("clients").select("*").ilike("tax_id", f"{base}-%").eq("is_active", True).execute()
             if result.data:
                 return result.data[0]
     if name:
@@ -115,7 +212,162 @@ def identify_client(name: str = None, tax_id: str = None) -> dict | None:
         )
         if result.data:
             return result.data[0]
+        result = _client.table("clients").select("*").eq("is_active", True).limit(1000).execute()
+        for client in result.data or []:
+            if _name_matches(name, client.get("clinic_name")):
+                return client
     return None
+
+
+def get_client_by_id(client_id: str) -> dict | None:
+    result = _client.table("clients").select("*").eq("id", client_id).eq("is_active", True).execute()
+    if result.data:
+        return result.data[0]
+    return None
+
+
+def find_client_for_dashboard(tax_id: str | None = None, phone: str | None = None, clinic_name: str | None = None) -> dict | None:
+    if tax_id:
+        for nit in _nit_candidates(tax_id):
+            result = _client.table("clients").select("*").eq("tax_id", nit).execute()
+            if result.data:
+                return result.data[0]
+    if phone:
+        result = _client.table("clients").select("*").eq("phone", phone).execute()
+        if result.data:
+            return result.data[0]
+    if clinic_name:
+        result = _client.table("clients").select("*").ilike("clinic_name", f"%{clinic_name}%").execute()
+        if result.data:
+            return result.data[0]
+    return None
+
+
+def create_pending_client_review(client_payload: dict, review_payload: dict) -> dict:
+    result = _client.table("clients").insert(client_payload).execute()
+    client = result.data[0]
+    now = datetime.now(timezone.utc).isoformat()
+    request_data = {
+        "client_id": client["id"],
+        "entry_channel": "dashboard",
+        "service_area": "new_client",
+        "intent": "new_client",
+        "priority": "normal",
+        "status": "received",
+        "requested_at": now,
+        "fallback_reason": "pending_client_review",
+    }
+    request_result = _client.table("requests").insert(request_data).execute()
+    request_row = request_result.data[0]
+    _client.table("request_events").insert({
+        "request_id": request_row["id"],
+        "event_type": "client_review_submitted",
+        "event_payload": review_payload,
+    }).execute()
+    return {"client_id": client["id"], "request_id": request_row["id"]}
+
+
+def list_pending_client_reviews(limit: int = 300) -> list[dict]:
+    result = (
+        _client.table("requests")
+        .select("id, client_id, status, requested_at, fallback_reason, clients(id, clinic_name, tax_id, phone, address, zone, billing_type)")
+        .eq("service_area", "new_client")
+        .eq("fallback_reason", "pending_client_review")
+        .order("requested_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    rows = result.data or []
+    for row in rows:
+        event_result = (
+            _client.table("request_events")
+            .select("event_payload, created_at")
+            .eq("request_id", row["id"])
+            .eq("event_type", "client_review_submitted")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        row["review_payload"] = (event_result.data or [{}])[0].get("event_payload", {})
+    return rows
+
+
+def approve_pending_client(request_id: str) -> bool:
+    request_result = _client.table("requests").select("id, client_id").eq("id", request_id).execute()
+    if not request_result.data:
+        return False
+    client_id = request_result.data[0].get("client_id")
+    if not client_id:
+        return False
+    event_result = (
+        _client.table("request_events")
+        .select("event_payload")
+        .eq("request_id", request_id)
+        .eq("event_type", "client_review_submitted")
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    review_payload = (event_result.data or [{}])[0].get("event_payload") or {}
+    courier_id = review_payload.get("courier_id")
+    _client.table("clients").update({"is_active": True}).eq("id", client_id).execute()
+    if courier_id:
+        _client.table("client_courier_assignment").insert({
+            "client_id": client_id,
+            "courier_id": courier_id,
+            "assigned_by": "dashboard_review",
+        }).execute()
+    _client.table("requests").update({"status": "processed", "fallback_reason": "client_review_approved"}).eq("id", request_id).execute()
+    _client.table("request_events").insert({
+        "request_id": request_id,
+        "event_type": "client_review_approved",
+        "event_payload": {"source": "dashboard"},
+    }).execute()
+    return True
+
+
+def reject_pending_client(request_id: str, reason: str) -> bool:
+    request_result = _client.table("requests").select("id").eq("id", request_id).execute()
+    if not request_result.data:
+        return False
+    _client.table("requests").update({"status": "cancelled", "fallback_reason": "client_review_rejected"}).eq("id", request_id).execute()
+    _client.table("request_events").insert({
+        "request_id": request_id,
+        "event_type": "client_review_rejected",
+        "event_payload": {"source": "dashboard", "reason": reason},
+    }).execute()
+    return True
+
+
+def delete_client_completely(client_id: str, clinic_key: str | None = None) -> bool:
+    client_result = _client.table("clients").select("id, clinic_name").eq("id", client_id).execute()
+    if not client_result.data:
+        return False
+
+    client = client_result.data[0]
+    request_rows = _client.table("requests").select("id").eq("client_id", client_id).execute().data or []
+    sample_rows = _client.table("lab_samples").select("id").eq("client_id", client_id).execute().data or []
+    request_ids = [row["id"] for row in request_rows if row.get("id")]
+    sample_ids = [row["id"] for row in sample_rows if row.get("id")]
+    clinic_keys = []
+    for raw_key in (clinic_key, client.get("clinic_name")):
+        normalized = _normalize_lookup_key(raw_key)
+        if normalized and normalized not in clinic_keys:
+            clinic_keys.append(normalized)
+
+    if request_ids:
+        _client.table("request_events").delete().in_("request_id", request_ids).execute()
+    if sample_ids:
+        _client.table("lab_sample_events").delete().in_("sample_id", sample_ids).execute()
+    _client.table("lab_samples").delete().eq("client_id", client_id).execute()
+    _client.table("requests").delete().eq("client_id", client_id).execute()
+    _client.table("client_courier_assignment").delete().eq("client_id", client_id).execute()
+    _client.table("telegram_sessions").delete().eq("client_id", client_id).execute()
+    for key in clinic_keys:
+        _client.table("clients_a3_sample_events").delete().eq("clinic_key", key).execute()
+        _client.table("clients_a3_knowledge").delete().eq("clinic_key", key).execute()
+    delete_result = _client.table("clients").delete().eq("id", client_id).execute()
+    return bool(delete_result.data)
 
 
 def get_catalog_context(species: str | None = None) -> str:
@@ -137,6 +389,28 @@ def get_catalog_context(species: str | None = None) -> str:
     for cat, items in by_cat.items():
         lines.append(f"[{cat}] " + ", ".join(items))
     return "\n".join(lines)
+
+
+def find_catalog_profile(value: str | None, species: str | None = None) -> dict | None:
+    lookup = _normalize_lookup_key(value)
+    if not lookup:
+        return None
+
+    query = (
+        _client.table("catalog_profiles")
+        .select("code, name, category, species, description, price")
+        .eq("is_active", True)
+        .limit(5000)
+    )
+    species_key = (species or "").strip().lower()
+    if species_key in ("canino", "felino"):
+        query = query.in_("species", [species_key, "ambos"])
+
+    rows = query.execute().data or []
+    for row in rows:
+        if _catalog_profile_matches(value, row):
+            return row
+    return None
 
 
 def get_individual_tests_context(species: str | None = None) -> str:
@@ -173,6 +447,184 @@ def get_tests_by_codes(codes: list[str]) -> list[dict]:
     return result.data or []
 
 
+def get_tests_by_codes_or_names(items: list[str]) -> list[dict]:
+    if not items:
+        return []
+
+    result = (
+        _client.table("catalog_tests")
+        .select("code, name, price")
+        .eq("is_active", True)
+        .limit(5000)
+        .execute()
+    )
+    rows = result.data or []
+    matched = []
+    seen = set()
+    for raw_item in items:
+        lookup = _normalize_lookup_key(raw_item)
+        if not lookup:
+            continue
+        for row in rows:
+            code_key = _normalize_lookup_key(row.get("code"))
+            name_key = _normalize_lookup_key(row.get("name"))
+            if lookup == code_key or lookup == name_key or lookup in name_key:
+                code = row.get("code")
+                if code and code not in seen:
+                    matched.append(row)
+                    seen.add(code)
+                break
+    return matched
+
+
+def list_catalog_tests(limit: int = 500) -> list[dict]:
+    result = (
+        _client.table("catalog_tests")
+        .select("code, name, category, species, sample, price, is_active")
+        .eq("is_active", True)
+        .order("code")
+        .limit(limit)
+        .execute()
+    )
+    return result.data or []
+
+
+def list_catalog_profiles(limit: int = 500) -> list[dict]:
+    result = (
+        _client.table("catalog_profiles")
+        .select("code, name, category, species, description, price, is_active")
+        .eq("is_active", True)
+        .order("code")
+        .limit(limit)
+        .execute()
+    )
+    return result.data or []
+
+
+def list_conversation_messages(limit: int = 500) -> list[dict]:
+    result = (
+        _client.table("conversation_messages")
+        .select("id, external_chat_id, role, content, created_at")
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+    return result.data or []
+
+
+def fetch_rows(table: str, select: str = "*", limit: int = 500) -> list[dict]:
+    result = _client.table(table).select(select).limit(limit).execute()
+    return result.data or []
+
+
+def insert_rows(table: str, rows: list[dict]) -> list[dict]:
+    result = _client.table(table).insert(rows).execute()
+    return result.data or []
+
+
+def update_rows(table: str, filters: dict, payload: dict) -> list[dict]:
+    query = _client.table(table).update(payload)
+    for field, value in filters.items():
+        query = query.eq(field, value)
+    result = query.execute()
+    return result.data or []
+
+
+def update_request(request_id: str, payload: dict) -> bool:
+    result = _client.table("requests").update(payload).eq("id", request_id).execute()
+    return bool(result.data)
+
+
+def create_request_event(request_id: str, event_type: str, event_payload: dict) -> None:
+    _client.table("request_events").insert({
+        "request_id": request_id,
+        "event_type": event_type,
+        "event_payload": event_payload,
+    }).execute()
+
+
+def _as_catalog_item_list(value) -> list[str]:
+    if isinstance(value, list):
+        raw_items = value
+    elif isinstance(value, str):
+        raw_items = [value]
+    else:
+        return []
+    return [str(item).strip() for item in raw_items if str(item or "").strip()]
+
+
+def _as_int(value) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _catalog_description_items(description: str | None) -> list[str]:
+    items = []
+    current = []
+    depth = 0
+    for char in description or "":
+        if char == "(":
+            depth += 1
+        elif char == ")" and depth > 0:
+            depth -= 1
+
+        if char == "," and depth == 0:
+            item = "".join(current).strip()
+            if item:
+                items.append(item)
+            current = []
+        else:
+            current.append(char)
+
+    item = "".join(current).strip()
+    if item:
+        items.append(item)
+    return items
+
+
+def _event_test_rows(items: list[str]) -> list[dict]:
+    rows = get_tests_by_codes_or_names(items)
+    return [
+        {
+            "code": row.get("code"),
+            "name": row.get("name"),
+            "price": _as_int(row.get("price")),
+        }
+        for row in rows
+    ]
+
+
+def _profile_event_payload(fields: dict) -> dict | None:
+    code = fields.get("_selected_profile_code")
+    name = fields.get("_selected_profile_name") or fields.get("exam_type")
+    if not code and not name:
+        return None
+
+    base_price = _as_int(fields.get("_selected_profile_price"))
+    added_tests = _event_test_rows(_as_catalog_item_list(fields.get("selected_tests")))
+    removed_tests = _event_test_rows(_as_catalog_item_list(fields.get("removed_tests")))
+    totals = calculate_profile_adjusted_total(
+        base_price,
+        [test["price"] for test in added_tests],
+        [test["price"] for test in removed_tests],
+    )
+
+    return {
+        "base_profile": {
+            "code": code,
+            "name": name,
+            "price": base_price,
+        },
+        "included_tests": _catalog_description_items(fields.get("_selected_profile_description")),
+        "added_tests": added_tests,
+        "removed_tests": removed_tests,
+        "total_estimated": totals["total"],
+        "price_adjustment": totals,
+    }
+
+
 def get_courier_for_client(client_id: str) -> dict | None:
     result = (
         _client.table("client_courier_assignment")
@@ -183,6 +635,99 @@ def get_courier_for_client(client_id: str) -> dict | None:
     if result.data:
         return result.data[0].get("couriers")
     return None
+
+
+def list_active_couriers(limit: int = 500) -> list[dict]:
+    result = (
+        _client.table("couriers")
+        .select("id, name, phone, availability, is_active")
+        .eq("is_active", True)
+        .order("name")
+        .limit(limit)
+        .execute()
+    )
+    return result.data or []
+
+
+def update_courier_phone(courier_id: str, phone: str) -> bool:
+    result = _client.table("couriers").update({"phone": phone}).eq("id", courier_id).execute()
+    return bool(result.data)
+
+
+def list_courier_locality_coverage(limit: int = 500) -> list[dict]:
+    result = (
+        _client.table("courier_locality_coverage")
+        .select("locality_code, locality_name, courier_id, assigned_by, assigned_at, couriers(id, name, phone, availability)")
+        .limit(limit)
+        .execute()
+    )
+    return result.data or []
+
+
+def list_territorial_zones(limit: int = 100) -> list[dict]:
+    result = (
+        _client.table("territorial_zones")
+        .select("*")
+        .order("zone_number")
+        .limit(limit)
+        .execute()
+    )
+    return result.data or []
+
+
+def list_territorial_neighborhoods(limit: int = 3000) -> list[dict]:
+    result = (
+        _client.table("territorial_neighborhoods")
+        .select("locality_code, locality_name, zone_number, courier_name, cantidad_barrios")
+        .limit(limit)
+        .execute()
+    )
+    return result.data or []
+
+
+def upsert_courier_locality_coverage(
+    *,
+    locality_code: str,
+    locality_name: str,
+    courier_id: str,
+    assigned_by: str,
+) -> None:
+    _client.table("courier_locality_coverage").upsert({
+        "locality_code": locality_code,
+        "locality_name": locality_name,
+        "courier_id": courier_id,
+        "assigned_by": assigned_by,
+    }, on_conflict="locality_code").execute()
+
+
+def delete_courier_locality_coverage(locality_code: str) -> bool:
+    result = _client.table("courier_locality_coverage").delete().eq("locality_code", locality_code).execute()
+    return bool(result.data)
+
+
+def upsert_client_assignment(client_id: str, courier_id: str | None, assigned_by: str) -> None:
+    if courier_id:
+        _client.table("client_courier_assignment").upsert({
+            "client_id": client_id,
+            "courier_id": courier_id,
+            "assigned_by": assigned_by,
+        }, on_conflict="client_id").execute()
+    else:
+        _client.table("client_courier_assignment").delete().eq("client_id", client_id).execute()
+
+
+def update_client_profile(client_id: str, payload: dict) -> bool:
+    result = _client.table("clients").update(payload).eq("id", client_id).execute()
+    return bool(result.data)
+
+
+def list_a3_knowledge_index(limit: int = 5000) -> list[dict]:
+    result = _client.table("clients_a3_knowledge").select("*").limit(limit).execute()
+    return result.data or []
+
+
+def upsert_client_profile(payload: dict) -> None:
+    _client.table("clients_a3_knowledge").upsert(payload, on_conflict="clinic_key").execute()
 
 
 def list_clients_with_assignment(limit: int = 500) -> list[dict]:
@@ -221,7 +766,7 @@ def list_sessions(limit: int = 500) -> list[dict]:
         _client.table("telegram_sessions")
         .select(
             "external_chat_id, client_id, phase_current, intent_current, requires_handoff, "
-            "handoff_area, updated_at, clients(clinic_name)"
+            "handoff_area, captured_fields, updated_at, clients(clinic_name, phone)"
         )
         .order("updated_at", desc=True)
         .limit(limit)
@@ -323,16 +868,21 @@ def create_request(chat_id: str, session: dict, ai_response: dict) -> str | None
         return None
 
     request_id = result.data[0]["id"]
+    event_payload = {
+        "source":   "telegram",
+        "chat_id":  chat_id,
+        "intent":   intent,
+        "priority": "normal",
+        "payment_method": fields.get("payment_method"),
+    }
+    profile_payload = _profile_event_payload(fields)
+    if profile_payload:
+        event_payload["profile"] = profile_payload
+
     _client.table("request_events").insert({
         "request_id":     request_id,
         "event_type":     "created",
-        "event_payload":  {
-            "source":   "telegram",
-            "chat_id":  chat_id,
-            "intent":   intent,
-            "priority": "normal",
-            "payment_method": fields.get("payment_method"),
-        },
+        "event_payload":  event_payload,
     }).execute()
 
     return request_id

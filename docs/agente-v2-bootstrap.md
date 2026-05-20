@@ -217,7 +217,7 @@ Agente:  La muestra de Rocky de Loma Verde está en procesamiento desde ayer.
          Resultados estimados para mañana a la mañana.
 ```
 
-### 5.3 Múltiples intenciones en un solo mensaje
+### 5.5 Múltiples intenciones en un solo mensaje
 
 ```
 Usuario: Buenos días, necesito programar una ruta para esta tarde y también quiero
@@ -517,7 +517,7 @@ no se atendieron en este turno (se atienden en los siguientes turnos).
 
 **Backend:** Python + FastAPI (async nativo, más moderno que Flask)  
 **Base de datos:** Supabase (PostgreSQL) — mismo esquema que V1  
-**IA:** OpenAI API — `gpt-5.4-nano` para producción  
+**IA:** OpenAI API — `gpt-5.5` para producción
 **Canal V1:** Telegram Bot API  
 **Canal V2:** WhatsApp Business API → conectado a plataforma de chatbot para visualización de conversaciones y derivaciones  
 **Infraestructura:** Render + Supabase hosted  

@@ -49,12 +49,19 @@ RESPONSE_SCHEMA = {
                             {"type": "null"},
                         ]
                     },
+                    "removed_tests": {
+                        "anyOf": [
+                            {"type": "array", "items": {"type": "string"}},
+                            {"type": "null"},
+                        ]
+                    },
                 },
                 "required": [
                     "clinic_name", "tax_id", "pickup_address", "exam_type",
                     "patient_name", "species", "patient_age", "owner_name",
                     "payment_method",
                     "selected_tests",
+                    "removed_tests",
                 ],
                 "additionalProperties": False,
             },

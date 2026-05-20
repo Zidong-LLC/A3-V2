@@ -7,7 +7,7 @@ Gestiona recogidas de muestras, consulta de resultados, y derivación a equipo h
 
 - Python 3.12+ + Flask
 - Supabase (PostgreSQL) — modelo de datos existente, no modificar
-- OpenAI API (gpt-5.4-nano)
+- OpenAI API (gpt-5.5)
 - Telegram Bot API (webhook)
 - Render (hosting)
 
@@ -66,13 +66,36 @@ TELEGRAM_WEBHOOK_SECRET
 SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
 OPENAI_API_KEY
-OPENAI_MODEL=gpt-5.4-nano
+OPENAI_MODEL=gpt-5.5
 APP_TIMEZONE=America/Bogota
 CUTOFF_HOUR=17
 CUTOFF_MINUTE=30
 FLASK_SECRET_KEY
 PLATFORM_API_TOKEN=opcional-token-interno
+DASHBOARD_ADMIN_USER=admin
+DASHBOARD_ADMIN_PASSWORD=definir-en-produccion
 ```
+
+## Dashboard operativo
+
+La plataforma visual vive dentro del mismo Flask app del agente:
+
+- `GET /login` → acceso privado
+- `GET /dashboard` → panel operativo
+- `GET /clientes` → clientes y motorizado asignado
+- `GET|POST /clientes/nuevo` → alta manual de cliente en revisión documental
+- `GET /muestras` → muestras registradas si la tabla operativa existe
+- `GET /analisis` → catálogo de análisis individuales
+- `GET /flujo` → fases conversacionales
+- `GET /aprobaciones` → revisión de clientes nuevos capturados por el agente
+- `POST /aprobaciones/decision` → aprobar/rechazar alta manual pendiente
+- `GET /afiliaciones` → vista de afiliaciones clínica-profesional si existen datos
+- `GET /api/dashboard/overview` → contexto JSON del dashboard
+
+Credenciales por variables de entorno:
+
+- `DASHBOARD_ADMIN_USER`
+- `DASHBOARD_ADMIN_PASSWORD`
 
 ## API de integración con plataforma
 

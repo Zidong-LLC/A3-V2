@@ -4,10 +4,12 @@ from app.agent import process_turn
 from app.services import telegram, chatwoot
 from app.services.db import get_or_create_session
 from app.platform_api import platform_api
+from app.dashboard import dashboard
 
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
 app.register_blueprint(platform_api)
+app.register_blueprint(dashboard)
 
 
 @app.route("/webhooks/telegram", methods=["POST"])

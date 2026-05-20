@@ -43,6 +43,12 @@ Debe responder: `{"status": "ok"}`
 
 Después mandá un mensaje de prueba por Telegram y verificá que aparece en Chatwoot.
 
+También se puede validar y reparar la asociación del Agent Bot con:
+```bash
+python tools/scripts/verify_chatwoot_telegram_agent.py
+```
+Este script verifica ngrok, `/health`, `outgoing_url`, asociación del Agent Bot al inbox y webhook de Telegram apuntando a Chatwoot. No ejecuta `set_webhook.py`.
+
 ## Si el webhook de Telegram queda apuntando a Flask (resetear)
 Ocurre si alguien ejecutó `set_webhook.py` por error. Para restaurar:
 ```bash

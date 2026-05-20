@@ -1,5 +1,0 @@
-# Pegá acá tu URL de ngrok cada vez que la levantes.
-# Ejemplo: https://abc123.ngrok-free.app
-# No pongas barra al final.
-
-https://hortencia-spathaceous-carleen.ngrok-free.dev

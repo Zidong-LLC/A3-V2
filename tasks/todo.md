@@ -40,9 +40,9 @@
 ## Agente Conversacional — Pendiente
 
 ### Tests nuevos (V2.1)
-- [ ] Múltiples órdenes en misma sesión: segunda orden con cliente ya identificado
-- [ ] "Crear tu perfil": seleccionar análisis individuales, ver subtotal calculado
-- [ ] Notificación de motorizado: mensaje incluido en cierre de orden
+- [x] Múltiples órdenes en misma sesión: segunda orden con cliente ya identificado
+- [x] "Crear tu perfil": seleccionar análisis individuales, ver subtotal calculado
+- [x] Notificación de motorizado: mensaje incluido en cierre de orden
 
 ---
 
@@ -75,3 +75,12 @@ Estas funciones se implementarán en la plataforma de gestión, no en el chatbot
 **2026-04-30** — Tests obligatorios validados: 11/11 completados.
 **2026-05-01** — Flujo de búsqueda progresiva + forma de pago cerrados para V2.1.
 **2026-05-03** — Separación plataforma vs. agente documentada. Notificación de motorizado y múltiples órdenes en sesión implementadas en `agent.py`.
+**2026-05-11** — Tests V2.1 pendientes cubiertos y suite validada: 64/64.
+**2026-05-11** — Alta manual de clientes en dashboard afinada: validación de formulario, motorizado sugerido y contexto de motorizados cubiertos por tests. Suite validada: 68/68.
+**2026-05-15** — Zonas territoriales A3 estructuradas: `data/barrios_zonas_a3.csv`, `app/territory.py`, migración `006_territorial_zones.sql` y scripts de carga. Supabase actual: 8 motorizados verificados y 282 asignaciones cliente→motorizado cargadas. Pendiente aplicar migración con credencial admin SQL para subir 1649 barrios.
+**2026-05-15** — Alta manual de cliente ahora sugiere motorizado automaticamente por barrio/localidad/zona, con override manual del operador. Endpoint `GET /api/dashboard/courier-suggestion` y guardado de `courier_suggestion` en revisión. Suite validada: 83/83.
+**2026-05-15** — Autocompletado de barrios agregado en alta manual: `GET /api/dashboard/neighborhood-search`, autollenado de localidad/zona y sugerencia de motorizado. Suite validada: 84/84.
+**2026-05-15** — Flujo de migracion territorial cerrado: script `apply_supabase_migration.py` para aplicar DDL con `SUPABASE_ACCESS_TOKEN`, seed territorial idempotente y runbook actualizado. Service role key no permite crear tablas.
+**2026-05-15** — Proyecto autosuficiente con `.env` local protegido por `.gitignore`; seeds corren sin rutas antiguas. Operacion territorial funcional con fallback interno hasta que existan tablas territoriales en Supabase.
+**2026-05-15** — Centro Operativo Diario agregado en `/operacion`: KPIs de rutas, aprobaciones, muestras abiertas, alertas, rutas por gestionar y clientes nuevos. Suite validada: 85/85.
+**2026-05-15** — Agenda por motorizado agregada dentro de `/operacion`, agrupando rutas activas por mensajero y columna `Sin asignar`. Suite validada: 86/86.

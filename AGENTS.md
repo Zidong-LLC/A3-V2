@@ -23,7 +23,7 @@ El bot hace exactamente 4 cosas:
 ```
 Backend:       Python 3.12+ + Flask
 Base de datos: Supabase (PostgreSQL) — modelo existente, no modificar esquema
-IA:            OpenAI API — gpt-5.4-nano
+IA:            OpenAI API — gpt-5.5
 Mensajería:    Telegram Bot API (webhook)
 Infra:         Render
 ```

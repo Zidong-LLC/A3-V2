@@ -39,6 +39,18 @@ Verificar `captured_fields` antes de cada pregunta. No repetir.
 
 _agregar aquí después de cada corrección_
 
+### L6 — Revisar rutas externas indicadas por el usuario
+**Problema:** Se asumió que el dashboard debía estar dentro de `A3 ULTIMO`, pero el usuario lo tenía en otra carpeta/ZIP.
+**Regla:** Cuando el usuario mencione una ruta externa, verificar esa ubicación antes de concluir que una pieza no existe.
+
+### L7 — Evitar `Start-Process` en OpenCode (Windows)
+**Problema:** Al levantar procesos en segundo plano con `Start-Process` (Flask/ngrok), el runner puede fallar con `ChildProcess.kill`, dejar estados inconsistentes o parecer "trabado".
+**Regla:** En OpenCode, priorizar ejecución controlada en un solo comando/script (inicio + verificación + cierre limpio). Evitar procesos detached persistentes durante la sesión.
+
+### L8 — Limpiar identificación fallida antes de reintentar cliente
+**Problema:** Una sesión con `_client_not_found` podía conservar un `clinic_name` o `tax_id` viejo y bloquear búsquedas posteriores de veterinarias existentes.
+**Regla:** Si el usuario responde con un nuevo identificador después de una identificación fallida, limpiar los campos de identificación contaminados antes de volver a consultar la BD.
+
 ### Formato de entrada
 
 ```

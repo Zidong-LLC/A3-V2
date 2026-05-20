@@ -58,3 +58,14 @@ def calculate_custom_profile_total(prices: list[int]) -> dict:
         "discount": discount,
         "total":    subtotal - discount,
     }
+
+
+def calculate_profile_adjusted_total(base_price: int, added_prices: list[int], removed_prices: list[int]) -> dict:
+    added = sum(added_prices)
+    removed = sum(removed_prices)
+    return {
+        "base":    base_price,
+        "added":   added,
+        "removed": removed,
+        "total":   max(base_price + added - removed, 0),
+    }

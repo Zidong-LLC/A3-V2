@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A3 CRM - Nuevo Cliente</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="crm-theme">
+  <main class="client-wizard">
+    <header class="wizard-hero">
+      <a class="ghost-btn" href="{{ url_for('dashboard.clients_page') }}"><i data-lucide="arrow-left"></i>Volver</a>
+      <div><p class="hello-label">Registro documental</p><h1>Nuevo Cliente</h1><span>Quedara en revision hasta validar documentos, facturacion y datos operativos.</span></div>
+    </header>
+    {% if error %}<p class="approval-notice error">{{ error }}</p>{% endif %}
+    <form method="post" action="{{ url_for('dashboard.new_client_page') }}" class="wizard-form">
+      <section class="wizard-card">
+        <div class="step-badge">1</div>
+        <div class="section-copy"><h2>Identificacion fiscal</h2><p>Datos para evitar duplicados y crear el registro base.</p></div>
+        <div class="form-grid">
+          <label>Razon social / clinica *<input name="clinic_name" required value="{{ form.get('clinic_name', '') }}"></label>
+          <label>Nombre comercial<input name="commercial_name" value="{{ form.get('commercial_name', '') }}"></label>
+          <label>Codigo cliente interno<input name="client_code" value="{{ form.get('client_code', '') }}"></label>
+          <label>NIT / Documento *<input name="tax_id" required value="{{ form.get('tax_id', '') }}"></label>
+          <label>Tipo de cliente *<select name="client_type" required><option value="">Seleccionar</option>{% for option_value, option_label in client_type_options.items() %}<option value="{{ option_value }}" {{ 'selected' if form.get('client_type') == option_value else '' }}>{{ option_label }}</option>{% endfor %}</select></label>
+        </div>
+      </section>
+      <section class="wizard-card">
+        <div class="step-badge">2</div>
+        <div class="section-copy"><h2>Contacto y facturacion</h2><p>Informacion necesaria para comunicacion, cobro y facturacion electronica.</p></div>
+        <div class="form-grid">
+          <label>Telefono principal *<input name="phone" required value="{{ form.get('phone', '') }}"></label>
+          <label>Correo contacto *<input name="email" type="email" required value="{{ form.get('email', '') }}"></label>
+          <label>Correo facturacion *<input name="billing_email" type="email" required value="{{ form.get('billing_email', '') }}"></label>
+          <label>Regimen IVA *<select name="vat_regime" required><option value="">Seleccionar</option>{% for option_value, option_label in vat_regime_options.items() %}<option value="{{ option_value }}" {{ 'selected' if form.get('vat_regime') == option_value else '' }}>{{ option_label }}</option>{% endfor %}</select></label>
+          <label>Facturacion electronica *<select name="electronic_invoicing" required><option value="">Seleccionar</option><option value="si" {{ 'selected' if form.get('electronic_invoicing') == 'si' else '' }}>Si</option><option value="no" {{ 'selected' if form.get('electronic_invoicing') == 'no' else '' }}>No</option></select></label>
+          <label>URL RUT facturacion electronica<input name="invoicing_rut_url" type="url" value="{{ form.get('invoicing_rut_url', '') }}"></label>
+        </div>
+      </section>
+      <section class="wizard-card">
+        <div class="step-badge">3</div>
+        <div class="section-copy"><h2>Ubicacion y operacion</h2><p>Datos para rutas, motorizado y contacto operativo.</p></div>
+        <div class="form-grid">
+          <label>Direccion *<input name="address" required value="{{ form.get('address', '') }}" data-location-field></label>
+          <label class="autocomplete-field">Barrio<input name="neighborhood" value="{{ form.get('neighborhood', '') }}" placeholder="Ej: Castilla" autocomplete="off" data-location-field data-neighborhood-input><div class="autocomplete-panel" data-neighborhood-results hidden></div></label>
+          <label>Localidad<input name="locality" value="{{ form.get('locality', '') }}" placeholder="Ej: Kennedy" data-location-field data-locality-input></label>
+          <label>Zona / Localidad *<input name="zone" required value="{{ form.get('zone', '') }}" data-location-field></label>
+          <label>Contacto principal *<input name="contact_name" required value="{{ form.get('contact_name', '') }}"></label>
+          <label>Tipo de facturacion<select name="billing_type"><option value="cash" {{ 'selected' if form.get('billing_type', 'cash') == 'cash' else '' }}>Contado</option><option value="credit" {{ 'selected' if form.get('billing_type') == 'credit' else '' }}>Credito</option></select></label>
+          <label>Motorizado sugerido<select name="courier_id" data-courier-select><option value="">Asignar despues</option>{% for courier in couriers %}<option value="{{ courier.id }}" {{ 'selected' if form.get('courier_id') == courier.id else '' }}>{{ courier.name }}{% if courier.availability %} - {{ courier.availability }}{% endif %}</option>{% endfor %}</select><small class="muted-text" data-courier-suggestion>Completa barrio/localidad para sugerir automaticamente.</small></label>
+        </div>
+      </section>
+      <section class="wizard-card">
+        <div class="step-badge">4</div>
+        <div class="section-copy"><h2>Documentacion y control</h2><p>Checklist previo a aprobacion. Storage se conecta en una fase posterior.</p></div>
+        <div>
+          <div class="doc-grid">
+            <label><input type="checkbox" name="rut_received" {{ 'checked' if form.get('rut_received') else '' }}> RUT recibido</label>
+            <label><input type="checkbox" name="chamber_received" {{ 'checked' if form.get('chamber_received') else '' }}> Camara de comercio</label>
+            <label><input type="checkbox" name="representative_id_received" {{ 'checked' if form.get('representative_id_received') else '' }}> Documento representante</label>
+            <label><input type="checkbox" name="additional_support_received" {{ 'checked' if form.get('additional_support_received') else '' }}> Soporte adicional</label>
+            <label><input type="checkbox" name="entered_flag" {{ 'checked' if form.get('entered_flag') else '' }}> Ingresado en sistema interno</label>
+          </div>
+          <label class="full-field">Observaciones internas<textarea name="notes" rows="4">{{ form.get('notes', '') }}</textarea></label>
+        </div>
+      </section>
+      <footer class="wizard-actions"><a class="ghost-btn" href="{{ url_for('dashboard.clients_page') }}">Cancelar</a><button type="submit" class="primary-btn"><i data-lucide="send"></i>Enviar a revision</button></footer>
+    </form>
+  </main>
+  <script>
+    if (window.lucide) lucide.createIcons();
+    const locationFields = document.querySelectorAll('[data-location-field]');
+    const courierSelect = document.querySelector('[data-courier-select]');
+    const suggestionText = document.querySelector('[data-courier-suggestion]');
+    const neighborhoodInput = document.querySelector('[data-neighborhood-input]');
+    const localityInput = document.querySelector('[data-locality-input]');
+    const neighborhoodResults = document.querySelector('[data-neighborhood-results]');
+    let suggestionTimer;
+    async function refreshCourierSuggestion() {
+      if (!courierSelect || !suggestionText) return;
+      const params = new URLSearchParams();
+      locationFields.forEach((field) => params.set(field.name, field.value || ''));
+      if (![...params.values()].some(Boolean)) return;
+      const response = await fetch(`{{ url_for('dashboard.courier_suggestion') }}?${params.toString()}`);
+      if (!response.ok) return;
+      const suggestion = await response.json();
+      if (!suggestion.matched) {
+        suggestionText.textContent = 'Sin sugerencia confiable. Selecciona manualmente.';
+        return;
+      }
+      suggestionText.textContent = `Sugerido: ${suggestion.courier_name} · Zona ${suggestion.zone_number} · ${suggestion.match_type}`;
+      if (!courierSelect.value) courierSelect.value = suggestion.courier_id;
+    }
+    locationFields.forEach((field) => field.addEventListener('input', () => {
+      clearTimeout(suggestionTimer);
+      suggestionTimer = setTimeout(refreshCourierSuggestion, 350);
+    }));
+    async function searchNeighborhoods() {
+      if (!neighborhoodInput || !neighborhoodResults) return;
+      const q = neighborhoodInput.value.trim();
+      if (q.length < 2) {
+        neighborhoodResults.hidden = true;
+        neighborhoodResults.innerHTML = '';
+        return;
+      }
+      const response = await fetch(`{{ url_for('dashboard.neighborhood_search') }}?q=${encodeURIComponent(q)}`);
+      if (!response.ok) return;
+      const payload = await response.json();
+      if (!payload.rows.length) {
+        neighborhoodResults.hidden = true;
+        neighborhoodResults.innerHTML = '';
+        return;
+      }
+      neighborhoodResults.innerHTML = payload.rows.map((row) => `
+        <button type="button" data-neighborhood-choice
+          data-neighborhood="${row.neighborhood_name}"
+          data-locality="${row.locality_name}"
+          data-zone="${row.zone_number}">
+          <strong>${row.neighborhood_name}</strong>
+          <span>${row.locality_name} · Zona ${row.zone_number} · ${row.courier_name}</span>
+        </button>
+      `).join('');
+      neighborhoodResults.hidden = false;
+    }
+    neighborhoodInput?.addEventListener('input', () => {
+      clearTimeout(suggestionTimer);
+      suggestionTimer = setTimeout(() => { searchNeighborhoods(); refreshCourierSuggestion(); }, 250);
+    });
+    neighborhoodResults?.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-neighborhood-choice]');
+      if (!button) return;
+      neighborhoodInput.value = button.dataset.neighborhood || '';
+      if (localityInput) localityInput.value = button.dataset.locality || '';
+      const zoneInput = document.querySelector('input[name="zone"]');
+      if (zoneInput) zoneInput.value = button.dataset.locality || button.dataset.zone || '';
+      neighborhoodResults.hidden = true;
+      refreshCourierSuggestion();
+    });
+    document.addEventListener('click', (event) => {
+      if (!event.target.closest('.autocomplete-field') && neighborhoodResults) neighborhoodResults.hidden = true;
+    });
+  </script>
+</body>
+</html>
