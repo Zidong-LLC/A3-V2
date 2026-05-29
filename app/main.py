@@ -49,9 +49,12 @@ def chatwoot_webhook():
         return jsonify({"ok": True})
     if data.get("message_type") != "incoming":
         return jsonify({"ok": True})
+    if data.get("private") is True:
+        return jsonify({"ok": True})
 
-    content = data.get("content", "").strip()
-    conversation_id = str((data.get("conversation") or {}).get("id", ""))
+    content = str(data.get("content") or "").strip()
+    conversation_raw_id = (data.get("conversation") or {}).get("id")
+    conversation_id = str(conversation_raw_id or "")
     if not content or not conversation_id:
         return jsonify({"ok": True})
 

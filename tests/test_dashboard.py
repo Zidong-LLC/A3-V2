@@ -134,6 +134,145 @@ def test_operation_center_groups_active_routes_by_courier():
     assert agenda["Diego"]["routes"][0]["clinic_name"] == "Clinica Diego"
 
 
+def test_service_order_event_is_visible_in_operation_center():
+    from app.dashboard import _build_operation_center, _build_service_order_rows
+
+    requests_rows = [{
+        "id": "req-os-1",
+        "client_id": "client-1",
+        "service_area": "route_scheduling",
+        "status": "assigned",
+        "pickup_address": "Calle 1",
+        "scheduled_pickup_date": "2026-05-24",
+        "requested_at": "2026-05-24T10:00:00",
+        "exam_type": "Hemograma",
+        "clients": {"clinic_name": "Clinica Norte"},
+        "couriers": {"name": "Diego"},
+    }]
+    events = [{
+        "id": "event-os-1",
+        "request_id": "req-os-1",
+        "event_type": "created",
+        "created_at": "2026-05-24T10:00:01",
+        "event_payload": {
+            "service_order": {
+                "date": "2026-05-24",
+                "requesting_doctor": "Dr. Luis Mora",
+                "clinic_name": "Clinica Norte",
+                "clinic_phone": "3102223344",
+                "pickup_address": "Calle 1",
+                "patient": {"name": "Toby", "species": "canino", "breed": "criollo", "sex": "macho", "age": "5 anos", "owner_name": "Maria Lopez"},
+                "exam_type": "Hemograma",
+                "observations": "muestra refrigerada",
+                "payment_method": "contraentrega",
+            }
+        },
+    }]
+
+    service_orders = _build_service_order_rows(requests_rows, events)
+    op = _build_operation_center(requests_rows, [], [], {"motorizados_alerts": []}, service_orders)
+
+    assert service_orders[0]["requesting_doctor"] == "Dr. Luis Mora"
+    assert service_orders[0]["patient_name"] == "Toby"
+    assert op["route_rows"][0]["service_order"]["exam_type"] == "Hemograma"
+    assert "Toby" in op["route_rows"][0]["order_summary"]
+
+
+def test_samples_page_renders_service_order_sheet(monkeypatch):
+    monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_USER", "admin")
+    monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_PASSWORD", "secret")
+    service_order = {
+        "request_id": "req-os-1",
+        "service_order_date": "2026-05-24",
+        "requesting_doctor": "Dr. Luis Mora",
+        "clinic_name": "Clinica Norte",
+        "clinic_phone": "3102223344",
+        "pickup_address": "Calle 1",
+        "patient_name": "Toby",
+        "species": "canino",
+        "breed": "criollo",
+        "sex": "macho",
+        "patient_age": "5 anos",
+        "owner_name": "Maria Lopez",
+        "exam_type": "Hemograma",
+        "observations": "muestra refrigerada",
+        "payment_method": "contraentrega",
+        "status_label": "Asignada",
+        "courier_name": "Diego",
+        "scheduled_pickup_date": "2026-05-24",
+    }
+    context = {
+        "summary": {},
+        "request_status": {},
+        "requests": [],
+        "messages": [],
+        "samples": [],
+        "clients_rows": [],
+        "profile_catalog_rows": [],
+        "profile_analysis_rows": [],
+        "profile_builder_items": [],
+        "profile_categories": [],
+        "profile_species": [],
+        "sample_requirements": [],
+        "sample_process_lanes": [],
+        "service_order_rows": [service_order],
+    }
+
+    with patch("app.dashboard.build_dashboard_context", return_value=context):
+        client = _get_test_client()
+        client.post("/login", data={"username": "admin", "password": "secret"})
+        response = client.get("/muestras")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "Ordenes de servicio agendadas" in body
+    assert "Orden de Servicio" in body
+    assert "Dr. Luis Mora" in body
+    assert "Toby" in body
+    assert "Hemograma" in body
+    assert "muestra refrigerada" in body
+
+
+def test_service_order_print_page_renders_pdf_ready_form(monkeypatch):
+    monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_USER", "admin")
+    monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_PASSWORD", "secret")
+    context = {
+        "service_order_rows": [{
+            "request_id": "req-os-1",
+            "service_order_date": "2026-05-24",
+            "requesting_doctor": "Dr. Luis Mora",
+            "clinic_name": "Clinica Norte",
+            "clinic_phone": "3102223344",
+            "pickup_address": "Calle 1",
+            "patient_name": "Toby",
+            "species": "canino",
+            "breed": "criollo",
+            "sex": "macho",
+            "patient_age": "5 anos",
+            "owner_name": "Maria Lopez",
+            "exam_type": "Hemograma",
+            "observations": "muestra refrigerada",
+            "payment_method": "contraentrega",
+            "status_label": "Asignada",
+            "courier_name": "Diego",
+            "scheduled_pickup_date": "2026-05-24",
+        }],
+    }
+
+    with patch("app.dashboard.build_dashboard_context", return_value=context):
+        client = _get_test_client()
+        client.post("/login", data={"username": "admin", "password": "secret"})
+        response = client.get("/ordenes-servicio/req-os-1/imprimir")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert "Orden de Servicio" in body
+    assert "Dr. Luis Mora" in body
+    assert "Toby" in body
+    assert "Hemograma" in body
+    assert "window.print" in body
+
+
 def test_dashboard_keeps_legacy_sections_connected(monkeypatch):
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_USER", "admin")
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_PASSWORD", "secret")

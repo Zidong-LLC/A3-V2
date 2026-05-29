@@ -125,10 +125,12 @@ any → cancelled
 ### Programación de ruta (happy path)
 1. Usuario: "necesito un retiro"
 2. Agent identifica `route_scheduling`, fase `collecting`
-3. Recolecta: `clinic_name/tax_id` → `exam_type` → `pickup_address`
-4. Fase `confirming`: muestra resumen, pide confirmación
-5. Fase `done`: crea registro en `requests`, asigna motorizado de `client_courier_assignment`
-6. Informa fecha/franja al usuario
+3. Identifica veterinaria por `clinic_name` o `tax_id`
+4. Confirma `pickup_address`
+5. Genera la orden de servicio conversacional, un dato por turno
+6. Pregunta forma de pago
+7. Fase `done`: crea registro en `requests`, registra `service_order` en `request_events` y asigna motorizado de `client_courier_assignment`
+8. Muestra resumen final y confirma disponibilidad del bot para nuevas consultas
 
 ### Consulta de resultados
 1. Usuario da referencia o nombre de paciente
@@ -187,3 +189,4 @@ Ver [decisions/](decisions/) para el registro completo.
 - [001 — Selección de stack](decisions/001-stack-selection.md)
 - [002 — Forma de pago dentro del flujo conversacional](decisions/002-payment-method-in-flow.md)
 - [003 — API interna para integración de plataforma](decisions/003-platform-integration-api.md)
+- [005 — Orden de servicio dentro del flujo conversacional](decisions/005-service-order-conversation-flow.md)

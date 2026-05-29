@@ -37,8 +37,13 @@ def _make_ai_response(phase, intent, requires_handoff=False, handoff_area=None, 
             "exam_type": "hemograma",
             "patient_name": None,
             "species": None,
-            "patient_age": None,
-            "owner_name": None,
+            "requesting_doctor": "Dra. Ana Gomez",
+            "clinic_phone": "3001234567",
+            "patient_age": "5 años",
+            "owner_name": "Carlos Perez",
+            "breed": "criollo",
+            "sex": "macho",
+            "observations": "sin observaciones",
             "payment_method": None,
             "selected_tests": None,
             "removed_tests": None,
@@ -71,6 +76,7 @@ def test_request_assigned_when_courier_exists():
          patch("app.services.db.get_catalog_context", return_value=""), \
          patch("app.services.ai.generate_turn", return_value=ai_resp), \
          patch("app.services.db.identify_client", return_value=None), \
+         patch("app.services.db.find_client_matches", return_value=[]), \
          patch("app.services.db.save_message"), \
          patch("app.services.db.update_session"), \
          patch("app.services.db.get_courier_for_client", return_value=courier) as mock_courier, \
@@ -296,7 +302,7 @@ def test_terminal_farewell_skips_ai_and_returns_farewell():
 def test_terminal_message_with_new_query_does_not_trigger_farewell():
     session = _make_session(phase="fase_7_escalado", intent="new_client", client_id="client-uuid-7")
     ai_resp = _make_ai_response("fase_7_escalado", "new_client", requires_handoff=True, handoff_area="operaciones")
-    ai_resp["reply"] = "Claro, podés hacer otra consulta. Contame qué perfil te interesa."
+    ai_resp["reply"] = "Claro, puedes hacer otra consulta. Cuéntame qué perfil te interesa."
 
     with patch("app.services.db.get_or_create_session", return_value=session), \
          patch("app.services.db.get_recent_messages", return_value=_HISTORY_WITH_CONTEXT), \
@@ -403,7 +409,7 @@ def test_new_route_after_closed_order_does_not_ask_for_identification_again():
         },
     )
     ai_resp = _make_ai_response("fase_2_recogida_datos", "route_scheduling")
-    ai_resp["reply"] = "¿Me indicás el NIT o el nombre de la veterinaria para ver si está registrada?"
+    ai_resp["reply"] = "¿Me compartes el NIT o el nombre de la veterinaria o médico veterinario para ver si está registrado?"
     ai_resp["captured_fields"].update({
         "clinic_name": "Clínica Test",
         "tax_id": None,
@@ -416,7 +422,7 @@ def test_new_route_after_closed_order_does_not_ask_for_identification_again():
 
     with patch("app.services.db.get_or_create_session", return_value=session), \
          patch("app.services.db.get_recent_messages", return_value=_HISTORY_WITH_CONTEXT), \
-         patch("app.services.ai.generate_turn", return_value=ai_resp), \
+         patch("app.services.ai.generate_turn", return_value=ai_resp) as mock_ai, \
          patch("app.services.db.save_message"), \
          patch("app.services.db.update_session") as mock_update, \
          patch("app.services.db.create_request") as mock_create:
@@ -426,7 +432,9 @@ def test_new_route_after_closed_order_does_not_ask_for_identification_again():
 
         assert "nit" not in reply.lower()
         assert "veterinaria" not in reply.lower()
-        assert "dirección" in reply.lower() or "direccion" in reply.lower() or "análisis" in reply.lower() or "analisis" in reply.lower()
+        assert "orden de servicio" in reply.lower()
+        assert "solicitante" in reply.lower()
+        mock_ai.assert_not_called()
         update_payload = mock_update.call_args[0][1]
         assert update_payload["captured_fields"].get("_client_found") is True
         mock_create.assert_not_called()
@@ -478,6 +486,7 @@ def test_cancellation_message_mode_does_not_create_request():
          patch("app.services.db.get_catalog_context", return_value=""), \
          patch("app.services.ai.generate_turn", return_value=ai_resp), \
          patch("app.services.db.identify_client", return_value=None), \
+         patch("app.services.db.find_client_matches", return_value=[]), \
          patch("app.services.db.save_message"), \
          patch("app.services.db.update_session"), \
          patch("app.services.db.create_request") as mock_create:
@@ -521,6 +530,7 @@ def test_terminal_cancellation_does_not_create_route_request():
          patch("app.services.db.get_catalog_context", return_value=""), \
          patch("app.services.ai.generate_turn", return_value=ai_resp), \
          patch("app.services.db.identify_client", return_value=None), \
+         patch("app.services.db.find_client_matches", return_value=[]), \
          patch("app.services.db.get_courier_for_client", return_value=None), \
          patch("app.services.db.save_message"), \
          patch("app.services.db.update_session") as mock_update, \
@@ -539,9 +549,9 @@ def test_terminal_cancellation_does_not_create_route_request():
 def test_user_repeats_without_data_gets_concrete_options():
     history = [
         {"role": "user", "content": "Necesito una ruta"},
-        {"role": "bot", "content": "¿Me indicás el NIT o nombre de la veterinaria?"},
+        {"role": "bot", "content": "¿Me compartes el NIT o nombre de la veterinaria?"},
         {"role": "user", "content": "No se"},
-        {"role": "bot", "content": "¿Me indicás el NIT o nombre de la veterinaria?"},
+        {"role": "bot", "content": "¿Me compartes el NIT o nombre de la veterinaria?"},
     ]
     session = _make_session(phase="fase_2_recogida_datos", intent="route_scheduling")
     ai_resp = _make_ai_response("fase_2_recogida_datos", "route_scheduling")
@@ -570,7 +580,7 @@ def test_user_repeats_without_data_gets_concrete_options():
 
 
 def test_repeated_identification_question_is_rephrased_with_options():
-    repeated_question = "¿Me indicás el NIT o el nombre de la veterinaria para ver si está registrada?"
+    repeated_question = "¿Me compartes el NIT o el nombre de la veterinaria o médico veterinario para ver si está registrado?"
     history = [
         {"role": "user", "content": "Necesito una ruta"},
         {"role": "bot", "content": repeated_question},
@@ -586,6 +596,8 @@ def test_repeated_identification_question_is_rephrased_with_options():
          patch("app.services.db.get_catalog_context", return_value=""), \
          patch("app.services.ai.generate_turn", return_value=ai_resp), \
          patch("app.services.db.identify_client", return_value=None), \
+         patch("app.services.db.find_client_matches", return_value=[]), \
+         patch("app.services.db.get_courier_for_client", return_value=None), \
          patch("app.services.db.save_message"), \
          patch("app.services.db.update_session") as mock_update, \
          patch("app.services.db.create_request") as mock_create:
@@ -778,6 +790,7 @@ def test_second_unmatched_lookup_does_not_escalate_without_new_client_confirmati
          patch("app.services.db.get_catalog_context", return_value=""), \
          patch("app.services.ai.generate_turn", return_value=ai_resp), \
          patch("app.services.db.identify_client", return_value=None), \
+         patch("app.services.db.get_courier_for_client", return_value=None), \
          patch("app.services.db.save_message"), \
          patch("app.services.db.update_session") as mock_update, \
          patch("app.services.db.create_request") as mock_create:
@@ -877,6 +890,7 @@ def test_retry_after_poisoned_client_not_found_uses_new_identifier(user_message,
          patch("app.services.db.get_recent_messages", return_value=_HISTORY_WITH_CONTEXT), \
          patch("app.services.ai.generate_turn", return_value=ai_resp), \
          patch("app.services.db.identify_client", return_value=client) as mock_identify, \
+         patch("app.services.db.find_client_matches", return_value=[client]) as mock_matches, \
          patch("app.services.db.link_client_to_session") as mock_link, \
          patch("app.services.db.save_message"), \
          patch("app.services.db.update_session") as mock_update, \
@@ -887,7 +901,12 @@ def test_retry_after_poisoned_client_not_found_uses_new_identifier(user_message,
 
         assert "Canes y Cia" in reply
         assert "Calle 12 # 34-56" in reply
-        mock_identify.assert_called_once_with(name=expected_name, tax_id=expected_tax_id)
+        if expected_tax_id:
+            mock_identify.assert_called_once_with(name=None, tax_id=expected_tax_id)
+            mock_matches.assert_not_called()
+        else:
+            mock_matches.assert_called_once_with(expected_name, limit=6)
+            mock_identify.assert_not_called()
         mock_link.assert_called_once_with("test-chat-poisoned-client", "client-retry-identifier")
         update_payload = mock_update.call_args[0][1]
         assert update_payload["captured_fields"].get("_client_found") is True
@@ -913,7 +932,8 @@ def test_approximate_clinic_name_can_identify_client_when_user_lacks_nit():
          patch("app.services.db.get_recent_messages", return_value=_HISTORY_WITH_CONTEXT), \
          patch("app.services.db.get_catalog_context", return_value=""), \
          patch("app.services.ai.generate_turn", return_value=ai_resp), \
-         patch("app.services.db.identify_client", return_value=client) as mock_identify, \
+         patch("app.services.db.find_client_matches", return_value=[client]) as mock_matches, \
+         patch("app.services.db.identify_client", return_value=None) as mock_identify, \
          patch("app.services.db.link_client_to_session"), \
          patch("app.services.db.save_message"), \
          patch("app.services.db.update_session") as mock_update, \
@@ -924,10 +944,224 @@ def test_approximate_clinic_name_can_identify_client_when_user_lacks_nit():
 
         assert "Centro Veterinario Agromascotas SAS" in reply
         assert "Calle 80 # 12-34" in reply
-        mock_identify.assert_called_once_with(name="Agromascotas", tax_id=None)
+        mock_matches.assert_called_once_with("Agromascotas", limit=6)
+        mock_identify.assert_not_called()
         update_payload = mock_update.call_args[0][1]
         assert update_payload["captured_fields"]["clinic_name"] == "Agromascotas"
         assert update_payload["captured_fields"].get("_client_display_name") == "Centro Veterinario Agromascotas SAS"
+        mock_create.assert_not_called()
+
+
+def test_short_partial_clinic_name_prompts_for_match_selection():
+    session = _make_session(phase="fase_2_recogida_datos", intent="route_scheduling")
+    ai_resp = _make_ai_response("fase_2_recogida_datos", "route_scheduling")
+    ai_resp["captured_fields"].update({
+        "clinic_name": "dog",
+        "tax_id": None,
+        "pickup_address": None,
+    })
+    matches = [
+        {"id": "client-dog-1", "clinic_name": "Dog Center", "address": "Calle 1", "tax_id": "1"},
+        {"id": "client-dog-2", "clinic_name": "Dog Life", "address": "Calle 2", "tax_id": "2"},
+    ]
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=_HISTORY_WITH_CONTEXT), \
+         patch("app.services.db.get_catalog_context", return_value=""), \
+         patch("app.services.ai.generate_turn", return_value=ai_resp), \
+         patch("app.services.db.find_client_matches", return_value=matches), \
+         patch("app.services.db.identify_client", return_value=None) as mock_identify, \
+         patch("app.services.db.link_client_to_session") as mock_link, \
+         patch("app.services.db.save_message"), \
+         patch("app.services.db.update_session") as mock_update, \
+         patch("app.services.db.create_request") as mock_create:
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-dog", "dog")
+
+        assert "Dog Center" in reply
+        assert "Dog Life" in reply
+        assert "Cuál es el correcto" in reply
+        options = mock_update.call_args[0][1]["captured_fields"].get("_client_match_options")
+        assert [option["clinic_name"] for option in options] == ["Dog Center", "Dog Life"]
+        mock_identify.assert_not_called()
+        mock_link.assert_not_called()
+        mock_create.assert_not_called()
+
+
+def test_ambiguous_full_client_name_prompts_for_match_selection():
+    session = _make_session(phase="fase_2_recogida_datos", intent="route_scheduling")
+    ai_resp = _make_ai_response("fase_2_recogida_datos", "route_scheduling")
+    ai_resp["captured_fields"].update({
+        "clinic_name": "Puppy Export",
+        "tax_id": None,
+        "pickup_address": None,
+    })
+    matches = [
+        {"id": "puppy-1", "clinic_name": "Puppy Export Cedritos", "address": "Calle 1", "tax_id": "1"},
+        {"id": "puppy-2", "clinic_name": "Puppy Export Chico", "address": "Calle 2", "tax_id": "2"},
+    ]
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=_HISTORY_WITH_CONTEXT), \
+         patch("app.services.db.get_catalog_context", return_value=""), \
+         patch("app.services.ai.generate_turn", return_value=ai_resp), \
+         patch("app.services.db.find_client_matches", return_value=matches), \
+         patch("app.services.db.identify_client", return_value=None) as mock_identify, \
+         patch("app.services.db.link_client_to_session") as mock_link, \
+         patch("app.services.db.save_message"), \
+         patch("app.services.db.update_session") as mock_update, \
+         patch("app.services.db.create_request") as mock_create:
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-puppy", "Puppy Export")
+
+        assert "Puppy Export Cedritos" in reply
+        assert "Puppy Export Chico" in reply
+        assert "Cuál es el correcto" in reply
+        assert "teléfono registrado" not in reply.lower()
+        options = mock_update.call_args[0][1]["captured_fields"].get("_client_match_options")
+        assert [option["clinic_name"] for option in options] == ["Puppy Export Cedritos", "Puppy Export Chico"]
+        mock_identify.assert_not_called()
+        mock_link.assert_not_called()
+        mock_create.assert_not_called()
+
+
+def test_too_many_client_matches_asks_for_more_specific_name_or_nit_only():
+    session = _make_session(phase="fase_2_recogida_datos", intent="route_scheduling")
+    ai_resp = _make_ai_response("fase_2_recogida_datos", "route_scheduling")
+    ai_resp["captured_fields"].update({
+        "clinic_name": "mascotas",
+        "tax_id": None,
+        "pickup_address": None,
+    })
+    matches = [
+        {"id": f"client-{idx}", "clinic_name": f"Mascotas {idx}", "address": f"Calle {idx}", "tax_id": str(idx)}
+        for idx in range(1, 7)
+    ]
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=_HISTORY_WITH_CONTEXT), \
+         patch("app.services.db.get_catalog_context", return_value=""), \
+         patch("app.services.ai.generate_turn", return_value=ai_resp), \
+         patch("app.services.db.find_client_matches", return_value=matches), \
+         patch("app.services.db.identify_client", return_value=None) as mock_identify, \
+         patch("app.services.db.link_client_to_session") as mock_link, \
+         patch("app.services.db.save_message"), \
+         patch("app.services.db.update_session") as mock_update, \
+         patch("app.services.db.create_request") as mock_create:
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-many", "mascotas")
+
+        assert "demasiadas coincidencias" in reply.lower()
+        assert "palabra más específica" in reply.lower()
+        assert "NIT" in reply
+        assert "teléfono" not in reply.lower()
+        fields = mock_update.call_args[0][1]["captured_fields"]
+        assert fields.get("_client_match_options") is None
+        mock_identify.assert_not_called()
+        mock_link.assert_not_called()
+        mock_create.assert_not_called()
+
+
+def test_client_match_selection_links_selected_client():
+    matches = [
+        {"id": "client-dog-1", "clinic_name": "Dog Center", "address": "Calle 1", "tax_id": "1"},
+        {"id": "client-dog-2", "clinic_name": "Dog Life", "address": "Calle 2", "tax_id": "2"},
+    ]
+    session = _make_session(
+        phase="fase_2_recogida_datos",
+        intent="route_scheduling",
+        captured={"_client_match_query": "dog", "_client_match_options": matches},
+    )
+    ai_resp = _make_ai_response("fase_2_recogida_datos", "route_scheduling")
+    ai_resp["captured_fields"].update({"clinic_name": None, "tax_id": None, "pickup_address": None})
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=_HISTORY_WITH_CONTEXT), \
+         patch("app.services.db.get_catalog_context", return_value=""), \
+         patch("app.services.ai.generate_turn", return_value=ai_resp), \
+         patch("app.services.db.link_client_to_session") as mock_link, \
+         patch("app.services.db.save_message"), \
+         patch("app.services.db.update_session") as mock_update, \
+         patch("app.services.db.create_request") as mock_create:
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-dog", "2")
+
+        assert "Dog Life" in reply
+        assert "Calle 2" in reply
+        mock_link.assert_called_once_with("test-chat-dog", "client-dog-2")
+        update_payload = mock_update.call_args[0][1]
+        assert update_payload["captured_fields"].get("_client_found") is True
+        assert update_payload["captured_fields"].get("_client_match_options") is None
+        mock_create.assert_not_called()
+
+
+def test_final_user_cannot_continue_route_without_veterinary_client():
+    session = _make_session(phase="fase_2_recogida_datos", intent="route_scheduling")
+    ai_resp = _make_ai_response("fase_2_recogida_datos", "route_scheduling")
+    ai_resp["reply"] = "¿Qué análisis necesita tu mascota?"
+    ai_resp["captured_fields"].update({
+        "clinic_name": None,
+        "tax_id": None,
+        "exam_type": "hemograma",
+        "patient_name": "Toby",
+    })
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=_HISTORY_WITH_CONTEXT), \
+         patch("app.services.db.get_catalog_context", return_value=""), \
+         patch("app.services.ai.generate_turn", return_value=ai_resp), \
+         patch("app.services.db.identify_client", return_value=None) as mock_identify, \
+         patch("app.services.db.save_message"), \
+         patch("app.services.db.update_session") as mock_update, \
+         patch("app.services.db.create_request") as mock_create:
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-final-user", "Soy dueño de mascota y necesito un examen para mi perro")
+
+        assert "clínicas" in reply.lower()
+        assert "profesionales veterinarios" in reply.lower()
+        assert "a través de tu veterinaria" in reply.lower()
+        update_payload = mock_update.call_args[0][1]
+        assert update_payload["intent"] == "unknown"
+        assert update_payload["captured_fields"].get("clinic_name") is None
+        mock_identify.assert_not_called()
+        mock_create.assert_not_called()
+
+
+def test_route_without_client_data_is_forced_back_to_identification():
+    history = [
+        {"role": "user", "content": "Necesito una ruta"},
+        {"role": "bot", "content": "¿Me compartes el NIT o el nombre de la veterinaria?"},
+        {"role": "user", "content": "Después te lo paso"},
+        {"role": "bot", "content": "¿Me compartes el NIT o el nombre de la veterinaria?"},
+    ]
+    session = _make_session(phase="fase_2_recogida_datos", intent="route_scheduling")
+    ai_resp = _make_ai_response("fase_2_recogida_datos", "route_scheduling")
+    ai_resp["reply"] = "Listo. ¿Cuál es el nombre del paciente?"
+    ai_resp["captured_fields"].update({"clinic_name": None, "tax_id": None})
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=history), \
+         patch("app.services.db.get_catalog_context", return_value=""), \
+         patch("app.services.ai.generate_turn", return_value=ai_resp), \
+         patch("app.services.db.identify_client", return_value=None) as mock_identify, \
+         patch("app.services.db.save_message"), \
+         patch("app.services.db.update_session") as mock_update, \
+         patch("app.services.db.create_request") as mock_create:
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-no-client", "El paciente se llama Toby")
+
+        assert "NIT" in reply
+        assert "nombre exacto de la veterinaria" in reply
+        assert "1)" in reply
+        assert "2)" in reply
+        assert mock_update.call_args[0][1]["phase"] == "fase_2_recogida_datos"
+        mock_identify.assert_not_called()
         mock_create.assert_not_called()
 
 
@@ -953,6 +1187,7 @@ def test_user_denies_new_client_keeps_identification_open():
          patch("app.services.db.get_catalog_context", return_value=""), \
          patch("app.services.ai.generate_turn", return_value=ai_resp), \
          patch("app.services.db.identify_client", return_value=None), \
+         patch("app.services.db.find_client_matches", return_value=[]), \
          patch("app.services.db.save_message"), \
          patch("app.services.db.update_session") as mock_update, \
          patch("app.services.db.create_request") as mock_create:
@@ -1036,6 +1271,87 @@ def test_route_closure_requires_payment_question_before_finish():
         assert update_payload["phase"] == "fase_2_recogida_datos"
         assert update_payload["captured_fields"].get("payment_method") is None
         mock_create.assert_not_called()
+
+
+def test_route_closure_requires_service_order_pdf_fields_before_payment():
+    session = _make_session(phase="fase_2_recogida_datos", intent="route_scheduling", client_id="client-order-form")
+    ai_resp = _make_ai_response("fase_6_cierre", "route_scheduling")
+    ai_resp["captured_fields"].update({
+        "clinic_name": "Clínica Test",
+        "pickup_address": "Calle 1",
+        "exam_type": "hemograma",
+        "patient_name": "Toby",
+        "species": "canino",
+        "requesting_doctor": None,
+        "clinic_phone": "3001234567",
+        "patient_age": "5 años",
+        "owner_name": "Carlos Perez",
+        "breed": "criollo",
+        "sex": "macho",
+        "observations": "sin observaciones",
+        "payment_method": "contraentrega",
+    })
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=_HISTORY_WITH_CONTEXT), \
+         patch("app.services.db.get_catalog_context", return_value=""), \
+         patch("app.services.ai.generate_turn", return_value=ai_resp), \
+         patch("app.services.db.identify_client", return_value=None), \
+         patch("app.services.db.get_courier_for_client", return_value=None), \
+         patch("app.services.db.save_message"), \
+         patch("app.services.db.update_session") as mock_update, \
+         patch("app.services.db.create_request") as mock_create:
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-order-form", "Listo, cerrémosla")
+
+        assert "médico" in reply.lower() or "medico" in reply.lower()
+        update_payload = mock_update.call_args[0][1]
+        assert update_payload["phase"] == "fase_2_recogida_datos"
+        assert update_payload["captured_fields"].get("requesting_doctor") is None
+        mock_create.assert_not_called()
+
+
+def test_route_closure_summary_includes_service_order_pdf_fields():
+    session = _make_session(phase="fase_2_recogida_datos", intent="route_scheduling", client_id="client-order-summary")
+    ai_resp = _make_ai_response("fase_6_cierre", "route_scheduling")
+    ai_resp["captured_fields"].update({
+        "clinic_name": "Clínica Test",
+        "pickup_address": "Calle 1",
+        "exam_type": "hemograma",
+        "patient_name": "Toby",
+        "species": "canino",
+        "requesting_doctor": "Dr. Luis Mora",
+        "clinic_phone": "3102223344",
+        "patient_age": "7 años",
+        "owner_name": "Maria Lopez",
+        "breed": "labrador",
+        "sex": "macho",
+        "observations": "muestra refrigerada",
+        "payment_method": "contraentrega",
+    })
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=_HISTORY_WITH_CONTEXT), \
+         patch("app.services.db.get_catalog_context", return_value=""), \
+         patch("app.services.ai.generate_turn", return_value=ai_resp), \
+         patch("app.services.db.identify_client", return_value=None), \
+         patch("app.services.db.get_courier_for_client", return_value=None), \
+         patch("app.services.db.save_message"), \
+         patch("app.services.db.update_session"), \
+         patch("app.services.db.create_request", return_value="req-order-summary") as mock_create:
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-order-summary", "Pago contraentrega")
+
+        assert "Dr. Luis Mora" in reply
+        assert "3102223344" in reply
+        assert "labrador" in reply
+        assert "macho" in reply
+        assert "7 años" in reply
+        assert "Maria Lopez" in reply
+        assert "muestra refrigerada" in reply
+        mock_create.assert_called_once()
 
 
 def test_route_with_contado_sets_accounting_handoff_and_creates_request():
@@ -1240,7 +1556,7 @@ def test_payment_correction_to_contraentrega_avoids_accounting_handoff():
 
 
 def test_repeated_analysis_question_is_rephrased_with_catalog_option():
-    repeated_question = "¿Qué tipo de análisis o perfil necesitás?"
+    repeated_question = "¿Qué tipo de análisis o perfil necesitas?"
     history = [
         {"role": "user", "content": "Necesito una ruta"},
         {"role": "bot", "content": repeated_question},
@@ -1586,6 +1902,7 @@ def test_route_cannot_close_without_real_session_client_id():
          patch("app.services.db.get_catalog_context", return_value=""), \
          patch("app.services.ai.generate_turn", return_value=ai_resp), \
          patch("app.services.db.identify_client", return_value=None), \
+         patch("app.services.db.find_client_matches", return_value=[]), \
          patch("app.services.db.get_courier_for_client", return_value=None), \
          patch("app.services.db.save_message"), \
          patch("app.services.db.update_session") as mock_update, \
@@ -1594,10 +1911,234 @@ def test_route_cannot_close_without_real_session_client_id():
         from app.agent import process_turn
         reply = process_turn("test-chat-no-real-client", "Listo")
 
-        assert "nit" in reply.lower() or "veterinaria" in reply.lower()
+        assert "cliente registrado" in reply.lower()
+        assert "cliente nuevo" in reply.lower()
         update_payload = mock_update.call_args[0][1]
         assert update_payload["phase"] == "fase_2_recogida_datos"
         mock_create.assert_not_called()
+
+
+def test_failed_client_lookup_clears_stale_session_client_before_route_data():
+    session = _make_session(
+        phase="fase_7_escalado",
+        intent="new_client",
+        client_id="stale-client-id",
+        captured={
+            "clinic_name": "Cliente No Encontrado",
+            "_asked_if_new_client": True,
+            "_client_not_found": True,
+        },
+    )
+    ai_resp = _make_ai_response("fase_2_recogida_datos", "route_scheduling")
+    ai_resp["reply"] = "Para avanzar, dime el teléfono de contacto para esta orden."
+    ai_resp["captured_fields"].update({
+        "clinic_name": None,
+        "tax_id": None,
+        "clinic_phone": None,
+        "pickup_address": None,
+    })
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=_HISTORY_WITH_CONTEXT), \
+         patch("app.services.db.get_catalog_context", return_value=""), \
+         patch("app.services.ai.generate_turn", return_value=ai_resp), \
+         patch("app.services.db.clear_client_from_session") as mock_clear, \
+         patch("app.services.db.get_client_by_id") as mock_get_client, \
+         patch("app.services.db.identify_client", return_value=None), \
+         patch("app.services.db.find_client_matches", return_value=[]), \
+         patch("app.services.db.save_message"), \
+         patch("app.services.db.update_session") as mock_update, \
+         patch("app.services.db.create_request") as mock_create:
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-stale-client", "Quiero hacer una orden de servicio")
+
+        assert "teléfono de contacto" not in reply.lower()
+        assert "NIT" in reply
+        assert "nombre" in reply.lower()
+        mock_clear.assert_called_once_with("test-chat-stale-client")
+        mock_get_client.assert_not_called()
+        update_payload = mock_update.call_args[0][1]
+        assert update_payload["phase"] == "fase_2_recogida_datos"
+        assert update_payload["captured_fields"].get("_client_found") is not True
+        mock_create.assert_not_called()
+
+
+def test_unknown_client_followup_text_is_not_treated_as_client_name():
+    session = _make_session(
+        phase="fase_2_recogida_datos",
+        intent="route_scheduling",
+        captured={
+            "clinic_name": "Veterinaria Fantasma",
+            "_asked_if_new_client": True,
+            "_client_not_found": True,
+        },
+    )
+    ai_resp = _make_ai_response("fase_2_recogida_datos", "route_scheduling")
+    ai_resp["reply"] = "Para avanzar, dime el teléfono de contacto para esta orden."
+    ai_resp["captured_fields"].update({
+        "clinic_name": "Quiero hacer una orden de servicio",
+        "tax_id": None,
+        "clinic_phone": None,
+    })
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=_HISTORY_WITH_CONTEXT), \
+         patch("app.services.db.get_catalog_context", return_value=""), \
+         patch("app.services.ai.generate_turn", return_value=ai_resp), \
+         patch("app.services.db.identify_client", return_value=None) as mock_identify, \
+         patch("app.services.db.find_client_matches", return_value=[]) as mock_matches, \
+         patch("app.services.db.save_message"), \
+         patch("app.services.db.update_session") as mock_update, \
+         patch("app.services.db.create_request") as mock_create:
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-unknown-followup", "Quiero hacer una orden de servicio")
+
+        assert "teléfono de contacto" not in reply.lower()
+        assert "NIT" in reply
+        assert "nombre exacto" in reply
+        fields = mock_update.call_args[0][1]["captured_fields"]
+        assert fields.get("clinic_name") is None
+        mock_identify.assert_not_called()
+        mock_matches.assert_not_called()
+        mock_create.assert_not_called()
+
+
+def test_unknown_client_unregistered_claim_escalates_without_new_lookup():
+    session = _make_session(
+        phase="fase_2_recogida_datos",
+        intent="route_scheduling",
+        captured={
+            "clinic_name": "Veterinaria Fantasma",
+            "_asked_if_new_client": True,
+            "_client_not_found": True,
+        },
+    )
+    ai_resp = _make_ai_response("fase_2_recogida_datos", "route_scheduling")
+    ai_resp["captured_fields"].update({"clinic_name": None, "tax_id": None})
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=_HISTORY_WITH_CONTEXT), \
+         patch("app.services.db.get_catalog_context", return_value=""), \
+         patch("app.services.ai.generate_turn", return_value=ai_resp), \
+         patch("app.services.db.identify_client", return_value=None) as mock_identify, \
+         patch("app.services.db.find_client_matches", return_value=[]) as mock_matches, \
+         patch("app.services.db.save_message"), \
+         patch("app.services.db.update_session") as mock_update, \
+         patch("app.services.db.create_request", return_value="req-new-client") as mock_create:
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-unregistered", "No estoy registrado")
+
+        assert "cliente registrado" in reply.lower()
+        update_payload = mock_update.call_args[0][1]
+        assert update_payload["phase"] == "fase_7_escalado"
+        assert update_payload["intent"] == "new_client"
+        assert update_payload["requires_handoff"] is True
+        mock_identify.assert_not_called()
+        mock_matches.assert_not_called()
+        mock_create.assert_called_once()
+
+
+def test_landline_contact_phone_advances_after_phone_question():
+    session = _make_session(
+        phase="fase_2_recogida_datos",
+        intent="route_scheduling",
+        client_id="client-phone-order",
+        captured={
+            "clinic_name": "Clínica Test",
+            "pickup_address": "Calle 1",
+            "requesting_doctor": "Dra. Ana",
+            "clinic_phone": None,
+            "exam_type": "hemograma",
+            "patient_name": "Toby",
+            "species": "canino",
+            "breed": "criollo",
+            "sex": "macho",
+            "patient_age": "5 años",
+            "owner_name": "Carlos",
+            "observations": "sin observaciones",
+            "payment_method": None,
+            "_client_found": True,
+        },
+    )
+    history = [
+        {"role": "user", "content": "Dra. Ana"},
+        {"role": "bot", "content": "¿Cuál es el teléfono de contacto para esta orden?"},
+    ]
+    ai_resp = _make_ai_response("fase_2_recogida_datos", "route_scheduling")
+    ai_resp["reply"] = "Para avanzar, dime el teléfono de contacto para esta orden."
+    ai_resp["captured_fields"].update(session["captured_fields"])
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=history), \
+         patch("app.services.db.get_catalog_context", return_value=""), \
+         patch("app.services.ai.generate_turn", return_value=ai_resp), \
+         patch("app.services.db.save_message"), \
+         patch("app.services.db.update_session") as mock_update, \
+         patch("app.services.db.create_request") as mock_create:
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-phone-order", "2237748535")
+
+        assert "contado" in reply.lower()
+        assert "contraentrega" in reply.lower()
+        fields = mock_update.call_args[0][1]["captured_fields"]
+        assert fields["clinic_phone"] == "2237748535"
+        mock_create.assert_not_called()
+
+
+def test_phone_correction_uses_latest_value_in_route_summary():
+    session = _make_session(
+        phase="fase_2_recogida_datos",
+        intent="route_scheduling",
+        client_id="client-phone-correction-summary",
+        captured={
+            "clinic_name": "Bioanimal Vet",
+            "pickup_address": "CL 37 SUR 52-06 ESQUINA",
+            "requesting_doctor": "Juan Carlos",
+            "clinic_phone": "2277777",
+            "exam_type": "153-Perfil Prequirúrgico II",
+            "patient_name": "Luciano",
+            "species": "Felino",
+            "breed": "Siamés",
+            "sex": "Hembra",
+            "patient_age": "28 años",
+            "owner_name": "Anahí",
+            "observations": "sin observaciones",
+            "payment_method": "contraentrega",
+            "_client_found": True,
+            "_profile_detail_confirmed": True,
+        },
+    )
+    history = [
+        {"role": "user", "content": "Ya te dije mi nombre"},
+        {"role": "bot", "content": "Gracias. ¿Cuál es el teléfono de contacto para esta orden?"},
+    ]
+    ai_resp = _make_ai_response("fase_6_cierre", "route_scheduling")
+    ai_resp["captured_fields"].update(session["captured_fields"])
+    ai_resp["captured_fields"]["clinic_phone"] = "2277777"
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=history), \
+         patch("app.services.db.get_catalog_context", return_value=""), \
+         patch("app.services.ai.generate_turn", return_value=ai_resp), \
+         patch("app.services.db.identify_client", return_value=None), \
+         patch("app.services.db.get_courier_for_client", return_value=None), \
+         patch("app.services.db.save_message"), \
+         patch("app.services.db.update_session") as mock_update, \
+         patch("app.services.db.create_request", return_value="req-phone-correction") as mock_create:
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-phone-correction-summary", "227273632")
+
+        assert "Teléfono: 227273632" in reply
+        assert "Teléfono: 2277777" not in reply
+        fields = mock_update.call_args[0][1]["captured_fields"]
+        assert fields["clinic_phone"] == "227273632"
+        request_payload = mock_create.call_args[0][2]
+        assert request_payload["captured_fields"]["clinic_phone"] == "227273632"
 
 
 def test_route_with_contraentrega_ignores_spurious_handoff():
@@ -1653,34 +2194,143 @@ def test_second_order_keeps_identified_client_and_resets_order_fields():
             "_client_found": True,
         },
     )
-    ai_resp = _make_ai_response("fase_2_recogida_datos", "route_scheduling")
-    seen_session = {}
-
-    def fake_generate_turn(*args, **kwargs):
-        seen_session.update(kwargs.get("session") if kwargs else args[0])
-        return ai_resp
 
     with patch("app.services.db.get_or_create_session", return_value=session), \
          patch("app.services.db.get_recent_messages", return_value=_HISTORY_WITH_CONTEXT), \
-         patch("app.services.ai.generate_turn", side_effect=fake_generate_turn), \
+         patch("app.services.ai.generate_turn") as mock_ai, \
          patch("app.services.db.identify_client", return_value=None), \
          patch("app.services.db.save_message"), \
-         patch("app.services.db.update_session"), \
+         patch("app.services.db.update_session") as mock_update, \
          patch("app.services.db.create_request") as mock_create:
 
         from app.agent import process_turn
-        process_turn("test-chat-1", "Necesito otra ruta")
+        reply = process_turn("test-chat-1", "Necesito otra ruta")
 
-        assert seen_session["client_id"] == "client-uuid-12"
-        assert seen_session["phase_current"] == "fase_1_clasificacion"
-        assert seen_session["intent_current"] == "unknown"
-        captured = seen_session["captured_fields"]
+        assert "orden de servicio" in reply.lower()
+        assert "solicitante" in reply.lower()
+        mock_ai.assert_not_called()
+        update_payload = mock_update.call_args[0][1]
+        assert update_payload["phase"] == "fase_2_recogida_datos"
+        assert update_payload["intent"] == "route_scheduling"
+        captured = update_payload["captured_fields"]
         assert captured.get("_client_found") is True
+        assert captured.get("pickup_address") == "Calle anterior"
         assert "exam_type" not in captured
         assert "patient_name" not in captured
         assert "payment_method" not in captured
         assert "selected_tests" not in captured
         mock_create.assert_not_called()
+
+
+def test_route_closure_asks_if_client_needs_another_service_order():
+    session = _make_session(phase="fase_2_recogida_datos", intent="route_scheduling", client_id="client-uuid-multi-1")
+    ai_resp = _make_ai_response("fase_6_cierre", "route_scheduling")
+    ai_resp["captured_fields"].update({
+        "clinic_name": "Clínica Test",
+        "pickup_address": "Calle 1",
+        "exam_type": "hemograma",
+        "patient_name": "Toby",
+        "species": "canino",
+        "payment_method": "contraentrega",
+    })
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=_HISTORY_WITH_CONTEXT), \
+         patch("app.services.db.get_catalog_context", return_value=""), \
+         patch("app.services.ai.generate_turn", return_value=ai_resp), \
+         patch("app.services.db.identify_client", return_value=None), \
+         patch("app.services.db.get_courier_for_client", return_value=None), \
+         patch("app.services.db.save_message"), \
+         patch("app.services.db.update_session"), \
+         patch("app.services.db.create_request", return_value="req-multi-1"):
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-multi-1", "Pago contraentrega")
+
+        assert "otra orden de servicio" in reply.lower()
+        assert "otro paciente" in reply.lower() or "otro animal" in reply.lower()
+
+
+def test_affirmative_after_route_closure_starts_new_service_order_without_reidentifying():
+    session = _make_session(
+        phase="fase_6_cierre",
+        intent="route_scheduling",
+        client_id="client-uuid-multi-2",
+        captured={
+            "clinic_name": "Clínica Test",
+            "pickup_address": "Calle 1",
+            "clinic_phone": "3001234567",
+            "exam_type": "hemograma",
+            "patient_name": "Toby",
+            "species": "canino",
+            "requesting_doctor": "Dra. Ana",
+            "patient_age": "5 años",
+            "owner_name": "Carlos",
+            "breed": "criollo",
+            "sex": "macho",
+            "observations": "sin observaciones",
+            "payment_method": "contraentrega",
+            "_client_found": True,
+        },
+    )
+    history = [
+        {"role": "user", "content": "Pago contraentrega"},
+        {"role": "bot", "content": "Quedó registrado. ¿Necesitás crear otra orden de servicio para otro paciente?"},
+    ]
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=history), \
+         patch("app.services.ai.generate_turn") as mock_ai, \
+         patch("app.services.db.save_message"), \
+         patch("app.services.db.update_session") as mock_update, \
+         patch("app.services.db.create_request") as mock_create:
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-multi-2", "Sí")
+
+        assert "otra orden de servicio" in reply.lower()
+        assert "médico solicitante" in reply.lower() or "medico solicitante" in reply.lower()
+        mock_ai.assert_not_called()
+        mock_create.assert_not_called()
+        update_payload = mock_update.call_args[0][1]
+        assert update_payload["phase"] == "fase_2_recogida_datos"
+        assert update_payload["intent"] == "route_scheduling"
+        fields = update_payload["captured_fields"]
+        assert fields["pickup_address"] == "Calle 1"
+        assert fields["clinic_phone"] == "3001234567"
+        assert fields.get("_client_found") is True
+        assert "patient_name" not in fields
+        assert "exam_type" not in fields
+        assert "payment_method" not in fields
+
+
+def test_negative_after_route_closure_closes_without_starting_new_order():
+    session = _make_session(
+        phase="fase_6_cierre",
+        intent="route_scheduling",
+        client_id="client-uuid-multi-3",
+        captured={"clinic_name": "Clínica Test", "pickup_address": "Calle 1", "_client_found": True},
+    )
+    history = [
+        {"role": "user", "content": "Pago contraentrega"},
+        {"role": "bot", "content": "Quedó registrado. ¿Necesitás crear otra orden de servicio para otro paciente?"},
+    ]
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=history), \
+         patch("app.services.ai.generate_turn") as mock_ai, \
+         patch("app.services.db.save_message") as mock_save, \
+         patch("app.services.db.update_session") as mock_update, \
+         patch("app.services.db.create_request") as mock_create:
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-multi-3", "No, gracias")
+
+        assert "hasta luego" in reply.lower() or "acá seguimos" in reply.lower()
+        mock_ai.assert_not_called()
+        mock_update.assert_not_called()
+        mock_create.assert_not_called()
+        assert mock_save.call_count == 2
 
 
 def test_greeting_after_terminal_phase_does_not_restart_identification_flow():
@@ -1699,7 +2349,7 @@ def test_greeting_after_terminal_phase_does_not_restart_identification_flow():
         },
     )
     ai_resp = _make_ai_response("fase_2_recogida_datos", "route_scheduling")
-    ai_resp["reply"] = "¿Me indicás el NIT o el nombre de la veterinaria?"
+    ai_resp["reply"] = "¿Me compartes el NIT o el nombre de la veterinaria?"
 
     with patch("app.services.db.get_or_create_session", return_value=session), \
          patch("app.services.db.get_recent_messages", return_value=_HISTORY_WITH_CONTEXT), \
@@ -1812,6 +2462,196 @@ def test_selected_catalog_profile_returns_detail_before_continuing_flow():
         assert fields["_profile_detail_offered"] is True
         assert fields["_selected_profile_code"] == "501"
         assert fields["_selected_profile_price"] == 34000
+        mock_create.assert_not_called()
+
+
+def test_profile_category_options_are_described_by_included_analyses():
+    session = _make_session(
+        phase="fase_2_recogida_datos",
+        intent="route_scheduling",
+        client_id="client-profile-category",
+        captured={"_client_found": True},
+    )
+    ai_resp = _make_ai_response("fase_2_recogida_datos", "route_scheduling")
+    ai_resp["reply"] = "Perfecto. Para perfil prequirúrgico, ¿cuál opción necesitas: 152, 153 o 154?"
+    ai_resp["captured_fields"].update({
+        "exam_type": "perfil prequirúrgico",
+        "species": "canino",
+    })
+    profiles = [
+        {"code": "152", "name": "Perfil Prequirúrgico I", "category": "Prequirúrgico", "description": "Cuadro Hemático, ALT, Creatinina", "price": 24000},
+        {"code": "153", "name": "Perfil Prequirúrgico II", "category": "Prequirúrgico", "description": "Cuadro Hemático, ALT, Creatinina, Glucosa", "price": 36000},
+        {"code": "154", "name": "Perfil Prequirúrgico III", "category": "Prequirúrgico", "description": "Cuadro Hemático, ALT, Creatinina, BUN/UREA, Parcial Orina", "price": 38000},
+    ]
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=_HISTORY_WITH_CONTEXT), \
+         patch("app.services.db.get_catalog_context", return_value=""), \
+         patch("app.services.ai.generate_turn", return_value=ai_resp), \
+         patch("app.services.db.find_catalog_profiles", return_value=profiles) as mock_profiles, \
+         patch("app.services.db.find_catalog_profile", create=True) as mock_profile, \
+         patch("app.services.db.identify_client", return_value=None), \
+         patch("app.services.db.save_message"), \
+         patch("app.services.db.update_session") as mock_update, \
+         patch("app.services.db.create_request") as mock_create:
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-profile-category", "Necesito perfil prequirúrgico")
+
+        assert "combinaciones por análisis incluidos" in reply
+        assert "152 Perfil Prequirúrgico I: Cuadro Hemático, ALT, Creatinina" in reply
+        assert "153 Perfil Prequirúrgico II: Cuadro Hemático, ALT, Creatinina, Glucosa" in reply
+        assert "No tienes que escoger solo por número" in reply
+        assert "¿cuál opción necesitas" not in reply.lower()
+        fields = mock_update.call_args[0][1]["captured_fields"]
+        assert fields.get("exam_type") is None
+        mock_profiles.assert_called_once()
+        mock_profile.assert_not_called()
+        mock_create.assert_not_called()
+
+
+def test_profile_detail_question_by_code_uses_catalog_description():
+    session = _make_session(
+        phase="fase_2_recogida_datos",
+        intent="route_scheduling",
+        client_id="client-profile-detail-code",
+        captured={"_client_found": True},
+    )
+    history = [
+        {"role": "user", "content": "perfil prequirúrgico"},
+        {"role": "bot", "content": "152-Perfil Prequirúrgico I, 153-Perfil Prequirúrgico II"},
+    ]
+    ai_resp = _make_ai_response("fase_2_recogida_datos", "route_scheduling")
+    ai_resp["reply"] = "No tengo el detalle del 153."
+    ai_resp["captured_fields"].update({"exam_type": None, "species": "canino"})
+    profile = {
+        "code": "153",
+        "name": "Perfil Prequirúrgico II",
+        "category": "Prequirúrgico",
+        "description": "Cuadro Hemático, ALT, Creatinina, Glucosa",
+        "price": 36000,
+    }
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=history), \
+         patch("app.services.db.get_catalog_context", return_value=""), \
+         patch("app.services.ai.generate_turn", return_value=ai_resp), \
+         patch("app.services.db.get_catalog_profiles_by_codes", return_value=[profile]) as mock_by_codes, \
+         patch("app.services.db.identify_client", return_value=None), \
+         patch("app.services.db.save_message"), \
+         patch("app.services.db.update_session") as mock_update, \
+         patch("app.services.db.create_request") as mock_create:
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-profile-detail-code", "Qué incluye el 153")
+
+        assert "Perfil Prequirúrgico II" in reply
+        assert "Cuadro Hemático" in reply
+        assert "Glucosa" in reply
+        assert "No tengo" not in reply
+        fields = mock_update.call_args[0][1]["captured_fields"]
+        assert fields["_selected_profile_code"] == "153"
+        assert fields["_profile_detail_offered"] is True
+        mock_by_codes.assert_called_once_with(["153"], "canino")
+        mock_create.assert_not_called()
+
+
+def test_profile_confirmation_preserves_order_fields_and_asks_patient_next():
+    session = _make_session(
+        phase="fase_2_recogida_datos",
+        intent="route_scheduling",
+        client_id="client-profile-continue",
+        captured={
+            "clinic_name": "Bioanimal Vet",
+            "pickup_address": "CL 37 SUR 52-06 ESQUINA",
+            "requesting_doctor": "Juan Carlos",
+            "clinic_phone": "2277777",
+            "exam_type": "Perfil Prequirúrgico II",
+            "patient_name": None,
+            "species": None,
+            "payment_method": None,
+            "_client_found": True,
+            "_profile_detail_offered": True,
+            "_selected_profile_code": "153",
+            "_selected_profile_name": "Perfil Prequirúrgico II",
+            "_selected_profile_price": 36000,
+            "_selected_profile_description": "Cuadro Hemático, ALT, Creatinina, Glucosa",
+        },
+    )
+    ai_resp = _make_ai_response("fase_2_recogida_datos", "route_scheduling")
+    ai_resp["reply"] = "Listo, entonces dejamos el análisis como 153-Perfil Prequirúrgico II. ¿Cuál es el médico solicitante?"
+    ai_resp["captured_fields"].update({
+        "clinic_name": "Bioanimal Vet",
+        "pickup_address": "CL 37 SUR 52-06 ESQUINA",
+        "requesting_doctor": None,
+        "clinic_phone": None,
+        "exam_type": "Perfil Prequirúrgico II",
+        "patient_name": None,
+        "species": None,
+        "payment_method": None,
+    })
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=_HISTORY_WITH_CONTEXT), \
+         patch("app.services.db.get_catalog_context", return_value=""), \
+         patch("app.services.ai.generate_turn", return_value=ai_resp), \
+         patch("app.services.db.identify_client", return_value=None), \
+         patch("app.services.db.save_message"), \
+         patch("app.services.db.update_session") as mock_update, \
+         patch("app.services.db.create_request") as mock_create:
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-profile-continue", "Sí continuemos")
+
+        assert "médico solicitante" not in reply.lower()
+        assert "teléfono de contacto" not in reply.lower()
+        assert "nombre del paciente" in reply.lower()
+        fields = mock_update.call_args[0][1]["captured_fields"]
+        assert fields["requesting_doctor"] == "Juan Carlos"
+        assert fields["clinic_phone"] == "2277777"
+        assert fields["exam_type"] == "Perfil Prequirúrgico II"
+        assert fields["_profile_detail_confirmed"] is True
+        mock_create.assert_not_called()
+
+
+def test_detail_each_previous_profile_option_uses_previous_catalog_codes():
+    session = _make_session(
+        phase="fase_2_recogida_datos",
+        intent="route_scheduling",
+        client_id="client-profile-detail-list",
+        captured={"_client_found": True},
+    )
+    history = [
+        {"role": "user", "content": "perfil prequirúrgico"},
+        {"role": "bot", "content": "152-Perfil Prequirúrgico I — $24k\n153-Perfil Prequirúrgico II — $36k"},
+    ]
+    ai_resp = _make_ai_response("fase_2_recogida_datos", "route_scheduling")
+    ai_resp["reply"] = "Claro, te detallo cada una."
+    ai_resp["captured_fields"].update({"exam_type": None})
+    profiles = [
+        {"code": "152", "name": "Perfil Prequirúrgico I", "category": "Prequirúrgico", "description": "Cuadro Hemático, ALT, Creatinina", "price": 24000},
+        {"code": "153", "name": "Perfil Prequirúrgico II", "category": "Prequirúrgico", "description": "Cuadro Hemático, ALT, Creatinina, Glucosa", "price": 36000},
+    ]
+
+    with patch("app.services.db.get_or_create_session", return_value=session), \
+         patch("app.services.db.get_recent_messages", return_value=history), \
+         patch("app.services.db.get_catalog_context", return_value=""), \
+         patch("app.services.ai.generate_turn", return_value=ai_resp), \
+         patch("app.services.db.get_catalog_profiles_by_codes", return_value=profiles) as mock_by_codes, \
+         patch("app.services.db.identify_client", return_value=None), \
+         patch("app.services.db.save_message"), \
+         patch("app.services.db.update_session") as mock_update, \
+         patch("app.services.db.create_request") as mock_create:
+
+        from app.agent import process_turn
+        reply = process_turn("test-chat-profile-detail-list", "Me puede detallar cada una")
+
+        assert "152 Perfil Prequirúrgico I: Cuadro Hemático, ALT, Creatinina" in reply
+        assert "153 Perfil Prequirúrgico II: Cuadro Hemático, ALT, Creatinina, Glucosa" in reply
+        assert "No tienes que escoger solo por número" in reply
+        fields = mock_update.call_args[0][1]["captured_fields"]
+        assert fields.get("exam_type") is None
+        mock_by_codes.assert_called_once_with(["152", "153"], None)
         mock_create.assert_not_called()
 
 
@@ -2123,8 +2963,11 @@ def test_agent_static_messages_are_readable_spanish():
     assert "Buen día" in WELCOME_MESSAGE
     assert "laboratorio clínico veterinario" in WELCOME_MESSAGE
     assert "¿En qué podemos ayudarte?" in WELCOME_MESSAGE
-    assert "¿Sos cliente nuevo?" in CLIENT_SEARCH_FAILED_MESSAGE
-    assert "¿preferís pagar ahora" in PAYMENT_METHOD_QUESTION
+    assert "¿Eres cliente nuevo?" in CLIENT_SEARCH_FAILED_MESSAGE
+    assert "¿prefieres pagar ahora" in PAYMENT_METHOD_QUESTION
+
+    for voseo in ("sos", "querés", "preferís", "decime", "podés", "necesitás", "indicás"):
+        assert voseo not in combined.lower()
 
     for mojibake in ("\u00c3", "\u00c2", "\u00f0\u0178", "\u00e2\u2020"):
         assert mojibake not in combined

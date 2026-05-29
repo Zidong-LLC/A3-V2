@@ -161,6 +161,13 @@ def test_create_request_persists_adjusted_profile_payload(monkeypatch):
                 "exam_type": "Perfil Renal I",
                 "patient_name": "Toby",
                 "species": "canino",
+                "requesting_doctor": "Dra. Ana Gomez",
+                "clinic_phone": "3001234567",
+                "breed": "criollo",
+                "sex": "macho",
+                "patient_age": "5 años",
+                "owner_name": "Carlos Perez",
+                "observations": "sin observaciones",
                 "pickup_address": "Calle 1",
                 "payment_method": "contraentrega",
                 "selected_tests": ["1302"],
@@ -182,3 +189,11 @@ def test_create_request_persists_adjusted_profile_payload(monkeypatch):
     assert profile["added_tests"] == [{"code": "1302", "name": "ALT", "price": 12000}]
     assert profile["removed_tests"] == [{"code": "1309", "name": "Creatinina", "price": 12000}]
     assert profile["total_estimated"] == 34000
+    service_order = event_payload["service_order"]
+    assert service_order["requesting_doctor"] == "Dra. Ana Gomez"
+    assert service_order["clinic_phone"] == "3001234567"
+    assert service_order["patient"]["breed"] == "criollo"
+    assert service_order["patient"]["sex"] == "macho"
+    assert service_order["patient"]["age"] == "5 años"
+    assert service_order["patient"]["owner_name"] == "Carlos Perez"
+    assert service_order["observations"] == "sin observaciones"

@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Orden de Servicio {{ order.request_id }}</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #e5e7eb; color: #111827; font-family: Georgia, 'Times New Roman', serif; }
+    .print-actions { display: flex; justify-content: center; gap: 10px; padding: 16px; font-family: Arial, sans-serif; }
+    .print-actions button, .print-actions a { border: 0; border-radius: 10px; padding: 10px 14px; background: #111827; color: #fff; text-decoration: none; font-weight: 700; cursor: pointer; }
+    .page { width: 816px; min-height: 1056px; margin: 0 auto 24px; padding: 24px; background: #fff; }
+    .form-frame { border: 2px solid #222; border-radius: 16px; padding: 12px; display: grid; gap: 10px; }
+    .top-grid { display: grid; grid-template-columns: 1fr 1.2fr 1fr; border: 1.5px solid #222; align-items: stretch; }
+    .top-grid > div { min-height: 68px; border-right: 1.5px solid #222; display: grid; place-items: center; text-align: center; padding: 8px; }
+    .top-grid > div:last-child { border-right: 0; }
+    .logo { font-family: Arial, sans-serif; font-weight: 900; font-size: 22px; }
+    .logo span { display: block; font-size: 11px; font-weight: 700; }
+    .title { font-size: 24px; font-weight: 700; }
+    .code { font-family: Arial, sans-serif; font-size: 14px; line-height: 1.35; }
+    .date-row { display: grid; grid-template-columns: 210px 1fr; gap: 12px; align-items: center; }
+    .date-box { display: grid; grid-template-columns: repeat(3, 1fr); border: 1.5px solid #222; border-radius: 14px; overflow: hidden; min-height: 54px; }
+    .date-box span { display: grid; place-items: center; border-right: 1px solid #bbb; color: #9ca3af; font-size: 28px; }
+    .date-box span:last-child { border-right: 0; }
+    .contact { text-align: center; font-family: Arial, sans-serif; font-size: 14px; line-height: 1.35; }
+    .legal { font-size: 10px; text-align: center; line-height: 1.35; color: #444; }
+    .block { border: 1.5px solid #222; border-radius: 14px; padding: 12px 16px; }
+    .field { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: end; margin-bottom: 14px; }
+    .field label { font-size: 18px; white-space: nowrap; }
+    .line { min-height: 24px; border-bottom: 1.5px solid #888; padding: 2px 4px; font-size: 17px; }
+    .two { display: grid; grid-template-columns: 1.4fr .8fr; gap: 16px; }
+    .three { display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 14px; }
+    .tests { border: 1.5px solid #222; border-radius: 14px; overflow: hidden; }
+    .tests header, .tests .row { display: grid; grid-template-columns: 90px 1fr 110px; gap: 8px; padding: 10px 12px; align-items: center; }
+    .tests header { font-weight: 700; text-align: center; }
+    .tests .row span { min-height: 34px; border-bottom: 1.5px solid #888; padding: 6px 4px; }
+    .observations { min-height: 138px; }
+    .observations .line { min-height: 100px; align-self: start; }
+    .internal { border: 1.5px solid #222; border-radius: 14px; background: #e5e7eb; padding: 12px 16px; color: #444; }
+    .internal-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 28px; }
+    .internal .field { margin-bottom: 0; }
+    .footer-note { text-align: center; color: #9ca3af; font-size: 13px; font-style: italic; }
+    @media print {
+      body { background: #fff; zoom: .82; }
+      .print-actions { display: none; }
+      .page { width: auto; min-height: auto; margin: 0; padding: 0; }
+      @page { size: letter; margin: 8mm; }
+    }
+  </style>
+</head>
+<body>
+  <div class="print-actions">
+    <button type="button" onclick="window.print()">Imprimir / Guardar PDF</button>
+    <a href="{{ url_for('dashboard.samples_page') }}">Volver a muestras</a>
+  </div>
+  <main class="page">
+    <section class="form-frame">
+      <div class="top-grid">
+        <div class="logo">A3 Laboratorio<span>Clinico Veterinario</span></div>
+        <div class="title">Orden de Servicio</div>
+        <div class="code">Cod: SGA3-AL-FR-01<br>Version: 03-2024<br>Pagina 1 de 1</div>
+      </div>
+
+      <div class="date-row">
+        <div>
+          <label>Fecha</label>
+          <div class="date-box">
+            <span>{{ (order.service_order_date or '')[8:10] or 'D' }}</span>
+            <span>{{ (order.service_order_date or '')[5:7] or 'M' }}</span>
+            <span>{{ (order.service_order_date or '')[0:4] or 'A' }}</span>
+          </div>
+        </div>
+        <div class="contact"><strong>Programacion Ruta 320 8928927</strong><br>info@a3laboratorio.co<br>www.a3laboratorio.co<br>Calle 27 sur 34 - 47 Piso 1 - Bogota D.C.</div>
+      </div>
+
+      <p class="legal">Al solicitar los servicios de A3 Laboratorio Clinico Veterinario con el diligenciamiento de esta orden de servicio usted acepta los terminos y condiciones publicados en www.a3laboratorio.co.</p>
+
+      <section class="block">
+        <div class="field"><label>Medico solicitante</label><div class="line">{{ order.requesting_doctor or '' }}</div></div>
+        <div class="field"><label>Veterinaria</label><div class="line">{{ order.clinic_name or '' }}</div></div>
+        <div class="two">
+          <div class="field"><label>Direccion</label><div class="line">{{ order.pickup_address or '' }}</div></div>
+          <div class="field"><label>Tel.</label><div class="line">{{ order.clinic_phone or '' }}</div></div>
+        </div>
+      </section>
+
+      <section class="block">
+        <div class="field"><label>Paciente</label><div class="line">{{ order.patient_name or '' }}</div></div>
+        <div class="three">
+          <div class="field"><label>Especie</label><div class="line">{{ order.species or '' }}</div></div>
+          <div class="field"><label>Raza</label><div class="line">{{ order.breed or '' }}</div></div>
+          <div class="field"><label>Sexo</label><div class="line">{{ order.sex or '' }}</div></div>
+        </div>
+        <div class="two">
+          <div class="field"><label>Edad</label><div class="line">{{ order.patient_age or '' }}</div></div>
+          <div class="field"><label>Propietario</label><div class="line">{{ order.owner_name or '' }}</div></div>
+        </div>
+      </section>
+
+      <section class="tests">
+        <header><span>Cod</span><span>Descripcion</span><span>Valor</span></header>
+        <div class="row"><span>OS</span><span>{{ order.exam_type or '' }}</span><span>{{ order.payment_method or '' }}</span></div>
+        <div class="row"><span></span><span></span><span></span></div>
+        <div class="row"><span></span><span></span><span></span></div>
+        <div class="row"><span></span><span></span><span></span></div>
+      </section>
+
+      <section class="block observations">
+        <div class="field"><label>Observaciones:</label><div class="line">{{ order.observations or '' }}</div></div>
+      </section>
+
+      <section class="internal">
+        <div class="internal-grid">
+          <div class="field"><label>Valor cancelado:</label><div class="line"></div></div>
+          <div class="field"><label>R C No.:</label><div class="line"></div></div>
+          <div class="field"><label>Enviado por:</label><div class="line">{{ order.courier_name or '' }}</div></div>
+          <div class="field"><label>C x C No.:</label><div class="line"></div></div>
+        </div>
+        <div class="footer-note">Para uso del laboratorio</div>
+      </section>
+    </section>
+  </main>
+</body>
+</html>

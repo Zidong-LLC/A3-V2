@@ -51,6 +51,14 @@ _agregar aquí después de cada corrección_
 **Problema:** Una sesión con `_client_not_found` podía conservar un `clinic_name` o `tax_id` viejo y bloquear búsquedas posteriores de veterinarias existentes.
 **Regla:** Si el usuario responde con un nuevo identificador después de una identificación fallida, limpiar los campos de identificación contaminados antes de volver a consultar la BD.
 
+### L9 — No convertir datos de paciente en nombre de clínica
+**Problema:** Si el bot esperaba NIT o nombre de veterinaria, una respuesta evasiva como "el paciente se llama Toby" podía quedar capturada como `clinic_name`.
+**Regla:** Cuando se espera identificación de cliente, filtrar términos de paciente/análisis antes de buscar clínicas en la BD.
+
+### L10 — Identificar clientes solo por nombre o NIT
+**Problema:** Pedir teléfono como verificación de identidad confundía el flujo y podía asociar órdenes a sedes o clientes incorrectos.
+**Regla:** Para identificar clientes usar solo NIT o nombre registrado. El teléfono, si se pide, es únicamente dato de contacto de la orden.
+
 ### Formato de entrada
 
 ```

@@ -49,6 +49,10 @@ def link_client_to_session(chat_id: str, client_id: str) -> None:
     _client.table("telegram_sessions").update({"client_id": client_id}).eq("external_chat_id", chat_id).execute()
 
 
+def clear_client_from_session(chat_id: str) -> None:
+    _client.table("telegram_sessions").update({"client_id": None}).eq("external_chat_id", chat_id).execute()
+
+
 # ── Messages ──────────────────────────────────────────────────────────────────
 
 def get_recent_messages(chat_id: str, limit: int = 8) -> list[dict]:
@@ -219,6 +223,37 @@ def identify_client(name: str = None, tax_id: str = None) -> dict | None:
     return None
 
 
+def find_client_matches(name: str | None = None, limit: int = 5) -> list[dict]:
+    if not name:
+        return []
+
+    matches: list[dict] = []
+    seen: set[str] = set()
+
+    def add_rows(rows: list[dict]) -> None:
+        for row in rows or []:
+            client_id = row.get("id")
+            if client_id and client_id not in seen:
+                matches.append(row)
+                seen.add(client_id)
+
+    result = (
+        _client.table("clients")
+        .select("id, clinic_name, tax_id, phone, address, zone")
+        .ilike("clinic_name", f"%{name}%")
+        .eq("is_active", True)
+        .limit(limit)
+        .execute()
+    )
+    add_rows(result.data)
+
+    if len(matches) < limit:
+        result = _client.table("clients").select("id, clinic_name, tax_id, phone, address, zone").eq("is_active", True).limit(1000).execute()
+        add_rows([client for client in result.data or [] if _name_matches(name, client.get("clinic_name"))])
+
+    return matches[:limit]
+
+
 def get_client_by_id(client_id: str) -> dict | None:
     result = _client.table("clients").select("*").eq("id", client_id).eq("is_active", True).execute()
     if result.data:
@@ -372,7 +407,7 @@ def delete_client_completely(client_id: str, clinic_key: str | None = None) -> b
 
 def get_catalog_context(species: str | None = None) -> str:
     """Returns a compact catalog string for AI context injection."""
-    query = _client.table("catalog_profiles").select("code, name, category, price").eq("is_active", True)
+    query = _client.table("catalog_profiles").select("code, name, category, description, price").eq("is_active", True)
     if species and species.lower() in ("canino", "felino"):
         query = query.in_("species", [species.lower(), "ambos"])
     rows = query.order("code").execute().data
@@ -382,7 +417,8 @@ def get_catalog_context(species: str | None = None) -> str:
     from collections import defaultdict
     by_cat: dict[str, list[str]] = defaultdict(list)
     for r in rows:
-        by_cat[r["category"]].append(f"{r['code']}-{r['name']} ${r['price']//1000}k")
+        description = r.get("description") or "sin detalle"
+        by_cat[r["category"]].append(f"{r['code']}-{r['name']}: {description} ${r['price']//1000}k")
 
     label = f" ({species})" if species else ""
     lines = [f"Catálogo A3{label}:"]
@@ -411,6 +447,52 @@ def find_catalog_profile(value: str | None, species: str | None = None) -> dict 
         if _catalog_profile_matches(value, row):
             return row
     return None
+
+
+def find_catalog_profiles(value: str | None, species: str | None = None, limit: int = 20) -> list[dict]:
+    lookup = _normalize_lookup_key(value)
+    if not lookup:
+        return []
+
+    query = (
+        _client.table("catalog_profiles")
+        .select("code, name, category, species, description, price")
+        .eq("is_active", True)
+        .limit(5000)
+    )
+    species_key = (species or "").strip().lower()
+    if species_key in ("canino", "felino"):
+        query = query.in_("species", [species_key, "ambos"])
+
+    rows = query.execute().data or []
+    matches = []
+    for row in rows:
+        category_key = _normalize_lookup_key(row.get("category"))
+        if _catalog_profile_matches(value, row) or lookup == category_key or lookup in category_key:
+            matches.append(row)
+            if len(matches) >= limit:
+                break
+    return matches
+
+
+def get_catalog_profiles_by_codes(codes: list[str], species: str | None = None) -> list[dict]:
+    clean_codes = [str(code).strip() for code in codes if str(code or "").strip()]
+    if not clean_codes:
+        return []
+
+    query = (
+        _client.table("catalog_profiles")
+        .select("code, name, category, species, description, price")
+        .in_("code", clean_codes)
+        .eq("is_active", True)
+    )
+    species_key = (species or "").strip().lower()
+    if species_key in ("canino", "felino"):
+        query = query.in_("species", [species_key, "ambos"])
+
+    rows = query.execute().data or []
+    by_code = {str(row.get("code")): row for row in rows}
+    return [by_code[code] for code in clean_codes if code in by_code]
 
 
 def get_individual_tests_context(species: str | None = None) -> str:
@@ -622,6 +704,27 @@ def _profile_event_payload(fields: dict) -> dict | None:
         "removed_tests": removed_tests,
         "total_estimated": totals["total"],
         "price_adjustment": totals,
+    }
+
+
+def _service_order_event_payload(fields: dict, requested_at: datetime) -> dict:
+    return {
+        "date": requested_at.date().isoformat(),
+        "requesting_doctor": fields.get("requesting_doctor"),
+        "clinic_name": fields.get("clinic_name") or fields.get("_client_display_name"),
+        "clinic_phone": fields.get("clinic_phone"),
+        "pickup_address": fields.get("pickup_address"),
+        "patient": {
+            "name": fields.get("patient_name"),
+            "species": fields.get("species"),
+            "breed": fields.get("breed"),
+            "sex": fields.get("sex"),
+            "age": fields.get("patient_age"),
+            "owner_name": fields.get("owner_name"),
+        },
+        "exam_type": fields.get("exam_type"),
+        "observations": fields.get("observations"),
+        "payment_method": fields.get("payment_method"),
     }
 
 
@@ -875,6 +978,8 @@ def create_request(chat_id: str, session: dict, ai_response: dict) -> str | None
         "priority": "normal",
         "payment_method": fields.get("payment_method"),
     }
+    if intent == "route_scheduling":
+        event_payload["service_order"] = _service_order_event_payload(fields, now)
     profile_payload = _profile_event_payload(fields)
     if profile_payload:
         event_payload["profile"] = profile_payload

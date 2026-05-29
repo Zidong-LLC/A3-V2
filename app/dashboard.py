@@ -4,7 +4,7 @@ from collections import Counter
 from datetime import datetime, timezone
 from functools import wraps
 
-from flask import Blueprint, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, jsonify, redirect, render_template, request, session, url_for
 
 from app.config import DASHBOARD_ADMIN_PASSWORD, DASHBOARD_ADMIN_USER
 from app.services import db
@@ -152,6 +152,7 @@ def _empty_context(error: str | None = None) -> dict:
         "messages": [],
         "samples": [],
         "sample_process_lanes": [],
+        "service_order_rows": [],
         "demo_mode": False,
         "sample_demo_total": 0,
         "clients_rows": [],
@@ -475,6 +476,97 @@ def _build_sample_process_lanes(samples: list[dict], events: list[dict]) -> list
     ]
 
 
+def _request_sample_status(request_status: str | None) -> str:
+    return {
+        "received": "pending_pickup",
+        "assigned": "pending_pickup",
+        "error_pending_assignment": "pending_pickup",
+        "on_route": "on_route",
+        "picked_up": "picked_up",
+        "in_lab": "in_lab",
+        "processed": "processed",
+        "sent": "sent",
+    }.get(str(request_status or ""), "pending_pickup")
+
+
+def _build_service_order_rows(requests_rows: list[dict], request_events: list[dict]) -> list[dict]:
+    requests_by_id = {str(row.get("id") or ""): row for row in requests_rows if row.get("id")}
+    rows_by_request = {}
+    for event in request_events:
+        payload = event.get("event_payload") if isinstance(event.get("event_payload"), dict) else {}
+        service_order = payload.get("service_order") if isinstance(payload.get("service_order"), dict) else None
+        request_id = str(event.get("request_id") or "")
+        if not service_order or not request_id:
+            continue
+        request_row = requests_by_id.get(request_id, {})
+        client = request_row.get("clients") if isinstance(request_row.get("clients"), dict) else {}
+        courier = request_row.get("couriers") if isinstance(request_row.get("couriers"), dict) else {}
+        patient = service_order.get("patient") if isinstance(service_order.get("patient"), dict) else {}
+        patient_name = patient.get("name") or request_row.get("patient_name") or "-"
+        exam_type = service_order.get("exam_type") or request_row.get("exam_type") or "-"
+        status = request_row.get("status") or "received"
+        rows_by_request[request_id] = {
+            "request_id": request_id,
+            "event_id": event.get("id") or "-",
+            "created_at": event.get("created_at") or request_row.get("requested_at") or "-",
+            "requested_at": request_row.get("requested_at") or event.get("created_at") or "-",
+            "service_order_date": service_order.get("date") or str(request_row.get("requested_at") or event.get("created_at") or "-")[:10],
+            "scheduled_pickup_date": request_row.get("scheduled_pickup_date") or "-",
+            "status": status,
+            "status_label": REQUEST_STATUS_LABELS.get(status, status),
+            "sample_status": _request_sample_status(status),
+            "priority": request_row.get("priority") or "normal",
+            "courier_name": courier.get("name") or "Sin asignar",
+            "requesting_doctor": service_order.get("requesting_doctor") or "-",
+            "clinic_name": service_order.get("clinic_name") or client.get("clinic_name") or "Cliente sin nombre",
+            "clinic_phone": service_order.get("clinic_phone") or "-",
+            "pickup_address": service_order.get("pickup_address") or request_row.get("pickup_address") or "-",
+            "patient_name": patient_name,
+            "species": patient.get("species") or request_row.get("species") or "-",
+            "breed": patient.get("breed") or "-",
+            "sex": patient.get("sex") or "-",
+            "patient_age": patient.get("age") or request_row.get("patient_age") or "-",
+            "owner_name": patient.get("owner_name") or request_row.get("owner_name") or "-",
+            "exam_type": exam_type,
+            "observations": service_order.get("observations") or "-",
+            "payment_method": service_order.get("payment_method") or "-",
+            "order_summary": f"{patient_name} - {exam_type}",
+        }
+    return sorted(rows_by_request.values(), key=lambda row: str(row.get("requested_at") or ""), reverse=True)
+
+
+def _build_sample_process_lanes_with_orders(samples: list[dict], events: list[dict], service_orders: list[dict]) -> list[dict]:
+    lanes = _build_sample_process_lanes(samples, events)
+    cards_by_status = {lane["status_key"]: list(lane["cards"]) for lane in lanes}
+    sample_request_ids = {str(sample.get("request_id") or "") for sample in samples if sample.get("request_id")}
+    for order in service_orders:
+        if order.get("request_id") in sample_request_ids:
+            continue
+        status = order.get("sample_status") or "pending_pickup"
+        cards_by_status.setdefault(status, []).append({
+            "sample_id": f"order:{order.get('request_id')}",
+            "request_id": order.get("request_id"),
+            "status": status,
+            "status_label": SAMPLE_STATUS_LABELS.get(status, status),
+            "client_name": order.get("clinic_name") or "Cliente sin nombre",
+            "profile_name": order.get("exam_type") or "Orden de servicio",
+            "profile_code": f"OS-{str(order.get('request_id') or '')[:8]}",
+            "profile_type": "service_order",
+            "selected_items": [{"code": f"OS-{str(order.get('request_id') or '')[:8]}", "name": order.get("exam_type") or "Orden de servicio", "item_type": "orden"}],
+            "sample_requirements": [value for value in (order.get("species"), order.get("breed")) if value and value != "-"],
+            "sample_type": "Orden de servicio",
+            "priority": order.get("priority") or "normal",
+            "created_at": order.get("requested_at") or "-",
+            "events": [],
+            "is_service_order": True,
+            "service_order": order,
+        })
+    return [
+        {"status_key": status, "label": label, "count": len(cards_by_status.get(status, [])), "cards": cards_by_status.get(status, [])}
+        for status, label in SAMPLE_PROCESS_STAGES
+    ]
+
+
 def _demo_sample_process_lanes() -> list[dict]:
     examples = {
         "pending_pickup": ("Clinica Norte", "Demo A retirar", "PREQ-DMO", "Tubo Rojo y Tapa Morada", ["Tubo Rojo", "Tubo Tapa Morada"]),
@@ -740,9 +832,10 @@ def _build_request_approval_rows(review_rows: list[dict]) -> list[dict]:
     return rows
 
 
-def _build_operation_center(requests_rows: list[dict], samples: list[dict], approval_rows: list[dict], motorizados_context: dict) -> dict:
+def _build_operation_center(requests_rows: list[dict], samples: list[dict], approval_rows: list[dict], motorizados_context: dict, service_orders: list[dict] | None = None) -> dict:
     active_route_statuses = {"received", "assigned", "on_route", "error_pending_assignment"}
     sample_pending_statuses = {"pending_pickup", "picked_up", "on_route", "received_lab", "in_lab"}
+    service_order_by_request = {str(row.get("request_id") or ""): row for row in service_orders or []}
     route_rows = []
     alerts = []
 
@@ -751,6 +844,7 @@ def _build_operation_center(requests_rows: list[dict], samples: list[dict], appr
         if row.get("service_area") == "route_scheduling" and status in active_route_statuses:
             client = row.get("clients") if isinstance(row.get("clients"), dict) else {}
             courier = row.get("couriers") if isinstance(row.get("couriers"), dict) else {}
+            service_order = service_order_by_request.get(str(row.get("id") or ""))
             route_rows.append({
                 "id": row.get("id") or "-",
                 "clinic_name": client.get("clinic_name") or "Cliente sin nombre",
@@ -759,6 +853,8 @@ def _build_operation_center(requests_rows: list[dict], samples: list[dict], appr
                 "status_label": REQUEST_STATUS_LABELS.get(status, status),
                 "courier_name": courier.get("name") or "Sin asignar",
                 "scheduled_pickup_date": row.get("scheduled_pickup_date") or "-",
+                "service_order": service_order,
+                "order_summary": (service_order or {}).get("order_summary") or row.get("exam_type") or "Sin orden detallada",
             })
             if _request_is_unassigned(row):
                 alerts.append({"level": "warning", "title": "Ruta sin asignar", "detail": f"{client.get('clinic_name') or 'Cliente'} requiere motorizado."})
@@ -790,6 +886,7 @@ def _build_operation_center(requests_rows: list[dict], samples: list[dict], appr
         "alerts": alerts[:8],
         "route_rows": route_rows[:12],
         "courier_agenda": courier_agenda,
+        "service_order_rows": (service_orders or [])[:8],
         "approval_rows": approval_rows[:8],
         "sample_lanes": sample_lanes,
     }
@@ -891,18 +988,20 @@ def build_dashboard_context() -> dict:
     samples = _safe_fetch(
         lambda: db.fetch_rows(
             "lab_samples",
-            "id, client_id, status, priority, test_code, test_name, sample_type, created_at, clients(clinic_name), couriers(name)",
+            "id, request_id, client_id, status, priority, test_code, test_name, sample_type, created_at, clients(clinic_name), couriers(name)",
             4000,
         ),
         [],
     )
     sample_events = _safe_fetch(lambda: db.fetch_rows("lab_sample_events", "id, sample_id, event_type, event_payload, created_at", 4000), [])
+    request_events = _safe_fetch(lambda: db.fetch_rows("request_events", "id, request_id, event_type, event_payload, created_at", 4000), [])
     phases = Counter((row.get("phase_current") or "sin_etapa") for row in sessions_rows)
     sample_status = Counter((row.get("status") or "unknown") for row in samples)
     approval_rows, reviewed_rows = _build_approval_rows(sessions_rows)
     approval_rows.extend(_build_request_approval_rows(_safe_fetch(lambda: db.list_pending_client_reviews(limit=300), [])))
     motorizados_context = _build_motorizados_context(clients)
-    operation_center = _build_operation_center(requests_rows, samples, approval_rows, motorizados_context)
+    service_order_rows = _build_service_order_rows(requests_rows, request_events)
+    operation_center = _build_operation_center(requests_rows, samples, approval_rows, motorizados_context, service_order_rows)
     profile_rows = _build_profile_catalog_rows(profiles)
     analysis_rows = _build_analysis_catalog_rows(catalog)
     builder_items = profile_rows + analysis_rows
@@ -936,7 +1035,8 @@ def build_dashboard_context() -> dict:
         "sessions": sessions_rows,
         "messages": messages,
         "samples": samples,
-        "sample_process_lanes": _build_sample_process_lanes(samples, sample_events),
+        "sample_process_lanes": _build_sample_process_lanes_with_orders(samples, sample_events, service_order_rows),
+        "service_order_rows": service_order_rows,
         "clients_rows": _build_client_rows(clients, requests_rows, samples, knowledge),
         "catalog_rows": _build_catalog_rows(catalog),
         "profile_catalog_rows": profile_rows,
@@ -1070,6 +1170,19 @@ def requests_page():
 @_login_required
 def samples_page():
     return _render_dashboard("muestras")
+
+
+@dashboard.get("/ordenes-servicio/<request_id>/imprimir")
+@_login_required
+def service_order_print_page(request_id: str):
+    context = build_dashboard_context()
+    order = next(
+        (row for row in context.get("service_order_rows", []) if str(row.get("request_id")) == request_id),
+        None,
+    )
+    if not order:
+        abort(404)
+    return render_template("service_order_print.html", order=order)
 
 
 @dashboard.get("/analisis")
