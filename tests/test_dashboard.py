@@ -71,7 +71,7 @@ def test_dashboard_renders_operational_overview_after_login(monkeypatch):
     body = response.get_data(as_text=True)
     assert "Panel Ejecutivo" in body
     assert "CRM Operativo" in body
-    assert "Contratos activos" in body
+    assert "Solicitudes activas" in body
 
 
 def test_dashboard_api_returns_context_for_authenticated_user(monkeypatch):
@@ -313,7 +313,6 @@ def test_dashboard_keeps_legacy_sections_connected(monkeypatch):
             "/analisis": "H001",
             "/flujo": "Recogida de datos",
             "/aprobaciones": "Nueva Vet",
-            "/afiliaciones": "Dra Ana",
             "/motorizados": "Luis Moto",
         }
         for path, expected in pages.items():
@@ -480,6 +479,10 @@ def test_samples_page_renders_profile_builder_catalog(monkeypatch):
     assert "Hemograma" in body
     assert "data-builder-add" in body
     assert "data-builder-accept" in body
+    assert "Usar perfil" in body
+    assert "Agregar analisis" in body
+    assert "Agregar analisis extra" in body
+    assert "applyBuilderCatalogFilters" in body
     assert "Resumen para cliente" in body
     assert "Proceso de muestras" in body
     assert "data-sample-process-board" in body
@@ -516,7 +519,7 @@ def test_samples_page_demo_mode_renders_mock_process_lanes(monkeypatch):
     assert "Modo demo" in body
     assert "Demo A retirar" in body
     assert "Demo Recibida laboratorio" in body
-    assert "Demo Analizada" in body
+    assert "Demo Analizados resultados listos" in body
     assert "data-demo-sample-card" in body
 
 
@@ -1058,14 +1061,14 @@ def test_profile_assignment_endpoint_registers_selected_items_as_received_sample
     assert response.status_code == 200
     body = response.get_json()
     assert body["created_count"] == 2
-    assert body["status"] == "received_lab"
+    assert body["status"] == "pending_pickup"
     sample_rows = insert_rows.call_args_list[0].args[1]
     assert sample_rows[0]["test_code"] == "P001"
     assert sample_rows[0]["test_name"] == "Perfil Renal"
     assert sample_rows[0]["sample_type"] == "Perfil personalizado"
     assert sample_rows[1]["test_code"] == "H001"
     assert sample_rows[1]["sample_type"] == "Tubo Tapa Morada"
-    assert all(row["status"] == "received_lab" for row in sample_rows)
+    assert all(row["status"] == "pending_pickup" for row in sample_rows)
     assert all(row["client_id"] == "11111111-1111-4111-8111-111111111111" for row in sample_rows)
     event_rows = insert_rows.call_args_list[1].args[1]
     assert event_rows[0]["event_type"] == "profile_assigned_from_dashboard"
@@ -1097,3 +1100,27 @@ def test_client_profile_endpoint_updates_advanced_profile(monkeypatch):
     payload = upsert_profile.call_args.args[0]
     assert payload["clinic_key"] == "clinica_norte"
     assert payload["billing_email"] == "facturas@example.com"
+
+
+def test_client_name_edit_updates_client_table_and_knowledge(monkeypatch):
+    monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_USER", "admin")
+    monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_PASSWORD", "secret")
+
+    with patch("app.dashboard.db.update_client_profile", return_value=True) as update_client, \
+         patch("app.dashboard.db.upsert_client_profile", return_value=None) as upsert_profile:
+        client = _get_test_client()
+        client.post("/login", data={"username": "admin", "password": "secret"})
+        response = client.post("/api/dashboard/client-profile", json={
+            "client_id": "client-1",
+            "clinic_key": "clinica_norte",
+            "clinic_name": "Clinica Norte",
+            "field": "clinic_name",
+            "value": "Clinica Norte Renombrada",
+        })
+
+    assert response.status_code == 200
+    update_client.assert_called_once_with("client-1", {"clinic_name": "Clinica Norte Renombrada"})
+    upsert_profile.assert_called_once()
+    profile_payload = upsert_profile.call_args.args[0]
+    assert profile_payload["clinic_key"] == "clinica_norte"
+    assert profile_payload["clinic_name"] == "Clinica Norte Renombrada"

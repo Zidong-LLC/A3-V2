@@ -36,7 +36,6 @@ RESPONSE_SCHEMA = {
                     "patient_name":   {"anyOf": [{"type": "string"}, {"type": "null"}]},
                     "species":        {"anyOf": [{"type": "string"}, {"type": "null"}]},
                     "requesting_doctor": {"anyOf": [{"type": "string"}, {"type": "null"}]},
-                    "clinic_phone":    {"anyOf": [{"type": "string"}, {"type": "null"}]},
                     "patient_age":    {"anyOf": [{"type": "string"}, {"type": "null"}]},
                     "owner_name":     {"anyOf": [{"type": "string"}, {"type": "null"}]},
                     "breed":          {"anyOf": [{"type": "string"}, {"type": "null"}]},
@@ -44,7 +43,7 @@ RESPONSE_SCHEMA = {
                     "observations":   {"anyOf": [{"type": "string"}, {"type": "null"}]},
                     "payment_method": {
                         "anyOf": [
-                            {"type": "string", "enum": ["contado", "contraentrega"]},
+                            {"type": "string", "enum": ["contraentrega", "pago_linea"]},
                             {"type": "null"},
                         ]
                     },
@@ -63,7 +62,7 @@ RESPONSE_SCHEMA = {
                 },
                 "required": [
                     "clinic_name", "tax_id", "pickup_address", "exam_type",
-                    "patient_name", "species", "requesting_doctor", "clinic_phone",
+                    "patient_name", "species", "requesting_doctor",
                     "patient_age", "owner_name", "breed", "sex", "observations",
                     "payment_method",
                     "selected_tests",

@@ -1,5 +1,8 @@
 import hashlib
+import json as _json
+import math
 import re
+import urllib.request
 from collections import Counter
 from datetime import datetime, timezone
 from functools import wraps
@@ -57,6 +60,16 @@ BOGOTA_LOCALITY_COORDS = {
 }
 LOCALITIES_GEOJSON_URL = "https://raw.githubusercontent.com/codeforgermany/click_that_hood/main/public/data/bogota-localidades.geojson"
 COURIER_COLOR_PALETTE = ["#f97316", "#0ea5e9", "#22c55e", "#eab308", "#ec4899", "#a855f7", "#14b8a6", "#f43f5e"]
+COURIER_DEFAULT_COLORS = {
+    "Javier": "#f97316",
+    "Jeeferson": "#0ea5e9",
+    "Diego": "#22c55e",
+    "Luis": "#eab308",
+    "Gerardo": "#ec4899",
+    "Alexander": "#a855f7",
+    "Marlon": "#14b8a6",
+    "Cesar": "#f43f5e",
+}
 CLIENT_TYPE_OPTIONS = {"es_persona": "Es Persona", "empresa": "Empresa", "otro": "Otro"}
 VAT_REGIME_OPTIONS = {"no_responsable_iva": "No responsable de IVA", "responsable_iva": "Responsable de IVA"}
 REQUEST_PRIORITY_LABELS = {"normal": "Normal", "high": "Alta", "urgent": "Urgente"}
@@ -72,26 +85,37 @@ REQUEST_STATUS_LABELS = {
     "cancelled": "Cancelada",
     "error_pending_assignment": "Sin motorizado",
 }
+PAYMENT_METHOD_LABELS = {
+    "contraentrega": "Contra entrega",
+    "pago_linea": "Pago en línea",
+}
 SAMPLE_STATUS_LABELS = {
     "pending_pickup": "A retirar",
-    "picked_up": "Retirada",
-    "on_route": "En camino",
+    "picked_up": "Recogida y en camino",
+    "on_route": "Recogida y en camino",
     "received_lab": "Recibida laboratorio",
-    "in_lab": "En laboratorio",
-    "processed": "Procesada",
-    "ready_results": "Analisis listo",
+    "in_lab": "En analisis",
+    "processed": "Analizados resultados listos",
+    "ready_results": "Analizados resultados listos",
     "sent": "Enviada",
 }
 SAMPLE_STATUS_DB_OPTIONS = {"pending_pickup", "picked_up", "on_route", "received_lab", "in_lab"}
 SAMPLE_STATUS_DB_FALLBACK = {"processed": "in_lab", "ready_results": "in_lab", "sent": "in_lab"}
+SAMPLE_STATUS_DROPDOWN = [
+    {"value": "pending_pickup", "label": "A retirar"},
+    {"value": "picked_up", "label": "Recogida y en camino"},
+    {"value": "received_lab", "label": "Recibida laboratorio"},
+    {"value": "in_lab", "label": "En analisis"},
+    {"value": "processed", "label": "Analizados resultados listos"},
+    {"value": "sent", "label": "Enviada"},
+]
+_DROPDOWN_STATUS_MAP = {"on_route": "picked_up", "ready_results": "processed"}
 SAMPLE_PROCESS_STAGES = [
     ("pending_pickup", "A retirar"),
-    ("picked_up", "Recogida"),
-    ("on_route", "En camino"),
+    ("picked_up", "Recogida y en camino"),
     ("received_lab", "Recibida laboratorio"),
     ("in_lab", "En analisis"),
-    ("processed", "Analizada"),
-    ("ready_results", "Lista resultados"),
+    ("processed", "Analizados resultados listos"),
     ("sent", "Enviada"),
 ]
 
@@ -160,6 +184,7 @@ def _empty_context(error: str | None = None) -> dict:
         "profile_catalog_rows": [],
         "profile_analysis_rows": [],
         "profile_builder_items": [],
+        "custom_profiles": [],
         "profile_categories": [],
         "profile_species": [],
         "sample_requirements": [],
@@ -170,7 +195,7 @@ def _empty_context(error: str | None = None) -> dict:
         "vat_regime_options": VAT_REGIME_OPTIONS,
         "request_priority_options": [{"value": key, "label": value} for key, value in REQUEST_PRIORITY_LABELS.items()],
         "request_status_options": [{"value": key, "label": value} for key, value in REQUEST_STATUS_LABELS.items()],
-        "sample_status_options": [{"value": key, "label": value} for key, value in SAMPLE_STATUS_LABELS.items()],
+        "sample_status_options": list(SAMPLE_STATUS_DROPDOWN),
         "sample_type_options": [],
         "sample_placeholder_rows": [],
         "sample_placeholder_status": {},
@@ -274,7 +299,9 @@ def _sample_status_db_value(status: str) -> str:
     return status if status in SAMPLE_STATUS_DB_OPTIONS else SAMPLE_STATUS_DB_FALLBACK.get(status, "pending_pickup")
 
 
-def _courier_color(courier_id: str) -> str:
+def _courier_color(courier_id: str, courier_name: str | None = None) -> str:
+    if courier_name and courier_name in COURIER_DEFAULT_COLORS:
+        return COURIER_DEFAULT_COLORS[courier_name]
     if not courier_id:
         return "#475569"
     index = int(hashlib.sha1(courier_id.encode("utf-8")).hexdigest()[:4], 16) % len(COURIER_COLOR_PALETTE)
@@ -286,7 +313,26 @@ def _resolve_locality(zone: str | None) -> dict | None:
     for locality in BOGOTA_LOCALITIES:
         if zone_key == locality["code"] or zone_key == _normalize_lookup_key(locality["name"]):
             return locality
+    zone_str = str(zone or "").strip()
+    zone_num = re.sub(r"\.\d+$", "", zone_str)
+    if zone_num.isdigit():
+        zone_number = int(zone_num)
+        for locality_tuple in territory.ZONE_LOCALITIES.get(zone_number, []):
+            return {"code": locality_tuple[0], "name": locality_tuple[1]}
     return None
+
+
+def _resolve_zone_display(zone: str | None) -> str:
+    raw = str(zone or "").strip()
+    if not raw or raw.lower() == "no aplica":
+        return "Sin zona"
+    zone_num = re.sub(r"\.\d+$", "", raw)
+    if zone_num.isdigit():
+        return f"Zona {int(zone_num)}"
+    locality = _resolve_locality(raw)
+    if locality:
+        return locality["name"]
+    return raw
 
 
 def _format_turnaround_label(_: dict) -> str:
@@ -346,6 +392,8 @@ def _build_client_rows(clients: list[dict], requests_rows: list[dict], samples: 
         assigned_courier_id = str((assignment or {}).get("courier_id") or courier.get("id") or "").strip()
         electronic_option = _bool_option(knowledge.get("electronic_invoicing"))
         entered_option = _bool_option(knowledge.get("entered_flag"))
+        raw_zone = client.get("zone") or ""
+        zone_display = _resolve_zone_display(raw_zone)
         rows.append({
             "client_id": client_id,
             "clinic_key": knowledge.get("clinic_key") or _normalize_lookup_key(clinic_name),
@@ -370,7 +418,7 @@ def _build_client_rows(clients: list[dict], requests_rows: list[dict], samples: 
             "assigned_courier_id": assigned_courier_id,
             "client_status": "Activo" if client.get("is_active") else "Inactivo",
             "address": client.get("address") or "-",
-            "zone": client.get("zone") or "Sin zona",
+            "zone": zone_display,
             "courier_name": courier.get("name") or "Sin mensajero",
             "requests_count": request_count.get(client_id, 0),
             "samples_count": sample_count.get(client_id, 0),
@@ -400,9 +448,21 @@ def _price_value(value) -> int:
         return 0
 
 
-def _build_profile_catalog_rows(profiles: list[dict]) -> list[dict]:
+def _build_profile_catalog_rows(profiles: list[dict], tests: list[dict] | None = None) -> list[dict]:
+    test_lookup = {}
+    if tests:
+        for t in tests:
+            test_lookup[str(t.get("code") or "")] = t.get("name") or ""
     rows = []
     for profile in profiles:
+        composed = []
+        desc = profile.get("description") or ""
+        if desc and tests:
+            for t in tests:
+                t_name = t.get("name") or ""
+                t_code = str(t.get("code") or "")
+                if t_name and t_name in desc:
+                    composed.append({"code": t_code, "name": t_name, "item_type": "analysis"})
         rows.append({
             "item_type": "profile",
             "code": profile.get("code") or "-",
@@ -410,7 +470,8 @@ def _build_profile_catalog_rows(profiles: list[dict]) -> list[dict]:
             "category": profile.get("category") or "Sin categoria",
             "species": profile.get("species") or "ambos",
             "sample": "Perfil",
-            "description": profile.get("description") or "",
+            "description": desc,
+            "composed_tests": composed,
             "price": _price_value(profile.get("price")),
         })
     return sorted(rows, key=lambda row: (str(row["category"]), str(row["name"])))
@@ -457,6 +518,7 @@ def _build_sample_process_lanes(samples: list[dict], events: list[dict]) -> list
             "sample_id": sample_id,
             "status": status,
             "status_label": SAMPLE_STATUS_LABELS.get(status, status),
+            "dropdown_status": _DROPDOWN_STATUS_MAP.get(status, status),
             "client_name": client.get("clinic_name") or "Cliente sin nombre",
             "profile_name": assigned_item.get("name") or sample.get("test_name") or "Sin perfil",
             "profile_code": assigned_item.get("code") or sample.get("test_code") or "-",
@@ -468,7 +530,12 @@ def _build_sample_process_lanes(samples: list[dict], events: list[dict]) -> list
             "created_at": sample.get("created_at") or "-",
             "events": sample_events,
         }
-        cards_by_status.setdefault(status, []).append(card)
+        lane_status = status
+        if lane_status == "on_route":
+            lane_status = "picked_up"
+        if lane_status == "ready_results":
+            lane_status = "processed"
+        cards_by_status.setdefault(lane_status, []).append(card)
 
     return [
         {"status_key": status, "label": label, "count": len(cards_by_status.get(status, [])), "cards": cards_by_status.get(status, [])}
@@ -507,6 +574,7 @@ def _build_service_order_rows(requests_rows: list[dict], request_events: list[di
         status = request_row.get("status") or "received"
         rows_by_request[request_id] = {
             "request_id": request_id,
+            "order_number": request_row.get("order_number") or f"OS-{request_id[:8]}",
             "event_id": event.get("id") or "-",
             "created_at": event.get("created_at") or request_row.get("requested_at") or "-",
             "requested_at": request_row.get("requested_at") or event.get("created_at") or "-",
@@ -529,7 +597,9 @@ def _build_service_order_rows(requests_rows: list[dict], request_events: list[di
             "owner_name": patient.get("owner_name") or request_row.get("owner_name") or "-",
             "exam_type": exam_type,
             "observations": service_order.get("observations") or "-",
-            "payment_method": service_order.get("payment_method") or "-",
+            "payment_method": PAYMENT_METHOD_LABELS.get(
+                service_order.get("payment_method"), service_order.get("payment_method") or "-"
+            ),
             "order_summary": f"{patient_name} - {exam_type}",
         }
     return sorted(rows_by_request.values(), key=lambda row: str(row.get("requested_at") or ""), reverse=True)
@@ -543,16 +613,23 @@ def _build_sample_process_lanes_with_orders(samples: list[dict], events: list[di
         if order.get("request_id") in sample_request_ids:
             continue
         status = order.get("sample_status") or "pending_pickup"
+        if status == "on_route":
+            status = "picked_up"
+        if status == "ready_results":
+            status = "processed"
+        order_code = order.get("order_number") or f"OS-{str(order.get('request_id') or '')[:8]}"
         cards_by_status.setdefault(status, []).append({
             "sample_id": f"order:{order.get('request_id')}",
             "request_id": order.get("request_id"),
+            "order_number": order_code,
             "status": status,
             "status_label": SAMPLE_STATUS_LABELS.get(status, status),
+            "dropdown_status": _DROPDOWN_STATUS_MAP.get(status, status),
             "client_name": order.get("clinic_name") or "Cliente sin nombre",
             "profile_name": order.get("exam_type") or "Orden de servicio",
-            "profile_code": f"OS-{str(order.get('request_id') or '')[:8]}",
+            "profile_code": order_code,
             "profile_type": "service_order",
-            "selected_items": [{"code": f"OS-{str(order.get('request_id') or '')[:8]}", "name": order.get("exam_type") or "Orden de servicio", "item_type": "orden"}],
+            "selected_items": [{"code": order_code, "name": order.get("exam_type") or "Orden de servicio", "item_type": "orden"}],
             "sample_requirements": [value for value in (order.get("species"), order.get("breed")) if value and value != "-"],
             "sample_type": "Orden de servicio",
             "priority": order.get("priority") or "normal",
@@ -570,12 +647,10 @@ def _build_sample_process_lanes_with_orders(samples: list[dict], events: list[di
 def _demo_sample_process_lanes() -> list[dict]:
     examples = {
         "pending_pickup": ("Clinica Norte", "Demo A retirar", "PREQ-DMO", "Tubo Rojo y Tapa Morada", ["Tubo Rojo", "Tubo Tapa Morada"]),
-        "picked_up": ("Vet Chapinero", "Demo Recogida", "REN-DMO", "Orina Fresca", ["Orina Fresca"]),
-        "on_route": ("Animal Care", "Demo En camino", "HEM-DMO", "Tubo Tapa Morada", ["Tubo Tapa Morada"]),
+        "picked_up": ("Vet Chapinero", "Demo Recogida y en camino", "REN-DMO", "Orina Fresca", ["Orina Fresca"]),
         "received_lab": ("Clinica Sur", "Demo Recibida laboratorio", "FEL-DMO", "Perfil personalizado", ["Tubo Rojo", "Materia Fecal"]),
         "in_lab": ("Vet Express", "Demo En analisis", "BIO-DMO", "Tubo Rojo o Amarillo", ["Tubo Rojo o Amarillo"]),
-        "processed": ("Mascotas 24h", "Demo Analizada", "TIR-DMO", "Tubo Rojo", ["Tubo Rojo"]),
-        "ready_results": ("Felinos Norte", "Demo Lista resultados", "PAN-DMO", "Tubo Rojo", ["Tubo Rojo"]),
+        "processed": ("Mascotas 24h", "Demo Analizados resultados listos", "TIR-DMO", "Tubo Rojo", ["Tubo Rojo"]),
         "sent": ("Caninos Centro", "Demo Enviada", "DER-DMO", "Piel y Pelos", ["Piel y Pelos"]),
     }
     lanes = []
@@ -585,6 +660,7 @@ def _demo_sample_process_lanes() -> list[dict]:
             "sample_id": f"demo-{status}",
             "status": status,
             "status_label": SAMPLE_STATUS_LABELS.get(status, status),
+            "dropdown_status": _DROPDOWN_STATUS_MAP.get(status, status),
             "client_name": client_name,
             "profile_name": profile_name,
             "profile_code": profile_code,
@@ -613,7 +689,7 @@ def _build_motorizados_context(clients: list[dict]) -> dict:
             "name": row.get("name") or "Sin nombre",
             "phone": row.get("phone") or "",
             "availability": row.get("availability") or "available",
-            "color": _courier_color(str(row.get("id") or "")),
+            "color": _courier_color(str(row.get("id") or ""), row.get("name")),
             "zone_number": None,
             "source": "db",
         }
@@ -631,7 +707,7 @@ def _build_motorizados_context(clients: list[dict]) -> dict:
                 "name": row["courier_name"],
                 "phone": row["courier_phone"],
                 "availability": "territorial",
-                "color": _courier_color(f"territory-zone-{row['zone_number']}"),
+                "color": _courier_color(f"territory-zone-{row['zone_number']}", row.get("courier_name")),
                 "zone_number": row["zone_number"],
                 "source": "territory",
             }
@@ -708,7 +784,7 @@ def _build_motorizados_context(clients: list[dict]) -> dict:
             "lng": lng,
             "courier_id": courier_id,
             "courier_name": courier_name,
-            "color": _courier_color(courier_id),
+            "color": _courier_color(courier_id, courier_name),
             "is_assigned": bool(courier_id),
             "clients_count": clients_count,
         })
@@ -847,6 +923,7 @@ def _build_operation_center(requests_rows: list[dict], samples: list[dict], appr
             service_order = service_order_by_request.get(str(row.get("id") or ""))
             route_rows.append({
                 "id": row.get("id") or "-",
+                "order_number": row.get("order_number") or f"OS-{str(row.get('id') or '')[:8]}",
                 "clinic_name": client.get("clinic_name") or "Cliente sin nombre",
                 "address": row.get("pickup_address") or "Sin direccion",
                 "status": status,
@@ -995,6 +1072,24 @@ def build_dashboard_context() -> dict:
     )
     sample_events = _safe_fetch(lambda: db.fetch_rows("lab_sample_events", "id, sample_id, event_type, event_payload, created_at", 4000), [])
     request_events = _safe_fetch(lambda: db.fetch_rows("request_events", "id, request_id, event_type, event_payload, created_at", 4000), [])
+    sample_count_map = {}
+    sample_types_map = {}
+    for event in request_events:
+        payload = event.get("event_payload") if isinstance(event.get("event_payload"), dict) else {}
+        request_id = str(event.get("request_id") or "")
+        if not request_id:
+            continue
+        if event.get("event_type") == "dashboard_request_manual_update":
+            if "sample_count" in payload:
+                sample_count_map[request_id] = payload["sample_count"]
+            if "sample_types" in payload:
+                sample_types_map[request_id] = ", ".join(payload["sample_types"]) if isinstance(payload["sample_types"], list) else str(payload["sample_types"])
+    for row in requests_rows:
+        rid = str(row.get("id") or "")
+        if rid in sample_count_map:
+            row["sample_count"] = sample_count_map[rid]
+        if rid in sample_types_map:
+            row["sample_types_display"] = sample_types_map[rid]
     phases = Counter((row.get("phase_current") or "sin_etapa") for row in sessions_rows)
     sample_status = Counter((row.get("status") or "unknown") for row in samples)
     approval_rows, reviewed_rows = _build_approval_rows(sessions_rows)
@@ -1002,7 +1097,7 @@ def build_dashboard_context() -> dict:
     motorizados_context = _build_motorizados_context(clients)
     service_order_rows = _build_service_order_rows(requests_rows, request_events)
     operation_center = _build_operation_center(requests_rows, samples, approval_rows, motorizados_context, service_order_rows)
-    profile_rows = _build_profile_catalog_rows(profiles)
+    profile_rows = _build_profile_catalog_rows(profiles, catalog)
     analysis_rows = _build_analysis_catalog_rows(catalog)
     builder_items = profile_rows + analysis_rows
 
@@ -1034,7 +1129,7 @@ def build_dashboard_context() -> dict:
         "requests": requests_rows,
         "sessions": sessions_rows,
         "messages": messages,
-        "samples": samples,
+        "samples": [{**s, "dropdown_status": _DROPDOWN_STATUS_MAP.get(s.get("status"), s.get("status"))} for s in samples],
         "sample_process_lanes": _build_sample_process_lanes_with_orders(samples, sample_events, service_order_rows),
         "service_order_rows": service_order_rows,
         "clients_rows": _build_client_rows(clients, requests_rows, samples, knowledge),
@@ -1042,6 +1137,7 @@ def build_dashboard_context() -> dict:
         "profile_catalog_rows": profile_rows,
         "profile_analysis_rows": analysis_rows,
         "profile_builder_items": builder_items,
+        "custom_profiles": _safe_fetch(lambda: db.list_custom_profiles(limit=100), []),
         "profile_categories": sorted({row["category"] for row in builder_items if row.get("category")}),
         "profile_species": sorted({row["species"] for row in builder_items if row.get("species")}),
         "sample_requirements": sorted({row["sample"] for row in analysis_rows if row.get("sample") and row.get("sample") != "Sin muestra definida"}),
@@ -1053,7 +1149,7 @@ def build_dashboard_context() -> dict:
         "vat_regime_options": VAT_REGIME_OPTIONS,
         "request_priority_options": [{"value": key, "label": value} for key, value in REQUEST_PRIORITY_LABELS.items()],
         "request_status_options": [{"value": key, "label": value} for key, value in REQUEST_STATUS_LABELS.items()],
-        "sample_status_options": [{"value": key, "label": value} for key, value in SAMPLE_STATUS_LABELS.items()],
+        "sample_status_options": list(SAMPLE_STATUS_DROPDOWN),
         "sample_type_options": sorted({row.get("sample") or row.get("sample_type") for row in catalog if row.get("sample") or row.get("sample_type")}),
         "sample_placeholder_rows": [],
         "sample_placeholder_status": {},
@@ -1218,12 +1314,6 @@ def approval_decision():
     return redirect(url_for("dashboard.approvals_page", notice=message, notice_type="ok" if ok else "error"))
 
 
-@dashboard.get("/afiliaciones")
-@_login_required
-def affiliations_page():
-    return _render_dashboard("afiliaciones")
-
-
 @dashboard.get("/motorizados")
 @_login_required
 def motorizados_page():
@@ -1265,6 +1355,26 @@ def update_courier_phone():
     if not ok:
         return jsonify({"error": "Courier not found"}), 404
     return jsonify({"ok": True, "courier_id": courier_id, "phone": phone})
+
+
+@dashboard.post("/api/dashboard/courier-availability")
+@_login_required
+def update_courier_availability():
+    payload = request.get_json(silent=True) or {}
+    courier_id = str(payload.get("courier_id") or "").strip()
+    availability = str(payload.get("availability") or "").strip()
+    if not courier_id:
+        return jsonify({"error": "Missing courier_id"}), 400
+    valid_options = {"available", "unavailable", "on_route", "territorial"}
+    if availability not in valid_options:
+        return jsonify({"error": "Invalid availability value"}), 400
+    try:
+        ok = db.update_courier(courier_id, {"availability": availability})
+    except Exception:
+        return jsonify({"error": "Unable to update courier availability"}), 503
+    if not ok:
+        return jsonify({"error": "Courier not found"}), 404
+    return jsonify({"ok": True, "courier_id": courier_id, "availability": availability})
 
 
 @dashboard.post("/api/dashboard/courier-locality-assignment")
@@ -1333,7 +1443,7 @@ def update_client_profile():
     clinic_name = _sanitize_text(payload.get("clinic_name"), 180)
     field = str(payload.get("field") or "").strip()
     value = payload.get("value")
-    allowed_client_fields = {"clinic_name", "phone", "address", "zone", "billing_type", "tax_id"}
+    allowed_client_fields = {"clinic_name", "phone", "address", "zone", "billing_type", "tax_id", "is_active"}
     allowed_profile_fields = {"client_code", "commercial_name", "client_type", "billing_email", "vat_regime", "electronic_invoicing", "invoicing_rut_url", "observations", "entered_flag"}
     if not client_id and not clinic_key:
         return jsonify({"error": "Missing client_id"}), 400
@@ -1341,7 +1451,16 @@ def update_client_profile():
         return jsonify({"error": "Unsupported field"}), 400
     try:
         if field in allowed_client_fields:
-            db.update_client_profile(client_id, {field: value})
+            update_payload = {field: value}
+            if field == "is_active":
+                update_payload = {field: value is True or str(value).lower() == "true"}
+            db.update_client_profile(client_id, update_payload)
+            if field == "clinic_name" and clinic_key:
+                db.upsert_client_profile({
+                    "clinic_key": clinic_key,
+                    "clinic_name": _sanitize_text(value, 180) or clinic_key,
+                    "source_updated_at": datetime.now(timezone.utc).isoformat(),
+                })
         else:
             profile_value = value
             if field in {"electronic_invoicing", "entered_flag"}:
@@ -1373,11 +1492,12 @@ def update_request_operation():
     request_id = str(payload.get("request_id") or "").strip()
     if not request_id:
         return jsonify({"error": "Missing request_id"}), 400
-    if not any(key in payload for key in ("priority", "sample_count", "sample_types")):
+    editable_keys = ("priority", "sample_count", "sample_types", "pickup_address", "assigned_courier_id", "scheduled_pickup_date")
+    if not any(key in payload for key in editable_keys):
         return jsonify({"error": "Missing editable fields"}), 400
 
     event_payload = {"updated_by": session.get("dashboard_username") or "operator", "source": "dashboard_solicitudes", "updated_at": datetime.now(timezone.utc).isoformat()}
-    response_payload = {"ok": True, "request_id": request_id, "priority": None, "sample_count": None, "sample_types": None}
+    response_payload = {"ok": True, "request_id": request_id}
     try:
         if "priority" in payload:
             priority = _normalize_priority(payload.get("priority"))
@@ -1387,7 +1507,6 @@ def update_request_operation():
             db.update_request(request_id, {"priority": db_priority})
             event_payload.update({"priority": priority, "priority_label": REQUEST_PRIORITY_LABELS.get(priority, priority), "priority_db_value": db_priority})
             response_payload["priority"] = priority
-            response_payload["priority_label"] = REQUEST_PRIORITY_LABELS.get(priority, priority)
         if "sample_count" in payload:
             sample_count = _normalize_sample_count(payload.get("sample_count"))
             if sample_count is None:
@@ -1398,6 +1517,21 @@ def update_request_operation():
             sample_types = _normalize_sample_types(payload.get("sample_types"))
             event_payload["sample_types"] = sample_types
             response_payload["sample_types"] = sample_types
+        if "pickup_address" in payload:
+            address = _sanitize_text(payload.get("pickup_address"), 300)
+            db.update_request(request_id, {"pickup_address": address})
+            event_payload["pickup_address"] = address
+            response_payload["pickup_address"] = address
+        if "assigned_courier_id" in payload:
+            courier_id = str(payload.get("assigned_courier_id") or "").strip() or None
+            db.update_request(request_id, {"assigned_courier_id": courier_id})
+            event_payload["assigned_courier_id"] = courier_id
+            response_payload["assigned_courier_id"] = courier_id
+        if "scheduled_pickup_date" in payload:
+            date_val = _sanitize_text(payload.get("scheduled_pickup_date"), 30)
+            db.update_request(request_id, {"scheduled_pickup_date": date_val or None})
+            event_payload["scheduled_pickup_date"] = date_val
+            response_payload["scheduled_pickup_date"] = date_val
         db.create_request_event(request_id, "dashboard_request_manual_update", event_payload)
     except Exception:
         return jsonify({"error": "Unable to update request operation"}), 503
@@ -1462,11 +1596,13 @@ def assign_profile_to_samples():
             "species": row.get("species") or "ambos",
             "sample_type": sample_type,
             "price": _price_value(row.get("price")),
+            "source": _sanitize_text((item or {}).get("source"), 80),
+            "included_from_profile_code": _sanitize_text((item or {}).get("included_from_profile_code"), 80),
         }
         selected_items.append(selected)
         sample_rows.append({
             "client_id": client_id,
-            "status": "received_lab",
+"status": "pending_pickup",
             "priority": db_priority,
             "test_code": code,
             "test_name": selected["name"],
@@ -1498,7 +1634,58 @@ def assign_profile_to_samples():
         ])
     except Exception:
         return jsonify({"error": "Unable to assign profile to samples"}), 503
-    return jsonify({"ok": True, "status": "received_lab", "created_count": len(created_rows or []), "sample_ids": [row.get("id") for row in created_rows or []]})
+    return jsonify({"ok": True, "status": "pending_pickup", "created_count": len(created_rows or []), "sample_ids": [row.get("id") for row in created_rows or []]})
+
+
+@dashboard.get("/api/dashboard/custom-profiles")
+@_login_required
+def list_custom_profiles():
+    client_id = request.args.get("client_id", "").strip()
+    try:
+        profiles = db.list_custom_profiles(client_id=client_id or None, limit=200)
+        for p in profiles:
+            p["items_json"] = p.get("items_json") or []
+        return jsonify({"ok": True, "profiles": profiles})
+    except Exception:
+        return jsonify({"ok": True, "profiles": [], "migration_required": True})
+
+
+@dashboard.post("/api/dashboard/save-custom-profile")
+@_login_required
+def save_custom_profile():
+    payload = request.get_json(silent=True) or {}
+    client_id = str(payload.get("client_id") or "").strip()
+    name = _sanitize_text(payload.get("name"), 200) or "Perfil personalizado"
+    items = payload.get("items") or []
+    if not client_id:
+        return jsonify({"error": "Missing client_id"}), 400
+    if not items:
+        return jsonify({"error": "Missing items"}), 400
+    try:
+        profile = db.save_custom_profile({
+            "client_id": client_id,
+            "name": name,
+            "items_json": items,
+            "created_by": session.get("dashboard_username") or "operator",
+        })
+        profile["items_json"] = profile.get("items_json") or []
+        return jsonify({"ok": True, "profile": profile})
+    except Exception:
+        return jsonify({"error": "Falta crear la tabla client_custom_profiles en Supabase"}), 503
+
+
+@dashboard.post("/api/dashboard/delete-custom-profile")
+@_login_required
+def delete_custom_profile():
+    payload = request.get_json(silent=True) or {}
+    profile_id = str(payload.get("profile_id") or "").strip()
+    if not profile_id:
+        return jsonify({"error": "Missing profile_id"}), 400
+    try:
+        success = db.delete_custom_profile(profile_id)
+        return jsonify({"ok": True, "deleted": success})
+    except Exception:
+        return jsonify({"error": "Unable to delete custom profile"}), 503
 
 
 @dashboard.post("/api/dashboard/sample-status")
@@ -1517,8 +1704,28 @@ def update_sample_status():
     status_db = _sample_status_db_value(status)
     created_from_seed = False
     persistence_mode = "event_only"
+    is_order = sample_id.startswith("order:")
+    order_request_id = sample_id.replace("order:", "", 1) if is_order else None
+    if is_order:
+        sample_id = ""
     try:
-        if not sample_id and isinstance(sample_seed, dict):
+        if is_order and order_request_id:
+            request_status_map = {
+                "pending_pickup": "received",
+                "picked_up": "on_route",
+                "received_lab": "in_lab",
+                "in_lab": "in_lab",
+                "processed": "processed",
+                "sent": "sent",
+            }
+            new_request_status = request_status_map.get(status, status)
+            db.update_request(order_request_id, {"status": new_request_status})
+            try:
+                db.create_request_event(order_request_id, "dashboard_status_update", {"status": new_request_status, "sample_status": status, "status_label": SAMPLE_STATUS_LABELS.get(status, status), "updated_by": session.get("dashboard_username") or "operator", "source": "dashboard_muestras", "updated_at": now_iso})
+            except Exception:
+                pass
+            persistence_mode = "request_and_event"
+        elif not sample_id and isinstance(sample_seed, dict):
             create_payload = {
                 "status": status_db,
                 "priority": _normalize_priority_db(_normalize_priority(sample_seed.get("priority")) or "normal"),
@@ -1542,14 +1749,159 @@ def update_sample_status():
             db.update_rows("lab_samples", {"id": sample_id}, {"status": status})
             persistence_mode = "lab_samples_and_event"
 
-        db.insert_rows("lab_sample_events", [{
-            "sample_id": sample_id,
-            "event_type": "dashboard_status_update",
-            "event_payload": {"status": status, "status_label": SAMPLE_STATUS_LABELS.get(status, status), "updated_by": session.get("dashboard_username") or "operator", "source": "dashboard_muestras", "persistence_mode": persistence_mode, "created_from_seed": created_from_seed, "status_db": status_db, "updated_at": now_iso},
-        }])
+        if not is_order:
+            db.insert_rows("lab_sample_events", [{
+                "sample_id": sample_id,
+                "event_type": "dashboard_status_update",
+                "event_payload": {"status": status, "status_label": SAMPLE_STATUS_LABELS.get(status, status),
+                "dropdown_status": _DROPDOWN_STATUS_MAP.get(status, status), "updated_by": session.get("dashboard_username") or "operator", "source": "dashboard_muestras", "persistence_mode": persistence_mode, "created_from_seed": created_from_seed, "status_db": status_db, "updated_at": now_iso},
+            }])
     except Exception:
         return jsonify({"error": "Unable to update sample status"}), 503
-    return jsonify({"ok": True, "sample_id": sample_id, "status": status, "status_label": SAMPLE_STATUS_LABELS.get(status, status), "persistence_mode": persistence_mode, "created_from_seed": created_from_seed})
+    return jsonify({"ok": True, "sample_id": sample_id, "status": status, "status_label": SAMPLE_STATUS_LABELS.get(status, status),
+            "dropdown_status": _DROPDOWN_STATUS_MAP.get(status, status), "persistence_mode": persistence_mode, "created_from_seed": created_from_seed})
+
+
+def _geocode_address(address: str) -> tuple[float, float] | None:
+    q = address + ", Bogota, Colombia"
+    url = "https://nominatim.openstreetmap.org/search?q=" + urllib.request.quote(q) + "&format=json&limit=1&countrycodes=co"
+    req = urllib.request.Request(url, headers={"User-Agent": "A3-Lab/1.0"})
+    try:
+        import time as _time
+        _time.sleep(1.05)
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = _json.loads(resp.read())
+            if data:
+                return float(data[0]["lat"]), float(data[0]["lon"])
+    except Exception:
+        pass
+    return None
+
+
+def _nearest_locality(lat: float, lng: float) -> str | None:
+    best = None
+    best_dist = float("inf")
+    for code, (la, lo) in BOGOTA_LOCALITY_COORDS.items():
+        d = math.sqrt((lat - la) ** 2 + (lng - lo) ** 2)
+        if d < best_dist:
+            best_dist = d
+            best = code
+    return best
+
+
+def _resolve_client_zone(
+    client: dict,
+    courier_by_name: dict,
+    knowledge_by_name: dict,
+    locality_keywords: dict,
+) -> tuple[int | None, str]:
+    addr = (client.get("address") or "").strip()
+    zone = (client.get("zone") or "").strip()
+
+    result = territory.suggest_zone_for_location(address=addr, zone=zone)
+    if result.get("zone_number"):
+        return result["zone_number"], "zona"
+
+    name_key = _normalize_lookup_key(client.get("clinic_name"))
+    k = knowledge_by_name.get(name_key, {})
+    locality = k.get("locality")
+    if locality:
+        result = territory.suggest_zone_for_location(locality=locality, address=addr)
+        if result.get("zone_number"):
+            return result["zone_number"], "knowledge"
+
+    text = _normalize_lookup_key(client.get("clinic_name", "") + " " + addr)
+    for loc_key, zone_num in locality_keywords.items():
+        if loc_key in text:
+            return zone_num, "localidad"
+
+    if locality:
+        loc_key = _normalize_lookup_key(locality)
+        for known_loc, zone_num in locality_keywords.items():
+            if known_loc in loc_key or loc_key in known_loc:
+                return zone_num, "knowledge_fuzzy"
+
+    if addr and addr != "-":
+        coords = _geocode_address(addr)
+        if coords:
+            loc_code = _nearest_locality(coords[0], coords[1])
+            if loc_code:
+                result = territory.suggest_zone_for_location(locality=loc_code)
+                if result.get("zone_number"):
+                    return result["zone_number"], "geocode"
+
+    return None, "none"
+
+
+@dashboard.post("/api/dashboard/suggest-couriers")
+@_login_required
+def suggest_couriers():
+    clients = db.list_clients_with_assignment(limit=500)
+    couriers = db.list_active_couriers(limit=500)
+    courier_by_name = {_normalize_lookup_key(c["name"]): c for c in couriers if c.get("id") and c.get("name")}
+    knowledge = _safe_fetch(lambda: db.list_a3_knowledge_index(limit=5000), [])
+    knowledge_by_name = {}
+    for k in knowledge:
+        name_key = _normalize_lookup_key(k.get("clinic_name"))
+        if name_key:
+            knowledge_by_name[name_key] = k
+    locality_keywords = {}
+    for zone_num, locs in territory.ZONE_LOCALITIES.items():
+        for _code, name, _count in locs:
+            locality_keywords[_normalize_lookup_key(name)] = zone_num
+    suggestions = []
+    skipped = 0
+    no_match = 0
+    for client in clients:
+        assignment = _assignment_from_client(client)
+        if assignment and assignment.get("courier_id"):
+            skipped += 1
+            continue
+        zone_number, method = _resolve_client_zone(client, courier_by_name, knowledge_by_name, locality_keywords)
+        if not zone_number:
+            no_match += 1
+            continue
+        courier_name = territory.ZONE_COURIERS.get(zone_number)
+        courier = courier_by_name.get(_normalize_lookup_key(courier_name)) if courier_name else None
+        if not courier:
+            no_match += 1
+            continue
+        suggestions.append({
+            "client_id": str(client["id"]),
+            "clinic_name": client.get("clinic_name") or "",
+            "courier_id": str(courier["id"]),
+            "courier_name": courier["name"],
+            "zone_number": zone_number,
+            "method": method,
+        })
+    return jsonify({"ok": True, "suggestions": suggestions, "skipped": skipped, "no_match": no_match})
+
+
+@dashboard.post("/api/dashboard/confirm-suggested-assignments")
+@_login_required
+def confirm_suggested_assignments():
+    payload = request.get_json(silent=True) or {}
+    assignments = payload.get("assignments") if isinstance(payload.get("assignments"), list) else []
+    if not assignments:
+        return jsonify({"error": "Missing assignments"}), 400
+    confirmed = 0
+    errors = 0
+    for item in assignments:
+        client_id = str(item.get("client_id") or "").strip()
+        courier_id = str(item.get("courier_id") or "").strip()
+        if not client_id or not courier_id:
+            errors += 1
+            continue
+        try:
+            db.upsert_client_assignment(
+                client_id=client_id,
+                courier_id=courier_id,
+                assigned_by=f"dashboard:suggested:{session.get('dashboard_username') or 'operator'}",
+            )
+            confirmed += 1
+        except Exception:
+            errors += 1
+    return jsonify({"ok": True, "confirmed": confirmed, "errors": errors})
 
 
 @dashboard.get("/api/dashboard/overview")

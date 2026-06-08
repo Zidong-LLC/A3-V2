@@ -14,7 +14,7 @@ from tools.scripts.validate_allegra_clients import load_excel_rows, normalize_ke
 
 
 SOURCE_SHEET = "Alegra - Terceros"
-SOURCE_EXCEL = "Alegra - Terceros.xlsx"
+SOURCE_EXCEL = "Alegra - Clientes A3 Laboratorio Clinico Veterinario.xlsx"
 
 
 def chunked(rows: list[dict], size: int = 100) -> list[list[dict]]:

@@ -1,3 +1,4 @@
+import time
 from flask import Flask, request, jsonify, abort
 from app.config import TELEGRAM_WEBHOOK_SECRET, FLASK_SECRET_KEY
 from app.agent import process_turn
@@ -10,6 +11,23 @@ app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
 app.register_blueprint(platform_api)
 app.register_blueprint(dashboard)
+
+# Pausa tras el mensaje de progreso para que se sienta humano (segundos)
+PROGRESS_PAUSE_SECONDS = 1.5
+
+
+def _make_progress_callback(channel, chat_id: str):
+    """Devuelve un callback que envía un mensaje de progreso ('déjame revisar…'),
+    activa el indicador de 'escribiendo…' y espera una pausa corta. Cualquier
+    error de red se ignora para no interrumpir el turno."""
+    def on_progress(message: str) -> None:
+        try:
+            channel.send_message(chat_id, message)
+            channel.send_typing(chat_id)
+            time.sleep(PROGRESS_PAUSE_SECONDS)
+        except Exception as e:
+            app.logger.warning("Fallo enviando mensaje de progreso a %s: %s", chat_id, e)
+    return on_progress
 
 
 @app.route("/webhooks/telegram", methods=["POST"])
@@ -28,9 +46,13 @@ def telegram_webhook():
     user_text = message["text"]
 
     try:
-        reply = process_turn(chat_id, user_text)
+        reply = process_turn(chat_id, user_text, on_progress=_make_progress_callback(telegram, chat_id))
     except Exception as e:
         app.logger.error("Error processing turn for %s: %s", chat_id, e, exc_info=True)
+        return jsonify({"ok": True})
+
+    # reply None: sesión bloqueada (cliente final). No se responde.
+    if not reply:
         return jsonify({"ok": True})
 
     try:
@@ -59,9 +81,13 @@ def chatwoot_webhook():
         return jsonify({"ok": True})
 
     try:
-        reply = process_turn(conversation_id, content)
+        reply = process_turn(conversation_id, content, on_progress=_make_progress_callback(chatwoot, conversation_id))
     except Exception as e:
         app.logger.error("Error en process_turn chatwoot %s: %s", conversation_id, e, exc_info=True)
+        return jsonify({"ok": True})
+
+    # reply None: sesión bloqueada (cliente final). No se responde.
+    if not reply:
         return jsonify({"ok": True})
 
     try:

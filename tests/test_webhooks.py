@@ -43,7 +43,10 @@ def test_chatwoot_webhook_replies_and_assigns_handoff_team():
         )
 
     assert response.status_code == 200
-    mock_process.assert_called_once_with("456", "Necesito pagar una factura")
+    mock_process.assert_called_once()
+    args, kwargs = mock_process.call_args
+    assert args == ("456", "Necesito pagar una factura")
+    assert "on_progress" in kwargs
     mock_send.assert_called_once_with("456", "Te comunico con contabilidad")
     mock_assign.assert_called_once_with("456", "contabilidad")
 

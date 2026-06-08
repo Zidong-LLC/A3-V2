@@ -37,6 +37,12 @@ def send_message(conversation_id: str, text: str) -> None:
     })
 
 
+def send_typing(conversation_id: str) -> None:
+    _post(f"/conversations/{conversation_id}/toggle_typing_status", {
+        "typing_status": "on",
+    })
+
+
 def assign_team(conversation_id: str, handoff_area: str) -> None:
     team_id = _TEAM_MAP.get(handoff_area)
     if not team_id:

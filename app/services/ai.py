@@ -6,6 +6,36 @@ from app.schema import RESPONSE_SCHEMA
 
 _client = OpenAI(api_key=OPENAI_API_KEY)
 
+_NC_INTERPRET_SYSTEM = (
+    "Estás registrando datos de un cliente potencial para A3 Laboratorio Veterinario (Bogotá, Colombia). "
+    "Tu única tarea: determinar si la respuesta del usuario contiene el dato solicitado.\n\n"
+    "Reglas:\n"
+    "• Si el usuario responde con el dato pedido → action=save, value=dato limpio, reply=null.\n"
+    "• Si saluda, pregunta algo, dice algo fuera de contexto, o da un dato claramente incorrecto "
+    "→ action=clarify, value=null, reply=respuesta corta y amable en español colombiano que "
+    "aclare/responda y luego vuelva a pedir el dato.\n"
+    "• Sé natural, no robótico. Máximo 2 oraciones en reply.\n"
+    "Responde SOLO con JSON válido: "
+    "{\"action\":\"save\"|\"clarify\", \"value\":\"...\"|null, \"reply\":\"...\"|null}"
+)
+
+
+def interpret_nc_step(question: str, user_message: str) -> dict:
+    """Interpreta si user_message responde la pregunta de captura de nuevo cliente.
+    Returns: {"action": "save"|"clarify", "value": str|None, "reply": str|None}
+    """
+    messages = [
+        {"role": "system", "content": _NC_INTERPRET_SYSTEM},
+        {"role": "user", "content": f"Pregunté: \"{question}\"\nEl usuario respondió: \"{user_message}\""},
+    ]
+    response = _client.chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=messages,
+        response_format={"type": "json_object"},
+        temperature=0.2,
+    )
+    return json.loads(response.choices[0].message.content)
+
 
 def generate_turn(
     session: dict,

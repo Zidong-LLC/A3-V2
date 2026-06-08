@@ -4,6 +4,7 @@ import re
 import sys
 
 from dotenv import load_dotenv
+from openpyxl import load_workbook
 from supabase import create_client
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -11,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from app.config import SUPABASE_SERVICE_ROLE_KEY, SUPABASE_URL
 
 
-EXCEL_PATH = Path(r"C:\Users\gasto\Desktop\Alegra - Terceros.xlsx")
+EXCEL_PATH = Path(r"C:\Users\gasto\OneDrive\Desktop\Alegra - Clientes A3 Laboratorio Clinico Veterinario.xlsx")
 
 
 def clean_text(value) -> str:
@@ -43,11 +44,6 @@ def parse_name(raw_name: str) -> tuple[str, str | None, str]:
 
 
 def load_excel_rows() -> list[dict]:
-    try:
-        from openpyxl import load_workbook
-    except ModuleNotFoundError as exc:
-        raise RuntimeError("openpyxl es requerido para leer el Excel de Alegra") from exc
-
     workbook = load_workbook(EXCEL_PATH, read_only=True, data_only=True)
     sheet = workbook[workbook.sheetnames[0]]
     rows = sheet.iter_rows(values_only=True)

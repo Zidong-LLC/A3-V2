@@ -1,4 +1,5 @@
 import re
+import difflib
 from datetime import datetime, timezone
 from supabase import create_client, Client
 from app.config import SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
@@ -196,6 +197,26 @@ def _nit_base_candidates(tax_id: str) -> list[str]:
     return bases
 
 
+def _fetch_all_active_clients(select_fields: str = "*") -> list[dict]:
+    PAGE = 1000
+    all_rows: list[dict] = []
+    offset = 0
+    while True:
+        result = (
+            _client.table("clients")
+            .select(select_fields)
+            .eq("is_active", True)
+            .range(offset, offset + PAGE - 1)
+            .execute()
+        )
+        batch = result.data or []
+        all_rows.extend(batch)
+        if len(batch) < PAGE:
+            break
+        offset += PAGE
+    return all_rows
+
+
 def identify_client(name: str = None, tax_id: str = None) -> dict | None:
     if tax_id:
         for nit in _nit_candidates(tax_id):
@@ -216,17 +237,19 @@ def identify_client(name: str = None, tax_id: str = None) -> dict | None:
         )
         if result.data:
             return result.data[0]
-        result = _client.table("clients").select("*").eq("is_active", True).limit(1000).execute()
-        for client in result.data or []:
+        for client in _fetch_all_active_clients():
             if _name_matches(name, client.get("clinic_name")):
                 return client
     return None
 
 
-def find_client_matches(name: str | None = None, limit: int = 5) -> list[dict]:
-    if not name:
+def find_clients_by_tax_id(tax_id: str | None = None) -> list[dict]:
+    """Todas las filas activas (sedes) que comparten un mismo NIT. Permite
+    ofrecer el desglose de sucursales cuando un cliente tiene varias sedes."""
+    if not tax_id:
         return []
 
+    select_fields = "id, clinic_name, tax_id, phone, address, zone"
     matches: list[dict] = []
     seen: set[str] = set()
 
@@ -237,21 +260,62 @@ def find_client_matches(name: str | None = None, limit: int = 5) -> list[dict]:
                 matches.append(row)
                 seen.add(client_id)
 
-    result = (
-        _client.table("clients")
-        .select("id, clinic_name, tax_id, phone, address, zone")
-        .ilike("clinic_name", f"%{name}%")
-        .eq("is_active", True)
-        .limit(limit)
-        .execute()
+    for nit in _nit_candidates(tax_id):
+        result = _client.table("clients").select(select_fields).eq("tax_id", nit).eq("is_active", True).execute()
+        add_rows(result.data)
+    for base in _nit_base_candidates(tax_id):
+        result = _client.table("clients").select(select_fields).ilike("tax_id", f"{base}-%").eq("is_active", True).execute()
+        add_rows(result.data)
+
+    return matches
+
+
+def _name_match_score(q_tokens: list[str], q_compact: str, candidate: str | None) -> float:
+    """Puntúa cuán parecido es un nombre al texto buscado.
+    Devuelve 0 si no es relevante; valores mayores = mejor coincidencia.
+    Considera relevante un nombre que contiene TODAS las palabras del texto
+    (en cualquier orden) o el texto pegado como subcadena."""
+    c = _normalize_lookup_key(candidate)
+    if not c or not q_tokens:
+        return 0.0
+    c_tokens = [t for t in c.split("_") if t]
+    c_compact = c.replace("_", "")
+
+    covered = sum(
+        1 for qt in q_tokens
+        if any(qt == ct or (len(qt) >= 3 and ct.startswith(qt)) for ct in c_tokens)
     )
-    add_rows(result.data)
+    coverage = covered / len(q_tokens)
+    compact_hit = len(q_compact) >= 4 and q_compact in c_compact
 
-    if len(matches) < limit:
-        result = _client.table("clients").select("id, clinic_name, tax_id, phone, address, zone").eq("is_active", True).limit(1000).execute()
-        add_rows([client for client in result.data or [] if _name_matches(name, client.get("clinic_name"))])
+    # Relevante solo si están todas las palabras, o el texto aparece pegado.
+    if coverage < 1.0 and not compact_hit:
+        return 0.0
 
-    return matches[:limit]
+    ratio = difflib.SequenceMatcher(None, q_compact, c_compact).ratio()
+    return coverage + (0.5 if compact_hit else 0.0) + ratio * 0.5
+
+
+def find_client_matches(name: str | None = None, limit: int = 5) -> list[dict]:
+    """Coincidencias de clientes ordenadas por similitud al texto buscado.
+    La más parecida queda primera (tolera errores de escritura y palabras sueltas
+    como 'animal vet' -> 'Animal's Vet House Centenario')."""
+    if not name:
+        return []
+    q = _normalize_lookup_key(name)
+    q_tokens = [t for t in q.split("_") if t]
+    q_compact = q.replace("_", "")
+    if not q_tokens:
+        return []
+
+    scored: list[tuple[float, str, dict]] = []
+    for c in _fetch_all_active_clients("id, clinic_name, tax_id, phone, address, zone"):
+        score = _name_match_score(q_tokens, q_compact, c.get("clinic_name"))
+        if score > 0:
+            scored.append((score, c.get("clinic_name") or "", c))
+
+    scored.sort(key=lambda item: (-item[0], item[1]))
+    return [c for _, _, c in scored[:limit]]
 
 
 def get_client_by_id(client_id: str) -> dict | None:
@@ -279,12 +343,17 @@ def find_client_for_dashboard(tax_id: str | None = None, phone: str | None = Non
 
 
 def create_pending_client_review(client_payload: dict, review_payload: dict) -> dict:
-    result = _client.table("clients").insert(client_payload).execute()
-    client = result.data[0]
+    phone = client_payload.get("phone")
+    existing = _client.table("clients").select("id").eq("phone", phone).execute().data if phone else []
+    if existing:
+        client = existing[0]
+    else:
+        result = _client.table("clients").insert(client_payload).execute()
+        client = result.data[0]
     now = datetime.now(timezone.utc).isoformat()
     request_data = {
         "client_id": client["id"],
-        "entry_channel": "dashboard",
+        "entry_channel": "telegram",
         "service_area": "new_client",
         "intent": "new_client",
         "priority": "normal",
@@ -521,7 +590,7 @@ def get_tests_by_codes(codes: list[str]) -> list[dict]:
         return []
     result = (
         _client.table("catalog_tests")
-        .select("code, name, price")
+        .select("code, name, price, category")
         .in_("code", codes)
         .eq("is_active", True)
         .execute()
@@ -535,7 +604,7 @@ def get_tests_by_codes_or_names(items: list[str]) -> list[dict]:
 
     result = (
         _client.table("catalog_tests")
-        .select("code, name, price")
+        .select("code, name, price, category")
         .eq("is_active", True)
         .limit(5000)
         .execute()
@@ -557,6 +626,59 @@ def get_tests_by_codes_or_names(items: list[str]) -> list[dict]:
                     seen.add(code)
                 break
     return matched
+
+
+def list_diagnostic_labels(limit: int = 200) -> list[str]:
+    """Etiquetas diagnósticas distintas disponibles (CARDIACO, SENIOR CANINO, ...).
+    Defensivo: si la tabla aún no existe (migración 012 sin aplicar), devuelve []."""
+    try:
+        result = _client.table("diagnostic_label_tests").select("label").limit(5000).execute()
+    except Exception:
+        return []
+    seen: list[str] = []
+    for row in result.data or []:
+        label = row.get("label")
+        if label and label not in seen:
+            seen.append(label)
+    return sorted(seen)[:limit]
+
+
+def find_diagnostic_label(query: str | None) -> str | None:
+    """Encuentra la etiqueta diagnóstica que mejor corresponde al texto del usuario.
+    Coincidencia por clave normalizada (exacta o contenida)."""
+    key = _normalize_lookup_key(query)
+    if not key:
+        return None
+    labels = list_diagnostic_labels()
+    label_keys = {label: _normalize_lookup_key(label) for label in labels}
+    for label, lk in label_keys.items():
+        if lk == key:
+            return label
+    # Solo si la etiqueta COMPLETA aparece en el texto (ej. "perfil convulsivo canino"),
+    # no al revés (una palabra suelta como "canino" no debe matchear "convulsivo canino").
+    for label, lk in label_keys.items():
+        if lk and lk in key:
+            return label
+    return None
+
+
+def get_tests_for_label(label: str | None) -> list[dict]:
+    """Pruebas (code, name, price, category) que conforman una etiqueta diagnóstica."""
+    if not label:
+        return []
+    try:
+        rows = (
+            _client.table("diagnostic_label_tests")
+            .select("test_code")
+            .eq("label", label)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        return []
+    codes = [r["test_code"] for r in rows if r.get("test_code")]
+    return get_tests_by_codes(codes)
 
 
 def list_catalog_tests(limit: int = 500) -> list[dict]:
@@ -610,6 +732,28 @@ def update_rows(table: str, filters: dict, payload: dict) -> list[dict]:
         query = query.eq(field, value)
     result = query.execute()
     return result.data or []
+
+
+def list_custom_profiles(client_id: str | None = None, limit: int = 100) -> list[dict]:
+    query = _client.table("client_custom_profiles").select("*, clients(clinic_name)").order("created_at", desc=True).limit(limit)
+    if client_id:
+        query = query.eq("client_id", client_id)
+    result = query.execute()
+    rows = result.data or []
+    for row in rows:
+        client = row.get("clients") if isinstance(row.get("clients"), dict) else {}
+        row["client_name"] = client.get("clinic_name") or "Cliente"
+    return rows
+
+
+def save_custom_profile(payload: dict) -> dict:
+    result = _client.table("client_custom_profiles").insert(payload).execute()
+    return (result.data or [{}])[0]
+
+
+def delete_custom_profile(profile_id: str) -> bool:
+    result = _client.table("client_custom_profiles").delete().eq("id", profile_id).execute()
+    return bool(result.data)
 
 
 def update_request(request_id: str, payload: dict) -> bool:
@@ -712,7 +856,7 @@ def _service_order_event_payload(fields: dict, requested_at: datetime) -> dict:
         "date": requested_at.date().isoformat(),
         "requesting_doctor": fields.get("requesting_doctor"),
         "clinic_name": fields.get("clinic_name") or fields.get("_client_display_name"),
-        "clinic_phone": fields.get("clinic_phone"),
+        "clinic_phone": fields.get("_client_phone") or fields.get("clinic_phone"),
         "pickup_address": fields.get("pickup_address"),
         "patient": {
             "name": fields.get("patient_name"),
@@ -754,6 +898,11 @@ def list_active_couriers(limit: int = 500) -> list[dict]:
 
 def update_courier_phone(courier_id: str, phone: str) -> bool:
     result = _client.table("couriers").update({"phone": phone}).eq("id", courier_id).execute()
+    return bool(result.data)
+
+
+def update_courier(courier_id: str, payload: dict) -> bool:
+    result = _client.table("couriers").update(payload).eq("id", courier_id).execute()
     return bool(result.data)
 
 
@@ -850,11 +999,7 @@ def list_clients_with_assignment(limit: int = 500) -> list[dict]:
 def list_requests(limit: int = 500, status: str | None = None) -> list[dict]:
     query = (
         _client.table("requests")
-        .select(
-            "id, client_id, service_area, intent, priority, status, exam_type, patient_name, "
-            "pickup_address, scheduled_pickup_date, assigned_courier_id, fallback_reason, requested_at, "
-            "clients(clinic_name), couriers(name)"
-        )
+        .select("*, clients(clinic_name), couriers(name)")
         .order("requested_at", desc=True)
         .limit(limit)
     )
@@ -971,6 +1116,7 @@ def create_request(chat_id: str, session: dict, ai_response: dict) -> str | None
         return None
 
     request_id = result.data[0]["id"]
+    order_number = result.data[0].get("order_number")  # generado por la BB (None si falta la migración)
     event_payload = {
         "source":   "telegram",
         "chat_id":  chat_id,
@@ -990,4 +1136,19 @@ def create_request(chat_id: str, session: dict, ai_response: dict) -> str | None
         "event_payload":  event_payload,
     }).execute()
 
-    return request_id
+    return {"request_id": request_id, "order_number": order_number}
+
+
+def get_last_order_for_client(client_id: str) -> dict | None:
+    """Última solicitud del cliente, para devolver su número de orden por chat."""
+    if not client_id:
+        return None
+    result = (
+        _client.table("requests")
+        .select("*")
+        .eq("client_id", client_id)
+        .order("requested_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None

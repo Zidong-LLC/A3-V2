@@ -1,13 +1,20 @@
 ﻿import re
+from typing import Callable
 
 from app.services import ai, db
 from app.rules import TERMINAL_PHASES, calculate_custom_profile_total, calculate_profile_adjusted_total
 
+CLIENT_LOOKUP_PROGRESS_MESSAGE = "Permíteme un momentico mientras reviso nuestros registros 🔍"
+
 WELCOME_MESSAGE = (
     "Hola! Buen día, me alegra que nos visites.\n"
     "Bienvenido a A3 laboratorio clínico veterinario 🧪 🧫\n"
-    "Atendemos clínicas y profesionales veterinarios registrados.\n"
-    "¿En qué podemos ayudarte?"
+    "Atendemos clínicas y profesionales veterinarios registrados.\n\n"
+    "¿Con qué te ayudamos hoy? Respóndeme con el número:\n"
+    "1. Programar análisis y recogida de muestra\n"
+    "2. Consultar resultados\n"
+    "3. Pagos\n"
+    "4. Otro"
 )
 
 FINAL_USER_MESSAGE = (
@@ -42,6 +49,76 @@ CLIENT_IDENTIFIER_RETRY_MESSAGE = (
 
 POST_TERMINAL_GREETING_REPLY = "Hola. ¿En qué podemos ayudarte hoy?"
 
+# Flujo B — captura de datos del cliente no registrado (cliente potencial).
+NEW_CLIENT_INTRO = (
+    "No te encontré en nuestro sistema, pero no te preocupes. 😊\n"
+    "Vamos a dejar tus datos para que nuestro equipo te contacte.\n"
+)
+NEW_CLIENT_VERIFY_QUESTION = "¿Eres médico veterinario o representas una clínica veterinaria? (Sí / No)"
+NEW_CLIENT_PRO_STEPS = ("clinic", "doctor", "address", "phone")
+NEW_CLIENT_PARTICULAR_STEPS = ("pname", "pphone")
+NEW_CLIENT_QUESTIONS = {
+    "clinic":  "¿Cuál es el nombre de tu clínica o consultorio?",
+    "doctor":  "¿Cuál es el nombre del médico veterinario?",
+    "address": "¿Cuál es la dirección?",
+    "phone":   "¿Cuál es el teléfono de contacto?",
+    "pname":   "¿Cuál es tu nombre?",
+    "pphone":  "¿Cuál es tu teléfono de contacto?",
+}
+NEW_CLIENT_FIELDS = {
+    "clinic":  "_nc_clinic",
+    "doctor":  "_nc_doctor",
+    "address": "_nc_address",
+    "phone":   "_nc_phone",
+    "pname":   "_nc_name",
+    "pphone":  "_nc_phone",
+}
+NEW_CLIENT_DONE_MESSAGE = (
+    "Perfecto. ✅ Tus datos quedaron registrados.\n"
+    "Un agente se comunicará contigo para completar el registro y tomar tu primera solicitud.\n"
+    "En horario hábil te contactamos en un máximo de 30 minutos; fuera de horario, al inicio del día hábil siguiente."
+)
+NEW_CLIENT_PARTICULAR_DONE_MESSAGE = (
+    "Gracias por tus datos. 🐾\n"
+    "Ten en cuenta que A3 trabaja a través de clínicas y profesionales veterinarios registrados, "
+    "pero un asesor se comunicará contigo para orientarte.\n"
+    "En horario hábil te contactamos en un máximo de 30 minutos; fuera de horario, al inicio del día hábil siguiente."
+)
+_MENTION_PROFESSIONAL_TOKENS = frozenset({
+    "veterinario", "veterinaria", "clinica", "clínica", "medico", "médico",
+    "doctor", "doctora", "profesional", "consultorio", "hospital",
+})
+_NEW_CLIENT_FLOW_KEYS = (
+    "_nc_capturing", "_nc_step", "_nc_kind",
+    "_nc_clinic", "_nc_doctor", "_nc_address", "_nc_phone", "_nc_name",
+)
+_NC_FILLER_TOKENS = frozenset({
+    "hola", "holi", "ola", "buenas", "buenos", "buen", "dia", "días", "dias",
+    "tarde", "tardes", "noche", "noches", "hey", "hi", "saludos", "bien",
+    "ok", "okay", "listo", "si", "no", "que", "tal", "como", "estas", "estás",
+    "gracias", "please", "porfa",
+})
+
+def _nc_name_invalid(text: str) -> bool:
+    stripped = text.strip()
+    if len(stripped) < 2:
+        return True
+    if stripped.replace(" ", "").isdigit():
+        return True
+    return set(_tokenize(stripped)) <= _NC_FILLER_TOKENS
+
+def _nc_phone_invalid(text: str) -> bool:
+    import re as _re
+    return len(_re.sub(r"\D", "", text)) < 6
+
+ORDER_NUMBER_NEEDS_CLIENT_MESSAGE = (
+    "Para darte el número de tu orden necesito identificarte primero. "
+    "¿Me compartes el NIT o el nombre de la veterinaria o médico veterinario?"
+)
+ORDER_NUMBER_NOT_FOUND_MESSAGE = (
+    "Todavía no encuentro una orden registrada a tu nombre. ¿Quieres que programemos una recogida?"
+)
+
 FAREWELL_REPLY = (
     "Con mucho gusto, para eso estamos! "
     "Si en algún momento necesitas algo más, acá seguimos. ¡Hasta luego, cuídate!"
@@ -61,9 +138,66 @@ _CONTINUE_TOKENS = frozenset({
 
 _GREETING_TOKENS = frozenset({"hola", "buenos", "buenas", "dias", "días", "tardes", "noches"})
 
+# Consulta del número de orden ya creada (no confundir con crear una orden nueva)
+_ORDER_QUERY_TOKENS = frozenset({"orden", "ordenes", "órdenes", "pedido", "pedidos", "solicitud", "radicado"})
+_ORDER_NUMBER_TOKENS = frozenset({
+    "numero", "número", "num", "codigo", "código", "rastreo", "rastrear",
+    "seguimiento", "radicado", "referencia",
+})
+_ORDER_CREATE_TOKENS = frozenset({
+    "crear", "crea", "nueva", "nuevo", "otra", "otro", "hacer", "haz", "programar",
+    "generar", "agendar", "necesito", "quiero", "registrar",
+})
+
+
+def _is_order_number_query(text: str) -> bool:
+    tokens = set(_tokenize(text))
+    if tokens & _ORDER_CREATE_TOKENS:
+        return False
+    return bool(tokens & _ORDER_QUERY_TOKENS) and bool(tokens & _ORDER_NUMBER_TOKENS)
+
+
+def _order_number_reply(order: dict | None) -> str:
+    if order and order.get("order_number"):
+        exam = order.get("exam_type")
+        detail = f" ({exam})" if exam else ""
+        return (
+            f"El número de tu orden más reciente es {order['order_number']}{detail}. "
+            "Guárdalo para cualquier seguimiento."
+        )
+    return ORDER_NUMBER_NOT_FOUND_MESSAGE
+
+
+def _append_order_number(reply: str, order_info) -> str:
+    order_number = order_info.get("order_number") if isinstance(order_info, dict) else None
+    if not order_number:
+        return reply
+    return f"{reply}\n\nNúmero de orden: {order_number}"
+
 
 def _tokenize(text: str) -> list[str]:
     return re.findall(r"[a-z0-9áéíóúñü]+", text.lower())
+
+
+def _age_has_unit(value: str | None) -> bool:
+    """La edad solo es válida si trae unidad (años/meses/días)."""
+    return bool(set(_tokenize(value or "")) & _AGE_UNIT_TOKENS)
+
+
+def _titlecase_value(value: str | None) -> str | None:
+    if not value or not isinstance(value, str):
+        return value
+    return " ".join(
+        word.capitalize() if any(ch.isalpha() for ch in word) else word
+        for word in value.split()
+    )
+
+
+def _normalize_name_fields(fields: dict) -> None:
+    """Fuerza Mayúscula inicial en los campos de texto del paciente/cliente."""
+    for field in _TITLECASE_FIELDS:
+        if fields.get(field):
+            fields[field] = _titlecase_value(fields[field])
 
 
 def _is_farewell(text: str) -> bool:
@@ -95,13 +229,54 @@ _NEGATIVE_TOKENS = frozenset({"no", "nop", "negativo", "incorrecto", "otra", "di
 
 _HANDOFF_INTENTS = frozenset({"accounting", "new_client"})
 
-PAYMENT_METHODS = frozenset({"contado", "contraentrega"})
-PAYMENT_METHOD_QUESTION = "Antes de cerrar, ¿prefieres pagar ahora (contado) o contraentrega con el motorizado?"
+PAYMENT_METHODS = frozenset({"contraentrega", "pago_linea"})
+PAYMENT_METHOD_QUESTION = "Antes de cerrar, ¿cómo prefieres el pago: contraentrega con el motorizado o pago en línea?"
+PAYMENT_ONLINE_HANDOFF_MESSAGE = (
+    "Tu orden quedó registrada. Como elegiste pago en línea, nuestro equipo de contabilidad "
+    "te contactará en breve para enviarte el link y procesar el pago. "
+    "La recogida de la muestra sigue programada con normalidad."
+)
+
+AGE_QUESTION = "¿Qué edad tiene el paciente? Indícame número y unidad, por ejemplo: 5 años, 3 meses o 45 días."
+_AGE_UNIT_TOKENS = frozenset({"año", "años", "ano", "anos", "mes", "meses", "dia", "dias", "día", "días"})
+
+# Campos de texto libre que se normalizan a Mayúscula inicial (Sección 11 del spec).
+# No incluye exam_type (códigos/nombres de perfil) ni observations (texto libre).
+_TITLECASE_FIELDS = ("clinic_name", "patient_name", "species", "breed", "owner_name", "requesting_doctor")
+
+# Confirmación editable previa al registro (Sección 7.1 del spec).
+CONFIRMATION_PHASE = "fase_4_confirmacion"
+CORRECTION_PROMPT = (
+    "Claro. ¿Qué dato quieres corregir? "
+    "(dirección, médico, paciente, especie, raza, sexo, edad, propietario, observaciones, análisis o forma de pago)"
+)
+_CORRECTION_TOKENS = frozenset({
+    "corregir", "corrige", "corrijo", "cambiar", "cambia", "cambie", "modificar",
+    "modifica", "editar", "edita", "arreglar", "incorrecto", "mal", "equivocado",
+    "equivoqué", "equivoque", "no",
+})
+_CONFIRM_ORDER_TOKENS = frozenset({
+    "si", "sí", "confirmo", "confirmar", "confirmado", "correcto", "exacto",
+    "dale", "ok", "okay", "listo", "perfecto", "bien", "registralo", "regístralo",
+})
+_CORRECTION_FIELD_KEYWORDS = (
+    (("direccion", "dirección", "domicilio", "retiro"), "pickup_address"),
+    (("medico", "médico", "solicitante", "doctor", "doctora"), "requesting_doctor"),
+    (("paciente",), "patient_name"),
+    (("especie",), "species"),
+    (("raza",), "breed"),
+    (("sexo", "macho", "hembra"), "sex"),
+    (("edad",), "patient_age"),
+    (("propietario", "dueño", "dueno", "dueña", "duena"), "owner_name"),
+    (("observacion", "observación", "observaciones"), "observations"),
+    (("analisis", "análisis", "examen", "examenes", "exámenes", "perfil", "prueba", "pruebas"), "exam_type"),
+    (("pago",), "payment_method"),
+)
 MAX_CLIENT_MATCH_OPTIONS = 5
 _ROUTE_ORDER_FIELDS_BEFORE_PAYMENT = (
-    "pickup_address", "requesting_doctor", "clinic_phone", "exam_type",
+    "pickup_address", "requesting_doctor",
     "patient_name", "species", "breed", "sex", "patient_age",
-    "owner_name", "observations",
+    "owner_name", "observations", "exam_type",
 )
 _ROUTE_REQUIRED_FIELDS = _ROUTE_ORDER_FIELDS_BEFORE_PAYMENT + ("payment_method",)
 
@@ -111,7 +286,7 @@ _ORDER_RESET_FIELDS = frozenset({
     "_selected_profile_code", "_selected_profile_name", "_selected_profile_price",
     "_selected_profile_description", "_profile_detail_offered",
     "_profile_detail_confirmed", "_profile_customizing",
-    "_profile_options_offered",
+    "_profile_options_offered", "_diagnostic_label",
 })
 
 _IDENTIFICATION_RETRY_RESET_FIELDS = frozenset({
@@ -345,6 +520,54 @@ def _store_selected_profile_fields(fields: dict, profile: dict) -> None:
     fields["_profile_detail_offered"] = True
 
 
+def _diagnostic_label_suggestion_reply(label: str, tests: list[dict]) -> str:
+    lines = [f"Para un perfil {label.title()} suelo sugerir estas pruebas:"]
+    for t in tests:
+        price = t.get("price")
+        suffix = f" (${int(price)//1000}k)" if price else ""
+        lines.append(f"- {t.get('code')} {t.get('name')}{suffix}")
+    lines.append(
+        "¿Cuáles quieres incluir? Dime las que necesites y puedes agregar otras que no estén en la lista."
+    )
+    return "\n".join(lines)
+
+
+def _enforce_diagnostic_label_help(session: dict, ai_response: dict, user_message: str) -> dict:
+    """Si el cliente pide un perfil por necesidad diagnóstica (etiqueta: CARDIACO,
+    SENIOR CANINO, HEPÁTICO, etc.) sugiere las pruebas que lo conforman y arranca
+    un perfil personalizado para que el cliente escoja y agregue otras."""
+    if ai_response.get("intent") != "route_scheduling":
+        return ai_response
+    fields = ai_response.get("captured_fields", {})
+    if not (session.get("client_id") or fields.get("_client_found")):
+        return ai_response
+    # Ya se está armando un perfil o ya se sugirió una etiqueta en este flujo.
+    if fields.get("selected_tests") is not None or fields.get("_diagnostic_label"):
+        return ai_response
+
+    # Solo el análisis que el AI capturó (exam_type). No usar el mensaje suelto,
+    # para no disparar la sugerencia cuando el cliente apenas confirma la clínica.
+    candidate = fields.get("exam_type")
+    if not candidate:
+        return ai_response
+    # Si pide un perfil de catálogo específico (con versión "I/II" o código),
+    # respetar ese flujo; las etiquetas son para necesidades clínicas genéricas.
+    if _looks_like_specific_profile_query(candidate):
+        return ai_response
+    label = db.find_diagnostic_label(candidate)
+    if not label:
+        return ai_response
+    tests = db.get_tests_for_label(label)
+    if not tests:
+        return ai_response
+
+    fields["exam_type"] = None
+    fields["selected_tests"] = []
+    fields["removed_tests"] = []
+    fields["_diagnostic_label"] = label
+    return _base_route_response(_diagnostic_label_suggestion_reply(label, tests), fields)
+
+
 def _enforce_catalog_profile_help(session: dict, ai_response: dict, user_message: str, history: list[dict]) -> dict:
     if ai_response.get("intent") != "route_scheduling":
         return ai_response
@@ -415,6 +638,26 @@ def _unsupported_final_user_response(fields: dict) -> dict:
     }
 
 
+def _escalate_unfound_client(fields: dict) -> dict:
+    # El cliente dice no ser nuevo pero no aparece en la base: derivar a un humano
+    # en vez de seguir pidiendo el identificador en bucle.
+    fields["_handoff_announced"] = True
+    fields["_blocked"] = True
+    return {
+        "reply": CLIENT_NOT_FOUND_MESSAGE,
+        "phase": "fase_7_escalado",
+        "intent": "new_client",
+        "service_area": "new_client",
+        "requires_handoff": True,
+        "handoff_area": "operaciones",
+        "captured_fields": fields,
+        "confidence": 1.0,
+        "message_mode": "flow_progress",
+        "pending_intents": [],
+        "resume_prompt": "",
+    }
+
+
 def _client_identity_prompt_count(history: list[dict]) -> int:
     return sum(
         1 for msg in history
@@ -446,23 +689,31 @@ def _enforce_client_identification_gate(session: dict, ai_response: dict, histor
     return ai_response
 
 
-def _client_match_options_reply(query: str | None, matches: list[dict]) -> str:
+def _client_match_options_reply(query: str | None, matches: list[dict], has_more: bool = False) -> str:
+    shown = matches[:MAX_CLIENT_MATCH_OPTIONS]
+    # Si todas las coincidencias son la misma veterinaria, son sedes/sucursales.
+    distinct_names = {_catalog_item_key(m.get("clinic_name")) for m in shown}
+    is_branches = len(distinct_names) == 1 and len(shown) > 1
+
+    if is_branches:
+        name = shown[0].get("clinic_name") or "esa veterinaria"
+        lines = [f"{name} tiene varias sedes registradas. ¿Desde cuál sede solicitas?"]
+        for idx, match in enumerate(shown, start=1):
+            address = match.get("address") or "sin dirección registrada"
+            lines.append(f"{idx}) {address}")
+        lines.append("Responde con el número de la sede.")
+        return "\n".join(lines)
+
     label = query or "ese nombre"
     lines = [f"Encontré varios clientes registrados con '{label}'. ¿Cuál es el correcto?"]
-    for idx, match in enumerate(matches[:MAX_CLIENT_MATCH_OPTIONS], start=1):
+    for idx, match in enumerate(shown, start=1):
         name = match.get("clinic_name") or "Sin nombre"
         address = match.get("address") or "sin dirección registrada"
         lines.append(f"{idx}) {name} - {address}")
     lines.append("Responde con el número o el nombre exacto.")
+    if has_more:
+        lines.append("Si ninguna es la tuya, compárteme el NIT o un nombre más exacto.")
     return "\n".join(lines)
-
-
-def _client_too_many_matches_reply(query: str | None) -> str:
-    label = query or "ese dato"
-    return (
-        f"Encontré demasiadas coincidencias con '{label}'. "
-        "Para ubicar el cliente correcto, compárteme una palabra más específica del nombre, el nombre exacto o el NIT."
-    )
 
 
 def _store_client_match_options(fields: dict, query: str, matches: list[dict]) -> None:
@@ -576,6 +827,21 @@ def _claims_unregistered_client(text: str) -> bool:
     return any(phrase in normalized for phrase in phrases)
 
 
+def _asks_if_new_client(reply: str) -> bool:
+    return "cliente nuevo" in " ".join(_tokenize(reply))
+
+
+def _provides_new_identifier(text: str, prev_fields: dict) -> bool:
+    # ¿La respuesta trae un identificador genuino para volver a buscar?
+    # Solo un NIT distinto o un nombre con palabra clave de veterinaria/clínica.
+    tax_id = _extract_tax_id_candidate(text, allow_unlabeled=True)
+    if tax_id and _compact_identifier(tax_id) != _compact_identifier(prev_fields.get("tax_id")):
+        return True
+    return bool(set(_tokenize(text)) & {
+        "veterinaria", "clinica", "clínica", "consultorio", "hospital", "dr", "dra",
+    })
+
+
 def _identifier_retry_from_text(text: str, history: list[dict]) -> tuple[str | None, str | None]:
     tax_id = _extract_tax_id_candidate(text, allow_unlabeled=True)
     if tax_id:
@@ -625,11 +891,6 @@ def _awaiting_client_identifier(history: list[dict]) -> bool:
     )
 
 
-def _awaiting_phone_question(history: list[dict]) -> bool:
-    tokens = set(_tokenize(_last_bot_message(history)))
-    return bool({"telefono", "teléfono", "contacto", "celular", "whatsapp"} & tokens)
-
-
 def _is_no_identifier_text(text: str) -> bool:
     words = set(_tokenize(text))
     return "no" in words and bool(words & {"se", "sé", "tengo", "dato", "ninguno"})
@@ -670,21 +931,16 @@ def _apply_identification_fallbacks(fields: dict, user_message: str, history: li
         tax_id = _extract_tax_id_candidate(user_message, allow_unlabeled=waiting_identifier)
         if tax_id:
             fields["tax_id"] = tax_id
-    if not fields.get("clinic_name") and not fields.get("tax_id") and waiting_identifier:
+    # Si el bot está pidiendo el identificador y el usuario da un nombre NUEVO
+    # (distinto al actual), reemplazarlo y re-buscar. Esto evita quedar pegado a
+    # una búsqueda anterior con demasiadas coincidencias.
+    if waiting_identifier and not fields.get("tax_id"):
         clinic_name = _extract_clinic_name_candidate(user_message)
-        if clinic_name:
+        if clinic_name and not _same_text(clinic_name, fields.get("clinic_name")):
             fields["clinic_name"] = clinic_name
-
-
-def _apply_contact_phone_fallback(fields: dict, user_message: str, history: list[dict]) -> None:
-    waiting_phone = _awaiting_phone_question(history)
-    phone = _extract_phone_candidate(user_message, allow_unlabeled=waiting_phone)
-    if not phone:
-        return
-
-    tokens = set(_tokenize(user_message))
-    if waiting_phone or not fields.get("clinic_phone") or {"telefono", "teléfono", "contacto", "celular"} & tokens:
-        fields["clinic_phone"] = phone
+            _clear_client_match_options(fields)
+            fields.pop("_client_not_found", None)
+            fields.pop("_client_found", None)
 
 
 def _merge_existing_route_fields(prev_fields: dict, fields: dict) -> None:
@@ -738,8 +994,7 @@ def _store_client_context(fields: dict, client: dict) -> None:
     fields["_client_not_found"] = False
     fields["_client_display_name"] = client.get("clinic_name", "")
     fields["_client_address"] = client.get("address") or ""
-    if client.get("phone") and not fields.get("clinic_phone"):
-        fields["clinic_phone"] = client.get("phone")
+    fields["_client_phone"] = client.get("phone") or ""
 
 
 def _limit_to_single_question(text: str) -> str:
@@ -768,8 +1023,6 @@ def _rephrased_repeated_question(reply: str) -> str:
         return "Para avanzar, puedes decirme: 1) el análisis o perfil que van a enviar, o 2) si quieres ver opciones del catálogo."
     if {"medico", "médico", "solicitante"} & tokens:
         return "Para avanzar, dime el nombre del médico solicitante de la orden."
-    if {"telefono", "teléfono", "contacto"} & tokens:
-        return "Para avanzar, dime el teléfono de contacto para esta orden."
     if {"raza", "sexo", "edad", "propietario", "observaciones"} & tokens:
         return "Para avanzar, dime ese dato de la orden o indícame si no aplica."
     return "Para avanzar, dime el dato que tengas a mano o escribe 'hablar con alguien' y te comunico con el equipo."
@@ -777,6 +1030,16 @@ def _rephrased_repeated_question(reply: str) -> str:
 
 def _avoid_repeated_question(ai_response: dict, history: list[dict]) -> dict:
     if ai_response.get("requires_handoff") or ai_response.get("phase") in TERMINAL_PHASES:
+        return ai_response
+
+    # Mientras se arma o personaliza un perfil, repetir "¿agregás otro análisis?"
+    # es parte natural de la selección, no un bucle. No reescribir esas preguntas.
+    fields = ai_response.get("captured_fields", {})
+    selecting_tests = (
+        (fields.get("selected_tests") is not None and not fields.get("exam_type"))
+        or fields.get("_profile_customizing")
+    )
+    if selecting_tests:
         return ai_response
 
     reply_keys = _question_keys(ai_response.get("reply", ""))
@@ -836,8 +1099,6 @@ def _reply_asks_for_route_field(reply: str, field: str) -> bool:
     text = " ".join(_tokenize(reply))
     if field == "requesting_doctor":
         return "medico solicitante" in text or "médico solicitante" in text
-    if field == "clinic_phone":
-        return "telefono de contacto" in text or "teléfono de contacto" in text
     if field == "exam_type":
         return (
             "que tipo de analisis" in text or "qué tipo de análisis" in text
@@ -859,7 +1120,7 @@ def _reply_asks_for_route_field(reply: str, field: str) -> bool:
     if field == "observations":
         return "observacion" in text or "observación" in text or "observaciones" in text
     if field == "payment_method":
-        return "contado" in text and "contraentrega" in text
+        return "contraentrega" in text and ("linea" in text or "línea" in text)
     return False
 
 
@@ -898,8 +1159,9 @@ def _apply_handoff_guardrails(ai_response: dict) -> dict:
         ai_response["service_area"] = "new_client"
     elif intent == "route_scheduling":
         payment_method = (ai_response.get("captured_fields") or {}).get("payment_method")
-        if payment_method == "contado":
+        if payment_method == "pago_linea":
             ai_response["handoff_area"] = ai_response.get("handoff_area") or "contabilidad"
+            ai_response["reply"] = PAYMENT_ONLINE_HANDOFF_MESSAGE
         ai_response["service_area"] = "route_scheduling"
 
     cleaned_reply = _strip_question_sentences(ai_response.get("reply", ""))
@@ -936,6 +1198,8 @@ def _missing_route_field(session: dict, fields: dict) -> str | None:
     for field in _ROUTE_REQUIRED_FIELDS:
         if not fields.get(field):
             return field
+        if field == "patient_age" and not _age_has_unit(fields.get(field)):
+            return field
     return None
 
 
@@ -946,8 +1210,6 @@ def _missing_route_field_question(field: str) -> str:
         return "¿Cuál es la dirección de retiro?"
     if field == "requesting_doctor":
         return "¿Cuál es el médico solicitante?"
-    if field == "clinic_phone":
-        return "¿Cuál es el teléfono de contacto para esta orden?"
     if field == "exam_type":
         return "Para avanzar necesito el análisis o perfil exacto. ¿Cuál van a enviar?"
     if field == "patient_name":
@@ -959,7 +1221,7 @@ def _missing_route_field_question(field: str) -> str:
     if field == "sex":
         return "¿El paciente es macho o hembra?"
     if field == "patient_age":
-        return "¿Qué edad tiene el paciente?"
+        return AGE_QUESTION
     if field == "owner_name":
         return "¿Cuál es el nombre del propietario?"
     if field == "observations":
@@ -995,7 +1257,7 @@ def _enforce_payment_step(session: dict, ai_response: dict, fields: dict) -> dic
     payment_method = fields.get("payment_method")
     if payment_method in PAYMENT_METHODS:
         ai_response["service_area"] = "route_scheduling"
-        if payment_method == "contado":
+        if payment_method == "pago_linea":
             ai_response["requires_handoff"] = True
             ai_response["handoff_area"] = ai_response.get("handoff_area") or "contabilidad"
         elif payment_method == "contraentrega":
@@ -1093,17 +1355,16 @@ def _enforce_profile_customization_changes(ai_response: dict, prev_fields: dict,
     )
 
 
-def _route_closure_summary(fields: dict) -> str | None:
+def _order_summary_lines(fields: dict, header: str) -> list[str] | None:
     if not all(fields.get(key) for key in _ROUTE_REQUIRED_FIELDS):
         return None
 
     clinic_name = fields.get("clinic_name") or fields.get("_client_display_name") or "cliente registrado"
     lines = [
-        "Quedó registrado:",
+        header,
         f"- Veterinaria: {clinic_name}",
         f"- Dirección de retiro: {fields.get('pickup_address')}",
         f"- Médico solicitante: {fields.get('requesting_doctor')}",
-        f"- Teléfono: {fields.get('clinic_phone')}",
         (
             f"- Paciente: {fields.get('patient_name')} "
             f"({fields.get('species')}, {fields.get('breed')}, {fields.get('sex')}, {fields.get('patient_age')})"
@@ -1132,13 +1393,89 @@ def _route_closure_summary(fields: dict) -> str | None:
         lines.append(f"- Valor estimado: {_money(totals['total'])}")
     elif fields.get("selected_tests"):
         rows = db.get_tests_by_codes(_as_text_items(fields.get("selected_tests")))
-        totals = calculate_custom_profile_total([row["price"] for row in rows])
+        totals = calculate_custom_profile_total(rows)
         if rows:
             lines.append(f"- Análisis incluidos: {_format_test_items(rows)}")
         lines.append(f"- Valor estimado: {_money(totals['total'])}")
 
+    return lines
+
+
+def _route_closure_summary(fields: dict) -> str | None:
+    lines = _order_summary_lines(fields, "Quedó registrado:")
+    if lines is None:
+        return None
     lines.append("Nuestro motorizado pasará a recoger la muestra. ¿Necesitás crear otra orden de servicio para otro paciente o animal?")
     return "\n".join(lines)
+
+
+def _route_confirmation_summary(fields: dict) -> str | None:
+    lines = _order_summary_lines(fields, "Antes de registrar, te resumo la orden:")
+    if lines is None:
+        return None
+    lines.append("¿Confirmas estos datos? (Sí / Corregir)")
+    return "\n".join(lines)
+
+
+def _is_correction_request(text: str) -> bool:
+    return bool(set(_tokenize(text)) & _CORRECTION_TOKENS)
+
+
+def _is_order_confirmation(text: str) -> bool:
+    tokens = set(_tokenize(text))
+    if tokens & _CORRECTION_TOKENS:
+        return False
+    return bool(tokens & _CONFIRM_ORDER_TOKENS)
+
+
+def _detect_correction_field(text: str) -> str | None:
+    tokens = set(_tokenize(text))
+    for keywords, field in _CORRECTION_FIELD_KEYWORDS:
+        if tokens & set(keywords):
+            return field
+    return None
+
+
+def _clear_field_for_correction(fields: dict, field: str) -> None:
+    fields[field] = None
+    if field == "pickup_address":
+        fields["_address_confirmed"] = False
+        fields["_address_confirmation_pending"] = False
+    if field == "exam_type":
+        fields["selected_tests"] = None
+        fields["removed_tests"] = None
+        for key in (
+            "_selected_profile_code", "_selected_profile_name", "_selected_profile_price",
+            "_selected_profile_description", "_profile_detail_offered",
+            "_profile_detail_confirmed", "_profile_customizing", "_profile_options_offered",
+        ):
+            fields.pop(key, None)
+
+
+def _enforce_confirmation_step(session: dict, ai_response: dict, fields: dict, previous_phase: str, user_message: str) -> dict:
+    """Antes de registrar una orden completa, mostrar el resumen y pedir
+    confirmación (Sí / Corregir). Solo deja cerrar cuando el usuario ya confirmó."""
+    if ai_response.get("intent") != "route_scheduling":
+        return ai_response
+    if ai_response.get("message_mode") == "cancellation":
+        return ai_response
+    if ai_response.get("phase") not in TERMINAL_PHASES:
+        return ai_response
+    if _missing_route_field(session, fields):
+        return ai_response
+    # Ya se mostró el resumen y el usuario confirmó: dejar cerrar.
+    if previous_phase == CONFIRMATION_PHASE and _is_order_confirmation(user_message):
+        return ai_response
+
+    summary = _route_confirmation_summary(fields)
+    if not summary:
+        return ai_response
+    ai_response["reply"] = summary
+    ai_response["phase"] = CONFIRMATION_PHASE
+    ai_response["requires_handoff"] = False
+    ai_response["handoff_area"] = None
+    ai_response["message_mode"] = "flow_progress"
+    return ai_response
 
 
 def _apply_route_closure_summary(ai_response: dict) -> dict:
@@ -1168,10 +1505,204 @@ def _append_courier_notification(reply: str, courier: dict | None) -> str:
     return f"{reply}\n\n{notification}"
 
 
-def process_turn(chat_id: str, user_message: str) -> str:
+def _finalize_request(chat_id: str, session: dict, ai_response: dict, started_from_escalation: bool, previous_phase: str) -> dict:
+    """Crea la solicitud en BD cuando el turno cierra/escala una orden nueva y
+    decora el reply con el motorizado asignado y el número de orden."""
+    new_phase = ai_response["phase"]
+    should_create_request = (
+        new_phase in TERMINAL_PHASES
+        and previous_phase not in TERMINAL_PHASES
+        and not started_from_escalation
+        and ai_response.get("message_mode") != "cancellation"
+    )
+    if not should_create_request:
+        return ai_response
+
+    order_info = db.create_request(chat_id, session, ai_response)
+    if ai_response.get("intent") == "route_scheduling" and session.get("client_id"):
+        courier = db.get_courier_for_client(session["client_id"])
+        ai_response["reply"] = _append_courier_notification(ai_response["reply"], courier)
+        ai_response["reply"] = _append_order_number(ai_response["reply"], order_info)
+    return ai_response
+
+
+def _base_new_client_response(reply: str, fields: dict) -> dict:
+    return {
+        "reply": reply,
+        "phase": "fase_2_recogida_datos",
+        "intent": "new_client",
+        "service_area": "new_client",
+        "requires_handoff": False,
+        "handoff_area": None,
+        "captured_fields": fields,
+        "confidence": 1.0,
+        "message_mode": "flow_progress",
+        "pending_intents": [],
+        "resume_prompt": "",
+    }
+
+
+def _start_new_client_capture(fields: dict) -> dict:
+    # Antes de tomar datos, verificar si es profesional veterinario o un particular.
+    fields["_nc_capturing"] = True
+    fields["_nc_step"] = "verify"
+    return _base_new_client_response(NEW_CLIENT_INTRO + NEW_CLIENT_VERIFY_QUESTION, fields)
+
+
+def _mentions_professional(text: str) -> bool:
+    return bool(set(_tokenize(text)) & _MENTION_PROFESSIONAL_TOKENS)
+
+
+def _new_client_steps(fields: dict) -> tuple:
+    return NEW_CLIENT_PRO_STEPS if fields.get("_nc_kind") == "pro" else NEW_CLIENT_PARTICULAR_STEPS
+
+
+def _new_client_summary(fields: dict) -> str:
+    if fields.get("_nc_kind") == "particular":
+        return (
+            "Estos son tus datos:\n"
+            f"- Nombre: {fields.get('_nc_name')}\n"
+            f"- Teléfono: {fields.get('_nc_phone')}\n"
+            "¿Son correctos? (Sí / Corregir)"
+        )
+    return (
+        "Estos son tus datos:\n"
+        f"- Clínica: {fields.get('_nc_clinic')}\n"
+        f"- Médico: {fields.get('_nc_doctor')}\n"
+        f"- Dirección: {fields.get('_nc_address')}\n"
+        f"- Teléfono: {fields.get('_nc_phone')}\n"
+        "¿Son correctos? (Sí / Corregir)"
+    )
+
+
+def _save_new_client_pending(fields: dict) -> None:
+    if fields.get("_nc_kind") == "particular":
+        db.create_pending_client_review(
+            {"clinic_name": f"Particular: {fields.get('_nc_name')}", "phone": fields.get("_nc_phone"),
+             "address": "Particular - pendiente", "billing_type": "cash", "is_active": False},
+            {"source": "telegram", "status": "PARTICULAR - PENDIENTE", "kind": "particular",
+             "name": fields.get("_nc_name"), "phone": fields.get("_nc_phone")},
+        )
+    else:
+        db.create_pending_client_review(
+            {"clinic_name": fields.get("_nc_clinic"), "phone": fields.get("_nc_phone"),
+             "address": fields.get("_nc_address"), "billing_type": "cash", "is_active": False},
+            {"source": "telegram", "status": "CLIENTE NUEVO - PENDIENTE DE REGISTRO", "kind": "profesional",
+             "clinic_name": fields.get("_nc_clinic"), "doctor": fields.get("_nc_doctor"),
+             "address": fields.get("_nc_address"), "phone": fields.get("_nc_phone")},
+        )
+
+
+def _new_client_done_response(fields: dict) -> dict:
+    done_msg = NEW_CLIENT_DONE_MESSAGE if fields.get("_nc_kind") == "pro" else NEW_CLIENT_PARTICULAR_DONE_MESSAGE
+    for key in _NEW_CLIENT_FLOW_KEYS:
+        fields.pop(key, None)
+    # Tras derivar al asesor, el bot deja de responder (queda en manos del equipo).
+    fields["_blocked"] = True
+    return {
+        "reply": done_msg,
+        "phase": "fase_7_escalado",
+        "intent": "new_client",
+        "service_area": "new_client",
+        "requires_handoff": True,
+        "handoff_area": "operaciones",
+        "captured_fields": fields,
+        "confidence": 1.0,
+        "message_mode": "flow_progress",
+        "pending_intents": [],
+        "resume_prompt": "",
+    }
+
+
+def _handle_new_client_capture(chat_id: str, fields: dict, user_message: str) -> str:
+    step = fields.get("_nc_step")
+
+    # Verificación inicial: ¿profesional veterinario o particular?
+    if step == "verify":
+        if _is_final_user_text(user_message) or (_is_negative_text(user_message) and not _mentions_professional(user_message)):
+            fields["_nc_kind"] = "particular"
+        elif _is_affirmative_text(user_message) or _mentions_professional(user_message):
+            fields["_nc_kind"] = "pro"
+        else:
+            return _persist_turn(chat_id, user_message, _base_new_client_response(NEW_CLIENT_VERIFY_QUESTION, fields))
+        first = _new_client_steps(fields)[0]
+        fields["_nc_step"] = first
+        return _persist_turn(chat_id, user_message, _base_new_client_response(NEW_CLIENT_QUESTIONS[first], fields))
+
+    steps = _new_client_steps(fields)
+    if step in steps:
+        question = NEW_CLIENT_QUESTIONS[step]
+        if step in ("phone", "pphone"):
+            if _nc_phone_invalid(user_message):
+                interp = ai.interpret_nc_step(question, user_message)
+                if interp.get("action") == "save" and interp.get("value"):
+                    value = interp["value"]
+                else:
+                    reply = interp.get("reply") or "Ese dato no parece un número de teléfono 📱 Por favor enviame solo los dígitos."
+                    return _persist_turn(chat_id, user_message, _base_new_client_response(reply, fields))
+            else:
+                value = _extract_phone_candidate(user_message, allow_unlabeled=True) or user_message.strip()
+        elif step in ("clinic", "doctor", "pname"):
+            if _nc_name_invalid(user_message):
+                interp = ai.interpret_nc_step(question, user_message)
+                if interp.get("action") == "save" and interp.get("value"):
+                    value = _titlecase_value(interp["value"])
+                else:
+                    reply = interp.get("reply") or question
+                    return _persist_turn(chat_id, user_message, _base_new_client_response(reply, fields))
+            else:
+                value = _titlecase_value(user_message.strip())
+        else:
+            value = user_message.strip()
+        fields[NEW_CLIENT_FIELDS[step]] = value
+
+        idx = steps.index(step)
+        if idx + 1 < len(steps):
+            next_step = steps[idx + 1]
+            fields["_nc_step"] = next_step
+            ai_response = _base_new_client_response(NEW_CLIENT_QUESTIONS[next_step], fields)
+        else:
+            fields["_nc_step"] = "confirm"
+            ai_response = _base_new_client_response(_new_client_summary(fields), fields)
+        return _persist_turn(chat_id, user_message, ai_response)
+
+    # step == "confirm"
+    if _is_correction_request(user_message):
+        first = steps[0]
+        fields["_nc_step"] = first
+        ai_response = _base_new_client_response(
+            "Sin problema, empecemos de nuevo. " + NEW_CLIENT_QUESTIONS[first], fields
+        )
+        return _persist_turn(chat_id, user_message, ai_response)
+
+    if _is_order_confirmation(user_message):
+        _save_new_client_pending(fields)
+        return _persist_turn(chat_id, user_message, _new_client_done_response(fields))
+
+    # Ni corrección ni confirmación clara: re-mostrar el resumen.
+    ai_response = _base_new_client_response(_new_client_summary(fields), fields)
+    return _persist_turn(chat_id, user_message, ai_response)
+
+
+def _persist_turn(chat_id: str, user_message: str, ai_response: dict) -> str:
+    db.save_message(chat_id, user_message, "user")
+    db.save_message(chat_id, ai_response["reply"], "bot")
+    fields = ai_response.get("captured_fields", {})
+    fields["_pending_intents"] = ai_response.get("pending_intents", [])
+    ai_response["captured_fields"] = fields
+    db.update_session(chat_id, ai_response)
+    return ai_response["reply"]
+
+
+def process_turn(chat_id: str, user_message: str, on_progress: Callable[[str], None] | None = None) -> str | None:
     session = db.get_or_create_session(chat_id)
     history = db.get_recent_messages(chat_id, limit=8)
     started_from_escalation = session.get("phase_current") == "fase_7_escalado"
+
+    # Cliente final/particular ya identificado: A3 no le presta servicio y el
+    # agente deja de responder (sin saludo, sin procesar el turno).
+    if (session.get("captured_fields") or {}).get("_blocked"):
+        return None
 
     # Primer mensaje: saludo exacto, sin llamar al AI
     if len(history) == 0:
@@ -1190,8 +1721,37 @@ def process_turn(chat_id: str, user_message: str) -> str:
         db.save_message(chat_id, POST_TERMINAL_GREETING_REPLY, "bot")
         return POST_TERMINAL_GREETING_REPLY
 
+    # Consulta del número de orden: responder con el dato real de la BD, nunca inventarlo
+    if _is_order_number_query(user_message):
+        db.save_message(chat_id, user_message, "user")
+        if session.get("client_id"):
+            order = db.get_last_order_for_client(session["client_id"])
+            reply = _order_number_reply(order)
+        else:
+            reply = ORDER_NUMBER_NEEDS_CLIENT_MESSAGE
+        db.save_message(chat_id, reply, "bot")
+        return reply
+
     prev_captured = session.get("captured_fields") or {}
     pending = prev_captured.get("_pending_intents", [])
+
+    # Flujo B — captura de datos del cliente nuevo en curso (Sección 9).
+    if prev_captured.get("_nc_capturing"):
+        return _handle_new_client_capture(chat_id, prev_captured, user_message)
+
+    # Confirmación editable de la orden (Sección 7.1): si el usuario pide corregir,
+    # se limpia ese campo y se repregunta, sin volver a llamar al AI. La respuesta
+    # afirmativa sigue el pipeline normal (el cierre lo permite _enforce_confirmation_step).
+    if (session.get("phase_current") == CONFIRMATION_PHASE
+            and session.get("intent_current") == "route_scheduling"
+            and _is_correction_request(user_message)):
+        field = _detect_correction_field(user_message)
+        if field:
+            _clear_field_for_correction(prev_captured, field)
+            ai_response = _base_route_response(_missing_route_field_question(field), prev_captured)
+        else:
+            ai_response = _base_route_response(CORRECTION_PROMPT, prev_captured)
+        return _persist_turn(chat_id, user_message, ai_response)
 
     if session.get("phase_current") in TERMINAL_PHASES and session.get("intent_current") == "route_scheduling":
         if _wants_another_service_order(user_message):
@@ -1237,8 +1797,14 @@ def process_turn(chat_id: str, user_message: str) -> str:
     prev_fields = session.get("captured_fields") or {}
     selected = prev_fields.get("selected_tests")
     removed = prev_fields.get("removed_tests")
+    # El perfil sigue "en construcción" solo si aún no hay exam_type cerrado, o si se
+    # está personalizando activamente un perfil base. Una vez que exam_type queda fijado
+    # el perfil está cerrado: hay que avanzar a paciente/médico, no seguir pidiendo análisis.
+    building_profile = (selected is not None or removed is not None) and (
+        not prev_fields.get("exam_type") or prev_fields.get("_profile_customizing")
+    )
     if prev_intent == "route_scheduling":
-        if selected is not None or removed is not None:
+        if building_profile:
             # Modo perfil personalizado: catálogo de análisis individuales + resumen calculado
             catalog_ctx = db.get_individual_tests_context(prev_fields.get("species"))
             if prev_fields.get("_selected_profile_code"):
@@ -1259,13 +1825,18 @@ def process_turn(chat_id: str, user_message: str) -> str:
                 )
             elif selected:
                 added_rows = db.get_tests_by_codes(selected)
-                totals = calculate_custom_profile_total([r["price"] for r in added_rows])
+                totals = calculate_custom_profile_total(added_rows)
                 session["_custom_profile_summary"] = (
                     f"PERFIL PERSONALIZADO EN CONSTRUCCIÓN ({totals['count']} análisis): {_format_test_items(added_rows)}. "
                     f"Subtotal ${totals['subtotal']:,} COP. Total ${totals['total']:,} COP."
                 )
         elif not prev_fields.get("exam_type"):
             catalog_ctx = db.get_catalog_context(prev_fields.get("species"))
+            labels = db.list_diagnostic_labels()
+            if labels:
+                catalog_ctx = (catalog_ctx or "") + (
+                    "\nPerfiles sugeridos por necesidad diagnóstica (etiquetas): " + ", ".join(labels)
+                )
 
     ai_response = ai.generate_turn(
         session=session,
@@ -1283,11 +1854,30 @@ def process_turn(chat_id: str, user_message: str) -> str:
             fields[k] = v
 
     _merge_existing_route_fields(prev_captured, fields)
-    _apply_contact_phone_fallback(fields, user_message, history)
 
     client = None
     skip_client_lookup = False
     if not session.get("client_id"):
+        # El bot ya preguntó "¿eres cliente nuevo?": la siguiente respuesta es sí/no
+        # a esa pregunta, no un nuevo nombre para volver a buscar. Sin esto, cualquier
+        # mensaje corto ("Registrame", "Qué hacemos") se toma como veterinaria y la
+        # búsqueda entra en bucle infinito de "no encuentro".
+        if (
+            prev_captured.get("_client_not_found")
+            and prev_captured.get("_asked_if_new_client")
+            and _asks_if_new_client(_last_bot_message(history))
+            and not _provides_new_identifier(user_message, prev_captured)
+        ):
+            if _is_final_user_text(user_message):
+                fields["clinic_name"] = None
+                fields["tax_id"] = None
+                _clear_client_match_options(fields)
+                fields["_blocked"] = True
+                return _persist_turn(chat_id, user_message, _unsupported_final_user_response(fields))
+            if _is_negative_text(user_message):
+                return _persist_turn(chat_id, user_message, _escalate_unfound_client(fields))
+            return _persist_turn(chat_id, user_message, _start_new_client_capture(fields))
+
         _apply_identification_fallbacks(fields, user_message, history)
         _apply_identification_retry(fields, prev_captured, user_message, history)
 
@@ -1295,6 +1885,7 @@ def process_turn(chat_id: str, user_message: str) -> str:
             fields["clinic_name"] = None
             fields["tax_id"] = None
             _clear_client_match_options(fields)
+            fields["_blocked"] = True
             ai_response = _unsupported_final_user_response(fields)
             fields = ai_response["captured_fields"]
             skip_client_lookup = True
@@ -1307,30 +1898,20 @@ def process_turn(chat_id: str, user_message: str) -> str:
             ):
                 fields["_asked_if_new_client"] = True
                 if _confirms_new_client(user_message) or _claims_unregistered_client(user_message):
-                    fields["_handoff_announced"] = True
-                    ai_response = {
-                        "reply": CLIENT_NOT_FOUND_MESSAGE,
-                        "phase": "fase_7_escalado",
-                        "intent": "new_client",
-                        "service_area": "new_client",
-                        "requires_handoff": True,
-                        "handoff_area": "operaciones",
-                        "captured_fields": fields,
-                        "confidence": 1.0,
-                        "message_mode": "flow_progress",
-                        "pending_intents": [],
-                        "resume_prompt": "",
-                    }
-                else:
-                    ai_response = _base_route_response(CLIENT_IDENTIFIER_RETRY_MESSAGE, fields)
+                    # Flujo B: capturar datos mínimos del cliente potencial.
+                    return _persist_turn(chat_id, user_message, _start_new_client_capture(fields))
+                ai_response = _base_route_response(CLIENT_IDENTIFIER_RETRY_MESSAGE, fields)
                 skip_client_lookup = True
 
             if not skip_client_lookup and fields.get("_client_match_options"):
-                if fields.get("tax_id"):
+                previous_query = fields.get("_client_match_query")
+                tax_id_now = fields.get("tax_id")
+                # NIT nuevo (distinto al que generó la lista) → descartar y re-buscar.
+                # Si el NIT es el mismo que generó la lista (sedes), tratar como selección.
+                if tax_id_now and _compact_identifier(tax_id_now) != _compact_identifier(previous_query):
                     _clear_client_match_options(fields)
                 else:
                     selected_client = _select_client_match(user_message, fields)
-                    previous_query = fields.get("_client_match_query")
                     current_query = fields.get("clinic_name")
                     if selected_client:
                         client = selected_client
@@ -1372,21 +1953,30 @@ def process_turn(chat_id: str, user_message: str) -> str:
         _store_client_context(fields, client)
         client_status_changed = True
     elif not session.get("client_id") and not skip_client_lookup and (fields.get("clinic_name") or fields.get("tax_id")):
+        if on_progress is not None:
+            on_progress(CLIENT_LOOKUP_PROGRESS_MESSAGE)
         if fields.get("tax_id"):
-            client = db.identify_client(name=None, tax_id=fields.get("tax_id"))
-
-        if not client and fields.get("clinic_name"):
-            matches = db.find_client_matches(fields.get("clinic_name"), limit=MAX_CLIENT_MATCH_OPTIONS + 1)
-            if len(matches) > MAX_CLIENT_MATCH_OPTIONS:
+            tax_matches = db.find_clients_by_tax_id(fields.get("tax_id"))
+            if len(tax_matches) > 1:
+                _store_client_match_options(fields, fields.get("tax_id"), tax_matches)
                 ai_response = _base_route_response(
-                    _client_too_many_matches_reply(fields.get("clinic_name")),
+                    _client_match_options_reply(fields.get("tax_id"), tax_matches),
                     fields,
                 )
                 skip_client_lookup = True
-            elif len(matches) > 1:
-                _store_client_match_options(fields, fields.get("clinic_name"), matches)
+            elif len(tax_matches) == 1:
+                client = tax_matches[0]
+
+        if not client and not skip_client_lookup and fields.get("clinic_name"):
+            matches = db.find_client_matches(fields.get("clinic_name"), limit=MAX_CLIENT_MATCH_OPTIONS + 1)
+            if len(matches) > 1:
+                # Aunque haya muchas, mostrar siempre un listado (las primeras) y,
+                # si hay más, invitar a afinar con NIT o nombre más exacto.
+                has_more = len(matches) > MAX_CLIENT_MATCH_OPTIONS
+                shown = matches[:MAX_CLIENT_MATCH_OPTIONS]
+                _store_client_match_options(fields, fields.get("clinic_name"), shown)
                 ai_response = _base_route_response(
-                    _client_match_options_reply(fields.get("clinic_name"), matches),
+                    _client_match_options_reply(fields.get("clinic_name"), shown, has_more=has_more),
                     fields,
                 )
                 skip_client_lookup = True
@@ -1413,21 +2003,8 @@ def process_turn(chat_id: str, user_message: str) -> str:
                     # No repetir el mismo mensaje: dejar que el AI responda la nueva consulta.
                     fields["_handoff_announced"] = True
                 elif _confirms_new_client(user_message):
-                    # Ya se preguntó y confirmó cliente nuevo -> escalar una sola vez
-                    fields["_handoff_announced"] = True
-                    ai_response = {
-                        "reply": CLIENT_NOT_FOUND_MESSAGE,
-                        "phase": "fase_7_escalado",
-                        "intent": "new_client",
-                        "service_area": "new_client",
-                        "requires_handoff": True,
-                        "handoff_area": "operaciones",
-                        "captured_fields": fields,
-                        "confidence": 1.0,
-                        "message_mode": "flow_progress",
-                        "pending_intents": [],
-                        "resume_prompt": "",
-                    }
+                    # Ya se preguntó y confirmó cliente nuevo -> iniciar Flujo B.
+                    return _persist_turn(chat_id, user_message, _start_new_client_capture(fields))
                 else:
                     fields["_asked_if_new_client"] = True
                     ai_response = {
@@ -1488,6 +2065,8 @@ def process_turn(chat_id: str, user_message: str) -> str:
                         new_fields[k] = v
                 fields = new_fields
 
+    ai_response = _enforce_diagnostic_label_help(session, ai_response, user_message)
+    fields = ai_response.get("captured_fields", fields)
     ai_response = _enforce_catalog_profile_help(session, ai_response, user_message, history)
     fields = ai_response.get("captured_fields", fields)
     ai_response = _enforce_profile_detail_step(session, ai_response, fields, user_message)
@@ -1496,6 +2075,7 @@ def process_turn(chat_id: str, user_message: str) -> str:
     ai_response = _prevent_incomplete_route_closure(session, ai_response, fields)
     ai_response = _enforce_profile_customization_changes(ai_response, prev_captured, user_message)
     fields = ai_response.get("captured_fields", fields)
+    _normalize_name_fields(fields)
     ai_response["captured_fields"] = fields
     ai_response = _apply_handoff_guardrails(ai_response)
     ai_response = _avoid_redundant_client_identity_question(session, ai_response)
@@ -1505,26 +2085,7 @@ def process_turn(chat_id: str, user_message: str) -> str:
     ai_response = _apply_route_closure_summary(ai_response)
 
     previous_phase = session.get("phase_current", "")
-    new_phase = ai_response["phase"]
-    should_create_request = (
-        new_phase in TERMINAL_PHASES
-        and previous_phase not in TERMINAL_PHASES
-        and not started_from_escalation
-        and ai_response.get("message_mode") != "cancellation"
-    )
+    ai_response = _enforce_confirmation_step(session, ai_response, fields, previous_phase, user_message)
+    ai_response = _finalize_request(chat_id, session, ai_response, started_from_escalation, previous_phase)
 
-    if should_create_request and ai_response.get("intent") == "route_scheduling" and session.get("client_id"):
-        courier = db.get_courier_for_client(session["client_id"])
-        ai_response["reply"] = _append_courier_notification(ai_response["reply"], courier)
-
-    db.save_message(chat_id, user_message, "user")
-    db.save_message(chat_id, ai_response["reply"], "bot")
-
-    fields["_pending_intents"] = ai_response.get("pending_intents", [])
-    ai_response["captured_fields"] = fields
-    db.update_session(chat_id, ai_response)
-
-    if should_create_request:
-        db.create_request(chat_id, session, ai_response)
-
-    return ai_response["reply"]
+    return _persist_turn(chat_id, user_message, ai_response)

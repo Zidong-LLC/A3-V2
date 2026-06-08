@@ -37,7 +37,19 @@ Verificar `captured_fields` antes de cada pregunta. No repetir.
 
 ## De sesiones de trabajo futuras
 
-_agregar aquí después de cada corrección_
+### L6 — Heurísticas de "reintento de identificador" demasiado amplias causan bucles
+**Problema:** Tras "No encuentro el cliente. ¿Eres cliente nuevo?", cualquier mensaje
+corto del usuario ("Registrame", "Que hacemos", "Sal de ese ciclo") se interpretaba como
+un nuevo nombre de veterinaria y se re-buscaba → bucle infinito de "Tampoco encuentro un
+cliente registrado". `_confirms_new_client` era muy estrecho (solo "cliente nuevo" literal
+o "sí" ≤4 palabras) y no captaba confirmaciones naturales.
+**Regla:** Cuando el bot hace una pregunta sí/no (p. ej. "¿eres cliente nuevo?"), la
+siguiente respuesta debe tratarse como respuesta a ESA pregunta, no reciclarse como dato
+para re-buscar. Solo volver a buscar si el usuario da un identificador genuino (NIT nuevo o
+nombre con palabra clave veterinaria/clínica/dr). Las heurísticas que convierten "texto
+corto" en "intento de identificador" deben tener una salida clara hacia escalamiento.
+**Cómo se detecta:** el último mensaje del bot (`_last_bot_message`) es la fuente de verdad
+del contexto, no solo los flags de `captured_fields` (que persisten varios turnos).
 
 ### L6 — Revisar rutas externas indicadas por el usuario
 **Problema:** Se asumió que el dashboard debía estar dentro de `A3 ULTIMO`, pero el usuario lo tenía en otra carpeta/ZIP.
@@ -58,6 +70,22 @@ _agregar aquí después de cada corrección_
 ### L10 — Identificar clientes solo por nombre o NIT
 **Problema:** Pedir teléfono como verificación de identidad confundía el flujo y podía asociar órdenes a sedes o clientes incorrectos.
 **Regla:** Para identificar clientes usar solo NIT o nombre registrado. El teléfono, si se pide, es únicamente dato de contacto de la orden.
+
+### L11 — El orden de recolección de la orden vive en DOS lugares sincronizados
+**Problema:** El `clinic_phone` se pedía apenas se identificaba el cliente (posición 2), no junto a los datos del paciente. Para moverlo hubo que tocar `prompt.py` (lista del PASO 3 que sigue el AI) Y `agent.py` (tupla `_ROUTE_ORDER_FIELDS_BEFORE_PAYMENT` que fuerza el orden cuando el AI se desvía).
+**Regla:** Al cambiar el orden o el conjunto de campos de la orden de servicio, actualizar SIEMPRE ambos: la lista numerada del PASO 3 en `prompt.py` y `_ROUTE_ORDER_FIELDS_BEFORE_PAYMENT` en `agent.py`. Si quedan desincronizados, el AI pregunta en un orden y los guardrails lo reescriben a otro.
+
+### L12 — El guard anti-bucle no debe pisar la selección de análisis
+**Problema:** Al armar un perfil (cardíaco, personalizado), repetir "¿agregás otro análisis?" comparte tokens con preguntas previas, y `_avoid_repeated_question` lo confundía con un bucle, reemplazándolo por el fallback genérico "Para avanzar, puedes decirme: 1) el análisis o perfil...", descarrilando la conversación un turno.
+**Regla:** Los guards anti-repetición no aplican durante la selección activa de análisis (`selected_tests` no nulo con `exam_type` aún vacío, o `_profile_customizing`). En ese modo el bot solo itera sobre análisis y repetir la pregunta es esperado, no un bucle.
+
+### L13 — Forzar términos en español en el prompt para evitar code-switching
+**Problema:** El bot escribió "profiles" en inglés ("¿qué análisis/profiles están disponibles?") porque todo el código interno usa `profile/profiles` y el LLM se contagia.
+**Regla:** Cuando un término técnico del código tiene una forma en inglés que el LLM puede filtrar a la respuesta, fijar la forma en español con una regla ortográfica explícita en `prompt.py` (como R18: usar "perfil/perfiles", nunca "profile/profiles").
+
+### L14 — El "modo construcción de perfil" debe cerrarse cuando exam_type queda fijado
+**Problema:** En `process_turn`, la inyección del catálogo de análisis individuales + el bloque "PERFIL PERSONALIZADO EN CONSTRUCCIÓN" se activaba con la sola condición `selected_tests is not None or removed is not None`. Como esos campos persisten tras cerrar el perfil, el sistema seguía inyectando el modo construcción INDEFINIDAMENTE aunque `exam_type` ya estuviera fijado. El AI quedaba en bucle pidiendo análisis ("¿agregás otro?" → fallback "Para avanzar, puedes decirme: 1) el análisis o perfil...") sin avanzar nunca a paciente/médico. El cierre del perfil ("cerramos así") no rompía el bucle.
+**Regla:** El modo construcción/personalización de perfil sigue activo SOLO si `(selected_tests/removed no nulos) AND (not exam_type OR _profile_customizing)`. Misma condición que usa `_avoid_repeated_question` (L12). Una vez que `exam_type` queda fijado y no se está personalizando un perfil base, el perfil está cerrado: dejar de inyectar catálogo/resumen y avanzar a los datos del paciente. Mantener sincronizadas ambas condiciones (selección de contexto en `process_turn` y guard anti-repetición).
 
 ### Formato de entrada
 

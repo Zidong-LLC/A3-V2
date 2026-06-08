@@ -36,3 +36,10 @@ th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spa
 .badge { display: inline-flex; border-radius: 999px; padding: 4px 9px; background: rgba(249,115,22,.16); color: #fed7aa; font-size: 12px; }
 .badge.danger { background: rgba(239,68,68,.16); color: #fecaca; }
 @media (max-width: 900px) { .dashboard-page { grid-template-columns: 1fr; } .sidebar { border-right: 0; border-bottom: 1px solid var(--line); } .kpi-grid, .grid.two { grid-template-columns: 1fr; } .topbar { align-items: flex-start; flex-direction: column; } }
+tr.suggested-row { background: rgba(249,115,22,.08); }
+tr.suggested-row td { border-top: 1px solid rgba(249,115,22,.25); }
+.suggest-badge { display: inline-block; margin-left: 6px; padding: 2px 7px; border-radius: 6px; background: rgba(249,115,22,.2); color: #fed7aa; font-size: 11px; font-weight: 600; vertical-align: middle; }
+.courier-color-picker { width: 28px; height: 28px; border: none; border-radius: 6px; cursor: pointer; padding: 0; background: transparent; vertical-align: middle; }
+.courier-color-picker::-webkit-color-swatch-wrapper { padding: 0; }
+.courier-color-picker::-webkit-color-swatch { border: 1px solid rgba(255,255,255,.2); border-radius: 6px; }
+.courier-color-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; vertical-align: middle; margin-left: 6px; }

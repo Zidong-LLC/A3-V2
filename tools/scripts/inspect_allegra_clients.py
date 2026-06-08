@@ -5,7 +5,7 @@ from collections import Counter, defaultdict
 from openpyxl import load_workbook
 
 
-EXCEL_PATH = Path(r"C:\Users\gasto\Desktop\Alegra - Terceros.xlsx")
+EXCEL_PATH = Path(r"C:\Users\gasto\OneDrive\Desktop\Alegra - Clientes A3 Laboratorio Clinico Veterinario.xlsx")
 
 
 def _text(value) -> str:

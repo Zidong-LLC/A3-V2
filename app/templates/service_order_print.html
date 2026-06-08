@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Orden de Servicio {{ order.request_id }}</title>
+  <title>Orden de Servicio {{ order.order_number or order.request_id }}</title>
   <style>
     * { box-sizing: border-box; }
     body { margin: 0; background: #e5e7eb; color: #111827; font-family: Georgia, 'Times New Roman', serif; }
@@ -57,7 +57,7 @@
     <section class="form-frame">
       <div class="top-grid">
         <div class="logo">A3 Laboratorio<span>Clinico Veterinario</span></div>
-        <div class="title">Orden de Servicio</div>
+        <div class="title">Orden de Servicio<br><span style="font-size:15px;font-weight:700;">{{ order.order_number or '' }}</span></div>
         <div class="code">Cod: SGA3-AL-FR-01<br>Version: 03-2024<br>Pagina 1 de 1</div>
       </div>
 
@@ -99,7 +99,7 @@
 
       <section class="tests">
         <header><span>Cod</span><span>Descripcion</span><span>Valor</span></header>
-        <div class="row"><span>OS</span><span>{{ order.exam_type or '' }}</span><span>{{ order.payment_method or '' }}</span></div>
+        <div class="row"><span>{{ order.order_number or 'OS' }}</span><span>{{ order.exam_type or '' }}</span><span>{{ order.payment_method or '' }}</span></div>
         <div class="row"><span></span><span></span><span></span></div>
         <div class="row"><span></span><span></span><span></span></div>
         <div class="row"><span></span><span></span><span></span></div>

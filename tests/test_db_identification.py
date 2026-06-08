@@ -151,7 +151,7 @@ def test_create_request_persists_adjusted_profile_payload(monkeypatch):
         ] if items == ["1309"] else [],
     )
 
-    request_id = db.create_request(
+    result = db.create_request(
         "chat-1",
         {"client_id": "client-1"},
         {
@@ -180,7 +180,7 @@ def test_create_request_persists_adjusted_profile_payload(monkeypatch):
         },
     )
 
-    assert request_id == "req-profile-1"
+    assert result["request_id"] == "req-profile-1"
     event_payload = inserted_events[0]["event_payload"]
     profile = event_payload["profile"]
     assert profile["base_profile"]["code"] == "501"

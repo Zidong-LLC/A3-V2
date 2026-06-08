@@ -17,6 +17,18 @@ def send_message(chat_id: str, text: str) -> None:
         r.read()
 
 
+def send_typing(chat_id: str) -> None:
+    payload = json.dumps({"chat_id": chat_id, "action": "typing"}).encode()
+    req = urllib.request.Request(
+        f"{_BASE}/sendChatAction",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req) as r:
+        r.read()
+
+
 def set_webhook(url: str, secret: str) -> dict:
     payload = json.dumps({"url": url, "secret_token": secret, "allowed_updates": ["message"]}).encode()
     req = urllib.request.Request(
