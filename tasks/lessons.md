@@ -196,3 +196,12 @@ del contexto, no solo los flags de `captured_fields` (que persisten varios turno
 - En la orden de seguimiento: datos del PACIENTE se piden de cero (no heredar, evita arrastre); los estables y el análisis se REOFRECEN para confirmar/cambiar (guardar el análisis en el snapshot).
 - "El mismo X" debe priorizar el campo EXPLÍCITO (en `_SAME_AS_FIELD_KEYWORDS`, `owner_name` antes que `patient_name`, y sin keywords ambiguas como "perro/gato" en paciente) y resolver aunque la frase sea larga si hay campo explícito (no atarse al límite de 6 tokens). La corrección reconoce al animal ("perro/perra/gato…") como `patient_name`.
 - Verificación: reproducir el multi-orden contra BD + modelo real (`diag_multiorden.py`), no solo la primera orden. Ver ERR-023.
+
+### L33 — La comprensión del lenguaje es del LLM, no de detectores de tokens (ERR-024)
+**Problema:** el agente "no entendía" sinónimos ("perra"=hembra canino), datos adelantados ni "el mismo X" porque short-circuits y ~40 detectores de tokens cortaban ANTES del LLM o reinterpretaban lo que el LLM ya entendía. Ej.: "el mismo, solo cambia el paciente" (al pedir propietario) → aplicado al paciente; "soy el Dr. X" en frase larga → médico no capturado.
+**Regla:** el LLM interpreta QUÉ dijo el cliente (sinónimos, implícitos, intención, datos adelantados); el código SOLO hace cumplir reglas de negocio (cliente registrado, orden completa, escalar, corte horario). Principios concretos:
+- Un short-circuit determinista NO debe cortar antes del LLM si la frase puede traer el dato: acotar "el de siempre / el mismo" a frases CORTAS (≤6 tokens); las largas siguen al LLM.
+- Para "el mismo X" usar el campo PREGUNTADO (contexto) y recuperar su valor del snapshot, NO el campo mencionado en la frase. `_CHANGE_TOKENS` distingue "lo que cambia" de "el mismo".
+- Reforzar la captura semántica en el prompt (R26 sinónimos/implícitos/datos en frases largas; R27 "el mismo X, cambia Y").
+- Los detectores de tokens quedan como FALLBACK (rellenar huecos que el LLM dejó vacíos, p. ej. `_recover_doctor_from_text`, `_recover_enumerated_answer`), nunca pisan lo que el LLM ya capturó.
+- Verificar con lenguaje NATURAL real (`diag_comprension.py`), no con las palabras exactas. El LLM no es 100% determinista: los fallbacks cubren los casos comunes. Ver ERR-024, L26.

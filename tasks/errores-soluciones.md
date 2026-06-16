@@ -45,6 +45,19 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Correcciones aplicadas
 
+### ERR-024 — El agente no entendía sinónimos, datos adelantados ni "el mismo X"
+- Severidad: alto (afecta la comprensión del cliente en todas las fases)
+- Flujo: recolección de datos / interpretación de lenguaje (transversal)
+- Sintoma observado: el agente "no entendía" al cliente cuando usaba SINÓNIMOS ("perra" = hembra canino), ADELANTABA datos, daba VARIOS juntos, o decía "el mismo X" con frases naturales. Casos reales (chat 4): "el mismo que el anterior, solo cambiaba el paciente" (al pedir el propietario) → lo aplicaba al PACIENTE; "soy el Dr. Gastón Alcojor" dentro de una frase larga → no capturaba el médico.
+- Causa raiz: short-circuits y detectores de TOKENS cortaban ANTES del LLM o reinterpretaban lo que el LLM ya entendía. `_resolve_same_as_previous` usaba el campo MENCIONADO (tokens) en vez del PREGUNTADO; el bloque "el de siempre" cortaba frases largas que traían el dato; faltaban reglas de captura semántica.
+- Solucion aplicada (alcance: 3 focos; principio acordado: **el LLM interpreta QUÉ dijo el cliente; el código solo hace cumplir reglas de negocio**):
+  - Etapa 1: `_resolve_same_as_previous` resuelve el campo PREGUNTADO desde el snapshot cuando el mensaje trae señal de cambio sobre OTRO campo ("el mismo, solo cambia el paciente" → propietario, no paciente). `_CHANGE_TOKENS` distingue "lo que cambia" de "el mismo". El bloque "el de siempre" solo corta en frases CORTAS (≤6 tokens); las largas que traen el dato siguen al LLM.
+  - Etapa 2: prompt R26 (captura semántica: sinónimos e implícitos "perra"→Canino+Hembra; datos en frases largas/anuncios) + R27 ("el mismo X, cambia Y"). Fallback determinista `_recover_doctor_from_text` para el médico cuando el LLM se distrae con ruido. `_recover_enumerated_answer`/`_merge_existing_route_fields` solo rellenan huecos (no pisan al LLM).
+- Archivos afectados: `app/agent.py`, `app/prompt.py`.
+- Verificacion: `tools/scripts/diag_comprension.py` (4/4 casos con modelo real: "perra"→Canino+Hembra; varios datos juntos; médico en frase larga; "el mismo, solo cambia el paciente"→propietario). Suite 77/77, `validate_flows.py` 19/19, `diag_multiorden.py` sin regresión.
+- Limitacion: el LLM no es 100% determinista; un caso aislado puede fallar en una corrida y pasar en otra (ej. especie capturada literal). Los fallbacks determinísticos cubren los más comunes. Etapa 3 (unificar `user_intent_signal` en TODOS los detectores de intención) queda como deuda estructural.
+- Estado: corregido (focos principales del "no entiende").
+
 ### ERR-023 — El flujo MULTI-ORDEN fallaba en la segunda orden y siguientes
 - Severidad: alto (la primera orden funcionaba; la segunda en adelante se rompía)
 - Flujo: orden de seguimiento (varias órdenes en la misma conversación)

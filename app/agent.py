@@ -238,6 +238,12 @@ _SAME_AS_PREVIOUS_TOKENS = frozenset({
     "repetimos", "igualito", "siempre", "costumbre",
 })
 
+# Señal de que un campo es lo que CAMBIA (no "el mismo"): "el mismo, solo CAMBIA el paciente".
+_CHANGE_TOKENS = frozenset({
+    "cambia", "cambiaba", "cambian", "cambiar", "cambie", "cambio", "cambió",
+    "distinto", "distinta", "diferente", "otro", "otra", "menos", "excepto", "salvo",
+})
+
 _SAME_AS_PHRASES = (
     "el mismo", "la misma", "lo mismo", "los mismos", "las mismas",
     "el de siempre", "la de siempre", "lo de siempre", "como siempre",
@@ -1213,11 +1219,6 @@ def _is_same_as_previous(text: str) -> bool:
     if not lower:
         return False
     tokens = set(_tokenize(text))
-    # "mismo/igual" + un campo explícito (ej. "es el mismo propietario que el otro perro"):
-    # resolver aunque la frase sea larga; el campo lo decide _extract_same_as_field. Sin
-    # esto, las frases de >6 palabras caían al modelo, que confundía el campo.
-    if (tokens & _SAME_AS_PREVIOUS_TOKENS) and _extract_same_as_field(text):
-        return True
     if tokens & _SAME_AS_PREVIOUS_TOKENS and len(tokens) <= 6:
         if not tokens & _AFFIRMATIVE_TOKENS or len(tokens) <= 3:
             return True
@@ -1281,13 +1282,19 @@ def _resolve_same_as_previous(fields: dict, user_message: str, history: list[dic
     def _recall(field_name: str):
         return prev_snapshot.get(field_name) or memory.get(field_name)
 
+    asked_field = _detect_which_field_is_being_asked(history)
     explicit_field = _extract_same_as_field(user_message)
-    if explicit_field and _recall(explicit_field):
-        field = explicit_field
+    mentions_change = bool(set(_tokenize(user_message)) & _CHANGE_TOKENS)
+    # Si el mensaje trae señal de cambio ("...solo CAMBIA el paciente") y el campo nombrado
+    # NO es el que se preguntó, ese campo es lo que CAMBIA, no "el mismo": el "mismo" se
+    # refiere al campo PREGUNTADO. Ej. "el mismo, solo cambia el paciente" al pedir el
+    # propietario → resolver el PROPIETARIO desde el snapshot (no el paciente).
+    if explicit_field and asked_field and explicit_field != asked_field and mentions_change:
+        field = asked_field
     else:
-        field = _detect_which_field_is_being_asked(history)
-        if not field:
-            return None
+        field = explicit_field or asked_field
+    if not field:
+        return None
 
     prev_value = _recall(field)
     if not prev_value:
@@ -2067,6 +2074,32 @@ def _recover_enumerated_answer(
     return ai_response
 
 
+# "Dr./Dra./Doctor X" dentro de una frase. Fallback para cuando el bot pide el médico y el
+# usuario lo da envuelto en ruido (ej. "voy a pedir varias órdenes, soy el Dr. Gastón Alcojor")
+# y el modelo se queda con el anuncio sin capturar el dato.
+_DOCTOR_NAME_RE = re.compile(
+    r"\b(?:dr|dra|doctor|doctora)\.?\s+([A-Za-zÁÉÍÓÚÑáéíóúñ]+(?:\s+[A-Za-zÁÉÍÓÚÑáéíóúñ]+){0,2})",
+    re.IGNORECASE,
+)
+
+
+def _recover_doctor_from_text(ai_response: dict, prev_fields: dict, user_message: str, history: list[dict]) -> dict:
+    """Fallback: si el bot pidió el médico solicitante y el modelo NO lo capturó, pero el
+    mensaje trae 'Dr./Dra./Doctor <nombre>', tomarlo. Tokens como red, no como autoridad."""
+    if ai_response.get("intent") != "route_scheduling" or ai_response.get("requires_handoff"):
+        return ai_response
+    if _detect_which_field_is_being_asked(history) != "requesting_doctor":
+        return ai_response
+    fields = ai_response.get("captured_fields", {})
+    if fields.get("requesting_doctor") and fields.get("requesting_doctor") != prev_fields.get("requesting_doctor"):
+        return ai_response  # el modelo ya capturó algo nuevo: respetarlo
+    match = _DOCTOR_NAME_RE.search(user_message or "")
+    if match:
+        fields["requesting_doctor"] = f"Dr. {match.group(1).strip().title()}"
+        ai_response["captured_fields"] = fields
+    return ai_response
+
+
 def _apply_handoff_guardrails(ai_response: dict) -> dict:
     intent = ai_response.get("intent", "unknown")
     needs_handoff = bool(ai_response.get("requires_handoff")) or intent in _HANDOFF_INTENTS
@@ -2687,6 +2720,10 @@ def process_turn(
         and session.get("phase_current") not in TERMINAL_PHASES
         and (session.get("client_id") or prev_captured.get("_client_found"))
         and _is_same_as_previous(user_message)
+        # Solo para un "el de siempre / el mismo" CORTO: si la frase es larga, puede traer
+        # el dato concreto (ej. "...soy el Dr. Gastón") — dejar que el LLM y los fallbacks lo
+        # capturen en vez de cortar acá y repreguntar.
+        and len(_tokenize(user_message)) <= 6
     ):
         asked = _detect_which_field_is_being_asked(history)
         mem = prev_captured.get("_client_memory") or {}
@@ -3184,6 +3221,8 @@ def process_turn(
     _normalize_name_fields(fields)
     ai_response["captured_fields"] = fields
     ai_response = _recover_enumerated_answer(ai_response, prev_captured, user_message, history)
+    fields = ai_response.get("captured_fields", fields)
+    ai_response = _recover_doctor_from_text(ai_response, prev_captured, user_message, history)
     fields = ai_response.get("captured_fields", fields)
     ai_response = _apply_handoff_guardrails(ai_response)
     ai_response = _avoid_redundant_client_identity_question(session, ai_response)
