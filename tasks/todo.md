@@ -2,6 +2,164 @@
 
 ---
 
+## Bucle de especie/typos + fallback robótico (caso Luciano) ✅ COMPLETA
+
+Bug reportado: pidiendo la especie, el cliente responde "Kanino"/"Kany"; el modelo
+no lo captura, repregunta idéntico, y el anti-bucle lo reemplaza por la frase
+robótica "Para avanzar, dime el dato que tengas a mano o escribe 'hablar con
+alguien'…". Causa: `_rephrased_repeated_question` no tenía branch para especie
+(ni sexo ni pago) → caía al genérico feo; y "Kanino" no se recuperaba de raíz.
+
+Arreglo (preciso, sin tocar el umbral del anti-bucle):
+- [x] `agent.py` `_rephrased_repeated_question`: branches cálidos para especie, sexo
+      y pago; genérico final sin "hablar con alguien" seco.
+- [x] `agent.py` `_recover_enumerated_answer` + `_RECOVERABLE_SPECIES`/`_RECOVERABLE_SEX`:
+      recupera variantes/typos de los campos enumerados ANTES del anti-bucle.
+      `_avoid_redundant_route_field_question` corrige el reply al siguiente campo.
+- [x] `prompt.py`: PASO 3 especie (capturar variante / confirmar ambiguo) + R5b
+      (nunca repetir pregunta idéntica; confirmar u ofrecer opciones).
+- [x] Capa de coherencia afinada: detector `_looks_off_topic_smalltalk` ahora cubre
+      conectores ("y", "ah", "pero"…) y frases sociales ("cómo vas", "qué más"), y se
+      quitó la optimización que saltaba el verificador (hacía que el off-topic saliera
+      con tono seco en vez de cálido). Off-topic → SIEMPRE reencauce cálido.
+- [x] Tests: typo de especie se recupera y avanza a raza; typo de sexo → Macho;
+      repregunta de especie/pago da opciones cálidas; off-topic con conectores → cálido.
+- [x] Verificado: py_compile OK; suite 206 passed.
+
+### Resultados (validado contra el modelo REAL, gpt-5.4-mini)
+Script `tools/scripts/validate_coherence.py` (db mockeada, `ai.generate_turn` real):
+- "Kanino" → "registro canino. ¿Cuál es la raza?" (Canino). Sin bucle.
+- "es un gatito" → Felino.
+- "Kany" (ambiguo) → "¿Te refieres a canino?" (el modelo confirma).
+- "jaja, ¿y cómo vas?" (off-topic) → "Jajaja, bien por acá, gracias. ¿Me compartes
+  el nombre del médico solicitante?" (cálido, no captura basura).
+- "masho" → Macho, avanza.
+El bug original (frase robótica "hablar con alguien" / bucle) quedó cerrado. Ver L20.
+
+---
+
+## Capa de coherencia en el flujo de datos del paciente ✅ COMPLETA
+
+Problema: cuando el cliente no sigue los pasos (pido el médico/edad y responde
+"hola, ¿cómo estás?" u otra cosa), la coherencia estaba 100% delegada al prompt
+del LLM (sección "Coherencia antes de capturar" + R22/R23). El LLM a veces igual
+capturaba basura. El flujo de cliente nuevo ya tenía una red de seguridad real
+(`interpret_nc_step`), pero el flujo principal de datos del paciente no.
+
+Decisión de diseño (confirmada con el usuario):
+- Híbrido, replicando el patrón ya existente: chequeo barato determinista primero,
+  verificador-LLM corto SOLO cuando la respuesta huele a off-topic. No agrega una
+  segunda llamada en cada turno.
+- Tono de reencauce: humano y cálido, breve (colombiano), no robótico.
+
+Pasos:
+- [x] `ai.py`: `interpret_route_field(question, user_message)` — gemelo de
+      `interpret_nc_step`, devuelve `{action: save|clarify, value, reply}`.
+- [x] `agent.py`: `_enforce_field_coherence(...)` + `_looks_off_topic_smalltalk`
+      (normaliza acentos) + `_COHERENCE_GUARDED_FIELDS`. Solo actúa en
+      route_scheduling con cliente identificado, fuera de fases terminales y del
+      armado de perfil. Si el modelo ya manejó bien el off-topic (no capturó nada
+      nuevo y su reply repregunta el mismo dato), no gasta la llamada extra.
+- [x] Insertado tras `_clarify_captured_field`, antes de confirmación/cierre (frena
+      antes de crear cualquier request).
+- [x] Tests: off-topic se reencauza y NO captura; respuesta válida no gasta llamada
+      extra; modelo que ya repreguntó no gasta llamada extra.
+- [x] Verificado: py_compile OK; `test_agent_flows` 112 passed; suite 202 passed.
+
+### Resultados
+- Campos cubiertos: requesting_doctor, patient_name, species, breed, sex,
+  patient_age, owner_name. Quedan fuera exam_type (lo gobierna catálogo/perfil) y
+  cliente/dirección/pago/observaciones (tienen manejo dedicado).
+- La red de seguridad solo se activa ante señales claras de off-topic (saludo,
+  small talk, pregunta social), así no encarece el caso común.
+
+---
+
+## Forma de pago dentro de ruta activa ✅ COMPLETA
+
+Bug detectado durante `validate_flows.py`: si el bot estaba pidiendo la forma de
+pago, el modelo podía clasificar "pago en línea" como `accounting` y crear una
+solicitud incompleta, o si el usuario decía "pago en línea" antes del turno de
+pago podía descarrilar el campo faltante.
+
+Arreglo:
+- [x] `agent.py`: `_payment_method_from_text` normaliza `contraentrega` y
+      `pago_linea` desde texto del usuario.
+- [x] Si la ruta activa está esperando `payment_method`, se fuerza
+      `intent=route_scheduling` y se muestra confirmación editable antes de crear
+      la orden.
+- [x] Si todavía falta otro campo, una forma de pago fuera de turno no cierra ni
+      escala: se vuelve a preguntar el campo faltante.
+- [x] Tests: pago clasificado erróneamente como contabilidad dentro de ruta y pago
+      dicho antes del turno de pago.
+
+### Resultados
+- `pytest tests/test_agent_flows.py tests/test_db_identification.py` → 134 passed.
+- `python tools/scripts/validate_flows.py` → 6/6 flujos OK con modelo real.
+
+---
+
+## Memoria del cliente + manejo de off-topic ✅ COMPLETA
+
+Objetivo: que el agente recuerde datos estables del cliente a lo largo de la
+conversación y los reofrezca con confirmación ("el mismo de siempre"), y que
+responda con naturalidad a mensajes fuera de alcance sin abandonar el flujo.
+
+Decisiones de diseño:
+- Solo se recuerdan datos ESTABLES del cliente: `pickup_address`,
+  `requesting_doctor`, `payment_method`. Los datos del paciente NO se recuerdan
+  entre órdenes (riesgo de arrastre). Teléfono fuera (R11).
+- Se persiste en `captured_fields._client_memory` (JSON existente, sin tocar
+  Supabase). Sobrevive solo porque empieza con `_` (agent.py:2043-2046).
+- La confirmación conversacional y el off-topic los maneja el LLM con reglas de
+  prompt + memoria inyectada al contexto. NO se construye máquina de estados nueva.
+
+Pasos:
+- [x] `agent.py`: constante `_CLIENT_MEMORY_FIELDS`.
+- [x] `agent.py` (`_persist_turn`): `_remember_client_fields` vuelca los campos estables a `_client_memory`.
+- [x] `agent.py` (`process_turn`): arma `session["_client_memory_hint"]` antes de llamar al modelo.
+- [x] `ai.py`: inyecta el hint de memoria en `state_parts`.
+- [x] `prompt.py`: R21 (reofrecer dato estable recordado + confirmar) y R22 (off-topic: declinar breve + retomar flujo).
+- [x] Verificar: `py_compile` OK; suite `tests/` 199 passed (2 fallos preexistentes y ajenos: cargan un Excel de otra máquina).
+- [x] Prueba local con modelo real: `validate_flows.py` reofrece "el de siempre" como médico solicitante y continúa al paciente.
+
+### Resultados
+- Memoria persistente sin tocar Supabase ni el JSON schema (vive en `captured_fields._client_memory`).
+- El LLM maneja la confirmación conversacional y el off-topic vía R21/R22 — sin máquina de estados nueva.
+- El atajo determinista del otro dev (`_resolve_same_as_previous`, misma sesión) sigue intacto y no colisiona: corto plazo = atajo; largo plazo = LLM con memoria inyectada.
+- Verificación final: tests determinísticos de memoria + `validate_flows.py` 6/6 OK con modelo real.
+
+---
+
+## Desplegar análisis por área/muestra (ej. "orina") ✅ COMPLETA
+
+Bug: al pedir "análisis de orina" el bot no despliega opciones y cae en "Para
+avanzar necesito el análisis o perfil exacto". Causa: "orina" no es perfil ni
+etiqueta diagnóstica; es la categoría "Uroanálisis" / sample "Orina Fresca" de
+los análisis individuales (`catalog_tests`), que el bot no consulta al elegir
+examen. Las 3 búsquedas (find_catalog_profiles/profile/diagnostic_label) dan vacío.
+
+Solución (elegida: completa, generaliza a todas las áreas):
+- [x] `db.find_tests_by_area(query, species)`: matchea la query contra categoría
+      o sample de `catalog_tests` y devuelve (área, tests). Resuelve orina vía sample.
+      Defensiva (try/except → None,[] si la BD no responde).
+- [x] `agent._test_area_suggestion_reply` + `_enforce_test_category_help`: réplica
+      de `_enforce_diagnostic_label_help`. Despliega los análisis del área y arranca
+      selección (selected_tests=[]), reusando el flujo de perfil personalizado.
+      Usa el término del usuario en el mensaje (no la categoría interna).
+- [x] Insertado en el pipeline después de `_enforce_catalog_profile_help`.
+- [x] Guard "exam_type nuevo" (compara con prev_captured): solo evalúa el área en
+      el turno donde se menciona el examen → evita I/O y re-disparos en pasos posteriores.
+- [x] Verificado: py_compile + suite 199 passed + simulación end-to-end con "orina".
+- [x] Tests agregados: enforcement de área en `agent.py` y matching por `sample` en `db.find_tests_by_area`.
+
+### Resultados
+- "quiero un análisis de orina" ahora despliega las 7 opciones de Uroanálisis con precio.
+- Regresión detectada y corregida: sin el guard de "exam_type nuevo", el enforcement
+  hacía I/O en cada turno y rompía 30 tests (ConnectError). Ver L17.
+
+---
+
 ## Perfiles por necesidad diagnóstica (etiquetas) ✅ COMPLETA
 Integra el sheet de etiquetas: cuando el cliente pide un perfil por motivo clínico, el sistema sugiere las pruebas y arma un perfil personalizado (con descuento por volumen).
 - [x] Datos: `tools/data/diagnostic_labels.json` (31 etiquetas, 66 pruebas; códigos cruzan 100% con `catalog_tests`).
@@ -34,13 +192,13 @@ Archivos: `prompt.py`, `agent.py`, `schema.py`, `db.py`
 - [x] #9 Exámenes al final: orden ahora Médico → Paciente → Especie → Raza → Sexo → Edad → Propietario → Observaciones → **Exámenes** (en `prompt.py` y `_ROUTE_ORDER_FIELDS_BEFORE_PAYMENT`).
 - [x] #10 Regla de edad: prompt con ejemplos; `_age_has_unit` + `_missing_route_field` tratan la edad sin unidad como faltante para repreguntar.
 - [x] #17 Ortografía forzada: `_normalize_name_fields()`/`_titlecase_value()` aplican Mayúscula inicial a clinic_name, patient_name, species, breed, owner_name, requesting_doctor. No toca exam_type ni observations.
-- Resultado: `tests/` verde (86 en test_agent_flows). Solo fallan 3 tests de Allegra por `openpyxl` ausente (ambiental, ajeno al cambio).
+- Resultado: `tests/` verde (86 en test_agent_flows).
 
 ### FASE 2 — Menú y confirmación de cierre ✅ COMPLETA
 Archivos: `prompt.py`, `agent.py`
 - [x] #3 Menú numerado (Etapa 3): el `WELCOME_MESSAGE` ahora ofrece `1 Programar · 2 Resultados · 3 Pagos · 4 Otro` y el prompt mapea la respuesta numérica al intent (1→route, 2→results, 3→accounting, 4→unknown/derivar).
 - [x] #12 Confirmación editable: nueva `_enforce_confirmation_step` intercepta el cierre y muestra el resumen "Antes de registrar… ¿Confirmas? (Sí / Corregir)" en `fase_4_confirmacion` sin registrar. Al confirmar, el pipeline cierra (fase_6/fase_7) y crea la request. "Corregir <campo>" se resuelve con short-circuit determinista (`_detect_correction_field`/`_clear_field_for_correction`) que limpia el campo y lo repregunta. Refactor: `_order_summary_lines` (compartido cierre/confirmación), `_finalize_request` y `_persist_turn`.
-- Resultado: suite verde (176 pasan, 3 de Allegra deseleccionados por `openpyxl`). Se reescribieron los tests de cierre al flujo de 2 turnos y se añadieron tests del mecanismo de corrección.
+- Resultado: suite verde (176 pasan). Se reescribieron los tests de cierre al flujo de 2 turnos y se añadieron tests del mecanismo de corrección.
 
 ### FASE 3 — Pago en línea ✅ COMPLETA
 Archivos: `schema.py`, `prompt.py`, `agent.py`, `dashboard.py`
@@ -51,8 +209,8 @@ Archivos: `schema.py`, `prompt.py`, `agent.py`, `dashboard.py`
 Archivos: `agent.py`, `db.py`, `main.py`, `prompt.py`
 - [x] #2 Bloqueo de cliente final: al detectar `_is_final_user_text` se marca `captured_fields._blocked` y se persiste. `process_turn` retorna `None` si la sesión está bloqueada; `main.py` (telegram y chatwoot) no envía nada cuando el reply es `None`.
 - [x] #13 Sucursales: nuevo `db.find_clients_by_tax_id` devuelve todas las sedes con ese NIT. Si hay >1 → se listan con `_client_match_options` y `_client_match_options_reply` detecta sedes del mismo cliente ("¿Desde cuál sede solicitas?"). Selección por número. Corregido el descarte de opciones para no perder las sedes cuando el NIT viene preservado.
-- [x] #14 Flujo B datos mínimos: al confirmar cliente nuevo se inicia captura determinista (clínica → médico → dirección → teléfono) con resumen "¿Son correctos? (Sí / Corregir)"; al confirmar se guarda con `db.create_pending_client_review` (is_active=False, estado CLIENTE NUEVO — PENDIENTE) y se deriva a operaciones.
-- Resultado: suite verde (181 pasan). Tests de identificación migrados a `find_clients_by_tax_id`; nuevos tests de bloqueo, sucursales y Flujo B.
+- [x] #14 Cliente nuevo: regla vigente del chatbot = escalar inmediatamente a operaciones/recepción sin capturar datos en chat. El alta y la revisión pendiente se gestionan desde la plataforma/dashboard, no desde Telegram. Las sesiones legacy que ya estaban en Flujo B se siguen atendiendo para no dejarlas colgadas.
+- Resultado: suite verde (181 pasan en ese momento). Tests de identificación migrados a `find_clients_by_tax_id`; el comportamiento vigente queda documentado en `tasks/errores-soluciones.md`.
 
 ### FASE 5 — Negocio / datos ✅ COMPLETA
 Archivos: `config.py`, `rules.py`, `prompt.py`, nueva migración `011`
@@ -116,7 +274,7 @@ Número de orden `A3-00042` implementado punta a punta. El cliente lo recibe al
 cerrar la orden y puede pedirlo por chat ("¿cuál es el número de mi orden?"); el
 dashboard lo muestra en la ficha, la vista de impresión y el seguimiento de
 muestras. Defensivo: si la migración no está aplicada, no rompe (no muestra número).
-3 fallos allegra preexistentes (openpyxl), ajenos.
+Sin fallos del agente en esa verificación.
 
 **PENDIENTE DEL USUARIO:** aplicar `db/migrations/010_order_number.sql` en el SQL
 Editor de Supabase (no hay SUPABASE_ACCESS_TOKEN para aplicarla por script).
@@ -150,8 +308,7 @@ decir si está registrado o no.
 ### Resultado (2026-06-01)
 Implementado con callback `on_progress`. El agente avisa "Permíteme un momentico
 mientras reviso nuestros registros 🔍", activa "escribiendo…" y espera 1.5s antes
-de confirmar si el cliente está registrado. Tests: 171 passed (3 fallos allegra
-preexistentes por `openpyxl` faltante, ajenos al cambio).
+de confirmar si el cliente está registrado. Tests: 171 passed.
 
 ---
 
@@ -206,7 +363,6 @@ Estas funciones se implementarán en la plataforma de gestión, no en el chatbot
 - [ ] **Descuentos por cantidad**: `calculate_discount()` en `rules.py` es placeholder (retorna 0). Las reglas de descuento las define el cliente y se configuran desde la plataforma. La BD las persiste; el agente solo las lee.
 - [ ] **Asignación por zonas geográficas**: hoy el agente asigna por `client_courier_assignment` (tabla por cliente). La asignación por zona requiere la tabla de zonas que define el cliente; se gestiona desde la plataforma.
 - [ ] **Integración ANARVET**: consulta de estado de análisis. La plataforma expone el estado; el agente lo consumirá vía endpoint interno cuando esté disponible.
-- [ ] **Integración ALEGRA**: generación de facturas al completar una orden. Se resuelve desde el backend de la plataforma, no desde el agente.
 - [ ] **Gestión de zonas y motoristas**: calendario de repartidores, asignación manual de override, edición de zonas.
 - [ ] **Dashboard y reportes**: órdenes por día, por motorista, por zona, perfiles más solicitados.
 - [ ] **Gestión de clientes**: alta manual, edición de datos, vinculación a zona.
@@ -218,7 +374,6 @@ Estas funciones se implementarán en la plataforma de gestión, no en el chatbot
 - [ ] Tabla de descuentos por cantidad de parámetros
 - [ ] Estructura de perfiles predefinidos en el catálogo
 - [ ] API ANARVET: endpoint, autenticación, datos expuestos
-- [ ] API ALEGRA: endpoint, autenticación, campos requeridos
 
 ---
 
@@ -233,6 +388,7 @@ Estas funciones se implementarán en la plataforma de gestión, no en el chatbot
 **2026-05-15** — Zonas territoriales A3 estructuradas: `data/barrios_zonas_a3.csv`, `app/territory.py`, migración `006_territorial_zones.sql` y scripts de carga. Supabase actual: 8 motorizados verificados y 282 asignaciones cliente→motorizado cargadas. Pendiente aplicar migración con credencial admin SQL para subir 1649 barrios.
 **2026-05-15** — Alta manual de cliente ahora sugiere motorizado automaticamente por barrio/localidad/zona, con override manual del operador. Endpoint `GET /api/dashboard/courier-suggestion` y guardado de `courier_suggestion` en revisión. Suite validada: 83/83.
 **2026-05-15** — Autocompletado de barrios agregado en alta manual: `GET /api/dashboard/neighborhood-search`, autollenado de localidad/zona y sugerencia de motorizado. Suite validada: 84/84.
+**2026-06-13** — Allegra queda fuera de alcance por ahora: eliminados scripts/tests activos que dependían de Excel externo. `pytest` completo queda verde (214 passed). Auditoría Supabase read-only: core/catálogo/órdenes/etiquetas OK; tablas territoriales de migración `006` aún no están en Supabase (warning no bloqueante para el bot principal).
 **2026-05-15** — Flujo de migracion territorial cerrado: script `apply_supabase_migration.py` para aplicar DDL con `SUPABASE_ACCESS_TOKEN`, seed territorial idempotente y runbook actualizado. Service role key no permite crear tablas.
 **2026-05-15** — Proyecto autosuficiente con `.env` local protegido por `.gitignore`; seeds corren sin rutas antiguas. Operacion territorial funcional con fallback interno hasta que existan tablas territoriales en Supabase.
 **2026-05-15** — Centro Operativo Diario agregado en `/operacion`: KPIs de rutas, aprobaciones, muestras abiertas, alertas, rutas por gestionar y clientes nuevos. Suite validada: 85/85.
@@ -241,3 +397,7 @@ Estas funciones se implementarán en la plataforma de gestión, no en el chatbot
 **2026-05-24** — Plataforma muestra ordenes de servicio del agente en `/operacion` y `/muestras`, con ficha visual tipo formulario y tarjetas derivadas en proceso de muestras. Suite validada: 133/133.
 **2026-05-24** — Agregada vista imprimible de orden de servicio en `/ordenes-servicio/<request_id>/imprimir`, accesible desde las fichas como `Imprimir PDF` para imprimir o guardar desde el navegador. Suite validada: 134/134.
 **2026-05-24** — Flujo multiorden ajustado: al cerrar una orden el agente pregunta si necesita otra para otro paciente/animal; respuesta afirmativa inicia nueva orden sin reidentificar cliente y respuesta negativa cierra la conversacion. Suite validada: 137/137.
+
+**2026-06-13** — Memoria entre órdenes mejorada + captura de varios análisis sin bucle. (1) Al crear una orden de seguimiento el agente reusa los datos estables (médico, dirección, pago) de la orden anterior y los confirma en bloque (`_carry_over_stable_fields` + flag `_stable_confirm_pending`), en vez de repreguntarlos en blanco; el reconocimiento de "el mismo" se amplió y ahora cae a `_client_memory` aunque no haya snapshot (resolución determinística sin AI). (2) Nuevo guardrail `_enforce_multiple_tests_capture`: si el cliente pide varios análisis en un mensaje y cada ítem mapea 1:1 al catálogo, los registra como perfil personalizado sin repreguntar el tipo (evita bucle); si hay ambigüedad, deja el flujo normal. Prompt R24 agregada. Suite validada: 221/221 + 6/6 flujos con modelo real.
+
+**2026-06-13** — Tres mejoras de robustez del agente (ordenado y sin loops): (#1) backstop determinístico `_enforce_custom_profile_close`: el perfil personalizado armado desde cero se cierra y fija `exam_type` cuando el cliente lo pide, sin depender del modelo (evita el bucle "¿agregás otro o cerramos?"). (#6) Eliminado el "Flujo B" muerto de cliente nuevo (`_start_new_client_capture`, `_handle_new_client_capture`, `_save_new_client_pending`, constantes `_nc_*`/`NEW_CLIENT_*`, `ai.interpret_nc_step`): nunca se invocaba y contradecía la regla "el bot nunca registra cliente nuevo"; sesiones viejas con `_nc_capturing` se auto-sanan y escalan por el flujo normal. (#3) Resume determinístico de intenciones: "resultados + recogida" en un mensaje ya no pierde la ruta — entrega el mensaje fijo de resultados y retoma la recogida en el mismo turno (`_enforce_results_message`). Suite: 222/222 + 6/6 flujos con modelo real.

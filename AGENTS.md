@@ -8,7 +8,7 @@
 ## Qué es este proyecto
 
 **A3 Laboratorio Veterinario** — laboratorio de análisis clínico veterinario en Bogotá.
-Atiende clínicas y veterinarias por Telegram.
+Atiende clínicas y veterinarias por Telegram directo y por Telegram vía Chatwoot.
 
 El bot hace exactamente 4 cosas:
 1. Programar recogida de muestras
@@ -24,7 +24,7 @@ El bot hace exactamente 4 cosas:
 Backend:       Python 3.12+ + Flask
 Base de datos: Supabase (PostgreSQL) — modelo existente, no modificar esquema
 IA:            OpenAI API — gpt-5.5
-Mensajería:    Telegram Bot API (webhook)
+Mensajería:    Telegram Bot API + Chatwoot Agent Bot (webhooks)
 Infra:         Render
 ```
 
@@ -33,18 +33,19 @@ Infra:         Render
 ## Arquitectura
 
 ```
-app/main.py          Flask + webhook (< 100 líneas)
-app/agent.py         process_turn() — función central
+app/main.py          Flask + webhooks Telegram/Chatwoot
+app/agent.py         process_turn() — función central con guardrails determinísticos
 app/prompt.py        System prompt
-app/schema.py        JSON schema OpenAI
+app/schema.py        JSON schema OpenAI amplio (estado actual)
 app/rules.py         Reglas de negocio puras
 app/config.py        Variables de entorno
 app/services/ai.py   Cliente OpenAI
 app/services/db.py   Cliente Supabase
 app/services/telegram.py  Cliente Telegram
+app/services/chatwoot.py  Cliente Chatwoot
 ```
 
-La función `process_turn(chat_id, user_message) -> str` es el corazón del sistema.
+La función `process_turn(chat_id, user_message, on_progress=None, channel="telegram") -> str | None` es el corazón del sistema.
 
 ---
 
@@ -54,11 +55,11 @@ La función `process_turn(chat_id, user_message) -> str` es el corazón del sist
 clients:              id, clinic_name, tax_id, phone, address, zone, billing_type, is_active
 couriers:             id, name, phone, availability, is_active
 client_courier_assignment: client_id (UNIQUE) → courier_id  (asignación determinista)
-requests:             id, client_id, service_area, intent, priority, status,
+requests:             id, client_id, entry_channel, service_area, intent, priority, status,
                       exam_type, patient_name, pickup_address, scheduled_pickup_date,
                       assigned_courier_id, fallback_reason
 request_events:       id, request_id, event_type, event_payload, created_at
-telegram_sessions:    external_chat_id (PK), client_id, phase_current,
+telegram_sessions:    channel, external_chat_id (PK), client_id, phase_current,
                       intent_current, captured_fields, last_activity
 ```
 
@@ -71,10 +72,14 @@ Error: `error_pending_assignment` (cliente sin motorizado)
 
 | Fase | Estado |
 |---|---|
-| `collecting` | Recolectando datos |
-| `confirming` | Confirmando con el cliente |
-| `done` | Solicitud registrada |
-| `escalated` | Derivado a humano |
+| `fase_0_bienvenida` | Primer mensaje y menú |
+| `fase_1_clasificacion` | Clasificación de intención |
+| `fase_2_recogida_datos` | Recolección de datos |
+| `fase_3_validacion` | Validación/coherencia |
+| `fase_4_confirmacion` | Resumen editable |
+| `fase_5_ejecucion` | Ejecución interna |
+| `fase_6_cierre` | Solicitud registrada/cierre |
+| `fase_7_escalado` | Derivado a humano |
 
 ---
 
@@ -84,13 +89,22 @@ Error: `error_pending_assignment` (cliente sin motorizado)
 {
   "reply": "mensaje para enviar al usuario",
   "intent": "route_scheduling|results|accounting|new_client|unknown",
-  "phase": "collecting|confirming|done|escalated",
+  "phase": "fase_0_bienvenida|fase_1_clasificacion|fase_2_recogida_datos|fase_3_validacion|fase_4_confirmacion|fase_5_ejecucion|fase_6_cierre|fase_7_escalado",
+  "service_area": "route_scheduling|accounting|results|new_client|unknown",
   "captured_fields": {
     "clinic_name": null, "tax_id": null, "pickup_address": null,
-    "exam_type": null, "patient_name": null
+    "exam_type": null, "patient_name": null,
+    "species": null, "requesting_doctor": null, "patient_age": null,
+    "owner_name": null, "breed": null, "sex": null,
+    "observations": null, "payment_method": null,
+    "selected_tests": null, "removed_tests": null
   },
+  "message_mode": "flow_progress|side_question|intent_switch|small_talk|cancellation",
   "requires_handoff": false,
-  "handoff_area": null
+  "handoff_area": null,
+  "resume_prompt": "",
+  "confidence": 1.0,
+  "pending_intents": []
 }
 ```
 
@@ -98,7 +112,7 @@ Error: `error_pending_assignment` (cliente sin motorizado)
 
 ## Reglas de negocio invariantes
 
-1. **Corte 17:30** — solicitudes post-corte van al siguiente día hábil + 1
+1. **Corte 17:30** — solicitudes post-corte van al segundo día hábil siguiente
 2. **Motorizado determinista** — tabla `client_courier_assignment`. Sin motorizado → `error_pending_assignment` + escalar
 3. **Alta de cliente** — SIEMPRE escala a recepción. El bot nunca registra.
 4. **Contabilidad** — SIEMPRE escala. El bot nunca resuelve pagos.
@@ -127,6 +141,7 @@ Error: `error_pending_assignment` (cliente sin motorizado)
 - Preferir editar archivos existentes antes de crear nuevos
 - Documentar decisiones importantes en `docs/decisions/`
 - Consultar `tasks/lessons.md` antes de empezar una tarea nueva
+- **Bitácora central de errores:** consultar `tasks/errores-soluciones.md` ANTES de tocar el agente (errores ya resueltos + abiertos/monitoreo, para no repetirlos) y registrar AHÍ todo bug conversacional (síntoma, causa raíz, solución, tests, estado). Sin actualizarla, el bug no se considera cerrado. Ver `docs/decisions/007-error-solution-log.md`.
 
 ---
 
@@ -143,6 +158,7 @@ Error: `error_pending_assignment` (cliente sin motorizado)
 
 ## Recursos útiles
 
+- **Bitácora central de errores (leer primero): `tasks/errores-soluciones.md`**
 - Arquitectura completa: `docs/architecture.md`
 - Casos de prueba: `docs/architecture.md#casos-de-prueba`
 - Lecciones aprendidas: `tasks/lessons.md`

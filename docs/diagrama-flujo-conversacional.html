@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A3 Veterinaria — Diagrama de flujo conversacional</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1419; --panel:#1a212b; --panel2:#222c38; --border:#2e3a48;
+    --text:#e6edf3; --muted:#9bb0c3; --accent:#4aa8ff; --green:#3fb950;
+    --yellow:#e3b341; --red:#f85149; --purple:#bc8cff; --cyan:#56d4dd;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;line-height:1.55}
+  header{padding:28px 32px;border-bottom:1px solid var(--border);
+    background:linear-gradient(180deg,#16202c,#0f1419)}
+  header h1{margin:0 0 6px;font-size:24px}
+  header p{margin:0;color:var(--muted);font-size:14px}
+  nav{position:sticky;top:0;z-index:10;background:#0f1419ee;backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--border);padding:10px 32px;display:flex;gap:8px;flex-wrap:wrap}
+  nav a{color:var(--muted);text-decoration:none;font-size:13px;padding:6px 12px;
+    border-radius:20px;border:1px solid transparent;transition:.15s}
+  nav a:hover{color:var(--text);border-color:var(--border);background:var(--panel)}
+  main{max-width:1180px;margin:0 auto;padding:32px}
+  section{margin-bottom:48px}
+  h2{font-size:20px;border-left:4px solid var(--accent);padding-left:12px;margin:0 0 6px}
+  .sub{color:var(--muted);font-size:14px;margin:0 0 20px}
+  .diagram{background:var(--panel);border:1px solid var(--border);border-radius:12px;
+    padding:20px;overflow-x:auto;text-align:center}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:16px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px}
+  .card h3{margin:0 0 4px;font-size:15px;display:flex;align-items:center;gap:8px}
+  .phase-tag{font-size:11px;font-family:monospace;color:var(--muted);
+    background:var(--panel2);padding:2px 8px;border-radius:6px}
+  .card .label{font-size:11px;text-transform:uppercase;letter-spacing:.5px;
+    color:var(--muted);margin:12px 0 4px;font-weight:600}
+  .chat{background:#0c1117;border:1px solid var(--border);border-radius:8px;
+    padding:10px;font-size:13px;margin-top:4px}
+  .msg{margin:4px 0;padding:6px 10px;border-radius:10px;max-width:90%}
+  .bot{background:#1f3a52;color:#cfe6ff}
+  .user{background:#2a2f3a;margin-left:auto;text-align:right}
+  .risk{border-left:3px solid var(--red);padding-left:10px;font-size:13px;
+    color:#ffc4c0;margin-top:6px}
+  .tip{border-left:3px solid var(--green);padding-left:10px;font-size:13px;
+    color:#bdf5c8;margin-top:6px}
+  .pill{display:inline-block;font-size:11px;padding:2px 9px;border-radius:20px;font-weight:600}
+  .p-bot{background:#1f3a52;color:#9fd0ff} .p-ai{background:#3a2a52;color:#d7b8ff}
+  .p-det{background:#3a3320;color:#f0d585} .p-db{background:#203a2a;color:#a7e8bc}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:18px;font-size:13px}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .dot{width:12px;height:12px;border-radius:3px;display:inline-block}
+  table{width:100%;border-collapse:collapse;font-size:13.5px;margin-top:8px}
+  th,td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top}
+  th{background:var(--panel2);color:var(--text)}
+  td.ok{color:var(--green)} td.warn{color:var(--yellow)} td.bad{color:var(--red)}
+  .scoreband{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+  .score{flex:1;min-width:200px;background:var(--panel);border:1px solid var(--border);
+    border-radius:12px;padding:16px}
+  .score .n{font-size:28px;font-weight:700}
+  .score.green .n{color:var(--green)} .score.yellow .n{color:var(--yellow)}
+  .score.red .n{color:var(--red)}
+  code{background:var(--panel2);padding:1px 6px;border-radius:5px;font-size:12.5px}
+  .note{background:#1c2530;border:1px solid var(--border);border-radius:10px;
+    padding:14px 16px;font-size:13.5px;color:var(--muted)}
+  .note b{color:var(--text)}
+  footer{border-top:1px solid var(--border);padding:24px 32px;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧪 A3 Laboratorio Veterinario — Diagrama del agente conversacional</h1>
+  <p>Cómo conversa el bot, qué espera recibir en cada paso, cómo se conecta con plataformas / APIs / base de datos, y dónde están los riesgos y mejoras. Generado a partir del código real (<code>app/agent.py</code>, <code>app/prompt.py</code>, <code>app/main.py</code>, <code>app/services/</code>).</p>
+</header>
+
+<nav>
+  <a href="#arquitectura">1. Arquitectura</a>
+  <a href="#turno">2. Cómo se procesa un turno</a>
+  <a href="#flujo">3. Flujo conversacional</a>
+  <a href="#pasos">4. Qué espera cada paso</a>
+  <a href="#datos">5. Modelo de datos</a>
+  <a href="#diagnostico">6. Diagnóstico: bien / mal / falta</a>
+</nav>
+
+<main>
+
+<!-- ============ 1. ARQUITECTURA ============ -->
+<section id="arquitectura">
+  <h2>1. Arquitectura — plataformas, APIs y base de datos</h2>
+  <p class="sub">Dos canales de entrada (Telegram directo y Telegram vía Chatwoot) llegan a un mismo cerebro: <code>process_turn()</code>. Ese cerebro habla con OpenAI (lenguaje) y Supabase (datos), y responde por el mismo canal por el que entró el mensaje.</p>
+  <div class="legend">
+    <span><span class="dot" style="background:#4aa8ff"></span> Canal / entrada</span>
+    <span><span class="dot" style="background:#bc8cff"></span> Cerebro del agente</span>
+    <span><span class="dot" style="background:#e3b341"></span> Servicio externo (API)</span>
+    <span><span class="dot" style="background:#3fb950"></span> Base de datos</span>
+  </div>
+  <div class="diagram">
+    <pre class="mermaid">
+flowchart LR
+  TG([👤 Cliente veterinario<br/>Telegram]) -->|mensaje| W1
+  CW([👤 Cliente veterinario<br/>Telegram → Chatwoot]) -->|mensaje| W2
+
+  subgraph FLASK["app/main.py — Flask (webhooks)"]
+    W1["/webhooks/telegram<br/>valida secret"]
+    W2["/chatwoot/webhook"]
+    PAPI["/api/* platform_api<br/>(dashboard)"]
+  end
+
+  W1 --> PT
+  W2 --> PT
+  PT{{"app/agent.py<br/>process_turn()<br/>orquesta el turno"}}
+
+  PT -->|"genera lenguaje"| AI
+  PT -->|"lee/escribe estado"| DB
+  AI["services/ai.py<br/>OpenAI gpt-5.5<br/>+ JSON schema"] -->|"OpenAI API"| OAI[(OpenAI)]
+  DB["services/db.py"] -->|"SDK"| SUPA[(Supabase<br/>PostgreSQL)]
+
+  PT -->|"reply"| TGS["services/telegram.py"] --> TG
+  PT -->|"reply + asigna equipo"| CWS["services/chatwoot.py"] --> CW
+  PAPI --> DB
+
+  classDef chan fill:#15324d,stroke:#4aa8ff,color:#cfe6ff;
+  classDef brain fill:#2e1f47,stroke:#bc8cff,color:#e9d9ff;
+  classDef api fill:#3a3320,stroke:#e3b341,color:#f0d585;
+  classDef data fill:#1c3a28,stroke:#3fb950,color:#bdf5c8;
+  class TG,CW,W1,W2,TGS,CWS chan;
+  class PT,PAPI brain;
+  class AI,OAI api;
+  class DB,SUPA data;
+    </pre>
+  </div>
+  <div class="note" style="margin-top:16px">
+    <b>Lectura clave:</b> el modelo de OpenAI <b>no</b> habla directo con la base de datos ni con el usuario. Siempre pasa por <code>process_turn()</code>, que aplica decenas de <b>guardrails determinísticos</b> (reglas en código) <em>antes y después</em> de llamar al modelo. Es la pieza que evita que el bot improvise números de orden, registre clientes nuevos o salte pasos obligatorios.
+  </div>
+</section>
+
+<!-- ============ 2. TURNO ============ -->
+<section id="turno">
+  <h2>2. Cómo se procesa un solo turno (mensaje del usuario)</h2>
+  <p class="sub">Antes de pasar por el modelo de IA, <code>process_turn()</code> intenta resolver el turno con reglas. Solo si ninguna regla aplica, llama a OpenAI. Después de la IA hay otra capa de guardrails que corrige la respuesta.</p>
+  <div class="legend">
+    <span><span class="dot" style="background:#4aa8ff"></span> Atajo determinístico (sin IA)</span>
+    <span><span class="dot" style="background:#bc8cff"></span> Llamada a OpenAI</span>
+    <span><span class="dot" style="background:#e3b341"></span> Guardrail post-IA</span>
+    <span><span class="dot" style="background:#3fb950"></span> Persistencia / registro</span>
+  </div>
+  <div class="diagram">
+    <pre class="mermaid">
+flowchart TD
+  IN([Mensaje entrante]) --> B0{¿sesión bloqueada<br/>cliente final?}
+  B0 -->|sí| STOP([No responde])
+  B0 -->|no| B1{¿primer mensaje?}
+  B1 -->|sí| WEL[/Bienvenida + menú 1-4<br/>fase_0_bienvenida/]
+  B1 -->|no| B2{¿fase terminal?}
+  B2 -->|despedida| BYE[/Mensaje de despedida/]
+  B2 -->|saludo| HI[/Saludo breve/]
+  B2 -->|otra orden| RESET[Reinicia orden,<br/>recupera datos estables]
+  B2 -->|no| B3{¿atajos de menú/estado?}
+
+  B3 -->|"opción 2 results"| RES[/Resultados:<br/>no disponible aún/]
+  B3 -->|"opción 4 otro"| H4[Deriva a humano]
+  B3 -->|"pide N° de orden"| ORD[(Consulta orden real<br/>en Supabase)]
+  B3 -->|"confusión de opción"| MENU[/Reofrece el menú/]
+  B3 -->|"no aplica atajo"| AI
+
+  AI["🧠 OpenAI generate_turn()<br/>clasifica intención + extrae campos"] --> MERGE[Fusiona campos<br/>previos + nuevos]
+  MERGE --> CLI{¿cliente<br/>identificado?}
+  CLI -->|no| LOOKUP[(Busca en clients:<br/>NIT / nombre / sedes)]
+  LOOKUP -->|"varias coincidencias"| OPTS[/Lista opciones/]
+  LOOKUP -->|"no existe"| NEW[¿Cliente nuevo?<br/>→ deriva a recepción]
+  LOOKUP -->|"1 match"| ADDR
+  CLI -->|sí| ADDR[Confirma dirección<br/>de retiro]
+
+  ADDR --> GUARD["⚙️ Guardrails post-IA:<br/>catálogo, perfiles, pago,<br/>coherencia, anti-bucle,<br/>no repetir preguntas"]
+  GUARD --> CONF{¿datos completos?}
+  CONF -->|sí| C4[/fase_4_confirmacion:<br/>resumen editable/]
+  C4 -->|usuario confirma| FIN
+  CONF -->|faltan datos| ASK[/Pide el siguiente dato/]
+  FIN["✅ finalize_request"] --> DBW[(Crea request +<br/>asigna motorizado<br/>fase_6_cierre)]
+  DBW --> SAVE[(Guarda mensajes<br/>y sesión)]
+  ASK --> SAVE
+  OPTS --> SAVE
+  NEW --> SAVE
+
+  classDef det fill:#15324d,stroke:#4aa8ff,color:#cfe6ff;
+  classDef ai fill:#2e1f47,stroke:#bc8cff,color:#e9d9ff;
+  classDef guard fill:#3a3320,stroke:#e3b341,color:#f0d585;
+  classDef data fill:#1c3a28,stroke:#3fb950,color:#bdf5c8;
+  class WEL,BYE,HI,RES,H4,MENU,RESET,B0,B1,B2,B3,CLI,CONF det;
+  class AI ai;
+  class GUARD,MERGE,ADDR,OPTS,NEW,ASK,C4 guard;
+  class ORD,LOOKUP,DBW,SAVE,FIN data;
+    </pre>
+  </div>
+</section>
+
+<!-- ============ 3. FLUJO CONVERSACIONAL ============ -->
+<section id="flujo">
+  <h2>3. Flujo conversacional — las 4 cosas que hace el agente</h2>
+  <p class="sub">El negocio define exactamente 4 capacidades. Solo una (<b>programar recogida</b>) la resuelve el bot de punta a punta; las otras tres son informar o derivar a un humano.</p>
+  <div class="diagram">
+    <pre class="mermaid">
+flowchart TD
+  START([Cliente escribe]) --> WELCOME["fase_0_bienvenida<br/>Menú: 1·Recogida  2·Resultados<br/>3·Pagos  4·Otro"]
+  WELCOME --> CLAS{fase_1_clasificacion<br/>¿qué quiere?}
+
+  CLAS -->|"1 · recogida"| ID
+  CLAS -->|"2 · resultados"| R2["results<br/>📋 'Aún no disponible<br/>por este medio'"]
+  CLAS -->|"3 · pagos"| R3["accounting<br/>💸 SIEMPRE deriva a<br/>contabilidad"]
+  CLAS -->|"4 · otro / no clasificado"| R4["unknown<br/>🙋 deriva a una persona"]
+
+  subgraph ROUTE["route_scheduling — el bot lo resuelve completo"]
+    ID["fase_2 · Identificar cliente<br/>pide NIT o nombre de veterinaria"]
+    ID --> IDQ{¿está en la BD?}
+    IDQ -->|no| NC["new_client<br/>🆕 SIEMPRE deriva a recepción<br/>(el bot NUNCA registra)"]
+    IDQ -->|sí| ADDR["Confirmar dirección de retiro"]
+    ADDR --> ORDER["Orden de servicio (uno por turno):<br/>médico → paciente → especie → raza<br/>→ sexo → edad → propietario<br/>→ observaciones → análisis"]
+    ORDER --> PAY["Forma de pago:<br/>contraentrega / pago en línea"]
+    PAY -->|pago en línea| PAYH["también deriva a<br/>contabilidad por el link"]
+    PAY --> CONF["fase_4_confirmacion<br/>resumen editable ¿Sí / Corregir?"]
+    PAYH --> CONF
+    CONF --> CLOSE["fase_6_cierre<br/>✅ crea solicitud + asigna<br/>motorizado + N° de orden"]
+  end
+
+  R3 --> ESC["fase_7_escalado"]
+  R4 --> ESC
+  NC --> ESC
+
+  classDef wel fill:#15324d,stroke:#4aa8ff,color:#cfe6ff;
+  classDef route fill:#1c3a28,stroke:#3fb950,color:#bdf5c8;
+  classDef esc fill:#3a2020,stroke:#f85149,color:#ffc4c0;
+  classDef info fill:#3a3320,stroke:#e3b341,color:#f0d585;
+  class WELCOME,CLAS wel;
+  class ID,IDQ,ADDR,ORDER,PAY,PAYH,CONF,CLOSE route;
+  class R3,R4,NC,ESC esc;
+  class R2 info;
+    </pre>
+  </div>
+  <div class="note" style="margin-top:16px">
+    <b>Reglas de negocio invariantes</b> (codificadas como guardrails): ① corte 17:30 → recogida al siguiente día hábil; ② motorizado asignado de forma determinista desde <code>client_courier_assignment</code>; ③ alta de cliente: <b>siempre escala</b>, el bot nunca registra; ④ pagos: <b>siempre escala</b> a contabilidad; ⑤ identificar al cliente <b>antes</b> de cualquier solicitud.
+  </div>
+</section>
+
+<!-- ============ 4. QUÉ ESPERA CADA PASO ============ -->
+<section id="pasos">
+  <h2>4. Qué conversación espera cada paso (y dónde puede fallar)</h2>
+  <p class="sub">Cada tarjeta = un paso del flujo. Muestra qué responde el bot, qué espera recibir del usuario, un ejemplo, y el riesgo conocido según el código.</p>
+  <div class="grid">
+
+    <div class="card">
+      <h3>① Bienvenida <span class="phase-tag">fase_0</span> <span class="pill p-bot">determinístico</span></h3>
+      <div class="label">Qué hace</div>
+      Primer mensaje del chat: responde el menú fijo <em>sin llamar a la IA</em>.
+      <div class="label">Espera recibir</div>
+      Un número (1–4) o lenguaje natural describiendo qué necesita.
+      <div class="chat">
+        <div class="msg user">hola</div>
+        <div class="msg bot">Bienvenido a A3… ¿Con qué te ayudamos? 1. Recogida 2. Resultados 3. Pagos 4. Otro</div>
+      </div>
+      <div class="tip">✔ Estable: no depende del modelo, no se puede romper.</div>
+    </div>
+
+    <div class="card">
+      <h3>② Identificar cliente <span class="phase-tag">fase_2</span> <span class="pill p-db">Supabase</span></h3>
+      <div class="label">Qué hace</div>
+      Pide NIT o nombre de veterinaria y lo busca en <code>clients</code>. Si hay varias coincidencias o sedes, lista opciones numeradas.
+      <div class="label">Espera recibir</div>
+      NIT, nombre exacto de la veterinaria/médico, o el número de una opción.
+      <div class="chat">
+        <div class="msg bot">¿Me compartes el NIT o el nombre de la veterinaria?</div>
+        <div class="msg user">Bioanimal Vet</div>
+        <div class="msg bot">Encontré varios con 'Bioanimal Vet'. ¿Cuál? 1) … 2) …</div>
+      </div>
+      <div class="risk">⚠ Riesgo histórico de bucle: respuestas cortas ("regístrame", "qué hacemos") se interpretaban como nombre y re-disparaban la búsqueda. Hay parches específicos para esto.</div>
+    </div>
+
+    <div class="card">
+      <h3>③ Cliente NO encontrado <span class="phase-tag">fase_7</span> <span class="pill p-bot">deriva</span></h3>
+      <div class="label">Qué hace</div>
+      Pregunta "¿eres cliente nuevo?". Si confirma → deriva a recepción/operaciones. <b>El bot nunca registra al cliente.</b>
+      <div class="label">Espera recibir</div>
+      Sí/no, o un identificador nuevo para reintentar la búsqueda.
+      <div class="chat">
+        <div class="msg user">no aparezco, soy nuevo</div>
+        <div class="msg bot">Te comunico con atención al cliente para el registro.</div>
+      </div>
+      <div class="risk">⚠ Si el usuario insiste sin dar un NIT válido, hay riesgo de repetir el mensaje de derivación. Mitigado con <code>_handoff_announced</code>.</div>
+    </div>
+
+    <div class="card">
+      <h3>④ Confirmar dirección <span class="phase-tag">fase_2</span> <span class="pill p-det">determinístico</span></h3>
+      <div class="label">Qué hace</div>
+      Reofrece el domicilio de retiro registrado y pide confirmación antes de seguir.
+      <div class="label">Espera recibir</div>
+      "Sí / esa misma" o una dirección nueva.
+      <div class="chat">
+        <div class="msg bot">Tenemos como retiro: Cra 12 #34-56. ¿Es correcta?</div>
+        <div class="msg user">sí, esa</div>
+      </div>
+      <div class="risk">⚠ Un "no" más adelante (p. ej. en observaciones) podría leerse como rechazo de la dirección; hay lógica que baja el flag si el flujo ya avanzó.</div>
+    </div>
+
+    <div class="card">
+      <h3>⑤ Orden de servicio <span class="phase-tag">fase_2</span> <span class="pill p-ai">IA + reglas</span></h3>
+      <div class="label">Qué hace</div>
+      Pide <b>un dato por turno</b>, en orden fijo: médico → paciente → especie → raza → sexo → edad → propietario → observaciones → análisis.
+      <div class="label">Espera recibir</div>
+      El dato puntual de cada pregunta. La edad debe traer unidad (años/meses/días).
+      <div class="chat">
+        <div class="msg bot">¿Cuál es el nombre del paciente?</div>
+        <div class="msg user">Luna</div>
+        <div class="msg bot">¿Es canino, felino u otra especie?</div>
+      </div>
+      <div class="risk">⚠ Punto más frágil: depende del modelo + ~15 guardrails (coherencia, "el mismo de siempre", no repetir, múltiples análisis en un mensaje). Aquí se concentran los bugs reportados.</div>
+    </div>
+
+    <div class="card">
+      <h3>⑥ Catálogo / perfiles <span class="phase-tag">fase_2</span> <span class="pill p-db">Supabase</span></h3>
+      <div class="label">Qué hace</div>
+      Si el usuario no sabe qué pedir: inyecta catálogo, perfiles por necesidad diagnóstica (CARDIACO, SENIOR…) y permite armar un perfil personalizado. Los precios los calcula el código, nunca el modelo.
+      <div class="label">Espera recibir</div>
+      Nombre/código de perfil, análisis sueltos, o "agregar/quitar X".
+      <div class="chat">
+        <div class="msg user">¿qué incluye el perfil hepático?</div>
+        <div class="msg bot">Incluye: ALT, AST, FA… Valor base $… ¿Lo dejamos así o lo personalizas?</div>
+      </div>
+      <div class="risk">⚠ Lógica densa (selección por área, etiqueta, código, personalización). Varias rutas pueden colisionar si el modelo captura mal <code>exam_type</code>.</div>
+    </div>
+
+    <div class="card">
+      <h3>⑦ Forma de pago <span class="phase-tag">fase_2→4</span> <span class="pill p-det">determinístico</span></h3>
+      <div class="label">Qué hace</div>
+      Pregunta contraentrega vs pago en línea. Si elige pago en línea, la orden igual se registra pero <b>deriva a contabilidad</b> por el link.
+      <div class="label">Espera recibir</div>
+      "Contraentrega" / "efectivo" o "pago en línea" / "PSE" / "tarjeta".
+      <div class="chat">
+        <div class="msg bot">¿Pago contraentrega o en línea?</div>
+        <div class="msg user">en línea</div>
+        <div class="msg bot">Listo, contabilidad te envía el link. La recogida sigue programada.</div>
+      </div>
+      <div class="tip">✔ Detección por palabras clave + confirmación; bien acotado.</div>
+    </div>
+
+    <div class="card">
+      <h3>⑧ Confirmación <span class="phase-tag">fase_4</span> <span class="pill p-det">determinístico</span></h3>
+      <div class="label">Qué hace</div>
+      Muestra el resumen completo y espera "Sí" o "Corregir [campo]". Si corrige, repregunta solo ese campo sin reiniciar.
+      <div class="label">Espera recibir</div>
+      Confirmación o el nombre del campo a corregir.
+      <div class="chat">
+        <div class="msg bot">Resumen: … ¿Confirmas? (Sí / Corregir)</div>
+        <div class="msg user">corrige la edad</div>
+        <div class="msg bot">Claro, ¿qué edad tiene el paciente?</div>
+      </div>
+      <div class="tip">✔ Paso clave que evita registrar datos mal capturados.</div>
+    </div>
+
+    <div class="card">
+      <h3>⑨ Cierre <span class="phase-tag">fase_6</span> <span class="pill p-db">Supabase</span></h3>
+      <div class="label">Qué hace</div>
+      Crea la <code>request</code>, asigna motorizado de <code>client_courier_assignment</code>, genera el N° de orden (A3-2026-XXX) y ofrece crear otra orden.
+      <div class="label">Espera recibir</div>
+      "Sí, otra orden" (reutiliza datos estables) o despedida.
+      <div class="chat">
+        <div class="msg bot">Quedó registrado. N° de orden A3-2026-014. ¿Otra orden?</div>
+      </div>
+      <div class="risk">⚠ Si el cliente no tiene motorizado asignado → estado <code>error_pending_assignment</code> y coordinación manual.</div>
+    </div>
+
+    <div class="card">
+      <h3>⑩ Resultados (opción 2) <span class="phase-tag">results</span> <span class="pill p-det">no implementado</span></h3>
+      <div class="label">Qué hace</div>
+      Responde un mensaje fijo: la consulta de resultados aún no está disponible por este medio.
+      <div class="label">Espera recibir</div>
+      Nada operativo todavía; reofrece programar una recogida.
+      <div class="risk">⚠ Fuera de alcance V1 (esperado). Pendiente: integración con la plataforma de resultados.</div>
+    </div>
+
+    <div class="card">
+      <h3>⑪ Pagos (opción 3) <span class="phase-tag">accounting</span> <span class="pill p-bot">deriva</span></h3>
+      <div class="label">Qué hace</div>
+      Siempre deriva a contabilidad en un solo mensaje, sin pedir más datos.
+      <div class="tip">✔ Comportamiento simple y correcto según negocio.</div>
+    </div>
+
+    <div class="card">
+      <h3>⑫ Número de orden <span class="phase-tag">atajo</span> <span class="pill p-db">Supabase</span></h3>
+      <div class="label">Qué hace</div>
+      Si piden el N° de su orden, lo trae <b>real</b> de la BD. Nunca lo inventa.
+      <div class="label">Espera recibir</div>
+      "¿cuál es el número de mi pedido?"
+      <div class="tip">✔ Guardrail explícito contra alucinación de números.</div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ============ 5. MODELO DE DATOS ============ -->
+<section id="datos">
+  <h2>5. Modelo de datos que toca el flujo (Supabase)</h2>
+  <p class="sub">Tablas de producción — no se modifican. Estas son las que lee/escribe el agente durante la conversación.</p>
+  <table>
+    <tr><th>Tabla</th><th>Para qué la usa el flujo</th><th>Cuándo</th></tr>
+    <tr><td><code>telegram_sessions</code></td><td>Estado vivo del chat: fase, intención, <code>captured_fields</code>, canal, <code>client_id</code></td><td>Cada turno (lee y escribe)</td></tr>
+    <tr><td><code>clients</code></td><td>Identificar veterinaria por NIT/nombre, traer dirección registrada</td><td>Paso ② identificación</td></tr>
+    <tr><td><code>client_courier_assignment</code></td><td>Motorizado determinista del cliente</td><td>Paso ⑨ cierre</td></tr>
+    <tr><td><code>couriers</code></td><td>Datos del motorizado asignado</td><td>Paso ⑨ cierre</td></tr>
+    <tr><td><code>requests</code></td><td>Solicitud operativa creada (<code>entry_channel</code>, <code>service_area</code>, paciente, dirección…)</td><td>Cierre y escalados</td></tr>
+    <tr><td><code>request_events</code></td><td>Auditoría: <code>service_order</code>, perfil, fuente del canal</td><td>Al crear la solicitud</td></tr>
+    <tr><td>Catálogo (tests/perfiles/etiquetas)</td><td>Análisis, perfiles predefinidos y por necesidad diagnóstica, precios</td><td>Paso ⑥ catálogo</td></tr>
+  </table>
+</section>
+
+<!-- ============ 6. DIAGNÓSTICO ============ -->
+<section id="diagnostico">
+  <h2>6. Diagnóstico — ¿qué está bien, qué está mal, qué falta?</h2>
+
+  <div class="scoreband">
+    <div class="score green"><div class="n">✔ Funcional</div>El flujo principal (recogida) está completo de punta a punta: identifica, ordena, paga, confirma y registra con motorizado.</div>
+    <div class="score yellow"><div class="n">⚠ Frágil</div>La captura de la orden de servicio depende del modelo + ~15 guardrails. Es donde se concentran los bugs y bucles.</div>
+    <div class="score red"><div class="n">⚙ Deuda</div><code>process_turn()</code> tiene ~560 líneas; <code>agent.py</code> ~2800. Contradice la regla de archivos &lt;200 líneas.</div>
+  </div>
+
+  <table>
+    <tr><th>Aspecto</th><th>Estado</th><th>Detalle</th></tr>
+    <tr><td>Flujo recogida (happy path)</td><td class="ok">Bien</td><td>Identificación → orden → pago → confirmación → cierre con motorizado y N° de orden real.</td></tr>
+    <tr><td>Escalados (pagos / cliente nuevo)</td><td class="ok">Bien</td><td>Derivación inmediata y determinística, sin pedir datos de más.</td></tr>
+    <tr><td>Anti-alucinación</td><td class="ok">Bien</td><td>N° de orden, precios y motorizado vienen de la BD/código, nunca del modelo.</td></tr>
+    <tr><td>Confirmación editable</td><td class="ok">Bien</td><td><code>fase_4_confirmacion</code> evita registrar datos mal capturados.</td></tr>
+    <tr><td>Identificación de cliente</td><td class="warn">Frágil</td><td>Heurísticas de tokens en español para distinguir nombre vs. confusión vs. "soy nuevo". Histórico de bucles, hoy parcheado caso por caso.</td></tr>
+    <tr><td>Captura orden de servicio</td><td class="warn">Frágil</td><td>15+ guardrails encadenados (<code>_enforce_*</code>). Difícil de razonar; cada arreglo agrega otra capa.</td></tr>
+    <tr><td>Selección de análisis/perfiles</td><td class="warn">Frágil</td><td>Múltiples rutas (área, etiqueta, código, personalizado) que pueden colisionar.</td></tr>
+    <tr><td>Doble llamada a OpenAI</td><td class="warn">Costo</td><td>En el camino "cliente recién identificado sin dirección" se llama al modelo dos veces en el mismo turno (latencia y gasto).</td></tr>
+    <tr><td>Complejidad de <code>agent.py</code></td><td class="bad">Deuda</td><td>~2800 líneas, estado en flags <code>_xxx</code> dentro de <code>captured_fields</code>. Riesgo alto al modificar.</td></tr>
+    <tr><td>Consulta de resultados (opción 2)</td><td class="bad">Falta</td><td>Mensaje fijo "no disponible". Pendiente integrar plataforma. (Fuera de alcance V1.)</td></tr>
+    <tr><td>Corte 17:30 con festivos</td><td class="bad">Falta</td><td>Días hábiles = lun-vie; festivos colombianos no gestionados automáticamente.</td></tr>
+  </table>
+
+  <h3 style="margin-top:28px;border-left:4px solid var(--green);padding-left:12px">Recomendaciones priorizadas</h3>
+  <div class="grid">
+    <div class="card">
+      <h3>1. Tests de regresión del flujo</h3>
+      Antes de tocar guardrails, congela el comportamiento con tests por escenario (los 11 casos de <code>architecture.md</code>). Hoy cada parche arriesga romper otro caso. <span class="tip">Mayor retorno inmediato.</span>
+    </div>
+    <div class="card">
+      <h3>2. Máquina de estados explícita para la orden</h3>
+      Reemplazar la cadena de <code>_enforce_*</code> por una FSM clara (un campo faltante → una pregunta). Reduce los bucles y hace el flujo legible. Migrar <em>por comportamiento probado</em>, no de golpe.
+    </div>
+    <div class="card">
+      <h3>3. Eliminar la doble llamada a OpenAI</h3>
+      En el camino de dirección no registrada, resolver con una sola llamada. Baja latencia y costo por turno.
+    </div>
+    <div class="card">
+      <h3>4. Centralizar las heurísticas de español</h3>
+      Los <code>frozenset</code> de tokens (despedida, afirmación, "el mismo"…) están dispersos. Unificarlos y testearlos como módulo aparte reduce falsos positivos.
+    </div>
+    <div class="card">
+      <h3>5. Calendario de festivos para el corte</h3>
+      Integrar festivos colombianos en <code>rules.py</code> para que la fecha de recogida no caiga en festivo.
+    </div>
+    <div class="card">
+      <h3>6. Siguiente diagrama sugerido</h3>
+      Cuando este flujo quede cubierto por tests: diagramar el <b>ciclo de estados de la solicitud</b> (received → assigned → … → sent) y cómo lo mueve el dashboard / <code>platform_api</code>.
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  Generado desde el código de <code>app/agent.py</code>, <code>app/prompt.py</code>, <code>app/main.py</code>, <code>app/services/*</code> y <code>docs/architecture.md</code>.
+  Diagramas con Mermaid (CDN). Para verlos necesitas conexión a internet la primera vez.
+</footer>
+
+<script>
+  mermaid.initialize({
+    startOnLoad:true,
+    theme:'dark',
+    flowchart:{ curve:'basis', useMaxWidth:true },
+    themeVariables:{ fontSize:'14px' }
+  });
+</script>
+</body>
+</html>

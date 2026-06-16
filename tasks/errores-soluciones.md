@@ -1,0 +1,356 @@
+# Errores y soluciones del agente conversacional
+
+Este documento es la bitacora viva del agente de Telegram/Chatwoot. Se actualiza con cada bug conversacional, cambio de flujo o decision que afecte lo que el cliente ve.
+
+Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o justificacion, actualizacion de este documento y validacion del flujo afectado.
+
+---
+
+## Estado de flujos
+
+| Flujo | Estado actual | Riesgo principal | Referencias |
+|---|---|---|---|
+| Bienvenida y menu | Implementado con opciones 1-4 | Mantener menú sincronizado entre bienvenida y reconsideración | `app/agent.py`, `app/prompt.py` |
+| Programar recogida | Implementado punta a punta | Archivo `agent.py` concentra demasiada logica | `app/agent.py`, `app/services/db.py` |
+| Identificacion cliente | Implementado por NIT/nombre y opciones de sedes | Captura incorrecta si el mensaje no responde la pregunta | `app/agent.py`, `app/services/db.py` |
+| Confirmacion direccion | Implementado con confirmacion tolerante | Faltan mas regresiones para lenguaje natural | `app/agent.py` |
+| Orden de servicio | Implementado con confirmacion editable | Orden vive duplicada en prompt y guardrails | `app/prompt.py`, `app/agent.py` |
+| Catalogo/perfiles | Implementado con perfiles, areas y personalizados | I/O de catalogo debe estar siempre protegido por guards | `app/agent.py`, `app/services/db.py` |
+| Pagos | Implementado: contraentrega o pago en linea con contabilidad | Mantener enum y mensajes sincronizados con contabilidad | `app/agent.py`, `docs/decisions/002-payment-method-in-flow.md` |
+| Resultados | Formalizado en V1 como mensaje fijo de no disponibilidad | Implementación real depende de integración futura | `app/agent.py`, `docs/architecture.md` |
+| Cliente nuevo | Corregido: escala sin capturar datos en chat | Alta queda para recepción/plataforma | `app/agent.py`, `app/services/db.py` |
+| Cliente particular | Implementado con bloqueo de sesion | Puede impedir recuperacion si el usuario luego da datos validos | `app/agent.py` |
+| Opcion 4 / otro | Corregido: handoff deterministico a operaciones | Debe mantenerse fuera del flujo de recogida | `app/agent.py` |
+| Chatwoot | Usa `process_turn(channel="chatwoot")`, persiste canal y asigna equipo si hay handoff | Riesgo de sesiones legacy creadas antes del fix | `app/main.py`, `app/services/db.py` |
+
+---
+
+## Errores abiertos
+
+### ABIERTO-001 — validate_flows.py: caso "cliente caotico" no cierra (modelo real)
+- Severidad: bajo
+- Flujo: programar recogida (validacion con modelo real)
+- Sintoma observado: el caso F de `tools/scripts/validate_flows.py` espera 1 orden creada y crea 0; ante "si, confirmo" el bot pide un dato en vez de cerrar.
+- Causa raiz (probable): flujo deliberadamente caotico ejecutado contra el modelo real (no determinista); el camino feliz (caso A) si cierra y los 236 tests unitarios pasan. No reproducible en los tests con mocks.
+- Estado: monitoreo (vigilar si se vuelve consistente).
+
+### ABIERTO-003 — Refactor de comprension por IA incompleto (Etapas 2-4)
+- Severidad: medio
+- Flujo: interpretacion de lenguaje (transversal)
+- Sintoma observado: solo las Etapas 0 (schema+prompt) y 1 (identificacion de cliente) usan `user_intent_signal` como fuente primaria. El resto del flujo todavia decide con detectores de tokens como autoridad.
+- Solucion propuesta: migrar por etapas — 2 (confirmaciones/correcciones/direccion), 3 (memoria/"el mismo de siempre"/cambio de cliente), 4 (perfiles/small talk). Plan: `~/.claude/plans/glittery-marinating-newell.md`.
+- Estado: en progreso.
+
+---
+
+## Correcciones aplicadas
+
+### ERR-023 — El flujo MULTI-ORDEN fallaba en la segunda orden y siguientes
+- Severidad: alto (la primera orden funcionaba; la segunda en adelante se rompía)
+- Flujo: orden de seguimiento (varias órdenes en la misma conversación)
+- Sintoma observado (casos reales en BD, chats 1=Luciano y 4=Chuck):
+  - **Chuck:** tras cerrar la orden 1, un turno intermedio ("a qué hora pasan?"/"Okok") sacaba la sesión de la fase terminal; al pedir "otra orden" el reset NO se disparaba → arrastraba el paciente anterior ("Lolo"), confundía "el mismo propietario" con el paciente, no capturaba el paciente nuevo ("Leija") y terminaba en bucle de corrección.
+  - **Luciano:** la orden de seguimiento se escalaba/registraba VACÍA porque el pago en línea heredado disparaba el handoff a contabilidad antes de pedir paciente/análisis.
+- Causa raiz (cinco piezas):
+  1. El reinicio de orden solo ocurría dentro de `if phase_current in TERMINAL_PHASES`; un turno intermedio lo rompía.
+  2. `_apply_handoff_guardrails` escalaba a `fase_7_escalado` por `pago_linea` heredado SIN verificar completitud, y corría DESPUÉS de `_prevent_incomplete_route_closure`.
+  3. El análisis no se reofrecía en la orden de seguimiento.
+  4. `_is_same_as_previous` exigía ≤6 tokens → frases largas ("es el mismo propietario que el otro perro") caían al modelo; y `_SAME_AS_FIELD_KEYWORDS` tenía "perro/gato" en `patient_name`, así que "propietario … perro" resolvía al paciente.
+  5. `_CORRECTION_FIELD_KEYWORDS` no reconocía "la perra/se llama" como paciente → bucle "¿qué corregir?".
+- Solucion aplicada:
+  1. **Reset robusto:** `_order_registered` se marca al registrar (`_finalize_request`) y un bloque nuevo en `process_turn` detecta "otra orden" en cualquier turno posterior (no solo fase terminal) con `_explicitly_wants_another_order`; centralizado en `_begin_followup_order`.
+  2. **Cierre seguro:** `_prevent_incomplete_route_closure` se movió a JUSTO antes de `_finalize_request` (tras handoff y confirmación) → ninguna orden incompleta se finaliza/escala.
+  3. **Reofrecer análisis:** `_begin_followup_order` guarda el análisis en el snapshot y `_start_followup_service_order_response` lo reofrece en bloque ("¿confirmas o cambias … o análisis?"); decisión del usuario: paciente siempre de cero, análisis reofrecido.
+  4. **"El mismo X" robusto:** `_is_same_as_previous` resuelve frases largas si hay campo explícito; `_SAME_AS_FIELD_KEYWORDS` prioriza `owner_name` y quita "perro/gato" de `patient_name`.
+  5. **Corrección del paciente:** `_CORRECTION_FIELD_KEYWORDS` mapea "perro/perra/gato/gata/animal/mascota" → `patient_name`.
+- Archivos afectados: `app/agent.py`.
+- Verificacion: `tools/scripts/diag_multiorden.py` (Chuck reproducido contra BD+modelo real: reset disparó tras turno intermedio, no arrastró Lolo, capturó Leija, resolvió "el mismo médico/propietario"); Luciano (no cierra vacío, pide paciente); Fix 4/5 determinista; suite 77/77; `validate_flows.py` 19/19.
+- Estado: corregido.
+
+### ERR-022 — La búsqueda de cliente por nombre no toleraba errores de tipeo
+- Severidad: alto (afecta el nucleo del agente: identificacion del cliente)
+- Flujo: identificacion de cliente por nombre
+- Sintoma observado: si el cliente escribia el nombre con un error de tipeo (ej. "Animal Planett" en vez de "Animal Planet"), el agente respondia que no encontraba un cliente registrado, aunque la clinica SI existe ("Animal Planet HVP"). El acceso a la BD y el mecanismo de opciones funcionaban bien; el problema era el matching estricto del nombre.
+- Diagnostico: bateria `tools/scripts/diag_identificacion.py` contra la BD real (proyecto lztclcorljccioufyimq, 800 clientes / 654 activos) + modelo real. 7 de 8 variantes pasaban (nombre exacto/parcial/en frase, NIT con y sin digito, multi-sede, generico); la unica que fallaba era el nombre con typo.
+- Causa raiz: `_name_match_score` exigia que TODAS las palabras de la busqueda estuvieran contenidas EXACTAS (o por prefijo) en el nombre del cliente; con un solo typo el score era 0 y el cliente no aparecia. El `difflib` ya importado solo se usaba para ORDENAR (despues del filtro), nunca para rescatar un typo.
+- Solucion aplicada: en `_name_match_score`, una palabra se considera cubierta tambien si es MUY similar a una del nombre (`difflib.SequenceMatcher` ratio >= 0.85, en palabras de 4+ letras). Asi "planett"~"planet" y "bioanimall"~"bioanimal" matchean y se muestran las opciones. Umbral alto + minimo de 4 letras evitan falsos positivos (un nombre muy distinto como "Anpetal" sigue sin matchear).
+- Archivos afectados: `app/services/db.py` (`_name_match_score`).
+- Verificacion: bateria de identificacion (el typo paso de "no encontrado" a "opciones"; el resto sin cambios) + `tests/test_db_identification.py` 10/10 + suite 77/77.
+- Estado: corregido.
+
+### ERR-021 — El cliente daba un dato fuera de orden y el bot lo perdía / repreguntaba
+- Severidad: medio
+- Flujo: programar recogida / recoleccion de datos del paciente
+- Sintoma observado: cuando el bot pedia un campo (ej. la especie) y el cliente respondia con un dato de OTRO campo (ej. "es hembra" = sexo, o "es un Doberman" = raza), el bot no reconocia el dato y repreguntaba con la plantilla generica; el reconocimiento se perdia. Exhibido con el modelo real (flujos F y S de `validate_flows.py`).
+- Causa raiz: (1) faltaba una regla que instruyera al modelo a capturar datos dados fuera de orden; (2) cuando el modelo SI capturaba el dato y repreguntaba el campo pendiente, `_avoid_repeated_question` (racimo anti-repeticion) detectaba la repeticion y reescribia el reply con su plantilla enlatada, PISANDO el reconocimiento — aunque en ese turno hubo progreso (campo nuevo capturado).
+- Solucion aplicada: (1) R25 en `prompt.py` — capturar cualquier dato valido que el cliente adelante en su campo correcto, reconocerlo y repreguntar el pedido, sin repetir luego (R3); (2) `_avoid_repeated_question` recibe `prev_fields` y NO reescribe si en el turno se capturo un dato de ruta nuevo (hubo progreso => no es bucle). Resultado: el dato se captura, se reconoce ("Perfecto, anoto hembra como sexo. Y decime, ¿la especie?") y no se vuelve a pedir.
+- Archivos afectados: `app/prompt.py` (R25), `app/agent.py` (`_avoid_repeated_question`).
+- Tests: flujo S de `validate_flows.py` (sexo dado al pedir especie: se captura, se reconoce, cierra coherente). 19/19 flujos OK con modelo real.
+- Estado: corregido.
+
+### ERR-020 — El anti-bucle dependía solo de la señal de la IA (cierra ABIERTO-002)
+- Severidad: bajo (robustez)
+- Flujo: robustez transversal / anti-bucle
+- Sintoma observado: el corte por estancamiento (`_offtrack_count`) solo avanzaba si la IA marcaba `user_intent_signal in (unclear, off_topic)`. Si el modelo no marcaba bien esa senal, un bucle podia no cortarse nunca.
+- Solucion aplicada: segunda senal DETERMINISTA `_repeats_last_bot_question` — si el modelo vuelve a hacer la MISMA pregunta que el bot acaba de hacer (comparando `_question_keys` contra el ultimo mensaje del bot), tambien incrementa `_offtrack_count`. Excluye la seleccion de analisis (repetir "¿agregas otro?" es normal, L12). Asi el corte al 3er turno ya no depende solo de la IA.
+- Archivos afectados: `app/agent.py`.
+- Tests: validacion con modelo real (18/18 flujos en `validate_flows.py`, sin regresion).
+- Estado: corregido.
+
+### ERR-019 — Pedir dos categorías de análisis en un mensaje perdía la segunda
+- Severidad: bajo
+- Flujo: programar recogida / seleccion de analisis (racimo de perfil)
+- Sintoma observado: ante "quiero un perfil renal y tambien un analisis de orina", el bot atendia solo la primera categoria (renal) e ignoraba la segunda (orina). Exhibido con el modelo real (flujo R de `validate_flows.py`).
+- Causa raiz: los guardrails de categoria (diagnostic_label / catalog_profile / test_category) se inhiben mutuamente con el guard `if selected_tests is not None or _diagnostic_label: return`. El primero que captura gana y silencia a los demas; el segundo pedido se perdia.
+- Solucion aplicada (acotada): en `_enforce_diagnostic_label_help`, tras armar la sugerencia de la etiqueta, detectar si el MISMO mensaje tambien pide un area distinta (`db.find_tests_by_area`) y anexar una linea que lo reconozca ("Tambien mencionaste X; apenas cerremos este perfil, recuerdamelo y lo vemos"). El cliente ya no pierde su segundo pedido de cara a la conversacion.
+- Limitacion conocida: cubre la combinacion etiqueta+area observada; no auto-dispara el segundo flujo (el cliente lo retoma) ni cubre todas las combinaciones. El arreglo completo es el refactor del racimo de analisis (deuda de mantenibilidad, no bug de runtime).
+- Archivos afectados: `app/agent.py`.
+- Tests: flujo R de `validate_flows.py` (reconoce la segunda categoria).
+- Estado: corregido (parche acotado).
+
+### ERR-018 — Corregir un dato en la confirmación dejaba la orden sin registrar
+- Severidad: critico
+- Flujo: orden de servicio / confirmacion editable
+- Sintoma observado: en `fase_4_confirmacion`, tras mostrar el resumen, el cliente decia "corrige el paciente: ahora se llama Rocky" (o cualquier correccion). El bot limpiaba el dato y repreguntaba, pero al decir luego "si, confirmo" NO registraba la orden: volvia a mostrar el resumen y pedia confirmar otra vez. Cada "si" tras una correccion re-mostraba el resumen; nunca cerraba. Detectado con el modelo REAL en `validate_flows.py` (flujo M), no reproducible con los tests mockeados (que se eliminaron por eso, ver L29).
+- Causa raiz: el handler de correccion arma la respuesta con `_base_route_response`, que fija `phase="fase_2_recogida_datos"`. Eso saca la conversacion de `CONFIRMATION_PHASE`. El cierre deterministico de `_enforce_confirmation_step` exige `previous_phase == CONFIRMATION_PHASE`; como la correccion habia cambiado la fase, el "si" caia al camino de "orden completa por primera vez" y re-mostraba el resumen en lugar de cerrar. Solapamiento entre el handler de correccion y `_enforce_confirmation_step`. Pariente de ERR-015 (la ENTRADA al resumen) y ERR-008 (el CIERRE): faltaba conservar la fase durante la EDICION.
+- Solucion aplicada: tras armar la respuesta de correccion, mantener `ai_response["phase"] = CONFIRMATION_PHASE` (una linea). Mientras se edita el resumen seguimos en confirmacion, y el "si" posterior cierra por el camino deterministico que ya existia. Si la correccion dejo un campo vacio, `_missing_route_field` impide cerrar con datos incompletos.
+- Archivos afectados: `app/agent.py`.
+- Tests: validacion con modelo real `tools/scripts/validate_flows.py` flujo M (correccion editable cierra con el dato corregido). Los tests con LLM mockeado se descartaron (no detectaban este bug).
+- Estado: corregido. Actualizacion: la limitacion (corregir SIN dar el valor y darlo en otro turno) tambien quedo resuelta — un flag `_correction_pending` (seteado por el handler de correccion) hace que, al llegar el dato nuevo y completarse la orden, `_enforce_confirmation_step` re-muestre el resumen antes del "si"; el flag se limpia al re-mostrar o al cerrar. Verificado con el flujo M2 de `validate_flows.py`.
+
+### ERR-017 — "El primero" de la lista de análisis no se capturaba (caso Animal Planet)
+- Severidad: critico
+- Flujo: programar recogida / seleccion de analisis
+- Sintoma observado: el bot mostraba una lista de analisis (ej. orina), el cliente decia "el primero" / "el 2" / el nombre, y el bot entraba en BUCLE ("Para avanzar, puedes decirme...") y terminaba guardando el texto generico "Orina" (exam_type="Orina", selected_tests=[]), dejando una orden inservible.
+- Causa raiz: `_enforce_test_category_help` mostraba la lista pero NO guardaba que analisis habia mostrado, asi que la seleccion quedaba a criterio del modelo, que fallaba. Faltaba el camino determinista de seleccion (existia para sedes de cliente, no para analisis). Ademas la lista no estaba numerada.
+- Solucion aplicada: la lista ahora es NUMERADA y se guardan las opciones en `_test_menu_options`; un handler determinista (`_select_tests_from_menu` + `_capture_test_menu_selection`) resuelve la seleccion por numero, ordinal ("el primero"), codigo (1601) o nombre, guarda el analisis REAL del catalogo con su codigo en `selected_tests`/`exam_type` y avanza al siguiente dato o al resumen. Mismo patron que `_select_client_match` para sedes.
+- Archivos afectados: `app/agent.py`, `tests/test_agent_flows.py`.
+- Tests: `test_select_tests_from_menu_resolves_number_ordinal_code_name`, `test_test_menu_selection_captures_real_analysis_and_advances`.
+- Estado: corregido. Pendiente relacionado: el modelo a veces alucina una lista de catalogo distinta a la real (ABIERTO) y los 7 guardrails de analisis siguen solapandose (deuda de simplificacion).
+
+### ERR-016 — El cierre por Chatwoot fallaba: check constraint de entry_channel (BUG REAL)
+- Severidad: critico
+- Flujo: programar recogida / cierre / canal Chatwoot
+- Sintoma observado: por Chatwoot, la conversacion funcionaba completa pero al decir "si" en el cierre el bot NO respondia NADA. Por Telegram directo si cerraba.
+- Causa raiz: `db.create_request` insertaba `entry_channel="chatwoot"`, pero la columna `requests.entry_channel` tiene un CHECK constraint (`requests_entry_channel_check`) que solo admite "telegram". El insert lanzaba `APIError 23514`, la excepcion subia por `process_turn` y el webhook no enviaba respuesta. Solo el cierre escribe en `requests`, por eso fallaba unicamente el ultimo turno. Verificado contra la BD real (las 34 ordenes historicas son todas "telegram").
+- Por que los tests no lo detectaron: la suite mockea `db.create_request`; nunca se ejercitaba el insert real. LECCION: el cierre necesita una prueba de integracion contra la BD real (ver L29).
+- Solucion aplicada: la columna usa un valor admitido por el constraint (`_ALLOWED_ENTRY_CHANNELS`, hoy "telegram") y el canal real del agente se conserva en `request_events.event_payload.source`. Cierre por Chatwoot reproducido OK contra la BD real (crea la orden, source="chatwoot").
+- Solucion correcta a futuro: migrar el constraint (`db/migrations` + `apply_supabase_migration.py`) para admitir "chatwoot" y agregarlo a `_ALLOWED_ENTRY_CHANNELS`.
+- Archivos afectados: `app/services/db.py`, `tests/test_db_identification.py`.
+- Estado: corregido (workaround en codigo; migracion de esquema pendiente como mejora).
+
+### ERR-015 — La ENTRADA a la confirmacion dependia del modelo (caso Guzman)
+- Severidad: alto
+- Flujo: orden de servicio / confirmacion
+- Sintoma observado: al completarse la orden (tras elegir el perfil), el bot improvisaba "¿Confirmas?" SIN mostrar el resumen deterministico, y ante respuestas confusas del usuario daba vueltas con mensajes raros ("necesito ese dato" con todo ya capturado). Parecia trabado.
+- Causa raiz: en `_enforce_confirmation_step`, el resumen deterministico solo se mostraba si el modelo devolvia una fase TERMINAL. Si el modelo improvisaba la confirmacion en `fase_4` (no terminal), el sistema no tomaba control. Mismo defecto que ERR-008 pero en el otro extremo: ERR-008 forzo el CIERRE; faltaba forzar la ENTRADA al resumen.
+- Solucion aplicada: al completarse la orden por primera vez (no veniamos de confirmacion), mostrar SIEMPRE el resumen deterministico, sin depender de la fase que devuelva el modelo.
+- Nota: se reprodujo el "si" final con el estado REAL de la sesion y el cierre funciona; el "no responde nada" literal (silencio total) apunta a infraestructura (servidor local sin reiniciar o URL de ngrok vencida), no a la logica.
+- Archivos afectados: `app/agent.py`, `tests/test_agent_flows.py`.
+- Tests: `test_confirmation_summary_shown_even_when_model_does_not_emit_terminal_phase`.
+- Estado: corregido.
+
+### ERR-008 — Confirmacion de orden trabada en fase_4 (caso Luciano)
+- Severidad: critico
+- Flujo: orden de servicio / confirmacion
+- Sintoma observado: en `fase_4_confirmacion`, el usuario respondia "si" para confirmar y la orden NO se registraba; quedaba trabado en la confirmacion.
+- Causa raiz: el cierre dependia de que el LLM emitiera `fase_6_cierre`. El guardrail `_enforce_confirmation_step` solo PERMITIA cerrar, no lo forzaba; si el modelo (sobre todo en chats largos con varias ordenes) no devolvia la fase terminal, no se registraba nada.
+- Solucion aplicada: cierre DETERMINISTICO en `_enforce_confirmation_step` — si veniamos de `fase_4_confirmacion`, el usuario confirma y la orden esta completa, cerrar siempre (contraentrega -> `fase_6_cierre`; pago_linea -> `fase_7_escalado` + contabilidad), sin depender del LLM.
+- Archivos afectados: `app/agent.py`, `tests/test_agent_flows.py`.
+- Tests: `test_confirmation_closes_deterministically_when_ai_does_not_emit_terminal_phase`.
+- Estado: corregido.
+
+### ERR-009 — Flujo "otra orden": faltaba veterinaria, guia y cambio de cliente
+- Severidad: medio
+- Flujo: programar recogida (orden de seguimiento)
+- Sintoma observado: al crear otra orden no se mostraba la veterinaria ni se orientaba que cambia; y si el usuario decia que era para OTRA veterinaria, el flujo no lo manejaba (quedaba clavado).
+- Causa raiz: `_start_followup_service_order_response` solo reofrecia medico/direccion/pago; no habia camino para cambiar de cliente a mitad del armado.
+- Solucion aplicada: el bloque de confirmacion ahora incluye la veterinaria y agrega un mensaje guia ("lo que cambia normalmente es paciente, propietario y analisis"); `_wants_to_change_client` + `_restart_identification_for_new_client` descartan la identificacion anterior (incluido `client_id` en BD) y re-identifican.
+- Archivos afectados: `app/agent.py`, `tests/test_agent_flows.py`.
+- Tests: `test_wants_to_change_client_detection`, `test_stable_confirm_change_clinic_restarts_identification`, `test_stable_confirm_yes_advances_to_patient_without_ai`.
+- Estado: corregido.
+
+### ERR-010 — Bucle de identificacion con veterinario independiente (caso Chuuck)
+- Severidad: critico
+- Flujo: identificacion cliente
+- Sintoma observado: un cliente no registrado que decia "ahora estoy de forma independiente" o "me tendria que registrar de nuevo" entraba en bucle repitiendo "comparteme el NIT o el nombre exacto", sin derivar.
+- Causa raiz: detectores demasiado literales (`_claims_unregistered_client` solo reconocia frases exactas) y falso positivo de `_provides_new_identifier` (la palabra "veterinaria" en una frase explicativa se tomaba como identificador y bloqueaba la derivacion).
+- Solucion aplicada: se amplio `_claims_unregistered_client` a formas naturales ("de forma independiente", "me tendria que registrar", "por mi cuenta") y el gate de identificacion prioriza la senal de "cliente nuevo" aunque el mensaje mencione "veterinaria".
+- Archivos afectados: `app/agent.py`, `tests/test_agent_flows.py`.
+- Tests: `test_independent_unregistered_vet_escalates_instead_of_looping`.
+- Estado: corregido. Motivo el refactor de comprension por IA (ver ERR-011).
+
+### ERR-011 — Interpretacion fragil por listas de tokens (refactor comprension por IA)
+- Severidad: medio (deuda estructural)
+- Flujo: interpretacion de lenguaje (transversal)
+- Sintoma observado: el agente interpretaba la intencion del usuario con ~52 detectores basados en listas de tokens/frases exactas. Cada forma nueva de decir algo que no estaba en la lista rompia el flujo (ERR-010 es un caso). La gente nunca responde con la palabra exacta.
+- Causa raiz: la interpretacion del LENGUAJE estaba acoplada al codigo determinista, en vez de delegarse al LLM.
+- Solucion aplicada (por etapas, parcial): campo `user_intent_signal` en `app/schema.py` que el LLM llena interpretando intencion; cada guardrail lo usa como FUENTE PRIMARIA y mantiene los detectores de tokens como FALLBACK. Etapa 0 (schema+prompt) y Etapa 1 (identificacion de cliente) hechas. Principio: la IA interpreta el significado; el codigo hace cumplir las reglas de negocio.
+- Archivos afectados: `app/schema.py`, `app/prompt.py`, `app/agent.py`, `tests/test_agent_flows.py`.
+- Tests: `test_new_client_signal_escalates_even_when_phrase_not_in_any_token_list`, `test_provides_identifier_signal_keeps_searching_not_escalating`.
+- Estado: en progreso (Etapas 2-4 abiertas, ver ABIERTO-003).
+
+### ERR-012 — Sucursal/sede nueva dejaba clavado en la lista de sedes
+- Severidad: medio
+- Flujo: identificacion cliente / sedes
+- Sintoma observado: un cliente registrado que pedia una sucursal NUEVA no registrada quedaba en bucle: el bot repetia la lista de sedes sin salida.
+- Causa raiz: el bloque de seleccion de sedes no tenia camino para "ninguna, es una sede nueva".
+- Solucion aplicada: senal `new_branch` (+ fallback `_wants_new_branch`) que, en cualquier punto del flujo, OFRECE derivar para registrar la sede o seguir con una sede ya registrada (no corta seco). Si acepta, deriva a operaciones.
+- Archivos afectados: `app/schema.py`, `app/prompt.py`, `app/agent.py`, `tests/test_agent_flows.py`.
+- Tests: `test_wants_new_branch_detection`, `test_new_branch_signal_offers_handoff_not_cut`, `test_new_branch_fallback_phrase_offers_handoff_from_sede_list`, `test_handoff_offer_accepted_derives_to_person`, `test_handoff_offer_declined_continues_flow`.
+- Estado: corregido.
+
+### ERR-013 — Sin red de seguridad ante inputs random / fuera de flujo
+- Severidad: medio
+- Flujo: robustez transversal
+- Sintoma observado: ante mensajes random o sin sentido (gente que quiere "romper" el bot), el agente podia clavarse o intentar responder algo fuera de su alcance.
+- Causa raiz: no habia un comportamiento por defecto seguro ni un corte duro por estancamiento.
+- Solucion aplicada: (1) patron "ofrecer, no cortar" — ante algo que no puede resolver, avisa con calma y ofrece "¿te derivo o seguimos?"; (2) anti-bucle: contador `_offtrack_count` que, tras 3 turnos seguidos marcados `unclear`/`off_topic`, deriva a una persona; cualquier turno que encaja lo reinicia.
+- Archivos afectados: `app/agent.py`, `app/prompt.py`, `tests/test_agent_flows.py`.
+- Tests: `test_offtrack_third_unclear_turn_derives_to_person`, `test_offtrack_counter_resets_when_turn_makes_sense`.
+- Estado: corregido (ver limitacion en ABIERTO-002).
+
+### ERR-014 — validate_coherence.py roto (fake sin parametro channel)
+- Severidad: bajo (herramienta de verificacion)
+- Flujo: tooling / validacion
+- Sintoma observado: `python tools/scripts/validate_coherence.py` fallaba con `TypeError: _fake_get_session() got an unexpected keyword argument 'channel'`.
+- Causa raiz: el fake del script no se actualizo cuando `db.get_or_create_session` agrego el parametro `channel`.
+- Solucion aplicada: el fake acepta `channel="telegram"`.
+- Archivos afectados: `tools/scripts/validate_coherence.py`.
+- Estado: corregido.
+
+### ERR-006 — Chatwoot se guardaba como Telegram
+- Severidad: medio
+- Flujo: canal de entrada
+- Sintoma observado: conversaciones de Chatwoot usaban `conversation_id`, pero `telegram_sessions.channel`, `requests.entry_channel` y eventos quedaban como `telegram`.
+- Causa raiz: `process_turn()` no recibia canal y `db.create_request()` hardcodeaba `telegram`.
+- Solucion aplicada: `main.py` pasa `channel="chatwoot"`, `process_turn()` persiste ese canal en la sesion y `create_request()` usa `session.channel` para `entry_channel` y `request_events.event_payload.source`.
+- Archivos tocados: `app/main.py`, `app/agent.py`, `app/services/db.py`, `tests/test_agent_flows.py`, `tests/test_db_identification.py`, `tests/test_webhooks.py`.
+- Tests: `tests/test_webhooks.py`, `tests/test_db_identification.py`, `tests/test_agent_flows.py`.
+- Estado: corregido.
+
+### ERR-007 — Documentacion de arquitectura no coincidia con el agente real
+- Severidad: medio
+- Flujo: mantenimiento
+- Sintoma observado: docs hablaban de solo Telegram, schema simple, fases `collecting|done` y archivos pequenos; el codigo real usa Telegram/Chatwoot, 8 fases, schema amplio y `agent.py` grande.
+- Causa raiz: crecimiento incremental del agente sin una actualizacion global de docs.
+- Solucion aplicada: `docs/architecture.md`, `README.md`, `docs/contexto-negocio.md`, la decision de pagos y los archivos de contexto para agentes documentan el estado real actual y dejan el refactor como deuda tecnica por comportamiento probado.
+- Archivos tocados: `docs/architecture.md`, `docs/contexto-negocio.md`, `docs/decisions/002-payment-method-in-flow.md`, `README.md`, `AGENTS.md`, `CLAUDE.md`, `app/CLAUDE.md`, `tasks/lessons.md`.
+- Validacion: revisión documental y grep de inconsistencias principales.
+- Estado: corregido.
+
+### ERR-001 — Resultados ofrecidos pero no implementados
+- Severidad: critico
+- Flujo: resultados
+- Sintoma observado: el menu ofrece consultar resultados, pero no existe integracion real de resultados.
+- Causa raiz: V1 omitio la integracion de consulta de resultados, mientras docs principales aun prometian lookup real.
+- Solucion aplicada: formalizar V1 como mensaje fijo de no disponibilidad por este medio, sin pedir NIT/direccion/paciente ni llamar al LLM para opcion 2.
+- Archivos tocados: `README.md`, `app/prompt.py`, `docs/architecture.md`, `tests/test_agent_flows.py`.
+- Estado: corregido como contrato V1; implementar consulta real queda como mejora futura.
+
+### ERR-002 — Cliente nuevo tenia regla de negocio contradictoria
+- Severidad: critico
+- Flujo: cliente nuevo
+- Sintoma observado: reglas base dicen escalar sin registrar, pero el codigo iniciaba captura de datos del cliente potencial en chat.
+- Causa raiz: el Flujo B quedo activo en el bot conversacional aunque el alta debe quedar en recepción/plataforma.
+- Solucion aplicada: al confirmar cliente nuevo o no registrado, el bot escala a operaciones sin pedir datos adicionales ni crear revision pendiente desde el chat. Las sesiones legacy que ya estaban en `_nc_capturing` se siguen atendiendo para no dejarlas colgadas.
+- Archivos tocados: `app/agent.py`, `app/prompt.py`, `docs/architecture.md`, `tests/test_agent_flows.py`.
+- Estado: corregido.
+
+### ERR-003 — Cliente sin motorizado recibia mensaje incorrecto
+- Severidad: critico
+- Flujo: programar recogida
+- Sintoma observado: la BD podia crear `error_pending_assignment`, pero el mensaje conversacional podia decir "Nuestro motorizado pasara".
+- Causa raiz: el cierre se generaba antes de verificar si `client_courier_assignment` tenia motorizado.
+- Solucion aplicada: si no hay courier, el reply reemplaza la promesa de recogida por coordinacion manual y la sesion queda con handoff a operaciones.
+- Archivos tocados: `app/agent.py`, `tests/test_agent_flows.py`.
+- Estado: corregido.
+
+### ERR-004 — Prompt comunicaba mal el corte 17:30
+- Severidad: medio
+- Flujo: programar recogida
+- Sintoma observado: `rules.py` programa post-corte al segundo dia habil siguiente, pero `prompt.py` decia "siguiente dia habil".
+- Causa raiz: texto del prompt no estaba sincronizado con la regla pura.
+- Solucion aplicada: prompt actualizado a "segundo dia habil siguiente".
+- Archivos tocados: `app/prompt.py`.
+- Estado: corregido.
+
+### ERR-005 — Opcion 4 dependia demasiado del LLM
+- Severidad: medio
+- Flujo: menu inicial
+- Sintoma observado: la opcion 4 (`Otro`) podia ser absorbida por el flujo dominante de recogida.
+- Causa raiz: no habia intercepcion deterministica para esa opcion.
+- Solucion aplicada: detector de opcion 4 y handoff directo a operaciones con request de trazabilidad.
+- Archivos tocados: `app/agent.py`, `tests/test_agent_flows.py`.
+- Estado: corregido.
+
+---
+
+## Plantilla para nuevos bugs
+
+```md
+### ERR-XXX — Titulo corto
+- Severidad: critico | medio | bajo
+- Flujo: identificacion | ruta | resultados | pagos | cliente nuevo | perfil | canal | docs
+- Sintoma observado:
+- Reproduccion minima:
+- Causa raiz:
+- Solucion propuesta/aplicada:
+- Archivos afectados:
+- Tests agregados/actualizados:
+- Validacion manual:
+- Estado: abierto | pendiente de decision | corregido | monitoreo
+```
+
+---
+
+## Indice automatico
+
+<!-- AUTO-GENERATED:START -->
+> Bloque generado con `python tools/scripts/refresh_error_report.py`.
+
+### Lecciones registradas
+- L1 — Schema excesivo rompe el modelo
+- L2 — Fases rígidas como puertas rompen el flujo
+- L3 — Lógica fragmentada es imposible de depurar
+- L4 — El bot sonaba como formulario, no como persona
+- L5 — System prompt y schema mezclados confunden al modelo
+- L6 — Heurísticas de "reintento de identificador" demasiado amplias causan bucles
+- L6 — Revisar rutas externas indicadas por el usuario
+- L7 — Evitar `Start-Process` en OpenCode (Windows)
+- L8 — Limpiar identificación fallida antes de reintentar cliente
+- L9 — No convertir datos de paciente en nombre de clínica
+- L10 — Identificar clientes solo por nombre o NIT
+- L11 — El orden de recolección de la orden vive en DOS lugares sincronizados
+- L12 — El guard anti-bucle no debe pisar la selección de análisis
+- L13 — Forzar términos en español en el prompt para evitar code-switching
+- L14 — El "modo construcción de perfil" debe cerrarse cuando exam_type queda fijado
+- L15 — La detección de confirmación debe tolerar lenguaje natural, no exigir palabras exactas
+- L16 — Cada intent del menú necesita flujo o mensaje propio, si no el LLM arrastra el dominante
+- L17 — Los enforcements que hacen I/O deben tener guard previo y ser defensivos
+- L18 — No capturar identificador a ciegas: detectar correcciones/confusión de opción
+- L19 — Robustez ante clientes que no siguen los pasos (testeo con lenguaje caótico)
+- L20 — El fallback anti-bucle necesita un branch por CADA campo, y los enumerados, red de typos
+- L21 — El cierre de ruta no puede prometer motorizado sin asignación real
+- L22 — Cliente nuevo no se captura en chat si la regla dice escalar
+- L23 — La arquitectura documentada debe describir el sistema real
+- L24 — La forma de pago en una ruta no debe arrastrar el intent de contabilidad
+- L25 — El cierre tras confirmar debe ser determinístico (caso Luciano)
+- L26 — La IA interpreta el significado; las listas de tokens son fallback, no autoridad
+- L27 — Ante algo fuera de alcance: ofrecer derivar o seguir, nunca inventar ni clavarse
+- L28 — Red anti-bucle por estancamiento (corte duro universal)
+
+### Tareas registradas
+- Bucle de especie/typos + fallback robótico (caso Luciano) ✅ COMPLETA
+- Capa de coherencia en el flujo de datos del paciente ✅ COMPLETA
+- Forma de pago dentro de ruta activa ✅ COMPLETA
+- Memoria del cliente + manejo de off-topic ✅ COMPLETA
+- Desplegar análisis por área/muestra (ej. "orina") ✅ COMPLETA
+- Perfiles por necesidad diagnóstica (etiquetas) ✅ COMPLETA
+- Alineación con spec v4.3 — Plan por fases (pendiente de aprobación)
+- Número de orden legible (A3-00042) — Plan, pendiente de aprobación
+- Mensaje "déjame revisar los registros" antes del lookup de cliente — En curso
+- Agente Conversacional — Completado
+- Agente Conversacional — Pendiente
+- Plataforma Interna — Pendiente (NO es el agente conversacional)
+<!-- AUTO-GENERATED:END -->

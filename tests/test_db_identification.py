@@ -113,9 +113,48 @@ def test_catalog_profile_match_accepts_roman_and_arabic_aliases():
     assert _catalog_profile_matches("perfil renal 1", row)
 
 
+def test_find_tests_by_area_matches_sample_name(monkeypatch):
+    from app.services import db
+
+    rows = [
+        {"code": "U01", "name": "Parcial de Orina", "category": "Uroanálisis", "sample": "Orina Fresca", "price": 22000},
+        {"code": "U02", "name": "Urocultivo", "category": "Uroanálisis", "sample": "Orina Fresca", "price": 45000},
+        {"code": "H01", "name": "Hemograma", "category": "Hematología", "sample": "Sangre", "price": 30000},
+    ]
+
+    class FakeQuery:
+        def select(self, *_args):
+            return self
+
+        def eq(self, *_args):
+            return self
+
+        def in_(self, *_args):
+            return self
+
+        def limit(self, *_args):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=rows)
+
+    class FakeClient:
+        def table(self, table_name: str):
+            assert table_name == "catalog_tests"
+            return FakeQuery()
+
+    monkeypatch.setattr(db, "_client", FakeClient())
+
+    area, tests = db.find_tests_by_area("orina", limit=10)
+
+    assert area == "Uroanálisis"
+    assert [test["code"] for test in tests] == ["U01", "U02"]
+
+
 def test_create_request_persists_adjusted_profile_payload(monkeypatch):
     from app.services import db
 
+    inserted_requests = []
     inserted_events = []
 
     class FakeQuery:
@@ -129,6 +168,7 @@ def test_create_request_persists_adjusted_profile_payload(monkeypatch):
 
         def execute(self):
             if self.table_name == "requests":
+                inserted_requests.append(self.payload)
                 return SimpleNamespace(data=[{"id": "req-profile-1"}])
             if self.table_name == "request_events":
                 inserted_events.append(self.payload)
@@ -153,7 +193,7 @@ def test_create_request_persists_adjusted_profile_payload(monkeypatch):
 
     result = db.create_request(
         "chat-1",
-        {"client_id": "client-1"},
+        {"client_id": "client-1", "channel": "chatwoot"},
         {
             "intent": "route_scheduling",
             "handoff_area": None,
@@ -181,7 +221,11 @@ def test_create_request_persists_adjusted_profile_payload(monkeypatch):
     )
 
     assert result["request_id"] == "req-profile-1"
+    # La columna entry_channel usa un valor admitido por el check constraint de la BD
+    # (hoy solo "telegram"); el canal real del agente (Chatwoot) se conserva en el evento.
+    assert inserted_requests[0]["entry_channel"] == "telegram"
     event_payload = inserted_events[0]["event_payload"]
+    assert event_payload["source"] == "chatwoot"
     profile = event_payload["profile"]
     assert profile["base_profile"]["code"] == "501"
     assert profile["base_profile"]["name"] == "Perfil Renal I"

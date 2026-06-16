@@ -46,7 +46,7 @@ def telegram_webhook():
     user_text = message["text"]
 
     try:
-        reply = process_turn(chat_id, user_text, on_progress=_make_progress_callback(telegram, chat_id))
+        reply = process_turn(chat_id, user_text, on_progress=_make_progress_callback(telegram, chat_id), channel="telegram")
     except Exception as e:
         app.logger.error("Error processing turn for %s: %s", chat_id, e, exc_info=True)
         return jsonify({"ok": True})
@@ -80,11 +80,14 @@ def chatwoot_webhook():
     if not content or not conversation_id:
         return jsonify({"ok": True})
 
+    app.logger.info("chatwoot_webhook: conv=%s content=%r", conversation_id, content[:80])
     try:
-        reply = process_turn(conversation_id, content, on_progress=_make_progress_callback(chatwoot, conversation_id))
+        reply = process_turn(conversation_id, content, on_progress=_make_progress_callback(chatwoot, conversation_id), channel="chatwoot")
     except Exception as e:
         app.logger.error("Error en process_turn chatwoot %s: %s", conversation_id, e, exc_info=True)
         return jsonify({"ok": True})
+
+    app.logger.info("chatwoot_webhook: conv=%s reply=%r", conversation_id, (reply or "")[:120])
 
     # reply None: sesión bloqueada (cliente final). No se responde.
     if not reply:
@@ -92,7 +95,8 @@ def chatwoot_webhook():
 
     try:
         chatwoot.send_message(conversation_id, reply)
-        session = get_or_create_session(conversation_id)
+        app.logger.info("chatwoot_webhook: mensaje enviado OK conv=%s", conversation_id)
+        session = get_or_create_session(conversation_id, channel="chatwoot")
         if session.get("requires_handoff") and session.get("handoff_area"):
             chatwoot.assign_team(conversation_id, session["handoff_area"])
     except Exception as e:

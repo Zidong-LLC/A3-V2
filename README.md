@@ -1,14 +1,15 @@
 # A3 Laboratorio Veterinario — Agente Conversacional
 
-Bot conversacional de Telegram para A3 Laboratorio Veterinario (Bogotá, Colombia).
-Gestiona recogidas de muestras, consulta de resultados, y derivación a equipo humano.
+Bot conversacional de Telegram/Chatwoot para A3 Laboratorio Veterinario (Bogotá, Colombia).
+Gestiona recogidas de muestras, responde consultas de resultados con mensaje fijo V1,
+y deriva a equipo humano cuando corresponde.
 
 ## Stack
 
 - Python 3.12+ + Flask
 - Supabase (PostgreSQL) — modelo de datos existente, no modificar
 - OpenAI API (gpt-5.5)
-- Telegram Bot API (webhook)
+- Telegram Bot API y Chatwoot Agent Bot (webhooks)
 - Render (hosting)
 
 ## Instalación
@@ -25,7 +26,7 @@ Ver [docs/architecture.md](docs/architecture.md) para la arquitectura completa.
 
 ```
 app/
-├── main.py          Flask + webhook (< 100 líneas)
+├── main.py          Flask + webhooks Telegram/Chatwoot
 ├── agent.py         process_turn() — función central
 ├── prompt.py        System prompt
 ├── schema.py        JSON schema para OpenAI
@@ -34,7 +35,8 @@ app/
 └── services/
     ├── ai.py        Cliente OpenAI
     ├── db.py        Cliente Supabase
-    └── telegram.py  Cliente Telegram
+    ├── telegram.py  Cliente Telegram
+    └── chatwoot.py  Cliente Chatwoot
 ```
 
 ## Trabajo con IA
@@ -87,7 +89,7 @@ La plataforma visual vive dentro del mismo Flask app del agente:
 - `GET /muestras` → muestras registradas si la tabla operativa existe
 - `GET /analisis` → catálogo de análisis individuales
 - `GET /flujo` → fases conversacionales
-- `GET /aprobaciones` → revisión de clientes nuevos capturados por el agente
+- `GET /aprobaciones` → revisión de altas manuales pendientes
 - `POST /aprobaciones/decision` → aprobar/rechazar alta manual pendiente
 - `GET /afiliaciones` → vista de afiliaciones clínica-profesional si existen datos
 - `GET /api/dashboard/overview` → contexto JSON del dashboard

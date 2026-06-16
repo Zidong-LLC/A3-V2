@@ -2,12 +2,13 @@
 
 ## Visión general
 
-Bot conversacional de Telegram para A3 Laboratorio Veterinario. Procesa mensajes entrantes,
+Bot conversacional de Telegram/Chatwoot para A3 Laboratorio Veterinario. Procesa mensajes entrantes,
 mantiene estado de conversación en Supabase, llama a OpenAI con un JSON schema fijo,
 y registra solicitudes operativas en la base de datos.
 
 ```
-Telegram → Flask webhook → process_turn() → OpenAI → Supabase → Telegram
+Telegram directo → Flask /webhooks/telegram → process_turn(channel="telegram") → Supabase/OpenAI → Telegram
+Telegram vía Chatwoot → Flask /chatwoot/webhook → process_turn(channel="chatwoot") → Supabase/OpenAI → Chatwoot
 ```
 
 ---
@@ -15,9 +16,9 @@ Telegram → Flask webhook → process_turn() → OpenAI → Supabase → Telegr
 ## Componentes principales
 
 ### API (`app/main.py`)
-- Responsabilidad: recibir webhook de Telegram, validar secret, llamar `process_turn()`
-- < 100 líneas, sin lógica de negocio
-- Rutas de webhook/salud y registro de blueprints
+- Responsabilidad: recibir webhooks de Telegram y Chatwoot, validar secret donde aplica, llamar `process_turn()`
+- Estado actual: ~120 líneas por incluir webhook Chatwoot, callbacks de progreso y registro de blueprints
+- No contiene lógica de negocio del agente; solo I/O HTTP y envío de respuestas
 
 ### API de plataforma (`app/platform_api.py`)
 - Responsabilidad: exponer datos operativos para dashboard/plataforma interna
@@ -26,8 +27,9 @@ Telegram → Flask webhook → process_turn() → OpenAI → Supabase → Telegr
 
 ### Agente (`app/agent.py`)
 - Responsabilidad: orquestar un turno de conversación completo
-- Función central: `process_turn(chat_id: str, user_message: str) -> str`
-- Leer sesión → leer historial → llamar OpenAI → guardar → devolver reply
+- Función central: `process_turn(chat_id: str, user_message: str, on_progress=None, channel="telegram") -> str | None`
+- Leer/crear sesión con canal → leer historial → aplicar guardrails determinísticos → llamar OpenAI si hace falta → guardar → devolver reply
+- Estado actual: archivo grande con guardrails, catálogo/perfiles, identificación, handoff y persistencia. Refactor pendiente debe hacerse por comportamiento probado, no por tamaño ideal.
 
 ### Prompt (`app/prompt.py`)
 - Responsabilidad: system prompt para OpenAI
@@ -35,7 +37,8 @@ Telegram → Flask webhook → process_turn() → OpenAI → Supabase → Telegr
 
 ### Schema (`app/schema.py`)
 - Responsabilidad: JSON schema para OpenAI structured output
-- 7 campos máximo — nunca ampliar sin analizar el impacto
+- Estado actual: schema amplio con fases `fase_0_bienvenida` a `fase_7_escalado`, `message_mode`, `confidence`, `pending_intents` y campos completos de orden de servicio.
+- No ampliarlo sin prueba de regresión: cada campo requerido aumenta el riesgo de que el modelo priorice formato sobre conversación.
 
 ### Reglas (`app/rules.py`)
 - Responsabilidad: lógica de negocio pura, sin I/O
@@ -55,15 +58,20 @@ Telegram → Flask webhook → process_turn() → OpenAI → Supabase → Telegr
 - Maneja errores de la API (rate limit, timeout)
 
 ### `db.py` — Cliente Supabase
-- `get_session(chat_id)` — leer estado actual de conversación
-- `get_history(chat_id, limit=8)` — últimos N mensajes
+- `get_or_create_session(chat_id, channel="telegram")` — leer/crear estado actual de conversación y persistir canal
+- `get_recent_messages(chat_id, limit=8)` — últimos N mensajes
 - `save_message(chat_id, text, role)` — persistir mensaje
 - `update_session(chat_id, ai_response)` — actualizar fase y campos capturados
-- `create_request(chat_id, ai_response)` — registrar solicitud operativa
+- `create_request(chat_id, session, ai_response)` — registrar solicitud operativa con `entry_channel` y `request_events.event_payload.source` según canal
 
 ### `telegram.py` — Cliente Telegram
 - `send_message(chat_id, text)` — enviar respuesta al usuario
 - `set_webhook(url)` — configurar webhook
+
+### `chatwoot.py` — Cliente Chatwoot
+- `send_message(conversation_id, text)` — responder en la conversación
+- `assign_team(conversation_id, area)` — asignar equipo humano cuando hay handoff
+- `send_typing(conversation_id)` — activar indicador de escritura
 
 ---
 
@@ -89,7 +97,7 @@ client_id uuid UNIQUE → clients | courier_id uuid → couriers | assigned_by t
 
 **`requests`** — solicitudes operativas
 ```
-id uuid PK | client_id → clients | entry_channel (telegram|liveconnect|manual)
+id uuid PK | client_id → clients | entry_channel (telegram|chatwoot|liveconnect|manual)
 service_area (route_scheduling|accounting|results|new_client|unknown)
 priority text DEFAULT 'normal' | status text | exam_type text | patient_name text
 pickup_address text | scheduled_pickup_date date | assigned_courier_id → couriers
@@ -105,7 +113,7 @@ id uuid PK | request_id → requests | event_type text | event_payload jsonb | c
 
 **`telegram_sessions`** — estado activo de conversación por chat
 ```
-external_chat_id text PK | client_id uuid → clients (nullable)
+channel text | external_chat_id text PK | client_id uuid → clients (nullable)
 phase_current text | intent_current text | captured_fields jsonb | last_activity timestamptz
 ```
 
@@ -124,24 +132,26 @@ any → cancelled
 
 ### Programación de ruta (happy path)
 1. Usuario: "necesito un retiro"
-2. Agent identifica `route_scheduling`, fase `collecting`
+2. Agent identifica `route_scheduling`, fase `fase_2_recogida_datos`
 3. Identifica veterinaria por `clinic_name` o `tax_id`
 4. Confirma `pickup_address`
 5. Genera la orden de servicio conversacional, un dato por turno
 6. Pregunta forma de pago
-7. Fase `done`: crea registro en `requests`, registra `service_order` en `request_events` y asigna motorizado de `client_courier_assignment`
-8. Muestra resumen final y confirma disponibilidad del bot para nuevas consultas
+7. Fase `fase_4_confirmacion`: muestra resumen editable y espera confirmación
+8. Fase `fase_6_cierre`: crea registro en `requests`, registra `service_order` en `request_events` y asigna motorizado de `client_courier_assignment`
+9. Muestra resumen final y confirma disponibilidad del bot para nuevas consultas
 
 ### Consulta de resultados
-1. Usuario da referencia o nombre de paciente
-2. Agent busca en `requests` por `sample_reference` o `patient_name + client_id`
-3. Devuelve estado actual
+1. Usuario elige la opción 2 o pide resultados/estado de muestra.
+2. V1 responde un mensaje fijo indicando que la consulta todavía no está disponible por este medio.
+3. No pide NIT, dirección ni datos del paciente para este flujo hasta que exista integración de resultados.
 
 ### Escalado (pagos / cliente nuevo)
-1. Agent detecta intención → fase `escalated` inmediatamente
+1. Agent detecta intención → fase `fase_7_escalado` inmediatamente
 2. Un solo mensaje claro al usuario
 3. Crea registro en `requests` con `service_area = accounting|new_client`
 4. `requires_handoff = true`
+5. Cliente nuevo no se registra ni se captura en chat; el alta queda para recepción/plataforma.
 
 ---
 
@@ -169,16 +179,17 @@ any → cancelled
 
 | # | Escenario | Resultado esperado |
 |---|---|---|
-| 1 | Saludo simple | Respuesta natural, no menú numerado |
+| 1 | Saludo simple | Bienvenida con menú 1-4 |
 | 2 | Cliente con motorizado asignado | Solicitud creada, estado `assigned` |
 | 3 | Cliente sin motorizado | Estado `error_pending_assignment`, evento en `request_events` |
-| 4 | Cliente nuevo | `escalated` inmediato, sin pedir datos |
+| 4 | Cliente nuevo | `fase_7_escalado` inmediato, sin pedir datos |
 | 5 | Solicitud post-17:30 | `scheduled_pickup_date` = segundo día hábil |
 | 6 | Múltiples intenciones en un mensaje | Ambas procesadas en orden |
 | 7 | Usuario repite sin dar dato | Agente ofrece opciones concretas |
 | 8 | Gestión de pagos | Derivación inmediata a contabilidad |
 | 9 | Small talk | Respuesta breve, retoma flujo |
 | 10 | Conversación retomada | Sin saludo, continúa desde donde estaba |
+| 11 | Webhook Chatwoot crea solicitud | `telegram_sessions.channel`, `requests.entry_channel` y evento `source` quedan en `chatwoot` |
 
 ---
 

@@ -6,33 +6,37 @@ from app.schema import RESPONSE_SCHEMA
 
 _client = OpenAI(api_key=OPENAI_API_KEY)
 
-_NC_INTERPRET_SYSTEM = (
-    "Estás registrando datos de un cliente potencial para A3 Laboratorio Veterinario (Bogotá, Colombia). "
-    "Tu única tarea: determinar si la respuesta del usuario contiene el dato solicitado.\n\n"
+_ROUTE_FIELD_INTERPRET_SYSTEM = (
+    "Eres parte del equipo de A3 Laboratorio Veterinario (Bogotá, Colombia), tomando los datos "
+    "de una orden de servicio a un cliente veterinario YA identificado. Acabas de pedirle un dato "
+    "puntual de la orden y el usuario respondió. Tu única tarea: decidir si la respuesta realmente "
+    "contiene el dato que pediste.\n\n"
     "Reglas:\n"
-    "• Si el usuario responde con el dato pedido → action=save, value=dato limpio, reply=null.\n"
-    "• Si saluda, pregunta algo, dice algo fuera de contexto, o da un dato claramente incorrecto "
-    "→ action=clarify, value=null, reply=respuesta corta y amable en español colombiano que "
-    "aclare/responda y luego vuelva a pedir el dato.\n"
-    "• Sé natural, no robótico. Máximo 2 oraciones en reply.\n"
+    "• Si la respuesta contiene el dato pedido → action=save, value=dato limpio, reply=null.\n"
+    "• Si el usuario saluda, hace una pregunta social ('¿cómo estás?'), cambia de tema o responde "
+    "algo que no es el dato pedido → action=clarify, value=null, reply=una frase corta, cálida y "
+    "colombiana que reconozca con calidez lo que dijo (sin sonar a robot) y enseguida vuelva a pedir "
+    "el dato con naturalidad.\n"
+    "• reply: máximo 2 oraciones, cercano y humano, sin asteriscos.\n"
     "Responde SOLO con JSON válido: "
     "{\"action\":\"save\"|\"clarify\", \"value\":\"...\"|null, \"reply\":\"...\"|null}"
 )
 
 
-def interpret_nc_step(question: str, user_message: str) -> dict:
-    """Interpreta si user_message responde la pregunta de captura de nuevo cliente.
+def interpret_route_field(question: str, user_message: str) -> dict:
+    """¿La respuesta del usuario contesta el dato pedido en la orden de servicio?
+    Red de seguridad para respuestas off-topic dentro de route_scheduling.
     Returns: {"action": "save"|"clarify", "value": str|None, "reply": str|None}
     """
     messages = [
-        {"role": "system", "content": _NC_INTERPRET_SYSTEM},
-        {"role": "user", "content": f"Pregunté: \"{question}\"\nEl usuario respondió: \"{user_message}\""},
+        {"role": "system", "content": _ROUTE_FIELD_INTERPRET_SYSTEM},
+        {"role": "user", "content": f"Pedí: \"{question}\"\nEl usuario respondió: \"{user_message}\""},
     ]
     response = _client.chat.completions.create(
         model=OPENAI_MODEL,
         messages=messages,
         response_format={"type": "json_object"},
-        temperature=0.2,
+        temperature=0.3,
     )
     return json.loads(response.choices[0].message.content)
 
@@ -71,6 +75,9 @@ def generate_turn(
 
     if catalog_context:
         state_parts.append(catalog_context)
+
+    if session.get("_client_memory_hint"):
+        state_parts.append(session["_client_memory_hint"])
 
     if session.get("_custom_profile_summary"):
         state_parts.append(session["_custom_profile_summary"])

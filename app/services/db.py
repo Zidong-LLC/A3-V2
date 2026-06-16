@@ -10,12 +10,16 @@ _client: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 # ── Session ───────────────────────────────────────────────────────────────────
 
-def get_or_create_session(chat_id: str) -> dict:
+def get_or_create_session(chat_id: str, channel: str = "telegram") -> dict:
     result = _client.table("telegram_sessions").select("*").eq("external_chat_id", chat_id).execute()
     if result.data:
-        return result.data[0]
+        session = result.data[0]
+        if channel and session.get("channel") != channel:
+            _client.table("telegram_sessions").update({"channel": channel}).eq("external_chat_id", chat_id).execute()
+            session["channel"] = channel
+        return session
     new_session = {
-        "channel":        "telegram",
+        "channel":        channel,
         "external_chat_id": chat_id,
         "client_id":      None,
         "phase_current":  "fase_0_bienvenida",
@@ -281,10 +285,19 @@ def _name_match_score(q_tokens: list[str], q_compact: str, candidate: str | None
     c_tokens = [t for t in c.split("_") if t]
     c_compact = c.replace("_", "")
 
-    covered = sum(
-        1 for qt in q_tokens
-        if any(qt == ct or (len(qt) >= 3 and ct.startswith(qt)) for ct in c_tokens)
-    )
+    # Una palabra de la búsqueda se considera cubierta si coincide exacta, por prefijo,
+    # o es MUY similar (tolerancia a errores de tipeo): difflib ratio alto en palabras de
+    # 4+ letras (ej. "planett" ~ "planet", "bioanimall" ~ "bioanimal"). El umbral alto
+    # (0.85) y el mínimo de 4 letras evitan falsos positivos.
+    def _qt_covered(qt: str) -> bool:
+        return any(
+            qt == ct
+            or (len(qt) >= 3 and ct.startswith(qt))
+            or (len(qt) >= 4 and len(ct) >= 4 and difflib.SequenceMatcher(None, qt, ct).ratio() >= 0.85)
+            for ct in c_tokens
+        )
+
+    covered = sum(1 for qt in q_tokens if _qt_covered(qt))
     coverage = covered / len(q_tokens)
     compact_hit = len(q_compact) >= 4 and q_compact in c_compact
 
@@ -296,6 +309,12 @@ def _name_match_score(q_tokens: list[str], q_compact: str, candidate: str | None
     return coverage + (0.5 if compact_hit else 0.0) + ratio * 0.5
 
 
+_CLIENT_QUERY_STOPWORDS = frozenset({
+    "soy", "somos", "de", "del", "la", "el", "los", "las", "mi", "es", "una", "un",
+    "veterinaria", "clinica", "consultorio", "hospital", "centro", "vet",
+})
+
+
 def find_client_matches(name: str | None = None, limit: int = 5) -> list[dict]:
     """Coincidencias de clientes ordenadas por similitud al texto buscado.
     La más parecida queda primera (tolera errores de escritura y palabras sueltas
@@ -303,8 +322,11 @@ def find_client_matches(name: str | None = None, limit: int = 5) -> list[dict]:
     if not name:
         return []
     q = _normalize_lookup_key(name)
-    q_tokens = [t for t in q.split("_") if t]
-    q_compact = q.replace("_", "")
+    q_tokens_all = [t for t in q.split("_") if t]
+    # Filtrar muletillas para que "somos la veterinaria adryvete" matchee "Adryvete".
+    # Si al filtrar queda vacío, conservar los originales (no perder la consulta).
+    q_tokens = [t for t in q_tokens_all if t not in _CLIENT_QUERY_STOPWORDS] or q_tokens_all
+    q_compact = "".join(q_tokens)
     if not q_tokens:
         return []
 
@@ -342,7 +364,7 @@ def find_client_for_dashboard(tax_id: str | None = None, phone: str | None = Non
     return None
 
 
-def create_pending_client_review(client_payload: dict, review_payload: dict) -> dict:
+def create_pending_client_review(client_payload: dict, review_payload: dict, channel: str = "manual") -> dict:
     phone = client_payload.get("phone")
     existing = _client.table("clients").select("id").eq("phone", phone).execute().data if phone else []
     if existing:
@@ -353,7 +375,7 @@ def create_pending_client_review(client_payload: dict, review_payload: dict) -> 
     now = datetime.now(timezone.utc).isoformat()
     request_data = {
         "client_id": client["id"],
-        "entry_channel": "telegram",
+        "entry_channel": channel,
         "service_area": "new_client",
         "intent": "new_client",
         "priority": "normal",
@@ -626,6 +648,48 @@ def get_tests_by_codes_or_names(items: list[str]) -> list[dict]:
                     seen.add(code)
                 break
     return matched
+
+
+def find_tests_by_area(value: str | None, species: str | None = None, limit: int = 15) -> tuple[str | None, list[dict]]:
+    """Análisis individuales que corresponden a un área o tipo de muestra descrito
+    por el usuario (ej. "orina" → categoría Uroanálisis / sample "Orina Fresca").
+    Devuelve (nombre del área, tests). Permite ofrecer opciones cuando el cliente
+    pide por área y no por nombre/código exacto de un perfil."""
+    key = _normalize_lookup_key(value)
+    q_tokens = {t for t in key.split("_") if len(t) >= 3}
+    if not q_tokens:
+        return None, []
+
+    query = _client.table("catalog_tests").select("code, name, category, sample, price").eq("is_active", True).limit(5000)
+    species_key = (species or "").strip().lower()
+    if species_key in ("canino", "felino"):
+        query = query.in_("species", [species_key, "ambos"])
+    try:
+        rows = query.execute().data or []
+    except Exception:
+        return None, []
+
+    # 1) Coincidencia por categoría (más precisa): devuelve toda esa categoría.
+    cat_hits: dict[str, list[dict]] = {}
+    for row in rows:
+        cat_tokens = set(_normalize_lookup_key(row.get("category")).split("_"))
+        if q_tokens & cat_tokens:
+            cat_hits.setdefault(row.get("category") or "", []).append(row)
+    if cat_hits:
+        best = max(cat_hits, key=lambda c: len(cat_hits[c]))
+        return best, cat_hits[best][:limit]
+
+    # 2) Coincidencia por tipo de muestra (ej. "orina" → "Orina Fresca").
+    from collections import Counter
+    sample_hits = [
+        row for row in rows
+        if q_tokens & set(_normalize_lookup_key(row.get("sample")).split("_"))
+    ]
+    if sample_hits:
+        area = Counter(r.get("category") for r in sample_hits).most_common(1)[0][0]
+        return area, sample_hits[:limit]
+
+    return None, []
 
 
 def list_diagnostic_labels(limit: int = 200) -> list[str]:
@@ -1072,15 +1136,26 @@ def update_request_status(
 
 # ── Requests ──────────────────────────────────────────────────────────────────
 
+# La columna requests.entry_channel tiene un CHECK constraint (requests_entry_channel_check)
+# que hoy solo admite "telegram". El cliente entra por Telegram aunque el agente opere vía
+# Chatwoot, así que el valor en la columna se mantiene dentro de lo permitido y el canal real
+# del agente se preserva en el event_payload (source). Sin esto, cerrar una orden por Chatwoot
+# lanzaba APIError 23514 y el turno final no respondía. Para distinguir Chatwoot también en la
+# columna, migrar el constraint (db/migrations) y agregar "chatwoot" aquí.
+_ALLOWED_ENTRY_CHANNELS = {"telegram"}
+
+
 def create_request(chat_id: str, session: dict, ai_response: dict) -> str | None:
     intent = ai_response["intent"]
     fields = ai_response.get("captured_fields", {})
     client_id = session.get("client_id")
     now = datetime.now(timezone.utc)
+    source_channel = session.get("channel") or "telegram"
+    entry_channel = source_channel if source_channel in _ALLOWED_ENTRY_CHANNELS else "telegram"
 
     request_data = {
         "client_id":           client_id,
-        "entry_channel":       "telegram",
+        "entry_channel":       entry_channel,
         "service_area":        INTENT_TO_SERVICE_AREA.get(intent, "unknown"),
         "intent":              intent,
         "priority":            "normal",
@@ -1118,7 +1193,7 @@ def create_request(chat_id: str, session: dict, ai_response: dict) -> str | None
     request_id = result.data[0]["id"]
     order_number = result.data[0].get("order_number")  # generado por la BB (None si falta la migración)
     event_payload = {
-        "source":   "telegram",
+        "source":   source_channel,
         "chat_id":  chat_id,
         "intent":   intent,
         "priority": "normal",

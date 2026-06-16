@@ -227,79 +227,74 @@ FLASK_SECRET_KEY
 
 ---
 
-## 9. Arquitectura simplificada para el nuevo agente
+## 9. Arquitectura actual del agente
 
-En lugar del `main.py` de 307KB con todo mezclado, separar en archivos pequeños y con responsabilidad única:
+El diseño objetivo sigue siendo separar responsabilidades, pero el estado real actual concentra muchos guardrails en `app/agent.py` para proteger flujos conversacionales ya probados. Cualquier refactor debe hacerse por comportamiento y con regresiones.
 
 ```
 nuevo-agente/
 ├── app/
-│   ├── main.py              # Solo: Flask app, rutas, webhook handler (< 100 líneas)
-│   ├── agent.py             # La única función importante: process_turn()
+│   ├── main.py              # Flask app, webhooks Telegram/Chatwoot, health
+│   ├── agent.py             # process_turn() + guardrails determinísticos
 │   ├── prompt.py            # System prompt — solo tono e intenciones, sin schema
-│   ├── schema.py            # El JSON schema para OpenAI — separado del prompt
+│   ├── schema.py            # JSON schema amplio para OpenAI — separado del prompt
 │   ├── rules.py             # Reglas de negocio puras (cutoff, asignación)
 │   ├── config.py            # Settings desde env vars
 │   └── services/
-│       ├── openai.py        # Cliente OpenAI — solo llama a la API
-│       ├── supabase.py      # Cliente Supabase — solo queries
-│       └── telegram.py      # Cliente Telegram — solo envía mensajes
+│       ├── ai.py            # Cliente OpenAI — solo llama a la API
+│       ├── db.py            # Cliente Supabase — queries y persistencia
+│       ├── telegram.py      # Cliente Telegram — solo envía mensajes
+│       └── chatwoot.py      # Cliente Chatwoot — mensajes/equipos/typing
 └── requirements.txt
 ```
 
 ### La función central: `process_turn()`
 
 ```python
-def process_turn(chat_id: str, user_message: str) -> str:
-    """Recibe el mensaje del usuario, devuelve el texto a enviar."""
-    session = supabase.get_session(chat_id)
-    history = supabase.get_recent_messages(chat_id, limit=8)
-    
-    ai_response = openai.generate_turn(
-        system_prompt=SYSTEM_PROMPT,
-        session=session,
-        history=history,
-        user_message=user_message,
-    )
-    
-    supabase.save_message(chat_id, user_message, "user")
-    supabase.update_session(chat_id, ai_response)
-    supabase.save_message(chat_id, ai_response["reply"], "bot")
-    
-    if ai_response["requires_handoff"]:
-        supabase.create_request(chat_id, ai_response)
-    
-    return ai_response["reply"]
+def process_turn(chat_id: str, user_message: str, on_progress=None, channel="telegram") -> str | None:
+    """Recibe el mensaje del usuario, persiste estado y devuelve el texto a enviar."""
+    session = db.get_or_create_session(chat_id, channel=channel)
+    history = db.get_recent_messages(chat_id, limit=8)
+    # Guardrails determinísticos pueden responder sin llamar al modelo.
+    # Si hace falta, ai.generate_turn() produce structured output.
+    # Al cerrar/escalar se crea la solicitud con entry_channel=session["channel"].
+    return reply
 ```
 
 ---
 
-## 10. JSON schema simplificado para OpenAI (propuesta)
+## 10. JSON schema actual para OpenAI
 
-En lugar de 14 campos obligatorios, usar solo los que realmente se usan:
+El schema actual es amplio porque la orden de servicio captura datos clínicos, pago y perfiles. No ampliarlo sin prueba de regresión.
 
 ```json
 {
   "reply": "string — el mensaje para enviar al cliente",
-  "intent": "programacion_rutas | resultados | contabilidad | alta_cliente | no_clasificado",
-  "phase": "collecting | confirming | done | escalated",
+  "intent": "route_scheduling | results | accounting | new_client | unknown",
+  "phase": "fase_0_bienvenida | fase_1_clasificacion | fase_2_recogida_datos | fase_3_validacion | fase_4_confirmacion | fase_5_ejecucion | fase_6_cierre | fase_7_escalado",
+  "service_area": "route_scheduling | accounting | results | new_client | unknown",
   "captured_fields": {
     "clinic_name": null,
     "tax_id": null,
     "pickup_address": null,
     "exam_type": null,
-    "patient_name": null
+    "patient_name": null,
+    "species": null,
+    "requesting_doctor": null,
+    "payment_method": null,
+    "selected_tests": null,
+    "removed_tests": null
   },
+  "message_mode": "flow_progress | side_question | intent_switch | small_talk | cancellation",
   "requires_handoff": false,
-  "handoff_area": "none | contabilidad | operaciones | tecnico"
+  "handoff_area": "contabilidad | operaciones | tecnico | null",
+  "resume_prompt": "",
+  "confidence": 1.0,
+  "pending_intents": []
 }
 ```
 
-4 fases simples en lugar de 8:
-- `collecting` — recolectando datos
-- `confirming` — confirmando con el cliente antes de registrar
-- `done` — solicitud registrada, conversación cerrada
-- `escalated` — derivado a humano
+Fases internas vigentes: `fase_0_bienvenida`, `fase_1_clasificacion`, `fase_2_recogida_datos`, `fase_3_validacion`, `fase_4_confirmacion`, `fase_5_ejecucion`, `fase_6_cierre`, `fase_7_escalado`.
 
 ---
 
@@ -313,7 +308,7 @@ Tu nombre es "Asistente A3". Suenas como un humano del equipo: cercano, profesio
 
 Puedes ayudar con:
 1. Coordinar recogida de muestras — pides datos mínimos y registras la solicitud
-2. Consultar estado de resultados — pides referencia y das el estado actual
+2. Consultar resultados — V1 responde que la consulta todavía no está disponible por este medio
 3. Temas de pagos/facturación — derivas a contabilidad (no resuelves en chat)
 4. Clientes nuevos — derivas a recepción (no haces el alta tú)
 
@@ -325,7 +320,7 @@ Reglas de conversación:
 - Tono: como si fuera tu colega del laboratorio hablando por WhatsApp.
 
 Para recogidas: necesitas saber (1) clínica, (2) dirección, (3) tipo de análisis.
-Para resultados: necesitas saber (1) nombre del paciente O (2) número de muestra/orden.
+Para resultados V1: no pides datos; respondes el mensaje fijo de no disponibilidad por este medio.
 ```
 
 ---
@@ -335,7 +330,7 @@ Para resultados: necesitas saber (1) nombre del paciente O (2) número de muestr
 | El cliente dice | El sistema guarda |
 |---|---|
 | "Hola, soy de Clínica Patas Felices" | `clinic_name = "Clínica Patas Felices"` |
-| "Necesito un retiro para hoy" | `intent = programacion_rutas`, `phase = collecting` |
+| "Necesito un retiro para hoy" | `intent = route_scheduling`, `phase = fase_2_recogida_datos` |
 | "La dirección es Calle 80 # 45-20" | `pickup_address = "Calle 80 # 45-20"` |
 | "Son análisis de sangre" | `exam_type = "sangre"` |
 
@@ -347,11 +342,11 @@ El cliente NUNCA ve: fases, intents, service_area, UUIDs, estados de BD.
 
 Antes de considerar el agente listo, estos deben pasar:
 
-1. **Saludo simple** → El bot saluda de forma natural y pregunta en qué puede ayudar (no muestra menú de opciones numeradas).
+1. **Saludo simple** → El bot muestra bienvenida con menú numerado 1-4.
 
 2. **Intención directa** → "Necesito programar un retiro" → el bot pide el primer dato (clínica), no muestra lista de campos.
 
-3. **Datos parciales** → "Necesito resultados de Rocky" → el bot confirma que entiende y pide el dato que falta (referencia), no repite el nombre del paciente.
+3. **Resultados V1** → "Necesito resultados de Rocky" → el bot responde que la consulta todavía no está disponible por este medio, sin pedir datos adicionales.
 
 4. **Pregunta lateral** → En medio de programar una ruta, el cliente pregunta "¿cuánto cuesta el hemograma?" → el bot responde la pregunta brevemente y retoma el flujo.
 

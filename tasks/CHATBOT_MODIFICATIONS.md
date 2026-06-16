@@ -226,9 +226,8 @@ Cuando resultados estén listos:
 ## Integraciones Necesarias (No chatbot, pero el bot las llama)
 
 1. **ANARVET**: Consultar estado de análisis (para responder "¿Cómo va?")
-2. **ALEGRA**: Crear factura (tras completar orden) - backend
-3. **BD de Zonas**: Mapear dirección → zona → motorista
-4. **Sistema de notificaciones**: Telegram al cliente, interno a motorista/recepción
+2. **BD de Zonas**: Mapear dirección → zona → motorista
+3. **Sistema de notificaciones**: Telegram al cliente, interno a motorista/recepción
 
 ---
 

@@ -26,6 +26,7 @@
 4. Resumen de alto nivel en cada paso
 5. Agregar sección de resultados al `tasks/todo.md`
 6. Actualizar `tasks/lessons.md` después de cada corrección del usuario
+7. Registrar TODO bug conversacional en `tasks/errores-soluciones.md` (bitácora central de errores): síntoma, causa raíz, solución, tests y estado. Es la fuente única; sin actualizarla el bug no se considera cerrado (ver `docs/decisions/007-error-solution-log.md`).
 
 ### Subagentes
 - Usar subagentes para investigación, exploración y análisis paralelo
@@ -38,6 +39,7 @@
 - Correr tests, revisar logs, demostrar correctitud
 
 ### Auto-mejora
+- Al INICIO de cada sesión: revisar `tasks/errores-soluciones.md` (bitácora central de errores) y `tasks/lessons.md` para no repetir errores ya resueltos ni reabrir los que están en monitoreo.
 - Después de CUALQUIER corrección del usuario: actualizar `tasks/lessons.md` con el patrón
 - Escribir reglas para prevenir el mismo error en el futuro
 - Revisar lessons al inicio de cada sesión
@@ -75,7 +77,7 @@ Modificar la menor cantidad de líneas posible. Explicar el problema en español
 
 ## Contexto del proyecto
 
-**A3 Laboratorio Veterinario** — laboratorio de análisis clínico veterinario en Bogotá. Atiende clínicas y veterinarias por Telegram.
+**A3 Laboratorio Veterinario** — laboratorio de análisis clínico veterinario en Bogotá. Atiende clínicas y veterinarias por Telegram directo y por Telegram vía Chatwoot.
 
 El agente hace exactamente 4 cosas:
 1. Programar recogida de muestras
@@ -87,18 +89,18 @@ El agente hace exactamente 4 cosas:
 - Python 3.12+ + Flask
 - Supabase (PostgreSQL) — modelo de datos existente, no modificar
 - OpenAI API (gpt-5.5)
-- Telegram Bot API
+- Telegram Bot API + Chatwoot Agent Bot
 - Render
 
 ### Arquitectura objetivo
 ```
-app/main.py          — Flask + webhook (< 100 líneas)
-app/agent.py         — process_turn() como función central
+app/main.py          — Flask + webhooks Telegram/Chatwoot
+app/agent.py         — process_turn() como función central con guardrails determinísticos
 app/prompt.py        — System prompt
-app/schema.py        — JSON schema OpenAI
+app/schema.py        — JSON schema OpenAI amplio (estado actual)
 app/rules.py         — Reglas de negocio
 app/config.py        — Variables de entorno
-app/services/        — openai.py, supabase.py, telegram.py
+app/services/        — ai.py, db.py, telegram.py, chatwoot.py
 ```
 
 ### Reglas de negocio invariantes
@@ -116,9 +118,9 @@ Integración Anarvet, envío PDFs, workflow contabilidad, dashboard, WhatsApp, a
 ## Por qué se reinició el proyecto
 
 El agente anterior falló por:
-- 8 fases internas → ahora 4: `collecting | confirming | done | escalated`
-- JSON schema de 14 campos → ahora máximo 7 campos útiles
-- Lógica fragmentada en archivos de 307 KB → archivos pequeños con responsabilidad única
+- Las fases rígidas rompían el flujo; el estado actual usa `fase_0_bienvenida` a `fase_7_escalado` con guardrails determinísticos.
+- El JSON schema volvió a crecer por la orden de servicio; no ampliarlo sin pruebas de regresión.
+- Lógica fragmentada en archivos de 307 KB → objetivo vigente: refactor por comportamiento probado, no por tamaño ideal.
 - Sonaba como formulario/robot → debe sonar humano, colombiano, cercano
 
 **La lección central: simplicidad técnica sobre completitud de schema.**

@@ -86,7 +86,7 @@ Lo que debe hacer el chatbot directamente en la conversación.
 
 ### 1.9 Consulta de Estado
 - Si cliente pregunta "¿Cómo va mi orden?", el bot debe:
-  - Consultar estado en ANARVET o ALEGRA (ver sección 3)
+- Consultar estado en ANARVET (ver sección 3)
   - Responder conversacionalmente: "Tu muestra está en análisis, estará lista en 2 días"
 
 ### 1.10 Entrega de Resultados
@@ -106,20 +106,7 @@ Conexiones que el bot necesita hacer con sistemas terceros.
 - **Qué trae**: Fase actual (en cola, en proceso, completado, listo para entrega)
 - **Acción bot**: Mostrar conversacionalmente el estado
 
-### 2.2 ALEGRA (Sistema de Facturación)
-- **Qué necesita**: 
-  - Crear/actualizar precios de perfiles
-  - Registrar descuentos por cantidad de parámetros
-  - Generar facturas automáticas por orden
-- **Cuándo se integra**: Cuando se completa una orden de servicio
-- **Información a enviar**:
-  - Código de cliente
-  - Perfil solicitado (ID o nombre)
-  - Cantidad de parámetros
-  - Precio final (con descuento aplicado)
-  - Datos de facturación
-
-### 2.3 Base de Datos de Zonas y Motoristas
+### 2.2 Base de Datos de Zonas y Motoristas
 - **Qué necesita**: Tabla con:
   - Número de zona
   - Descripción geográfica de zona
@@ -185,7 +172,6 @@ Lo que el laboratorio maneja internamente, NO es responsabilidad del chatbot.
 
 ### 3.8 Integración con Sistemas Internos (Visualización)
 - Mostrar estado de análisis (traído de ANARVET)
-- Mostrar facturas generadas (traído de ALEGRA)
 - Mostrar historial de órdenes por cliente
 
 ---
@@ -201,7 +187,6 @@ Cosas que el cliente mencionó que debe enviar.
 - [ ] Tabla de **descuentos automáticos** por cantidad de parámetros
 - [ ] **Estructura de perfiles predefinidos** (cuáles deben estar en el chatbot)
 - [ ] Requisitos de **API de ANARVET** (qué datos expone, cómo consultarla)
-- [ ] Requisitos de **API de ALEGRA** (qué datos necesita, cómo enviar)
 - [ ] Horarios de recogida disponibles por zona/motorista
 
 ---
@@ -227,9 +212,9 @@ Cosas que el cliente mencionó que debe enviar.
     │                │                  │
     ▼                ▼                  ▼
 ┌─────────┐   ┌──────────┐    ┌──────────────┐
-│ ANARVET │   │  ALEGRA  │    │ PLATAFORMA   │
-│(Estado) │   │(Precios) │    │(Gestión)     │
-└─────────┘   └──────────┘    └──────────────┘
+│ ANARVET │   │ PLATAFORMA   │
+│(Estado) │   │(Gestión)     │
+└─────────┘   └──────────────┘
 ```
 
 ---
@@ -241,4 +226,3 @@ Cosas que el cliente mencionó que debe enviar.
 3. Consolidar lista final
 4. Priorizar por complejidad técnica
 5. Definir fase de implementación
-

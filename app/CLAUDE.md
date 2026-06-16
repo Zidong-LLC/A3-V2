@@ -2,16 +2,16 @@
 
 ## Responsabilidad
 
-Contiene toda la lógica del agente conversacional A3. Cada archivo tiene una sola responsabilidad.
+Contiene la lógica del agente conversacional A3. El estado actual prioriza estabilidad de flujos; el refactor debe hacerse por comportamiento probado.
 
 ## Mapa de archivos
 
 | Archivo | Responsabilidad | Límite |
 |---|---|---|
-| `main.py` | Flask app, webhook handler, `/health` | < 100 líneas |
-| `agent.py` | `process_turn()` — orquesta un turno completo | < 150 líneas |
-| `prompt.py` | System prompt de OpenAI (solo tono e intenciones) | < 80 líneas |
-| `schema.py` | JSON schema para structured output de OpenAI | < 60 líneas |
+| `main.py` | Flask app, webhooks Telegram/Chatwoot, `/health` | ~120 líneas |
+| `agent.py` | `process_turn()` — orquesta un turno completo y guardrails | grande; refactor pendiente |
+| `prompt.py` | System prompt de OpenAI (tono, intenciones y reglas) | grande; mantener sincronizado con guardrails |
+| `schema.py` | JSON schema amplio para structured output de OpenAI | ~95 líneas |
 | `rules.py` | Lógica de negocio pura sin I/O (corte, motorizado) | < 100 líneas |
 | `config.py` | Lee y valida variables de entorno | < 50 líneas |
 
@@ -19,7 +19,7 @@ Contiene toda la lógica del agente conversacional A3. Cada archivo tiene una so
 
 - `main.py` no importa `openai`, `supabase` ni lógica de negocio directamente
 - `rules.py` no hace I/O — funciones puras, testeables sin mocks
-- `schema.py` tiene máximo 7 campos en el JSON schema
+- `schema.py` no debe ampliarse sin prueba de regresión; el schema actual ya es amplio
 - `prompt.py` no incluye la definición del JSON schema (eso va en `schema.py`)
 
 ## Dependencias entre archivos

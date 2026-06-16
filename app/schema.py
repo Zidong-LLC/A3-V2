@@ -74,6 +74,28 @@ RESPONSE_SCHEMA = {
                 "type": "string",
                 "enum": ["flow_progress", "side_question", "intent_switch", "small_talk", "cancellation"],
             },
+            # Lectura semántica de QUÉ hace el usuario en este turno, interpretando la
+            # intención (no las palabras exactas). El código la usa como fuente primaria
+            # y cae a los detectores de tokens como red de seguridad. "unclear" = sin señal.
+            "user_intent_signal": {
+                "type": "string",
+                "enum": [
+                    "provides_requested_data",
+                    "affirm",
+                    "negate",
+                    "correction",
+                    "new_or_unregistered_client",
+                    "provides_client_identifier",
+                    "same_as_previous",
+                    "change_client",
+                    "new_branch",
+                    "another_order",
+                    "farewell",
+                    "cancel",
+                    "off_topic",
+                    "unclear",
+                ],
+            },
             "requires_handoff": {"type": "boolean"},
             "handoff_area": {
                 "anyOf": [
@@ -87,7 +109,7 @@ RESPONSE_SCHEMA = {
         },
         "required": [
             "reply", "intent", "phase", "service_area", "captured_fields",
-            "message_mode", "requires_handoff", "handoff_area",
+            "message_mode", "user_intent_signal", "requires_handoff", "handoff_area",
             "resume_prompt", "confidence", "pending_intents",
         ],
         "additionalProperties": False,
