@@ -514,6 +514,35 @@ def main():
              "contraentrega", "sí, confirmo"],
             checks_s,
         ))
+
+        # T — Preventa/metodología antes de identificarse: responder como persona y NO
+        #     capturar una explicación clínica como nombre de veterinaria.
+        def checks_t(replies):
+            out = []
+            joined = " ".join((r or "") for r in replies).lower()
+            if "no encuentro" in joined:
+                out.append("buscó cliente antes de recibir un identificador real")
+            f = _state["session"]["captured_fields"]
+            if "motivos" in _norm(f.get("clinic_name")) or "muerte" in _norm(f.get("clinic_name")):
+                out.append(f"capturó una explicación clínica como cliente: {f.get('clinic_name')!r}")
+            if _state["requests"]:
+                out.append("creó una solicitud durante preguntas de preventa")
+            last = (replies[-1] or "").lower()
+            if "nit" not in last or "nombre" not in last:
+                out.append(f"no retomó identificación al pedir programar: '{(replies[-1] or '')[:90]}'")
+            return out
+
+        results.append(_run_conversation(
+            "T. Preventa/metodología no dispara identificación", "val-t",
+            ["Hola",
+             "hacen analisis para mascotas verdad? atienden en Colombia?",
+             "como es la metodologia si tengo una muestra para analizar que necesito?",
+             "?ustedes se encargan de retirar las muestras tienen gente asiganada para eso?",
+             "tengo que hacer un analisis a un perro muerto",
+             "para ver los motivos de su muerte",
+             "estoy registrado te paso mis datos para programar la recogida de meustras"],
+            checks_t,
+        ))
     finally:
         for p in patchers:
             p.stop()

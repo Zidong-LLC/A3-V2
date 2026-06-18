@@ -33,6 +33,11 @@ CLIENT_NOT_FOUND_MESSAGE = (
     "Te voy a comunicar con atención al cliente para que puedan ayudarte con este proceso."
 )
 
+CLIENT_NEW_REGISTRATION_MESSAGE = (
+    "Como aún no estás registrado, el alta la debe hacer atención al cliente. "
+    "Te voy a comunicar con ellos para que puedan ayudarte con ese proceso."
+)
+
 CLIENT_SEARCH_FAILED_MESSAGE = (
     "No encuentro ningún cliente registrado con ese dato.\n"
     "¿Eres cliente nuevo?"
@@ -193,6 +198,12 @@ PAYMENT_ONLINE_HANDOFF_MESSAGE = (
     "La recogida de la muestra sigue programada con normalidad."
 )
 
+# Cierre cordial al final de una orden registrada: ofrecer otra orden o terminar.
+CLOSING_PROMPT = (
+    "¿Te ayudo con algo más o necesitas crear otra orden para otro paciente? "
+    "Si eso es todo, quedamos atentos. 🙂"
+)
+
 
 def _payment_method_from_text(text: str) -> str | None:
     tokens = set(_tokenize(text))
@@ -200,7 +211,7 @@ def _payment_method_from_text(text: str) -> str | None:
         return "contraentrega"
     if "pse" in tokens or "transferencia" in tokens or "tarjeta" in tokens:
         return "pago_linea"
-    if "pago" in tokens and ({"linea", "línea", "online"} & tokens):
+    if ({"pago", "pagar"} & tokens) and ({"linea", "línea", "online"} & tokens):
         return "pago_linea"
     return None
 
@@ -393,6 +404,8 @@ _ORDINAL_SELECTIONS = {
 _NON_IDENTIFIER_TOKENS = frozenset({
     "paciente", "mascota", "perro", "gato", "examen", "analisis", "análisis",
     "muestra", "hemograma", "perfil", "llama", "resultado", "resultados",
+    "motivo", "motivos", "muerte", "muerto", "muerta", "fallecio", "falleció",
+    "registrado", "registrados", "registrada", "registradas", "registrarme",
     # Correcciones / confusión de opción: nunca son el NIT ni el nombre del cliente.
     "confundi", "confundí", "confundido", "confundida", "equivoque", "equivoqué",
     "equivoco", "equivocado", "equivocada", "opcion", "opción", "opciones", "menu", "menú",
@@ -902,13 +915,13 @@ def _unsupported_final_user_response(fields: dict) -> dict:
     }
 
 
-def _escalate_unfound_client(fields: dict) -> dict:
+def _escalate_unfound_client(fields: dict, reply: str = CLIENT_NOT_FOUND_MESSAGE) -> dict:
     # El cliente dice no ser nuevo pero no aparece en la base: derivar a un humano
     # en vez de seguir pidiendo el identificador en bucle.
     fields["_handoff_announced"] = True
     fields["_blocked"] = True
     return {
-        "reply": CLIENT_NOT_FOUND_MESSAGE,
+        "reply": reply,
         "phase": "fase_7_escalado",
         "intent": "new_client",
         "service_area": "new_client",
@@ -939,6 +952,11 @@ def _enforce_client_identification_gate(session: dict, ai_response: dict, histor
     if session.get("client_id") or fields.get("_client_found"):
         return ai_response
     if fields.get("clinic_name") or fields.get("tax_id") or fields.get("_client_match_options"):
+        return ai_response
+
+    # Preguntas de preventa/metodología no son una orden todavía. Dejar que el LLM
+    # responda como persona; pedir NIT solo cuando el usuario quiera programar.
+    if ai_response.get("message_mode") == "side_question":
         return ai_response
 
     if _client_identity_prompt_count(history) >= 2:
@@ -1049,6 +1067,51 @@ def _base_route_response(reply: str, fields: dict) -> dict:
     }
 
 
+_TIME_QUESTION_TOKENS = frozenset({
+    "cuanto", "cuánto", "cuando", "cuándo", "tiempo", "tardan", "tarda",
+    "demoran", "demora", "demorar", "promedio", "aproximado", "aproximadamente",
+    "hora", "horas", "dia", "dias", "día", "días", "plazo", "urgente",
+    "rapido", "rápido", "llega", "llegan", "llegaria", "llegaría", "pasan",
+})
+_RESULT_TOKENS = frozenset({"resultado", "resultados", "entrega", "entregan", "entregar"})
+_ANALYSIS_TOKENS = frozenset({"analisis", "análisis", "examen", "examenes", "exámenes", "perfil", "prueba", "muestra", "muestras"})
+_ROUTE_TIMING_TOKENS = frozenset({
+    "motorizado", "motorizados", "repartidor", "mensajero", "ruta", "recogida",
+    "retiro", "retirar", "recoger", "pasan", "pasar", "llega", "llegaria", "llegaría",
+})
+_PRICE_QUESTION_TOKENS = frozenset({"cuanto", "cuánto", "cuesta", "costaria", "costaría", "valor", "precio", "cotizar", "cotizacion", "cotización"})
+
+
+def _operational_side_question_answer(text: str) -> str | None:
+    """Preguntas operativas de A3: responder sin inventar, antes de retomar el flujo."""
+    tokens = set(_tokenize(text))
+    if not tokens:
+        return None
+
+    asks_time = bool(tokens & _TIME_QUESTION_TOKENS)
+    if asks_time and tokens & (_RESULT_TOKENS | _ANALYSIS_TOKENS):
+        return (
+            "Depende del análisis y de la muestra; para no darte un tiempo incorrecto, "
+            "dime qué prueba necesitas y te oriento con el tiempo estimado."
+        )
+    if asks_time and tokens & _ROUTE_TIMING_TOKENS:
+        return (
+            "La hora exacta de recogida la confirma operaciones según la ruta y la disponibilidad "
+            "del motorizado; si es urgente, lo dejamos marcado para priorizar la coordinación."
+        )
+    if tokens & _PRICE_QUESTION_TOKENS and tokens & _ANALYSIS_TOKENS:
+        return "El valor depende del análisis o perfil que necesites; dime cuál es y revisamos la opción correcta."
+    return None
+
+
+def _has_active_route_context(session: dict, fields: dict) -> bool:
+    return (
+        session.get("intent_current") == "route_scheduling"
+        or bool(session.get("client_id") or fields.get("_client_found"))
+        or any(fields.get(k) for k in _ROUTE_REQUIRED_FIELDS)
+    )
+
+
 def _results_pending_response(fields: dict | None = None, pending_intents: list | None = None) -> dict:
     """Respuesta de la opción 2 (consultar resultados): informa que aún no está
     disponible por este medio y cierra el turno sin pedir datos. Si quedan
@@ -1067,6 +1130,76 @@ def _results_pending_response(fields: dict | None = None, pending_intents: list 
         "pending_intents": pending,
         "resume_prompt": "",
     }
+
+
+def _pre_identification_service_info_response(text: str, fields: dict) -> dict | None:
+    tokens = set(_tokenize(text))
+    if not tokens:
+        return None
+    if tokens & {"programar", "agendar", "coordinar"} and tokens & {"ruta", "recogida", "retiro", "muestra", "muestras", "meustras"}:
+        return None
+    if tokens & {"quiero", "necesito"} and tokens & {"programar", "agendar", "coordinar"}:
+        return None
+
+    reply = None
+    operational_answer = _operational_side_question_answer(text)
+    if operational_answer:
+        reply = operational_answer
+    elif tokens & {"motivo", "motivos"} and tokens & {"muerte", "muerto", "muerta", "fallecio", "falleció"}:
+        reply = (
+            "Para investigar una posible causa de muerte necesitamos que el equipo revise el caso y la muestra adecuada. "
+            "Por acá no te confirmo eso a ciegas; si quieres, te comunico con una persona del equipo."
+        )
+    elif tokens & {"muerto", "muerta", "muerte", "fallecio", "falleció"}:
+        reply = (
+            "Ese tipo de caso lo debe revisar una persona del equipo para decirte qué muestra sirve "
+            "y si el análisis aplica. Si quieres programar desde una veterinaria registrada, ahí sí te pido el NIT o el nombre."
+        )
+    elif tokens & {"retirar", "retiran", "recoger", "recogen", "recogida", "motorizado", "motorizados"}:
+        reply = (
+            "Sí, recogemos muestras con motorizado asignado para clientes registrados en Bogotá. "
+            "Si quieres programar una recogida, ahí sí te pido el NIT o el nombre de la veterinaria."
+        )
+    elif tokens & {"colombia", "bogota", "bogotá"} or (
+        tokens & {"donde", "dónde"} and tokens & {"son", "estan", "están", "ubicados", "ubicacion", "ubicación"}
+    ):
+        reply = (
+            "Estoy bien, gracias. Somos A3 Laboratorio Clínico Veterinario y estamos en Bogotá, Colombia. "
+            "Atendemos clínicas y profesionales veterinarios registrados."
+        )
+    elif (tokens & {"metodologia", "metodología", "funciona"}) or (
+        tokens & {"como", "cómo", "que", "qué"} and tokens & {"necesito", "requiere", "muestra", "muestras"}
+    ):
+        reply = (
+            "La dinámica es simple: nos dices qué análisis necesitas, confirmamos los datos de la muestra "
+            "y coordinamos la recogida si eres una veterinaria o profesional registrado. Para programarlo te pido el NIT o el nombre."
+        )
+    elif tokens & {"mascotas", "colombia", "bogota", "bogotá"} and tokens & {"hacen", "atienden", "analisis", "análisis"}:
+        reply = (
+            "Sí, hacemos análisis para pacientes veterinarios y atendemos a clínicas y profesionales registrados en Bogotá. "
+            "Si quieres programar una recogida, te pido el NIT o el nombre de la veterinaria."
+        )
+
+    if not reply:
+        return None
+    response = _base_route_response(reply, fields)
+    response["message_mode"] = "side_question"
+    if operational_answer:
+        response["_skip_resume"] = True
+    return response
+
+
+def _active_route_smalltalk_response(session: dict, fields: dict) -> dict | None:
+    missing = _missing_route_field(session, fields)
+    if not missing:
+        return None
+    if missing == "pickup_address" and fields.get("_address_confirmation_pending"):
+        question = "¿Me confirmas si esa dirección de retiro está correcta?"
+    else:
+        question = _missing_route_field_question(missing)
+    response = _base_route_response(f"Todo bien, gracias. Sigamos con la orden: {question}", fields)
+    response["message_mode"] = "small_talk"
+    return response
 
 
 def _reset_order_fields(fields: dict) -> None:
@@ -1101,10 +1234,11 @@ def _payment_method_label(value: str | None) -> str:
 # Sustantivos que designan al cliente/empresa (no al médico). Para disparar un
 # cambio de cliente deben venir junto a una señal de cambio (otra, no, me equivoqué…).
 _CLIENT_NOUN_TOKENS = frozenset({
-    "veterinaria", "clinica", "clínica", "consultorio", "hospital", "cliente",
+    "veterinaria", "veterinarias", "clinica", "clínica", "clinicas", "clínicas",
+    "consultorio", "hospital", "cliente", "clientes",
 })
 _CLIENT_CHANGE_SIGNAL_TOKENS = frozenset({
-    "otra", "otro", "cambiar", "cambia", "cambio", "cambió", "distinta", "distinto",
+    "otra", "otras", "otro", "otros", "cambiar", "cambia", "cambio", "cambió", "distinta", "distinto",
     "diferente", "no", "equivoque", "equivoqué", "equivoco", "equivocado", "equivocada",
     "nueva", "nuevo",
 })
@@ -1515,8 +1649,9 @@ def _escalate_new_client_turn(
     user_message: str,
     fields: dict,
     started_from_escalation: bool,
+    reply: str = CLIENT_NOT_FOUND_MESSAGE,
 ) -> str:
-    ai_response = _escalate_unfound_client(fields)
+    ai_response = _escalate_unfound_client(fields, reply)
     ai_response = _finalize_request(
         chat_id,
         session,
@@ -1585,7 +1720,7 @@ def _menu_choice_context(session: dict, history: list[dict], fields: dict) -> bo
     )
 
 
-def _enforce_results_message(session: dict, ai_response: dict) -> dict:
+def _enforce_results_message(session: dict, ai_response: dict, user_message: str) -> dict:
     """Si el turno se clasificó como consulta de resultados, responde con el
     mensaje fijo. Si junto con los resultados quedó pendiente programar una
     recogida, entrega el mensaje fijo Y retoma la ruta en el mismo turno, para
@@ -1594,6 +1729,12 @@ def _enforce_results_message(session: dict, ai_response: dict) -> dict:
         return ai_response
     fields = ai_response.get("captured_fields") or {}
     pending = ai_response.get("pending_intents") or []
+
+    operational_answer = _operational_side_question_answer(user_message)
+    if operational_answer:
+        response = _base_route_response(operational_answer, fields)
+        response["message_mode"] = "side_question"
+        return _resume_route_after_lateral_turn(session, response) if _has_active_route_context(session, fields) else response
 
     if "route_scheduling" in pending:
         missing = _missing_route_field(session, fields)
@@ -1626,7 +1767,7 @@ def _explicitly_wants_another_order(text: str) -> bool:
     if not words or "no" in words:
         return False
     return bool(words & {
-        "otra", "otras", "otro", "nueva", "nuevo", "nuevas", "nuevos",
+        "otra", "otras", "otro", "otros", "nueva", "nuevo", "nuevas", "nuevos",
         "orden", "ordenes", "órdenes", "servicio", "pedido", "pedidos", "muestra", "ruta",
     })
 
@@ -1669,7 +1810,7 @@ def _extract_tax_id_candidate(text: str, allow_unlabeled: bool = False) -> str |
 
 
 def _extract_clinic_name_candidate(text: str) -> str | None:
-    if _is_no_identifier_text(text):
+    if _is_no_identifier_text(text) or _claims_unregistered_client(text):
         return None
     # Nombre tras un marcador claro al final del mensaje ("...soy de adryvete",
     # "somos la veterinaria X"), aunque el resto del mensaje traiga datos del pedido.
@@ -1680,6 +1821,8 @@ def _extract_clinic_name_candidate(text: str) -> str | None:
     )
     if tail:
         cand = tail.group(1).strip(" .,:;-")
+        cand = re.sub(r"(?i)^(?:m[ií]a|m[ií]o|mi|nuestra|nuestro)\s+(?:es|se llama)\s+", "", cand).strip(" .,:;-")
+        cand = re.sub(r"(?i)^(?:es|se llama)\s+", "", cand).strip(" .,:;-")
         if cand and any(ch.isalpha() for ch in cand) and len(_tokenize(cand)) <= 4 \
                 and not (set(_tokenize(cand)) & _NON_IDENTIFIER_TOKENS):
             return cand
@@ -1702,7 +1845,18 @@ def _has_client_marker(text: str) -> bool:
     return bool(re.search(r"(?i)\b(soy de|somos|de la veterinaria|de la cl[ií]nica)\b", text or ""))
 
 
-def _apply_identification_fallbacks(fields: dict, user_message: str, history: list[dict]) -> None:
+def _looks_like_bare_client_name(text: str) -> bool:
+    if _claims_unregistered_client(text):
+        return False
+    tokens = _tokenize(text)
+    if not tokens or len(tokens) > 4:
+        return False
+    if tokens[0] in {"para", "por", "porque", "como", "cómo", "que", "qué", "cual", "cuál", "tengo"}:
+        return False
+    return not (set(tokens) & _NON_IDENTIFIER_TOKENS)
+
+
+def _apply_identification_fallbacks(fields: dict, user_message: str, history: list[dict], signal: str | None = None) -> None:
     waiting_identifier = _awaiting_client_identifier(history)
     if not fields.get("tax_id"):
         tax_id = _extract_tax_id_candidate(user_message, allow_unlabeled=waiting_identifier)
@@ -1710,7 +1864,11 @@ def _apply_identification_fallbacks(fields: dict, user_message: str, history: li
             fields["tax_id"] = tax_id
     # Extraer el nombre si el bot está pidiendo el identificador, o si el mensaje
     # trae un marcador claro de cliente (ej. "...soy de adryvete" en el primer mensaje).
-    if (waiting_identifier or _has_client_marker(user_message)) and not fields.get("tax_id"):
+    if (
+        (signal == "provides_client_identifier" or _has_client_marker(user_message)
+         or (waiting_identifier and _looks_like_bare_client_name(user_message)))
+        and not fields.get("tax_id")
+    ):
         clinic_name = _extract_clinic_name_candidate(user_message)
         if clinic_name and not _same_text(clinic_name, fields.get("clinic_name")):
             fields["clinic_name"] = clinic_name
@@ -1796,7 +1954,7 @@ def _rephrased_repeated_question(reply: str) -> str:
     if {"direccion", "dirección", "domicilio"} & tokens:
         return "Para avanzar, puedes responder: 1) sí, esa dirección está bien, o 2) enviarme la dirección correcta."
     if {"analisis", "análisis", "examen", "perfil"} & tokens:
-        return "Para avanzar, puedes decirme: 1) el análisis o perfil que van a enviar, o 2) si quieres ver opciones del catálogo."
+        return "Para avanzar, puedes decirme: 1) el análisis o perfil que desean, o 2) si quieres ver opciones del catálogo."
     if {"canino", "felino", "especie"} & tokens:
         return "Para seguir, contame: ¿el paciente es canino (perro), felino (gato) u otra especie? Decime cuál y continuamos."
     if {"macho", "hembra"} & tokens or "sexo" in tokens:
@@ -1879,7 +2037,7 @@ def _avoid_redundant_client_identity_question(session: dict, ai_response: dict) 
     if missing and missing != "client":
         ai_response["reply"] = _missing_route_field_question(missing)
     else:
-        ai_response["reply"] = "Ya tengo el cliente identificado. ¿Qué análisis o perfil van a enviar?"
+        ai_response["reply"] = "Ya tengo el cliente identificado. ¿Qué análisis o perfil desean?"
     return ai_response
 
 
@@ -1912,6 +2070,7 @@ def _reply_asks_for_route_field(reply: str, field: str) -> bool:
             "que tipo de analisis" in text or "qué tipo de análisis" in text
             or "analisis o perfil exacto" in text or "análisis o perfil exacto" in text
             or "cual van a enviar" in text or "cuál van a enviar" in text
+            or "perfil desean" in text
         )
     if field == "patient_name":
         return "nombre del paciente" in text
@@ -1946,6 +2105,38 @@ def _avoid_redundant_route_field_question(session: dict, ai_response: dict) -> d
             if missing and missing != field:
                 ai_response["reply"] = _missing_route_field_question(missing)
             break
+    return ai_response
+
+
+def _reply_asks_missing_field(reply: str, field: str) -> bool:
+    if field == "client":
+        return _asks_for_client_identity(reply)
+    return _reply_asks_for_route_field(reply, field)
+
+
+def _resume_route_after_lateral_turn(session: dict, ai_response: dict) -> dict:
+    if ai_response.get("intent") != "route_scheduling" or ai_response.get("requires_handoff"):
+        return ai_response
+    if ai_response.get("phase") in TERMINAL_PHASES or ai_response.get("message_mode") == "cancellation":
+        return ai_response
+    if (
+        ai_response.get("message_mode") not in {"side_question", "small_talk"}
+        and ai_response.get("user_intent_signal") not in {"off_topic", "unclear"}
+    ):
+        return ai_response
+
+    fields = ai_response.get("captured_fields") or {}
+    missing = _missing_route_field(session, fields)
+    if not missing:
+        return ai_response
+
+    reply = (ai_response.get("reply") or "").strip()
+    if "?" in reply and _reply_asks_missing_field(reply, missing):
+        return ai_response
+
+    base = _strip_question_sentences(reply)
+    question = _missing_route_field_question(missing)
+    ai_response["reply"] = f"{base} {question}".strip() if base else question
     return ai_response
 
 
@@ -2170,7 +2361,7 @@ def _missing_route_field_question(field: str) -> str:
     if field == "requesting_doctor":
         return "¿Cuál es el médico solicitante?"
     if field == "exam_type":
-        return "Por último, ¿qué análisis o perfil van a enviar?"
+        return "Por último, ¿qué análisis o perfil desean?"
     if field == "patient_name":
         return "¿Cuál es el nombre del paciente?"
     if field == "species":
@@ -2390,7 +2581,7 @@ def _route_closure_summary(fields: dict) -> str | None:
     lines = _order_summary_lines(fields, "Quedó registrado:")
     if lines is None:
         return None
-    lines.append("Nuestro motorizado pasará a recoger la muestra. ¿Necesitas crear otra orden de servicio para otro paciente o animal?")
+    lines.append("Nuestro motorizado pasará a recoger la muestra.")
     return "\n".join(lines)
 
 
@@ -2452,6 +2643,7 @@ def _enforce_confirmation_step(session: dict, ai_response: dict, fields: dict, p
     if (previous_phase == CONFIRMATION_PHASE
             and _is_order_confirmation(user_message)
             and not _missing_route_field(session, fields)):
+        operational_answer = _operational_side_question_answer(user_message)
         if fields.get("payment_method") == "pago_linea":
             ai_response["phase"] = "fase_7_escalado"
             ai_response["requires_handoff"] = True
@@ -2464,6 +2656,8 @@ def _enforce_confirmation_step(session: dict, ai_response: dict, fields: dict, p
             summary = _route_closure_summary(fields)
             if summary:
                 ai_response["reply"] = summary
+        if operational_answer:
+            ai_response["reply"] = f"{operational_answer}\n\n{ai_response['reply']}"
         fields.pop("_correction_pending", None)
         ai_response["service_area"] = "route_scheduling"
         ai_response["message_mode"] = "flow_progress"
@@ -2496,6 +2690,9 @@ def _enforce_confirmation_step(session: dict, ai_response: dict, fields: dict, p
     summary = _route_confirmation_summary(fields)
     if not summary:
         return ai_response
+    operational_answer = _operational_side_question_answer(user_message)
+    if operational_answer:
+        summary = f"{operational_answer}\n\n{summary}"
     ai_response["reply"] = summary
     ai_response["phase"] = CONFIRMATION_PHASE
     ai_response["requires_handoff"] = False
@@ -2528,7 +2725,7 @@ def _append_courier_notification(reply: str, courier: dict | None) -> str:
 
 
 def _replace_courier_commitment(reply: str) -> str:
-    old = "Nuestro motorizado pasará a recoger la muestra. ¿Necesitas crear otra orden de servicio para otro paciente o animal?"
+    old = "Nuestro motorizado pasará a recoger la muestra."
     if old in reply:
         return reply.replace(old, NO_COURIER_HANDOFF_MESSAGE)
     return f"{reply}\n\n{NO_COURIER_HANDOFF_MESSAGE}"
@@ -2548,9 +2745,13 @@ def _finalize_request(chat_id: str, session: dict, ai_response: dict, started_fr
         return ai_response
 
     order_info = db.create_request(chat_id, session, ai_response)
-    # Marca que ya se registró una orden, para reconocer un pedido de "otra orden" más
-    # adelante aunque la conversación haya salido de la fase terminal (turnos intermedios).
-    ai_response.setdefault("captured_fields", {})["_order_registered"] = True
+    # Marca que ya se registró una ORDEN DE RECOGIDA real, para reconocer un pedido de
+    # "otra orden" más adelante aunque la conversación haya salido de la fase terminal.
+    # Solo aplica a route_scheduling: un escalado de cliente nuevo / pagos / opción 4 NO
+    # es una orden, y marcarlo hacía que un "sí, soy nuevo" disparara el flujo de
+    # seguimiento ("creamos otra orden... ¿médico?") en vez de escalar.
+    if ai_response.get("intent") == "route_scheduling":
+        ai_response.setdefault("captured_fields", {})["_order_registered"] = True
     if ai_response.get("intent") == "route_scheduling" and session.get("client_id"):
         courier = db.get_courier_for_client(session["client_id"])
         if courier:
@@ -2562,6 +2763,8 @@ def _finalize_request(chat_id: str, session: dict, ai_response: dict, started_fr
             ai_response["phase"] = "fase_7_escalado"
             ai_response["requires_handoff"] = True
             ai_response["handoff_area"] = "operaciones"
+        # Cierre cordial al final: ofrecer otra orden o terminar (en todos los casos).
+        ai_response["reply"] = f"{ai_response['reply']}\n\n{CLOSING_PROMPT}"
     return ai_response
 
 
@@ -2635,6 +2838,11 @@ def process_turn(
     prev_captured = session.get("captured_fields") or {}
     pending = prev_captured.get("_pending_intents", [])
 
+    if session.get("intent_current") == "route_scheduling" and _looks_off_topic_smalltalk(user_message):
+        response = _active_route_smalltalk_response(session, dict(prev_captured))
+        if response:
+            return _persist_turn(chat_id, user_message, response)
+
     # Opción 2 del menú (consultar resultados): aún no se resuelve por este medio.
     # Se intercepta acá para no arrastrar el flujo de programación de recogida.
     if _is_results_choice(user_message) and _menu_choice_context(session, history, prev_captured):
@@ -2664,6 +2872,16 @@ def process_turn(
         and _wants_to_reconsider_option(user_message)
     ):
         return _persist_turn(chat_id, user_message, _option_reconsider_response(dict(prev_captured)))
+
+    if (
+        not session.get("client_id")
+        and not any(prev_captured.get(k) for k in ("clinic_name", "tax_id", "_client_match_options"))
+    ):
+        info_response = _pre_identification_service_info_response(user_message, dict(prev_captured))
+        if info_response:
+            if not info_response.pop("_skip_resume", False):
+                info_response = _resume_route_after_lateral_turn(session, info_response)
+            return _persist_turn(chat_id, user_message, info_response)
 
     # Selección de análisis de la lista mostrada: si el bot ofreció opciones de análisis
     # y el cliente elige ('el primero', 'el 2', '1601', 'parcial de orina'), capturar el
@@ -2707,7 +2925,7 @@ def process_turn(
             )
         if _is_order_confirmation(user_message):
             missing = _missing_route_field(session, prev_captured)
-            question = _missing_route_field_question(missing) if missing else "¿Qué análisis o perfil van a enviar?"
+            question = _missing_route_field_question(missing) if missing else "¿Qué análisis o perfil desean?"
             guide = "Listo. Para esta orden cambia normalmente el paciente, el propietario y el análisis. "
             return _persist_turn(chat_id, user_message, _base_route_response(guide + question, prev_captured))
         # Respuesta con datos del paciente u otra cosa: seguir el pipeline normal
@@ -2744,6 +2962,14 @@ def process_turn(
     # afirmativa sigue el pipeline normal (el cierre lo permite _enforce_confirmation_step).
     if (session.get("phase_current") == CONFIRMATION_PHASE
             and session.get("intent_current") == "route_scheduling"
+            and _wants_to_change_client(user_message)):
+        return _persist_turn(
+            chat_id, user_message,
+            _restart_identification_for_new_client(chat_id, session, prev_captured),
+        )
+
+    if (session.get("phase_current") == CONFIRMATION_PHASE
+            and session.get("intent_current") == "route_scheduling"
             and _is_correction_request(user_message)):
         field = _detect_correction_field(user_message)
         if field:
@@ -2762,6 +2988,11 @@ def process_turn(
 
     if session.get("phase_current") in TERMINAL_PHASES and session.get("intent_current") == "route_scheduling":
         if _wants_another_service_order(user_message):
+            if _wants_to_change_client(user_message):
+                return _persist_turn(
+                    chat_id, user_message,
+                    _restart_identification_for_new_client(chat_id, session, prev_captured),
+                )
             return _persist_turn(chat_id, user_message, _begin_followup_order(prev_captured))
         if _is_negative_text(user_message):
             db.save_message(chat_id, user_message, "user")
@@ -2775,6 +3006,11 @@ def process_turn(
             and prev_captured.get("_order_registered")
             and session.get("phase_current") not in TERMINAL_PHASES
             and _explicitly_wants_another_order(user_message)):
+        if _wants_to_change_client(user_message):
+            return _persist_turn(
+                chat_id, user_message,
+                _restart_identification_for_new_client(chat_id, session, prev_captured),
+            )
         return _persist_turn(chat_id, user_message, _begin_followup_order(prev_captured))
 
     if session.get("client_id") and prev_captured.get("_client_not_found"):
@@ -2788,6 +3024,7 @@ def process_turn(
             session["captured_fields"] = prev_captured
 
     # Nueva orden en misma sesión: fase terminal + no es despedida -> limpiar datos de la orden anterior
+    just_closed_order = False
     if session.get("phase_current") in TERMINAL_PHASES:
         _prev_snapshot = {k: v for k, v in prev_captured.items() if k in _ROUTE_REQUIRED_FIELDS and v}
         _reset_order_fields(prev_captured)
@@ -2795,6 +3032,11 @@ def process_turn(
         session["phase_current"] = "fase_1_clasificacion"
         session["intent_current"] = "unknown"
         pending = []
+        # El usuario no se despidió ni pidió explícitamente otra orden: si su mensaje es
+        # una consulta que no encaja en los 4 servicios, NO debemos reabrir el flujo de
+        # orden (arrastraba "¿Cuál es el médico solicitante?"). Se marca para derivar
+        # tras conocer la señal del modelo.
+        just_closed_order = True
 
     consecutive_aff = _consecutive_affirmatives(history)
     if consecutive_aff >= 2:
@@ -2897,6 +3139,20 @@ def process_turn(
 
     signal = ai_response.get("user_intent_signal")
 
+    # Recién cerramos una orden y el usuario hace una consulta que no encaja en los 4
+    # servicios (señal off_topic/unclear) sin pedir otra orden: derivar de una a una
+    # persona, en vez de reabrir el flujo y soltar "¿Cuál es el médico solicitante?".
+    if (
+        just_closed_order
+        and signal in ("off_topic", "unclear")
+        and not _explicitly_wants_another_order(user_message)
+    ):
+        ai_response = _unknown_handoff_response(fields)
+        ai_response = _finalize_request(
+            chat_id, session, ai_response, started_from_escalation, session.get("phase_current", ""),
+        )
+        return _persist_turn(chat_id, user_message, ai_response)
+
     # Oferta de derivación pendiente ("¿te derivo o seguimos?"): resolver según la
     # respuesta. Si acepta, derivar a una persona; si quiere seguir, limpiar el flag
     # y continuar el pipeline normal con la respuesta de la IA.
@@ -2987,6 +3243,20 @@ def process_turn(
             signal == "provides_client_identifier"
             or _provides_new_identifier(user_message, prev_captured)
         )
+        if says_new_client and not gives_identifier:
+            fields["clinic_name"] = None
+            fields["tax_id"] = None
+            fields.pop("_client_found", None)
+            fields.pop("_client_not_found", None)
+            _clear_client_match_options(fields)
+            return _escalate_new_client_turn(
+                chat_id,
+                session,
+                user_message,
+                fields,
+                started_from_escalation,
+                CLIENT_NEW_REGISTRATION_MESSAGE,
+            )
         if (
             prev_captured.get("_client_not_found")
             and prev_captured.get("_asked_if_new_client")
@@ -3001,7 +3271,7 @@ def process_turn(
                 return _persist_turn(chat_id, user_message, _unsupported_final_user_response(fields))
             return _escalate_new_client_turn(chat_id, session, user_message, fields, started_from_escalation)
 
-        _apply_identification_fallbacks(fields, user_message, history)
+        _apply_identification_fallbacks(fields, user_message, history, signal)
         _apply_identification_retry(fields, prev_captured, user_message, history)
 
         if _is_final_user_text(user_message):
@@ -3197,7 +3467,7 @@ def process_turn(
                 fields = new_fields
 
     was_results = ai_response.get("intent") == "results"
-    ai_response = _enforce_results_message(session, ai_response)
+    ai_response = _enforce_results_message(session, ai_response, user_message)
     if was_results:
         # El turno de resultados se resuelve acá (mensaje fijo, o mensaje fijo +
         # retomando la recogida pendiente). No sigue el resto del pipeline.
@@ -3232,6 +3502,7 @@ def process_turn(
     ai_response = _apply_route_closure_summary(ai_response)
     ai_response = _clarify_captured_field(ai_response, prev_captured)
     ai_response = _enforce_field_coherence(session, ai_response, prev_captured, user_message, history)
+    ai_response = _resume_route_after_lateral_turn(session, ai_response)
     fields = ai_response.get("captured_fields", fields)
 
     previous_phase = session.get("phase_current", "")

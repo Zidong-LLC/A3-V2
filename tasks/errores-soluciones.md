@@ -27,6 +27,22 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### ABIERTO-005 — Confirmacion no cierra cuando falta confirmar la direccion (caso Gusmery)
+- Severidad: alto
+- Flujo: orden de servicio / confirmacion
+- Sintoma observado: el cliente confirma una y otra vez ("Si", "Cierra la orden", "1") y el
+  bot alterna resumen ↔ "¿que corregir?" sin registrar. Caso real (Chatwoot conv 10, Gusmery,
+  2026-06-15): se fue con "Chao no funciona". Pista del chat: el bot pedia "responde 1) si,
+  esa direccion esta bien" → la DIRECCION quedo sin confirmar y bloqueaba el cierre.
+- Reproduccion: `diag_chatwoot.py H1` con DOS guiones (orden completa y direccion SIN
+  confirmar explicitamente) — en ambos el agente actual CIERRA la orden con normalidad. No
+  reproducible. El codigo actual auto-confirma la direccion cuando el flujo progresa
+  (`agent.py` ~3093: si hay medico/paciente/especie/analisis y hay `pickup_address`, baja
+  `_address_confirmation_pending`), por lo que el dato pendiente ya no bloquea el cierre.
+- Causa probable del chat real: version anterior a los fixes de confirmacion del 2026-06-16
+  (commit 694e518 "Robustecer agente: confirmacion..."); el chat es del 2026-06-15.
+- Estado: monitoreo (no reproducible en el codigo actual; vigilar si reaparece en prod).
+
 ### ABIERTO-001 — validate_flows.py: caso "cliente caotico" no cierra (modelo real)
 - Severidad: bajo
 - Flujo: programar recogida (validacion con modelo real)
@@ -44,6 +60,134 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 ---
 
 ## Correcciones aplicadas
+
+### ERR-032 — Nombre de clinica con "mia es" no matcheaba clientes existentes
+- Severidad: alto
+- Flujo: identificacion de cliente
+- Sintoma observado: en `external_chat_id=1`, el usuario escribio "Nombre de la clinica mia es Animal Pet". La BD si tenia `Animal Pets`, y `find_client_matches('Animal Pet')` devolvia opciones, pero el agente guardo `clinic_name="Mia Es Animal Pet"` y respondio "No encuentro ningun cliente registrado".
+- Reproduccion minima: `diag_identificacion.py "Nombre de la clínica mía es Animal Pet"`.
+- Causa raiz: `_extract_clinic_name_candidate` tomaba todo lo posterior a "clinica" como nombre, incluyendo el puente posesivo "mia es".
+- Solucion aplicada: limpiar prefijos `mia/mio/mi/nuestra/nuestro + es/se llama` y `es/se llama` antes del lookup, sin tocar memoria ni perfiles.
+- Archivos afectados: `app/agent.py`, `tests/test_agent_side_questions.py`.
+- Tests: `pytest tests/test_agent_side_questions.py`; `pytest`; `diag_identificacion.py "Nombre de la clínica mía es Animal Pet"`.
+- Estado: corregido.
+
+### ERR-031 — Memoria de multiorden ignoraba "otra veterinaria/otros clientes"
+- Severidad: alto
+- Flujo: confirmacion / multiorden / memoria de cliente
+- Sintoma observado: en `external_chat_id=1` (2026-06-18), el usuario confirmo una orden pero agrego que era para otra veterinaria; el bot cerro igual. Luego pidio otros analisis para otros clientes y el bot heredo la veterinaria/medico anterior y pregunto por paciente.
+- Reproduccion minima: en `fase_4_confirmacion`, mensaje con confirmacion + "otra veterinaria"; tras una orden registrada, mensaje "otros analisis para otros clientes".
+- Causa raiz: el cierre deterministico de confirmacion corria antes de detectar cambio de cliente. Ademas `_wants_to_change_client` y `_explicitly_wants_another_order` no cubrian plurales (`clientes`, `otros`).
+- Solucion aplicada: detectar cambio de cliente antes de cerrar confirmacion y antes de iniciar orden de seguimiento; agregar plurales al detector; si aparece otro cliente/veterinaria, limpiar cliente actual y pedir NIT/nombre del nuevo registrado.
+- Archivos afectados: `app/agent.py`, `tests/test_agent_side_questions.py`.
+- Tests: `pytest tests/test_agent_side_questions.py`; `pytest`; `validate_flows.py A B`; `diag_chatwoot.py H3`.
+- Estado: corregido.
+
+### ERR-030 — "No estoy registrado" se buscaba como nombre de clinica
+- Severidad: alto
+- Flujo: identificacion / cliente nuevo
+- Sintoma observado: en la prueba real `external_chat_id=4` (2026-06-18), tras preguntas laterales de tiempos/perfil, el bot pidio NIT o nombre de veterinaria. El usuario respondio "No estoy registrado" y el agente guardo `clinic_name="No Estoy Registrado"`, hizo lookup y contesto "No encuentro ningun cliente registrado con ese dato".
+- Reproduccion minima: sesion sin `client_id`, ultimo bot pidiendo NIT/nombre, IA devuelve `user_intent_signal=new_or_unregistered_client` pero tambien trae `clinic_name="No Estoy Registrado"`.
+- Causa raiz: `_looks_like_bare_client_name()` aceptaba casi cualquier frase corta cuando el bot esperaba identificador. Ademas `says_new_client` solo escalaba de forma deterministica si ya veniamos de un no-encontrado previo, no cuando el usuario declaraba de entrada que no estaba registrado.
+- Solucion aplicada: si el turno indica cliente nuevo/no registrado y no trae un identificador real, se limpian `clinic_name`/`tax_id`, se evita el lookup y se escala directamente a atencion al cliente con mensaje especifico. Tambien se bloqueo la extraccion de nombre para frases de no registro.
+- Archivos afectados: `app/agent.py`, `tests/test_agent_side_questions.py`.
+- Tests: `pytest tests/test_agent_side_questions.py`; `pytest`; `python -m py_compile app/agent.py tests/test_agent_side_questions.py`.
+- Estado: corregido.
+
+### ERR-029 — Preguntas operativas laterales se perdian por guardrails rigidos
+- Severidad: alto
+- Flujo: preventa / preguntas laterales / resultados / pago
+- Sintoma observado: en la conversacion real `external_chat_id=4` (2026-06-17), el cliente pregunto tres veces cuanto demoraban aproximadamente los resultados. El bot no respondio esa pregunta: primero pidio NIT y luego uso el mensaje fijo de consulta de resultados no disponible. En una transcripcion previa, al decir "Online quiero pagar... a que hora llegaria el repartidor?", el bot capturo el pago y salto al resumen sin contestar la hora.
+- Causa raiz: el pipeline tenia guardrails que reemplazaban la respuesta del modelo: `results` se trataba siempre como consulta de resultado existente, y el resumen deterministico de confirmacion pisaba dudas laterales mezcladas con datos validos. Ademas `_payment_method_from_text` no reconocia "quiero pagar online" porque buscaba `pago`, no `pagar`.
+- Solucion aplicada: capa transversal minima `_operational_side_question_answer` para dudas operativas de A3 (tiempos de resultados/ruta y valores) que responde sin inventar y luego retoma solo si ya hay contexto de ruta; `results` ya no absorbe preguntas de tiempos; la confirmacion preserva la respuesta lateral antes del resumen; pago en linea reconoce `pagar online`.
+- Archivos afectados: `app/agent.py`, `app/prompt.py`, `tests/test_agent_side_questions.py`.
+- Tests: `pytest tests/test_agent_side_questions.py`; `pytest`; `python -m py_compile app/agent.py app/prompt.py tests/test_agent_side_questions.py`.
+- Estado: corregido.
+
+### ERR-028 — Preguntas laterales respondian bien pero no retomaban el flujo
+- Severidad: alto
+- Flujo: route_scheduling / preguntas laterales / preventa
+- Sintoma observado: en la conversacion real `external_chat_id=4` (2026-06-17), el bot respondio bien preguntas random/preventa, pero cuando el usuario dijo "estoy registrado te paso mis datos para programar la recogida de meustras" volvio a responder informacion general de recogida en vez de retomar el flujo y pedir NIT/nombre. Parecia congelado porque no avanzaba hacia la orden.
+- Reproduccion minima: conversacion con preguntas de metodologia/recogida/post-mortem y luego el mensaje real de programacion; antes del fix, el ultimo turno caia otra vez en `_pre_identification_service_info_response`.
+- Causa raiz: el detector de preventa interceptaba cualquier mensaje con `recogida`/`retirar` antes del gate de identificacion. Solo dejaba pasar `quiero/necesito + programar/agendar/coordinar`; el mensaje real tenia `programar + recogida` pero no `quiero/necesito`, asi que quedaba tratado como duda lateral. Ademas, las respuestas `side_question` no tenian un backstop transversal que anexara el siguiente dato pendiente del flujo.
+- Solucion aplicada: (1) no tratar como preventa mensajes con `programar/agendar/coordinar + ruta/recogida/retiro/muestra(s)`; (2) marcar preventa como `side_question`; (3) agregar `_resume_route_after_lateral_turn`, que conserva la respuesta natural y remata con el campo pendiente (`client`, medico, paciente, etc.) en cualquier punto de `route_scheduling`.
+- Archivos afectados: `app/agent.py`, `tests/test_agent_side_questions.py`, `tools/scripts/validate_flows.py`.
+- Tests: `pytest tests/test_agent_side_questions.py`; `python -m py_compile app/agent.py tools/scripts/validate_flows.py tests/test_agent_side_questions.py`.
+- Estado: corregido.
+
+### ERR-027 — Preguntas de preventa se trataban como orden y sonaban robóticas
+- Severidad: alto
+- Flujo: preventa / identificacion / robustez conversacional
+- Sintoma observado: en el ultimo test local (Chatwoot chat 4, 2026-06-17), el usuario hizo
+  preguntas normales antes de decidir si trabajar con A3: si hacen analisis para mascotas,
+  como es la metodologia, si retiran muestras y un caso post-mortem. El bot respondia raro:
+  saltaba a pedir NIT, derivaba una pregunta de recogida a humano, y luego capturo
+  "para ver los motivos de su muerte" como `clinic_name`, busco ese "cliente" y respondio
+  "No encuentro ningun cliente registrado".
+- Reproduccion minima: `python tools/scripts/validate_flows.py T` con el guion exacto de
+  preventa/metodologia; antes del fix creaba una solicitud de handoff y/o podia capturar la
+  explicacion clinica como cliente.
+- Causa raiz: el gate deterministico de identificacion pisaba respuestas `side_question` del
+  LLM con la pregunta de NIT, y `_apply_identification_fallbacks` extraia nombres de cliente a
+  ciegas cuando el bot esperaba identificador. Ademas, preguntas claras de servicio (retiran
+  muestras, metodologia, cobertura, post-mortem) podian caer como `unknown` y disparar handoff.
+- Solucion aplicada: (1) `_enforce_client_identification_gate` deja pasar `message_mode=side_question`
+  sin forzar NIT; (2) `_apply_identification_fallbacks` usa `user_intent_signal` como fuente primaria
+  y solo acepta nombres libres si parecen nombre corto de cliente; (3) red deterministica minima
+  `_pre_identification_service_info_response` responde preventa comun antes de identificar; (4) se
+  agregaron tokens clinicos/post-mortem a `_NON_IDENTIFIER_TOKENS` para no buscarlos como cliente.
+- Archivos afectados: `app/agent.py`, `app/prompt.py`, `tools/scripts/validate_flows.py`.
+- Verificacion: `python -m py_compile app/agent.py app/prompt.py tools/scripts/validate_flows.py`;
+  `python tools/scripts/validate_flows.py T`; `python tools/scripts/validate_flows.py B T`;
+  `python tools/scripts/validate_flows.py A B K T`.
+- Estado: corregido.
+
+### ERR-026 — Un escalado (cliente nuevo) marcaba `_order_registered` y disparaba "otra orden"
+- Severidad: alto
+- Flujo: cliente nuevo / escalado / multi-orden
+- Sintoma observado: cliente nuevo que mezcla intenciones (caso real Chatwoot conv 5, Sérgio).
+  Reproducido extendiendo el guion con `diag_chatwoot.py H6`: "soy cliente nuevo" → escala OK;
+  luego "programar ruta" → identificacion falla; al confirmar "sí, soy nuevo" el bot respondia
+  "Perfecto, creamos otra orden de servicio para otro paciente. ¿Cuál es el médico solicitante?"
+  en vez de escalar a recepcion (viola regla de negocio #3).
+- Causa raiz: `_finalize_request` marcaba `_order_registered=True` para CUALQUIER request creado,
+  incluidos los escalados (cliente nuevo, pagos, opción 4), que NO son ordenes de recogida. Con
+  ese flag activo, el bloque de "otra orden" (`process_turn`) se disparaba porque
+  `_explicitly_wants_another_order("sí, soy nuevo")` da true (la palabra "nuevo" está en su set)
+  → `_begin_followup_order` en vez de escalar.
+- Solucion aplicada: `_order_registered=True` solo se marca cuando `intent == "route_scheduling"`
+  (una orden de recogida real). Los escalados ya no lo marcan, así que un "sí, soy nuevo"
+  posterior cae al camino de confirmacion de cliente nuevo (`_confirms_new_client`) y escala.
+- Archivos afectados: `app/agent.py` (`_finalize_request`).
+- Verificacion: `diag_chatwoot.py H6` (escala a fase_7, sin arrancar orden); suite 77/77;
+  `validate_flows.py A B` (multi-orden y cliente nuevo) sin regresion.
+- Nota: en el mismo análisis, **H7** (orden de campos: raza tras observaciones) ya NO se
+  reproduce — el agente actual pide los campos en orden; y las "respuestas vacías" del chat 5
+  ("Perfecto.") tampoco aparecen.
+- Estado: corregido.
+
+### ERR-025 — Estado de orden arrastrado tras el cierre (chats reales Chatwoot)
+- Severidad: alto
+- Flujo: post-cierre / clasificacion de intencion
+- Sintoma observado: tras cerrar una orden, ante una consulta general el bot respondia con
+  una pregunta de campo de orden. Caso real (Chatwoot conv 4, Chuuck, 2026-06-16): "¿hacen
+  analisis a reptiles?" → "¿Cuál es el médico solicitante?". Reproducido IDENTICO contra el
+  modelo real con `tools/scripts/diag_chatwoot.py H4`.
+- Causa raiz: al salir de la fase terminal, el reset de orden dejaba `fase_1`/`unknown` y el
+  modelo reclasificaba la consulta como `route_scheduling`; con el cliente aun identificado,
+  `_missing_route_field` devolvia el primer campo (medico) y el enforcement lo pedia. Una
+  consulta fuera de los 4 servicios se trataba como inicio de orden.
+- Solucion aplicada: en `process_turn`, al limpiar la orden por venir de fase terminal se
+  marca `just_closed_order`. Tras conocer la senal del modelo, si es `off_topic`/`unclear` y
+  el usuario NO pidio explicitamente otra orden (`_explicitly_wants_another_order`), se deriva
+  de una a una persona con `_unknown_handoff_response` (mismo handoff que el bot ya usaba bien
+  en el 2º intento del chat real), en vez de reabrir el flujo de orden. Principio: la IA
+  interpreta la intencion (senal), el codigo hace cumplir la regla de derivar.
+- Archivos afectados: `app/agent.py`.
+- Verificacion: `tools/scripts/diag_chatwoot.py H4` (deriva, no pide medico); suite 77/77;
+  `validate_flows.py A` sin regresion (multi-orden "el de siempre" intacto: la nueva orden da
+  senal `another_order`/datos, no `off_topic`, asi que no se intercepta).
+- Estado: corregido.
 
 ### ERR-024 — El agente no entendía sinónimos, datos adelantados ni "el mismo X"
 - Severidad: alto (afecta la comprensión del cliente en todas las fases)
@@ -351,7 +495,16 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 - L25 — El cierre tras confirmar debe ser determinístico (caso Luciano)
 - L26 — La IA interpreta el significado; las listas de tokens son fallback, no autoridad
 - L27 — Ante algo fuera de alcance: ofrecer derivar o seguir, nunca inventar ni clavarse
+- L29 — Los mocks ocultan bugs de integración: el cierre debe probarse contra la BD real
 - L28 — Red anti-bucle por estancamiento (corte duro universal)
+- L30 — Verificar coherencia con el negocio y pedir OK ANTES de crear tests/flujos/cambios
+- L31 — Corregir un dato en la confirmación debe conservar la fase (caso Rocky, ERR-018)
+- L32 — El flujo MULTI-ORDEN debe aguantar turnos intermedios, herencia y "el mismo X" (ERR-023)
+- L33 — La comprensión del lenguaje es del LLM, no de detectores de tokens (ERR-024)
+- L34 — Preventa no es una orden: responder primero, identificar después
+- L35 — La señal de cliente no registrado gana antes del lookup
+- L36 — Memoria multiorden no gana contra cambio explícito de cliente
+- L37 — Limpiar puentes del habla antes de buscar nombres de cliente
 
 ### Tareas registradas
 - Bucle de especie/typos + fallback robótico (caso Luciano) ✅ COMPLETA

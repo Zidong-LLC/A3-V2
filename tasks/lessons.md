@@ -205,3 +205,19 @@ del contexto, no solo los flags de `captured_fields` (que persisten varios turno
 - Reforzar la captura semántica en el prompt (R26 sinónimos/implícitos/datos en frases largas; R27 "el mismo X, cambia Y").
 - Los detectores de tokens quedan como FALLBACK (rellenar huecos que el LLM dejó vacíos, p. ej. `_recover_doctor_from_text`, `_recover_enumerated_answer`), nunca pisan lo que el LLM ya capturó.
 - Verificar con lenguaje NATURAL real (`diag_comprension.py`), no con las palabras exactas. El LLM no es 100% determinista: los fallbacks cubren los casos comunes. Ver ERR-024, L26.
+
+### L34 — Preventa no es una orden: responder primero, identificar después
+**Problema:** preguntas normales antes de comprar/probar el servicio (metodología, cobertura, si retiran muestras, casos post-mortem) se trataban como inicio de orden. El gate de identificación pisaba respuestas humanas con "dame NIT", y una explicación clínica corta podía capturarse como `clinic_name`.
+**Regla:** antes de identificar cliente, distinguir preventa/metodología de una orden explícita. Si el usuario pregunta cómo funciona A3, responder breve y natural; solo pedir NIT cuando quiera programar. La extracción determinística de cliente debe aceptar nombres libres solo si el LLM marcó `provides_client_identifier`, hay marcador claro ("soy de X"), o parece un nombre corto real; nunca capturar motivos clínicos como clínica. Ver ERR-027.
+
+### L35 — La señal de cliente no registrado gana antes del lookup
+**Problema:** cuando el bot esperaba NIT/nombre, "No estoy registrado" se capturaba como `clinic_name` por ser una frase corta y terminaba en una búsqueda absurda contra la BD.
+**Regla:** si la IA marca `new_or_unregistered_client` o el texto declara claramente que no está registrado, limpiar `clinic_name`/`tax_id` antes de consultar la BD y escalar directo a atención. Los fallbacks de nombre libre nunca deben pisar esa señal semántica. Ver ERR-030.
+
+### L36 — Memoria multiorden no gana contra cambio explícito de cliente
+**Problema:** después de cerrar una orden, frases como "otra veterinaria" u "otros clientes" podían quedar tratadas como otra orden del mismo cliente y heredar médico/dirección.
+**Regla:** antes de reutilizar memoria o cerrar una confirmación, detectar cambio explícito de cliente en singular y plural (`otra veterinaria`, `otros clientes`) y reiniciar identificación. La memoria ayuda solo si el cliente sigue siendo el mismo. Ver ERR-031.
+
+### L37 — Limpiar puentes del habla antes de buscar nombres de cliente
+**Problema:** "Nombre de la clínica mía es Animal Pet" se buscaba como `Mía Es Animal Pet`, aunque `Animal Pet` sí existía.
+**Regla:** al extraer nombre tras marcadores como veterinaria/clínica, quitar puentes conversacionales (`mía es`, `mi ... se llama`, `es`) antes del lookup. Si el nombre limpio matchea y la frase real no, el bug es extracción, no BD. Ver ERR-032.
