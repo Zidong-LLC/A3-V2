@@ -1,0 +1,533 @@
+{
+ "meta": {
+  "labels": [],
+  "additional_attributes": {
+   "chat_id": 7800708109,
+   "business_connection_id": null
+  },
+  "contact": {
+   "additional_attributes": {
+    "username": null,
+    "language_code": "es",
+    "social_telegram_user_id": 7800708109,
+    "social_telegram_user_name": null
+   },
+   "custom_attributes": {},
+   "email": null,
+   "id": 2,
+   "identifier": null,
+   "name": "Chuuck ",
+   "phone_number": null,
+   "thumbnail": "",
+   "blocked": false,
+   "type": "contact"
+  },
+  "agent_last_seen_at": "2026-06-16T20:24:28.149Z",
+  "assignee_last_seen_at": null
+ },
+ "payload": [
+  {
+   "id": 2518,
+   "content": "¿Cuál es el nombre del paciente?",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781640176,
+   "private": false,
+   "source_id": "3746",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2519,
+   "content": "kuko",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781640184,
+   "private": false,
+   "source_id": "3747",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7800708109,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 2,
+    "identifier": null,
+    "name": "Chuuck ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2520,
+   "content": "¿Es canino, felino u otra especie?",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781640189,
+   "private": false,
+   "source_id": "3748",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2521,
+   "content": "es un gato siames de 3 años",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781640202,
+   "private": false,
+   "source_id": "3749",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7800708109,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 2,
+    "identifier": null,
+    "name": "Chuuck ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2522,
+   "content": "¿El paciente es macho o hembra?",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781640207,
+   "private": false,
+   "source_id": "3750",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2523,
+   "content": "macho",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781640223,
+   "private": false,
+   "source_id": "3751",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7800708109,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 2,
+    "identifier": null,
+    "name": "Chuuck ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2524,
+   "content": "¿Cuál es el nombre del propietario?",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781640228,
+   "private": false,
+   "source_id": "3752",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2525,
+   "content": "sebastian",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781640236,
+   "private": false,
+   "source_id": "3753",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7800708109,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 2,
+    "identifier": null,
+    "name": "Chuuck ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2526,
+   "content": "¿Quieres dejar alguna observación para la orden o la registramos sin observaciones?",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781640240,
+   "private": false,
+   "source_id": "3754",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2527,
+   "content": "no ninguna",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781640256,
+   "private": false,
+   "source_id": "3755",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7800708109,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 2,
+    "identifier": null,
+    "name": "Chuuck ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2528,
+   "content": "Antes de registrar, te resumo la orden:\n- Veterinaria: Animal Pets\n- Dirección de retiro: DG 51A SUR 61B-03\n- Médico solicitante: Dr. Gaston Alcojor\n- Paciente: Kuko (Felino, Siames, Macho, 3 años)\n- Propietario: Sebastián\n- Análisis: 151-Perfil General: Cuadro Hemático, Parcial de Orina, Coprológico\n- Observaciones: sin observaciones\n- Forma de pago: pago_linea\n¿Confirmas estos datos? (Sí / Corregir)",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781640261,
+   "private": false,
+   "source_id": "3756",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2529,
+   "content": "si",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781640377,
+   "private": false,
+   "source_id": "3757",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7800708109,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 2,
+    "identifier": null,
+    "name": "Chuuck ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2530,
+   "content": "Tu orden quedó registrada. Como elegiste pago en línea, nuestro equipo de contabilidad te contactará en breve para enviarte el link y procesar el pago. La recogida de la muestra sigue programada con normalidad.\n\nNúmero de orden: A3-2026-046\n\nMotorizado asignado: Jeeferson.",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781640385,
+   "private": false,
+   "source_id": "3758",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2531,
+   "content": "bueno quiero consultar cobre que especies hacen analisis",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781641338,
+   "private": false,
+   "source_id": "3759",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7800708109,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 2,
+    "identifier": null,
+    "name": "Chuuck ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2532,
+   "content": "Por ahora la consulta de resultados y estados de muestra todavía no está disponible por este medio. La estamos integrando con nuestra plataforma y muy pronto vas a poder consultarlos por aquí 🙌.\nSi necesitas un resultado puntual, escríbenos y con gusto te comunicamos con el equipo. ¿Te ayudo con algo más, como programar una recogida?",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781641344,
+   "private": false,
+   "source_id": "3760",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2533,
+   "content": "hacen analisis a reptiles?",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781641427,
+   "private": false,
+   "source_id": "3761",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7800708109,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 2,
+    "identifier": null,
+    "name": "Chuuck ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2534,
+   "content": "¿Cuál es el médico solicitante?",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781641433,
+   "private": false,
+   "source_id": "3762",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2535,
+   "content": "quiero saber si hacen analisis a reptiles",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781641459,
+   "private": false,
+   "source_id": "3763",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7800708109,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 2,
+    "identifier": null,
+    "name": "Chuuck ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2536,
+   "content": "Te voy a comunicar con una persona del equipo para que te ayude con eso.",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781641466,
+   "private": false,
+   "source_id": "3764",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2537,
+   "content": "Asignado a operaciones por Luciano",
+   "inbox_id": 1,
+   "conversation_id": 4,
+   "message_type": 2,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781641467,
+   "private": false,
+   "source_id": null
+  }
+ ]
+}

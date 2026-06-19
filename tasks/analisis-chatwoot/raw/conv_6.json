@@ -1,0 +1,73 @@
+{
+ "meta": {
+  "labels": [],
+  "additional_attributes": {
+   "chat_id": 5614718650,
+   "business_connection_id": null
+  },
+  "contact": {
+   "additional_attributes": {
+    "username": null,
+    "language_code": "en",
+    "social_telegram_user_id": 5614718650,
+    "social_telegram_user_name": null
+   },
+   "custom_attributes": {},
+   "email": null,
+   "id": 5,
+   "identifier": null,
+   "name": "MUJI gc",
+   "phone_number": null,
+   "thumbnail": "",
+   "blocked": false,
+   "type": "contact"
+  },
+  "agent_last_seen_at": "2026-05-29T17:28:50.852Z",
+  "assignee_last_seen_at": null
+ },
+ "payload": [
+  {
+   "id": 119,
+   "content": "/start",
+   "inbox_id": 1,
+   "conversation_id": 6,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1778361317,
+   "private": false,
+   "source_id": "1191",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "en",
+     "social_telegram_user_id": 5614718650,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 5,
+    "identifier": null,
+    "name": "MUJI gc",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 120,
+   "content": "Conversation was marked open by system due to an error with the agent bot.",
+   "inbox_id": 1,
+   "conversation_id": 6,
+   "message_type": 2,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1778361317,
+   "private": false,
+   "source_id": null
+  }
+ ]
+}

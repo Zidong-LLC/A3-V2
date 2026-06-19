@@ -46,6 +46,47 @@ EXTRA_TESTS = [
 ]
 ALL_TESTS = URO_TESTS + RENAL_TESTS + EXTRA_TESTS
 
+# Perfiles de catálogo para la recomendación por especie ('no sé / qué me recomiendas')
+# y para resolver la selección con código y precio reales.
+CATALOG_PROFILES = [
+    {"code": "301", "name": "Perfil Felinos I", "category": "Perfiles Felinos", "species": "felino",
+     "description": "Cuadro Hemático, Creatinina, GGT, Coproscópico", "price": 43000},
+    {"code": "302", "name": "Perfil Felino II", "category": "Perfiles Felinos", "species": "felino",
+     "description": "Creatinina, BUN/UREA, GGT", "price": 27000},
+    {"code": "401", "name": "Perfil Canino I", "category": "Perfiles Caninos", "species": "canino",
+     "description": "Cuadro Hemático, Creatinina, ALT", "price": 40000},
+    {"code": "402", "name": "Perfil Canino II", "category": "Perfiles Caninos", "species": "canino",
+     "description": "Glucosa, BUN/UREA, Creatinina", "price": 30000},
+    {"code": "501", "name": "Perfil Renal I", "category": "Perfiles Renales", "species": "ambos",
+     "description": "Cuadro Hemático, Parcial de Orina, BUN/UREA, Creatinina", "price": 34000},
+]
+
+
+def _profiles_for_species(species=None, limit=6):
+    key = (species or "").strip().lower()
+    if key in ("canino", "felino"):
+        rows = [p for p in CATALOG_PROFILES if p["species"] in (key, "ambos")]
+    else:
+        rows = list(CATALOG_PROFILES)
+    rows.sort(key=lambda r: 0 if r["species"] == key else 1)
+    return rows[:limit]
+
+
+def _profiles_by_codes(codes, species=None):
+    cset = {str(c).strip() for c in (codes or [])}
+    return [p for p in CATALOG_PROFILES if p["code"] in cset]
+
+
+def _find_one_profile(value, species=None):
+    """find_catalog_profile: resuelve un perfil por código o por nombre (contención)."""
+    key = _norm(value)
+    if not key:
+        return None
+    for p in CATALOG_PROFILES:
+        if _norm(p["code"]) in key or _norm(p["name"]) in key or key in _norm(p["name"]):
+            return p
+    return None
+
 _state = {}
 
 
@@ -124,8 +165,9 @@ _PATCHES = {
     "find_diagnostic_label": dict(side_effect=_find_label),
     "get_tests_for_label": dict(side_effect=_tests_for_label),
     "find_catalog_profiles": dict(return_value=[]),
-    "find_catalog_profile": dict(return_value=None),
-    "get_catalog_profiles_by_codes": dict(return_value=[]),
+    "find_catalog_profile": dict(side_effect=_find_one_profile),
+    "get_catalog_profiles_by_codes": dict(side_effect=_profiles_by_codes),
+    "list_catalog_profiles_for_species": dict(side_effect=_profiles_for_species),
     "find_tests_by_area": dict(side_effect=_area_tests),
     "get_tests_by_codes_or_names": dict(side_effect=_tests_by_names),
     "get_tests_by_codes": dict(side_effect=_tests_by_names),

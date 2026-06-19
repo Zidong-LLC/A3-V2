@@ -769,6 +769,28 @@ def list_catalog_profiles(limit: int = 500) -> list[dict]:
     return result.data or []
 
 
+def list_catalog_profiles_for_species(species: str | None = None, limit: int = 6) -> list[dict]:
+    """Perfiles del catálogo aplicables a una especie, para recomendar cuando el
+    cliente no sabe qué pedir. Prioriza los perfiles propios de la especie sobre los
+    genéricos ('ambos'). Defensivo: si falla la consulta devuelve lista vacía."""
+    try:
+        query = (
+            _client.table("catalog_profiles")
+            .select("code, name, category, species, description, price")
+            .eq("is_active", True)
+            .order("code")
+            .limit(5000)
+        )
+        species_key = (species or "").strip().lower()
+        if species_key in ("canino", "felino"):
+            query = query.in_("species", [species_key, "ambos"])
+        rows = query.execute().data or []
+    except Exception:
+        return []
+    rows.sort(key=lambda r: 0 if (r.get("species") or "").strip().lower() == (species or "").strip().lower() else 1)
+    return rows[:limit]
+
+
 def list_conversation_messages(limit: int = 500) -> list[dict]:
     result = (
         _client.table("conversation_messages")

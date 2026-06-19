@@ -1,0 +1,566 @@
+{
+ "meta": {
+  "labels": [],
+  "additional_attributes": {
+   "chat_id": 7889439641,
+   "business_connection_id": null
+  },
+  "contact": {
+   "additional_attributes": {
+    "username": null,
+    "language_code": "es",
+    "social_telegram_user_id": 7889439641,
+    "social_telegram_user_name": null
+   },
+   "custom_attributes": {},
+   "email": null,
+   "id": 9,
+   "identifier": null,
+   "name": "Gusmery Ruiz",
+   "phone_number": null,
+   "thumbnail": "",
+   "blocked": false,
+   "type": "contact"
+  },
+  "agent_last_seen_at": "2026-06-16T20:25:15.784Z",
+  "assignee_last_seen_at": null
+ },
+ "payload": [
+  {
+   "id": 2142,
+   "content": "Para seguir con la orden necesito ese dato. Si ahora no lo tienes a mano, dime y lo retomamos, o con gusto te comunico con alguien del equipo.",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543008,
+   "private": false,
+   "source_id": "3370",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2143,
+   "content": "Confirmo b los datos",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543031,
+   "private": false,
+   "source_id": "3371",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7889439641,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 9,
+    "identifier": null,
+    "name": "Gusmery Ruiz",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2144,
+   "content": "Buenas",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543057,
+   "private": false,
+   "source_id": "3372",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7889439641,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 9,
+    "identifier": null,
+    "name": "Gusmery Ruiz",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2145,
+   "content": "Buenas, ¿confirmas los datos para cerrar la orden?",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543063,
+   "private": false,
+   "source_id": "3373",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2146,
+   "content": "Si",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543072,
+   "private": false,
+   "source_id": "3374",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7889439641,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 9,
+    "identifier": null,
+    "name": "Gusmery Ruiz",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2147,
+   "content": "Cierra la orden",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543109,
+   "private": false,
+   "source_id": "3375",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7889439641,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 9,
+    "identifier": null,
+    "name": "Gusmery Ruiz",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2148,
+   "content": "Antes de registrar, te resumo la orden:\n- Veterinaria: Dale Pets\n- Dirección de retiro: CL 8C 78-24\n- Médico solicitante: Juan Perez\n- Paciente: Fifi (Felino, Siameses, Hembra, 2 meses)\n- Propietario: Oscar Diaz\n- Análisis: 451-Perfil Hepático Felino I\n- Observaciones: sin observaciones\n- Forma de pago: contraentrega\n¿Confirmas estos datos? (Sí / Corregir)",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543114,
+   "private": false,
+   "source_id": "3376",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2149,
+   "content": "Si",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543130,
+   "private": false,
+   "source_id": "3377",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7889439641,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 9,
+    "identifier": null,
+    "name": "Gusmery Ruiz",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2150,
+   "content": "Esto no avanza",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543195,
+   "private": false,
+   "source_id": "3378",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7889439641,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 9,
+    "identifier": null,
+    "name": "Gusmery Ruiz",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2151,
+   "content": "Claro. ¿Qué dato quieres corregir? (dirección, médico, paciente, especie, raza, sexo, edad, propietario, observaciones, análisis o forma de pago)",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543197,
+   "private": false,
+   "source_id": "3379",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2152,
+   "content": "Ninguno",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543209,
+   "private": false,
+   "source_id": "3380",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7889439641,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 9,
+    "identifier": null,
+    "name": "Gusmery Ruiz",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2153,
+   "content": "Antes de registrar, te resumo la orden:\n- Veterinaria: Dale Pets\n- Dirección de retiro: CL 8C 78-24\n- Médico solicitante: Juan Perez\n- Paciente: Fifi (Felino, Siameses, Hembra, 2 meses)\n- Propietario: Oscar Diaz\n- Análisis: 451-Perfil Hepático Felino I\n- Observaciones: sin observaciones\n- Forma de pago: contraentrega\n¿Confirmas estos datos? (Sí / Corregir)",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543214,
+   "private": false,
+   "source_id": "3381",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2154,
+   "content": "Si",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543222,
+   "private": false,
+   "source_id": "3382",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7889439641,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 9,
+    "identifier": null,
+    "name": "Gusmery Ruiz",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2155,
+   "content": "Se quedo pegado",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543250,
+   "private": false,
+   "source_id": "3383",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7889439641,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 9,
+    "identifier": null,
+    "name": "Gusmery Ruiz",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2156,
+   "content": "Para avanzar, puedes responder: 1) sí, esa dirección está bien, o 2) enviarme la dirección correcta.",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543257,
+   "private": false,
+   "source_id": "3384",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2157,
+   "content": "1",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543265,
+   "private": false,
+   "source_id": "3385",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7889439641,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 9,
+    "identifier": null,
+    "name": "Gusmery Ruiz",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2158,
+   "content": "Antes de registrar, te resumo la orden:\n- Veterinaria: Dale Pets\n- Dirección de retiro: CL 8C 78-24\n- Médico solicitante: Juan Perez\n- Paciente: Fifi (Felino, Siameses, Hembra, 2 meses)\n- Propietario: Oscar Diaz\n- Análisis: 451-Perfil Hepático Felino I\n- Observaciones: sin observaciones\n- Forma de pago: contraentrega\n¿Confirmas estos datos? (Sí / Corregir)",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543273,
+   "private": false,
+   "source_id": "3386",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2159,
+   "content": "Sí",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543278,
+   "private": false,
+   "source_id": "3387",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7889439641,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 9,
+    "identifier": null,
+    "name": "Gusmery Ruiz",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2160,
+   "content": "Chao no funciona",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543304,
+   "private": false,
+   "source_id": "3388",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7889439641,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 9,
+    "identifier": null,
+    "name": "Gusmery Ruiz",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2161,
+   "content": "Claro. ¿Qué dato quieres corregir? (dirección, médico, paciente, especie, raza, sexo, edad, propietario, observaciones, análisis o forma de pago)",
+   "inbox_id": 1,
+   "conversation_id": 10,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781543306,
+   "private": false,
+   "source_id": "3389",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  }
+ ]
+}

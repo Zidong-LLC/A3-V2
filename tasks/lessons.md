@@ -221,3 +221,39 @@ del contexto, no solo los flags de `captured_fields` (que persisten varios turno
 ### L37 — Limpiar puentes del habla antes de buscar nombres de cliente
 **Problema:** "Nombre de la clínica mía es Animal Pet" se buscaba como `Mía Es Animal Pet`, aunque `Animal Pet` sí existía.
 **Regla:** al extraer nombre tras marcadores como veterinaria/clínica, quitar puentes conversacionales (`mía es`, `mi ... se llama`, `es`) antes del lookup. Si el nombre limpio matchea y la frase real no, el bug es extracción, no BD. Ver ERR-032.
+
+### L38 — Post-cierre y memoria multiorden requieren señales explicitas y backstops
+**Problema:** en retesteo real, un `sí` suelto o la palabra `orden` tras el cierre podia abrir una orden duplicada; frases compuestas como "el mismo médico y el mismo propietario" solo reutilizaban un campo; y pasos dependientes del LLM (especie ambigua, corrección con valor, perfil por etiqueta) podian repetir fallback o perder datos.
+**Regla:** despues de cerrar una orden, solo iniciar seguimiento con señal explicita de nueva orden (`otra orden`, `quiero programar ruta`), no con afirmaciones ambiguas. Los datos compuestos y cierres criticos necesitan backstop deterministico que capture todos los campos del turno y retome el primer dato faltante. Ver ERR-033.
+
+### L39 — Los guardrails de avance no deben pisar respuestas de lookup
+**Problema:** un mensaje largo podia capturar datos de orden y tambien disparar lookup de cliente; si el lookup encontraba opciones, el guard de "primer faltante tras avance" reemplazaba esa respuesta por "dame NIT/nombre", ocultando las opciones.
+**Regla:** cuando un paso deterministico ya produjo una respuesta especifica de identificacion (`_client_match_options` o `_client_not_found`), ningun guardrail generico de progreso debe sobrescribirla. Los extractores de cliente deben soportar marcadores naturales en frases largas (`la veterinaria ... es X`). Ver ERR-034.
+
+### L40 — Toda frase real se procesa como paquete: datos + preguntas + BD
+**Problema:** frases reales mezclan intencion, pregunta lateral, identificador de cliente y datos de orden. Si un guard de preventa corre antes del lookup, o si solo se escucha el campo que "tocaba", el bot responde humano un pedazo pero pierde datos utiles o se queda parado.
+**Regla:** antes de devolver una respuesta lateral/preventa, verificar si la misma frase trae identificador (`NIT`, `soy de X`, `veterinaria ... es X`) y dejar que pase por lookup. Luego preservar la respuesta lateral y retomar con el primer dato faltante. Las conversaciones imperfectas deben vivir en `tools/scripts/diag_real_messy_flows.py`. Ver ERR-035.
+
+### L41 — Catalogo generico no es analisis cerrado
+**Problema:** `analisis de sangre` no existe como prueba unica con codigo/precio; guardarlo como `exam_type` cierra la orden con un texto libre y deja al cliente sin opciones reales. Preguntas como `que analisis hacen` tampoco deben caer en repregunta generica.
+**Regla:** frases genericas de catalogo deben mostrar opciones concretas con codigo/precio y dejar `_test_menu_options` seleccionable. Si el usuario pregunta por especies/animales, responder esa duda antes de interpretar `analisis` como pedido de catalogo. Ver ERR-036.
+
+### L42 — Una respuesta operativa fija solo aplica a PREGUNTAS, no a ordenes impacientes
+**Problema:** la frase fija "Si, recogemos muestras con motorizado asignado..." se disparaba ante cualquier mencion de `recoger/recogida/motorizado`, sin distinguir una pregunta ("¿ustedes recogen?") de una orden impaciente ("programen la recogida ya", "recogela hoy"). Como la respuesta lateral no avanzaba el flujo, re-preguntaba el mismo campo → bucle; y antes de identificar, tapaba el escalado del cliente no registrado.
+**Regla:** una respuesta operativa lateral solo debe dispararse si el mensaje es realmente una PREGUNTA por el servicio (signo `?`/`¿` o marcador interrogativo) y NO trae verbo imperativo de programar. Si el cliente ordena, no interceptar: dejar que el flujo capture/cierre o escale. Validar con el simulador adversarial `tools/scripts/sim_cliente.py`, no con respuestas del LLM hardcodeadas. Ver ERR-037.
+
+### L45 — Agregar análisis a un perfil del catálogo no debe perder el precio base (ERR-039)
+**Problema:** elegir un perfil del catálogo (504, $22k) y luego agregarle un análisis (1601, $16k) mostraba el total como $16k, ignorando el perfil base. La base se perdía porque el perfil quedaba en `exam_type` como texto (sin `_selected_profile_code/price`) y "agregar análisis" entraba al menú genérico de análisis sueltos, que reseteaba a "perfil a medida desde cero".
+**Regla:** el total de una orden con perfil base + agregados se calcula con `calculate_profile_adjusted_total` (base + agregados − quitados), no con `calculate_custom_profile_total` (solo agregados). Si `exam_type` es un perfil del catálogo pero falta el `_selected_profile_code`, resolverlo (`_resolve_profile_base_if_missing`) ANTES de calcular el total, como backstop path-independent en `_order_summary_lines`. Excluir "Perfil personalizado…" (ese sí es desde cero). Ideal a futuro: agregar análisis a un perfil debe entrar a la personalización del base (`_profile_customizing`), no al menú de sueltos. Verificar el total reconstruyendo el estado real de la sesión, no solo el camino feliz. Ver ERR-039.
+
+### L44 — "No sé qué pedir" necesita guard determinista; y distinguir cambio TOTAL vs PARCIAL del análisis (ERR-038)
+**Problema:** el flujo "no sé / qué me recomiendas" lo resolvía el LLM: listaba perfiles amontonados en una línea, la selección quedaba sin código/precio (resumen sin valor), no respondía el precio al confirmar, y en multiorden arrastraba el perfil de otra especie. Además "no sé... perro" disparaba el detector de corrección ("no"=corregir, "perro"=paciente) y borraba el paciente.
+**Regla:**
+- Mostrar opciones (perfiles por especie) y capturar la selección debe ser DETERMINÍSTICO, con código y precio reales (`_store_selected_profile_fields`), para que el resumen muestre el valor. El LLM improvisa formato y pierde el código/precio.
+- Un pedido de recomendación/"no sé" debe interceptarse ANTES de los detectores de corrección (que reaccionan a "no"/"perro") y ANTES de los otros guards de catálogo (que capturan el guess del modelo). Si no, el orden del pipeline gana y el guard real no dispara.
+- Distinguir CAMBIO TOTAL ("otro análisis", "no sé recomiéndame" → limpiar y reofrecer desde cero por especie) de AJUSTE PARCIAL ("el mismo pero sin X", "igual más Y" → MANTENER el perfil base y solo agregar/quitar, preguntando lo que falte). Nunca limpiar todo ante un ajuste parcial: la gente dice "todo igual salvo esto". Nunca registrar un perfil de especie distinta a la del paciente.
+- Validar con el modelo real reproduciendo la conversación del usuario (`diag_perfil_recomendacion.py`), no solo con tests mockeados. Ver ERR-038.
+
+### L43 — Testear con una IA-cliente adversarial, nunca con respuestas del LLM hardcodeadas
+**Problema:** los tests que fijaban la salida del LLM (`_ai_reply(...)` con `confidence: 1.0`) siempre pasaban porque uno mismo escribia la respuesta "correcta"; afirmaban que el agente estaba bien cuando con datos reales se rompia (bucles, no escalar). Daban falsos positivos.
+**Regla:** el agente conversacional se valida con modelo real respondiendo a inputs imperfectos. `tools/scripts/sim_cliente.py` pone una IA a actuar de cliente humano caotico (typos, datos en desorden, evasivo, impaciente, no registrado, particular) contra `process_turn` real, con un juez-IA que lee la transcripcion. Lo perfecto/mockeado del agente se elimino (ERR-037). Conservar solo tests de logica pura/infra (rules, db helpers, webhooks, dashboard).

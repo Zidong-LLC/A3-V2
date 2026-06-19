@@ -1,0 +1,550 @@
+{
+ "meta": {
+  "labels": [],
+  "additional_attributes": {
+   "chat_id": 614028335,
+   "business_connection_id": null
+  },
+  "contact": {
+   "additional_attributes": {
+    "username": null,
+    "language_code": "es",
+    "social_telegram_user_id": 614028335,
+    "social_telegram_user_name": null
+   },
+   "custom_attributes": {},
+   "email": null,
+   "id": 6,
+   "identifier": null,
+   "name": "Adriana Rodríguez",
+   "phone_number": null,
+   "thumbnail": "",
+   "blocked": false,
+   "type": "contact"
+  },
+  "agent_last_seen_at": "2026-06-16T13:58:55.365Z",
+  "assignee_last_seen_at": null
+ },
+ "payload": [
+  {
+   "id": 998,
+   "content": "Cuadro hematico",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333135,
+   "private": false,
+   "source_id": "2131",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 614028335,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 6,
+    "identifier": null,
+    "name": "Adriana Rodríguez",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 999,
+   "content": "Perfecto. Para “Cuadro hemático”, ¿es para canino o felino?",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333140,
+   "private": false,
+   "source_id": "2132",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 1002,
+   "content": "equino",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333146,
+   "private": false,
+   "source_id": "2134",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 614028335,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 6,
+    "identifier": null,
+    "name": "Adriana Rodríguez",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 1003,
+   "content": "Gracias. Para equino, ¿qué tipo de análisis necesitas exactamente: Cuadro hemático solo, o algún perfil adicional (por ejemplo, con química/renal/parasitológico)?",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333151,
+   "private": false,
+   "source_id": "2136",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 1005,
+   "content": "cuadro hemático solo",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333163,
+   "private": false,
+   "source_id": "2138",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 614028335,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 6,
+    "identifier": null,
+    "name": "Adriana Rodríguez",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 1007,
+   "content": "Perfecto, entonces sería Cuadro hemático solo. ¿Cuál es el nombre del paciente?",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333169,
+   "private": false,
+   "source_id": "2140",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 1010,
+   "content": "Cenizo",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333190,
+   "private": false,
+   "source_id": "2143",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 614028335,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 6,
+    "identifier": null,
+    "name": "Adriana Rodríguez",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 1011,
+   "content": "Perfecto, Cenizo. ¿El paciente es macho o hembra?",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333195,
+   "private": false,
+   "source_id": "2144",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 1012,
+   "content": "macho",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333201,
+   "private": false,
+   "source_id": "2145",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 614028335,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 6,
+    "identifier": null,
+    "name": "Adriana Rodríguez",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 1013,
+   "content": "Listo, macho. ¿Qué edad tiene el paciente?",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333205,
+   "private": false,
+   "source_id": "2146",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 1014,
+   "content": "3",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333218,
+   "private": false,
+   "source_id": "2147",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 614028335,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 6,
+    "identifier": null,
+    "name": "Adriana Rodríguez",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 1015,
+   "content": "Perfecto, 3 años. ¿Cuál es el nombre del propietario?",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333223,
+   "private": false,
+   "source_id": "2148",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 1016,
+   "content": "Josue Moreno",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333230,
+   "private": false,
+   "source_id": "2149",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 614028335,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 6,
+    "identifier": null,
+    "name": "Adriana Rodríguez",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 1017,
+   "content": "Perfecto, Josue Moreno. ¿Quieres dejar alguna observación para la orden o la registramos sin observaciones?",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333235,
+   "private": false,
+   "source_id": "2150",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 1018,
+   "content": "No",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333238,
+   "private": false,
+   "source_id": "2151",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 614028335,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 6,
+    "identifier": null,
+    "name": "Adriana Rodríguez",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 1019,
+   "content": "¿Cuál es la raza del paciente?",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333249,
+   "private": false,
+   "source_id": "2152",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 1020,
+   "content": "Criollo",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333261,
+   "private": false,
+   "source_id": "2153",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 614028335,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 6,
+    "identifier": null,
+    "name": "Adriana Rodríguez",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 1021,
+   "content": "Antes de cerrar, ¿prefieres pagar ahora (contado) o contraentrega con el motorizado?",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333273,
+   "private": false,
+   "source_id": "2154",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 1022,
+   "content": "Contraentrega",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333303,
+   "private": false,
+   "source_id": "2155",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 614028335,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 6,
+    "identifier": null,
+    "name": "Adriana Rodríguez",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 1023,
+   "content": "Quedó registrado:\n- Veterinaria: Dr. Luis Sandoval\n- Dirección de retiro: CR 10 16-56 SUR\n- Médico solicitante: Adriana Rodriguez\n- Teléfono: 3134626834\n- Paciente: Cenizo (equino, Criollo, macho, 3)\n- Propietario: Josue Moreno\n- Análisis: Cuadro hemático solo\n- Observaciones: sin observaciones\n- Forma de pago: contraentrega\nNuestro motorizado pasará a recoger la muestra. ¿Necesitás crear otra orden de servicio para otro paciente o animal?\n\nMotorizado asignado: Javier (0007f3d0970ec).",
+   "inbox_id": 1,
+   "conversation_id": 7,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333310,
+   "private": false,
+   "source_id": "2156",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  }
+ ]
+}

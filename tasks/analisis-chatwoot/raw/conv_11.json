@@ -1,0 +1,526 @@
+{
+ "meta": {
+  "labels": [],
+  "additional_attributes": {
+   "chat_id": 8743140376,
+   "business_connection_id": null
+  },
+  "contact": {
+   "additional_attributes": {
+    "username": null,
+    "language_code": "es",
+    "social_telegram_user_id": 8743140376,
+    "social_telegram_user_name": null
+   },
+   "custom_attributes": {},
+   "email": null,
+   "id": 10,
+   "identifier": null,
+   "name": "Laberir COLOMBIA Jorge ",
+   "phone_number": null,
+   "thumbnail": "",
+   "blocked": false,
+   "type": "contact"
+  },
+  "agent_last_seen_at": "2026-06-03T13:59:01.965Z",
+  "assignee_last_seen_at": null
+ },
+ "payload": [
+  {
+   "id": 902,
+   "content": "Me llamaran a este telefono",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780330918,
+   "private": false,
+   "source_id": "2035",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 8743140376,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 10,
+    "identifier": null,
+    "name": "Laberir COLOMBIA Jorge ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 903,
+   "content": "Sí, así es. Para confirmarlo y dejarlo bien registrado, compárteme el número de teléfono de contacto (incluye el indicativo si aplica) para que el equipo de operaciones te llame.",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780330928,
+   "private": false,
+   "source_id": "2036",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 904,
+   "content": "5555555556",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780330947,
+   "private": false,
+   "source_id": "2037",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 8743140376,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 10,
+    "identifier": null,
+    "name": "Laberir COLOMBIA Jorge ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 905,
+   "content": "Permíteme un momentico mientras reviso nuestros registros 🔍",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780330952,
+   "private": false,
+   "source_id": "2038",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 906,
+   "content": "No encuentro ningún cliente registrado con ese dato.",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780330957,
+   "private": false,
+   "source_id": "2039",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 907,
+   "content": "Soy veterinario",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780330991,
+   "private": false,
+   "source_id": "2040",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 8743140376,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 10,
+    "identifier": null,
+    "name": "Laberir COLOMBIA Jorge ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 908,
+   "content": "Permíteme un momentico mientras reviso nuestros registros 🔍",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780330997,
+   "private": false,
+   "source_id": "2041",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 909,
+   "content": "Encontré demasiadas coincidencias con 'veterinario'. Para ubicar el cliente correcto, compárteme una palabra más específica del nombre, el nombre exacto o el NIT.",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780331002,
+   "private": false,
+   "source_id": "2042",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 910,
+   "content": "Ver",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780331012,
+   "private": false,
+   "source_id": "2043",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 8743140376,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 10,
+    "identifier": null,
+    "name": "Laberir COLOMBIA Jorge ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 911,
+   "content": "Permíteme un momentico mientras reviso nuestros registros 🔍",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780331017,
+   "private": false,
+   "source_id": "2044",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 912,
+   "content": "Encontré demasiadas coincidencias con 'veterinario'. Para ubicar el cliente correcto, compárteme una palabra más específica del nombre, el nombre exacto o el NIT.",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780331022,
+   "private": false,
+   "source_id": "2045",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 913,
+   "content": "Vet",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780331040,
+   "private": false,
+   "source_id": "2046",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 8743140376,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 10,
+    "identifier": null,
+    "name": "Laberir COLOMBIA Jorge ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 914,
+   "content": "Permíteme un momentico mientras reviso nuestros registros 🔍",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780331044,
+   "private": false,
+   "source_id": "2047",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 915,
+   "content": "Encontré demasiadas coincidencias con 'veterinario'. Para ubicar el cliente correcto, compárteme una palabra más específica del nombre, el nombre exacto o el NIT.",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780331048,
+   "private": false,
+   "source_id": "2048",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 916,
+   "content": "Soy la veterinaria Josefa",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780331213,
+   "private": false,
+   "source_id": "2049",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 8743140376,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 10,
+    "identifier": null,
+    "name": "Laberir COLOMBIA Jorge ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 917,
+   "content": "Permíteme un momentico mientras reviso nuestros registros 🔍",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780331218,
+   "private": false,
+   "source_id": "2050",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 918,
+   "content": "Encontré demasiadas coincidencias con 'veterinario'. Para ubicar el cliente correcto, compárteme una palabra más específica del nombre, el nombre exacto o el NIT.",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780331222,
+   "private": false,
+   "source_id": "2051",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 919,
+   "content": "Nombre de la veterinaria tienda mis mascotas",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780331321,
+   "private": false,
+   "source_id": "2052",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 8743140376,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 10,
+    "identifier": null,
+    "name": "Laberir COLOMBIA Jorge ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 920,
+   "content": "Permíteme un momentico mientras reviso nuestros registros 🔍",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780331326,
+   "private": false,
+   "source_id": "2053",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 921,
+   "content": "Encontré demasiadas coincidencias con 'veterinario'. Para ubicar el cliente correcto, compárteme una palabra más específica del nombre, el nombre exacto o el NIT.",
+   "inbox_id": 1,
+   "conversation_id": 11,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780331330,
+   "private": false,
+   "source_id": "2054",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  }
+ ]
+}

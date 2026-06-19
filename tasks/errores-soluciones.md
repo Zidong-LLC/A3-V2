@@ -61,6 +61,87 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Correcciones aplicadas
 
+### ERR-039 — Agregar un análisis a un perfil del catálogo perdía el precio base (total mal calculado)
+- Severidad: alto
+- Flujo: catálogo / personalización de perfil / confirmación / precio
+- Síntoma observado (testeo real, `external_chat_id=4`, 2026-06-18): el cliente eligió el perfil 504 (Perfil Renal IV, $22k por texto, vía el LLM) y luego pidió agregarle el 1601 (Parcial de Orina, $16k). El resumen mostró "Análisis: 504-Perfil Renal IV", "Análisis incluidos: 1601 $16k" y "Valor estimado: $16,000 COP" — solo el análisis agregado, SIN el precio del perfil base. El total correcto era $22k + $16k = $38k. El cliente lo notó ("me parece que me estás dando un valor equivocado").
+- Causa raíz: el perfil 504 quedó en `exam_type` como TEXTO pero `_selected_profile_code`/`_selected_profile_price` quedaron en None (lo eligió por el LLM, no por el menú determinista; y al pedir "agregar análisis" el flujo entró al menú genérico de análisis sueltos `_test_options_response`, que pone `exam_type=None`/`selected_tests=[]` y descartó la base). En `_order_summary_lines`, sin `_selected_profile_code`, cae a la rama `elif selected_tests` (perfil a medida desde cero) y solo suma los análisis agregados (`calculate_custom_profile_total`), ignorando el valor del perfil base.
+- Solución aplicada: backstop `_resolve_profile_base_if_missing(fields)` llamado al inicio de `_order_summary_lines`: si `exam_type` es un perfil del catálogo (`_looks_like_catalog_profile`, excluyendo "Perfil personalizado…") y falta `_selected_profile_code`, resuelve el perfil con `db.find_catalog_profile` y fija código/nombre/precio/descripción del base. Así el resumen usa la rama de perfil base (`calculate_profile_adjusted_total`): total = precio del perfil + agregados − quitados, y muestra "Perfil base", "Agregados" y "Valor estimado" correctos. Path-independent: corrige el total sin importar cómo se llegó al estado.
+- Archivos afectados: `app/agent.py` (`_resolve_profile_base_if_missing`, `_order_summary_lines`), `tools/scripts/validate_flows.py` (mock `find_catalog_profile` resuelve perfiles).
+- Validación: prueba determinística reconstruyendo el estado de la sesión 4 (504 texto + 1601 agregado) → "Perfil base $22k + Agregados $16k = Valor estimado $38,000 COP" y `_selected_profile_code=504` persistido. `pytest` 77/77; `validate_flows.py` 20/20 sin regresión.
+- Pendiente relacionado (no bloqueante): al agregar análisis a un perfil, el flujo debería entrar a la PERSONALIZACIÓN del perfil base (`_profile_customizing`, manteniendo `_selected_profile_code`) en vez del menú de análisis sueltos; el backstop corrige el total, pero la ruta ideal evitaría perder la base de entrada. Además, "el precio está mal" cae al prompt de corrección genérico (no recalcula/explica): mejora futura.
+- Estado: corregido (total correcto en el resumen y el registro).
+
+### ERR-038 — Recomendación de perfiles ("no sé qué pedir") improvisada por el LLM: formato amontonado, sin precio y arrastre en multiorden
+- Severidad: alto
+- Flujo: catálogo / selección de análisis / confirmación / multiorden
+- Síntoma observado (testeo real del usuario, `external_chat_id=1`, 2026-06-18): al pedir el análisis y responder "No se", el bot listaba los perfiles TODO JUNTO en una sola línea separados por `;` (P1). Al elegir "la primera", el resumen y el registro NO mostraban el precio del perfil (P2). Al confirmar la orden preguntando a la vez el precio ("sí es correcto, pero cuánto cuesta"), el bot cerraba sin responder el precio (P3). En una segunda orden para un paciente de OTRA especie (canino), al pedir otro análisis y decir "no sé, recomiéndame", el bot no recomendaba y registraba el perfil FELINO de la orden anterior para el canino (P4).
+- Causa raíz: el flujo "no sé / qué me recomiendas" lo resolvía el LLM sin guard determinista. (P1) el LLM formateaba la lista del catálogo inyectado. (P2) la selección por texto guardaba `exam_type` sin `_selected_profile_code/price`, así que `_order_summary_lines` no agregaba la línea de valor. (P3) el cierre solo anteponía `_operational_side_question_answer`, que para "precio de eso" daba respuesta genérica y además el precio no estaba guardado. (P4) al cambiar de análisis no se limpiaba el `exam_type` viejo; y "no sé... perro" disparaba el detector de corrección ("no"=corregir, "perro"=paciente), borrando el paciente en vez de recomendar.
+- Solución aplicada:
+  - Guard determinista `_enforce_profile_recommendation_help` + handler temprano en `process_turn`: ante recomendación/"no sé" con especie conocida, lista los perfiles de la especie (`db.list_catalog_profiles_for_species`) en formato VERTICAL con código y precio, seleccionables (`_profile_menu_options`). Corre ANTES de los detectores de corrección y de `_enforce_diagnostic_label_help`.
+  - `_select_profile_from_menu` + `_capture_profile_menu_selection`: la selección guarda el perfil real con `_store_selected_profile_fields` (código, nombre, precio), por lo que el resumen muestra "Valor estimado" (P2).
+  - `_price_answer_for_order`: al confirmar + preguntar precio, antepone el valor REAL del perfil elegido antes del "Quedó registrado" (P3).
+  - Distinción CAMBIO TOTAL vs AJUSTE PARCIAL: `_wants_to_change_analysis` (total → limpia y reofrece) vs `_wants_partial_analysis_change` ("el mismo pero sin X / más Y" → mantiene el perfil base y activa la personalización existente `_profile_customizing`). El reofrecimiento de followup marca `_profile_detail_offered` para que el ajuste parcial funcione (P4).
+  - Prompt: bullet de formato vertical de perfiles + R28 (total vs parcial; nunca registrar un perfil de especie distinta a la del paciente).
+- Archivos afectados: `app/agent.py`, `app/prompt.py`, `app/services/db.py`, `tools/scripts/validate_flows.py` (mocks de perfiles), `tools/scripts/diag_perfil_recomendacion.py` (nuevo).
+- Validación: `python tools/scripts/diag_perfil_recomendacion.py` (modelo real: A lista vertical con precios; B captura con precio; C precio al confirmar; D 2ª orden canina sin arrastrar el felino → OK). Caso parcial reproducido (mantiene el perfil base, no reinicia). `pytest` 77/77; `validate_flows.py` 20/20 sin regresión.
+- Estado: corregido.
+
+### ERR-037 — Cliente impaciente ("programen la recogida ya") metia bucle y no escalaba al no registrado
+- Severidad: alto
+- Flujo: programar recogida / preguntas operativas laterales / escalado cliente no registrado
+- Sintoma observado: detectado con el simulador adversarial `tools/scripts/sim_cliente.py` (IA-cliente vs agente real). (1) Persona `apurado`: al pedirle observaciones, respondia "sin observaciones, programen la recogida ya" y el bot soltaba la frase fija "Si, recogemos muestras con motorizado asignado..." y volvia a pedir observaciones → bucle, nunca cerraba la orden. (2) Persona `no_registrado`: "necesito que me programen la recogida igual, no estamos registrados" recibia la misma frase fija en bucle en vez de escalar a recepcion. (3) Persona `preventa`: bucle de identificacion.
+- Reproduccion minima: `python tools/scripts/sim_cliente.py apurado no_registrado preventa caotico`.
+- Causa raiz: la rama final de `_operational_side_question_answer` (`app/agent.py`) trataba cualquier mencion de `recoger/recogida/motorizado` como pregunta operativa y devolvia la frase fija del motorizado, sin distinguir una PREGUNTA por el servicio de una ORDEN impaciente ("programen la recogida ya", "recogela hoy"). Como la respuesta lateral no avanzaba el flujo, re-preguntaba el mismo campo → bucle; y antes de la identificacion impedia llegar al escalado del no registrado.
+- Solucion aplicada: dos guards. (1) `_is_service_question(text, tokens)` — la rama del motorizado de `_operational_side_question_answer` solo responde si el mensaje es una PREGUNTA real (signo `?`/`¿` o marcador interrogativo) y NO trae verbo imperativo de programar; si el cliente ordena, devuelve `None` y el flujo sigue capturando/cerrando. (2) Guard temprano en `process_turn`: si `_claims_unregistered_client(user_message)` y no hay cliente identificado, escalar a recepcion de inmediato (`_escalate_new_client_turn`) ANTES de las respuestas de preventa/servicio, aunque el mensaje mencione un nombre o pida "que me programen". Antes el escalado existia (~linea 3621) pero era inalcanzable porque `_pre_identification_service_info_response` interceptaba primero.
+- Archivos afectados: `app/agent.py`, `tools/scripts/sim_cliente.py` (nuevo simulador adversarial).
+- Validacion: `python tools/scripts/sim_cliente.py` bateria completa (apurado/caotico/evasivo/desordenado/no_registrado/particular → BIEN; preventa → REGULAR/BIEN segun corrida); `no_registrado` 3/3 corridas escala correctamente; `pytest` (77/77).
+- Estado: corregido.
+
+### ERR-036 — Catalogo y preguntas laterales se perdian durante la orden real
+- Severidad: alto
+- Flujo: catalogo / preguntas laterales / seleccion de analisis
+- Sintoma observado: en Chatwoot `external_chat_id=1`, el usuario pidio `analisis de sangre`; el bot lo guardo como texto libre sin codigo ni precio, aunque no existe una prueba unica con ese nombre. Tambien pregunto `para que cantidad de animales hacen analisis?` y el bot no respondio la duda, sino que solto un fallback de analisis y siguio con paciente. Luego pregunto `que tipo de analisis hacen` y el bot volvio a `Por ultimo, que analisis...` sin mostrar opciones.
+- Reproduccion minima: `python tools/scripts/diag_real_messy_flows.py` casos E/F/G.
+- Causa raiz: las preguntas con palabras `analisis/hacen` se trataban como catalogo antes que como duda lateral de especies; `analisis de sangre` se aceptaba como `exam_type` cerrado aunque era generico; y cuando el guard de hematologia si preparaba opciones, `_enforce_first_missing_after_progress` las pisaba con el siguiente campo faltante.
+- Solucion aplicada: responder dudas de especies/animales antes del catalogo general; mostrar opciones concretas de hematologia para `analisis de sangre`; mostrar resumen de catalogo con codigos/precios ante `que analisis hacen`; y proteger `_test_menu_options` para que los guards genericos no reemplacen la respuesta especifica.
+- Archivos afectados: `app/agent.py`, `tools/scripts/diag_real_messy_flows.py`.
+- Validacion: `python tools/scripts/diag_real_messy_flows.py` (7/7); `python tools/scripts/validate_flows.py` (20/20); `python tools/scripts/diag_chatwoot.py` (6/6); `pytest` (86/86).
+- Estado: corregido.
+
+### ERR-035 — Frases reales con pregunta lateral, cliente y datos mezclados se quedaban a medio camino
+- Severidad: alto
+- Flujo: identificacion / comprension de frase completa / post-cierre
+- Sintoma observado: al convertir conversaciones imperfectas en prueba ejecutable se detectaron fallos reales: (1) pregunta lateral + cliente exacto + datos del paciente (`recogen con motorizado? soy de Animal Planet HVP...`) respondia la duda pero no identificaba el cliente; (2) `La veterinaria ... es Animal Planet, necesito analisis...` podia caer en preventa/metodologia en vez de consultar BD; (3) `analisis de sangre` en frase larga no siempre quedaba absorbido; (4) tras cerrar una orden, `hacen analisis a reptiles?` podia reactivar el resumen anterior.
+- Reproduccion minima: `python tools/scripts/diag_real_messy_flows.py`.
+- Causa raiz: la respuesta de preventa se ejecutaba antes del lookup aunque la frase trajera identificador; el extractor de `soy de X` solo funcionaba al final del mensaje; faltaba fallback minimo para analisis comunes cuando el LLM no los capturaba; y el post-cierre dejaba pasar preguntas generales al pipeline normal.
+- Solucion aplicada: nueva bateria de conversaciones reales imperfectas; no interceptar preventa si hay identificador; extraer `soy de X y necesito...`; preservar respuesta lateral al confirmar cliente encontrado; fallback para `hemograma` / `analisis de sangre`; reofrecer opciones cuando el usuario dice `ya te dije`; y derivar preguntas generales post-cierre sin reabrir la orden.
+- Archivos afectados: `app/agent.py`, `tools/scripts/diag_real_messy_flows.py`.
+- Validacion: `python tools/scripts/diag_real_messy_flows.py` (4/4); `python tools/scripts/diag_chatwoot.py` (6/6); `python tools/scripts/validate_flows.py` (20/20); `pytest` (86/86); `python tools/scripts/diag_identificacion.py`.
+- Estado: corregido.
+
+### ERR-034 — Nombre de veterinaria en frase larga se detectaba pero no se mostraban opciones
+- Severidad: alto
+- Flujo: identificacion de cliente / recogida de datos
+- Sintoma observado: en Chatwoot `external_chat_id=1`, el usuario escribio: "La veterinaria con la que trabajo es Animal Planet, ... quiero hacer un analisis...". El agente guardo datos de la orden, pero respondio de nuevo pidiendo NIT/nombre. Luego interpreto "Ya te dije el nombre de la veterinaria" como `clinic_name` y contesto "No encuentro ningun cliente registrado".
+- Reproduccion minima: conversacion real con `Animal Planet` en medio de una frase larga que tambien trae analisis/especie/edad.
+- Causa raiz: habia dos fallos encadenados: (1) el extractor deterministico solo leia nombres con marcador si quedaban al final del mensaje; (2) cuando el lookup si encontraba varias coincidencias (`_client_match_options`), `_enforce_first_missing_after_progress` pisaba la respuesta de opciones con la pregunta generica de NIT/nombre porque vio avance en otros campos y cliente aun faltante.
+- Solucion aplicada: extraer nombres con patron `veterinaria/clinica ... es X` aunque aparezcan en medio del mensaje; no tratar frases como "ya te dije..." como identificador; y evitar que `_enforce_first_missing_after_progress` sobrescriba respuestas de lookup (`_client_match_options` / `_client_not_found`).
+- Archivos afectados: `app/agent.py`, `tests/test_agent_side_questions.py`.
+- Validacion: reproduccion real corregida (`Animal Planet` muestra opciones); `pytest` (86/86); `python tools/scripts/diag_identificacion.py`; `python tools/scripts/validate_flows.py` (20/20).
+- Estado: corregido.
+
+### ERR-033 — Retesteo real descubrio bucles post-cierre, multiorden y especie ambigua
+- Severidad: alto
+- Flujo: route_scheduling / multiorden / especie / confirmacion / perfiles
+- Sintoma observado: el retesteo con conversaciones reales mostro varios fallos: (1) tras cerrar una orden, un "si" suelto o "cierra la orden" podia abrir/reconfirmar una segunda orden con datos viejos; (2) una duda operativa post-cierre (hora de ruta) sacaba el estado a escalado y luego "otra orden" reusaba mal la orden anterior; (3) "el mismo medico y el mismo propietario" solo reutilizaba un campo; (4) especie ambigua repetia literalmente la misma pregunta; (5) cliente particular se trataba como cliente nuevo; (6) correccion con valor en el mismo mensaje podia perder el valor; (7) perfil por etiqueta diagnostica podia caer en fallback repetido al agregar/quitar/cerrar.
+- Reproduccion minima: `python tools/scripts/diag_comprension.py`; `python tools/scripts/diag_multiorden.py`; `python tools/scripts/diag_chatwoot.py H1 H3 H7`; `python tools/scripts/validate_flows.py`.
+- Causa raiz: detectores deterministas demasiado amplios (`si`/`orden` como otra orden), algunos turnos post-cierre seguian el pipeline del LLM en vez de responder como estado cerrado, y faltaban backstops para datos compuestos (`mismo medico y propietario`), especie ambigua, correccion con valor y personalizacion por etiqueta diagnostica.
+- Solucion aplicada: endurecer deteccion de otra orden; responder dudas operativas post-cierre conservando fase terminal; cambiar el prompt de cierre para pedir "otra orden" explicitamente; resolver varios campos "el mismo" en un solo turno; normalizar especies comunes y especies adicionales; aclarar especie ambigua sin repetir literal; bloquear particulares antes de tratarlos como cliente nuevo; extraer el valor de correccion del paciente; agregar backstop deterministico para agregar/quitar/cerrar perfiles por etiqueta diagnostica.
+- Archivos afectados: `app/agent.py`.
+- Validacion: `python tools/scripts/check_supabase_state.py`; `python tools/scripts/diag_identificacion.py`; `python tools/scripts/diag_comprension.py`; `python tools/scripts/diag_multiorden.py`; `python tools/scripts/diag_chatwoot.py`; `python tools/scripts/validate_flows.py` (20/20); `pytest` (85/85).
+- Estado: corregido.
+
 ### ERR-032 — Nombre de clinica con "mia es" no matcheaba clientes existentes
 - Severidad: alto
 - Flujo: identificacion de cliente
@@ -505,6 +586,10 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 - L35 — La señal de cliente no registrado gana antes del lookup
 - L36 — Memoria multiorden no gana contra cambio explícito de cliente
 - L37 — Limpiar puentes del habla antes de buscar nombres de cliente
+- L38 — Post-cierre y memoria multiorden requieren señales explicitas y backstops
+- L39 — Los guardrails de avance no deben pisar respuestas de lookup
+- L40 — Toda frase real se procesa como paquete: datos + preguntas + BD
+- L41 — Catalogo generico no es analisis cerrado
 
 ### Tareas registradas
 - Bucle de especie/typos + fallback robótico (caso Luciano) ✅ COMPLETA

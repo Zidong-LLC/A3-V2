@@ -1,0 +1,586 @@
+{
+ "meta": {
+  "labels": [],
+  "additional_attributes": {
+   "chat_id": 8434332423,
+   "business_connection_id": null
+  },
+  "contact": {
+   "additional_attributes": {
+    "username": null,
+    "language_code": "es",
+    "avatar_url_hash": "b58769cebe01e8fd4b65178df4967037b626c20694654d61000277bcbcfc993d",
+    "last_avatar_sync_at": "2026-05-13T15:07:48Z",
+    "social_telegram_user_id": 8434332423,
+    "social_telegram_user_name": null
+   },
+   "custom_attributes": {},
+   "email": null,
+   "id": 7,
+   "identifier": null,
+   "name": "SG-SST ",
+   "phone_number": null,
+   "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBDZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--7d4c1d4e8629e25af6c8dfd0b5cbe1e6fc9c8538/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_2.jpg",
+   "blocked": false,
+   "type": "contact"
+  },
+  "agent_last_seen_at": "2026-06-01T20:03:42.208Z",
+  "assignee_last_seen_at": null
+ },
+ "payload": [
+  {
+   "id": 978,
+   "content": "Gracias. ¿Es canino, felino u otra especie?",
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333048,
+   "private": false,
+   "source_id": "2111",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 980,
+   "content": "Vaca",
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333054,
+   "private": false,
+   "source_id": "2112",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "b58769cebe01e8fd4b65178df4967037b626c20694654d61000277bcbcfc993d",
+     "last_avatar_sync_at": "2026-05-13T15:07:48Z",
+     "social_telegram_user_id": 8434332423,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 7,
+    "identifier": null,
+    "name": "SG-SST ",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBDZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--7d4c1d4e8629e25af6c8dfd0b5cbe1e6fc9c8538/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_2.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 981,
+   "content": "Entendido. Para continuar: ¿qué raza tiene el paciente?",
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333058,
+   "private": false,
+   "source_id": "2114",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 984,
+   "content": "Holstein",
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333079,
+   "private": false,
+   "source_id": "2117",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "b58769cebe01e8fd4b65178df4967037b626c20694654d61000277bcbcfc993d",
+     "last_avatar_sync_at": "2026-05-13T15:07:48Z",
+     "social_telegram_user_id": 8434332423,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 7,
+    "identifier": null,
+    "name": "SG-SST ",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBDZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--7d4c1d4e8629e25af6c8dfd0b5cbe1e6fc9c8538/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_2.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 985,
+   "content": "Perfecto, Holstein. ¿El paciente es macho o hembra?",
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333085,
+   "private": false,
+   "source_id": "2118",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 987,
+   "content": "Hembra",
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333094,
+   "private": false,
+   "source_id": "2120",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "b58769cebe01e8fd4b65178df4967037b626c20694654d61000277bcbcfc993d",
+     "last_avatar_sync_at": "2026-05-13T15:07:48Z",
+     "social_telegram_user_id": 8434332423,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 7,
+    "identifier": null,
+    "name": "SG-SST ",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBDZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--7d4c1d4e8629e25af6c8dfd0b5cbe1e6fc9c8538/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_2.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 989,
+   "content": "Listo, hembra. ¿Qué edad tiene el paciente?",
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333098,
+   "private": false,
+   "source_id": "2122",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 992,
+   "content": "5 años",
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333106,
+   "private": false,
+   "source_id": "2125",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "b58769cebe01e8fd4b65178df4967037b626c20694654d61000277bcbcfc993d",
+     "last_avatar_sync_at": "2026-05-13T15:07:48Z",
+     "social_telegram_user_id": 8434332423,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 7,
+    "identifier": null,
+    "name": "SG-SST ",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBDZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--7d4c1d4e8629e25af6c8dfd0b5cbe1e6fc9c8538/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_2.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 993,
+   "content": "Perfecto, 5 años. ¿Cuál es el nombre del propietario?",
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333110,
+   "private": false,
+   "source_id": "2126",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 995,
+   "content": "María",
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333124,
+   "private": false,
+   "source_id": "2128",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "b58769cebe01e8fd4b65178df4967037b626c20694654d61000277bcbcfc993d",
+     "last_avatar_sync_at": "2026-05-13T15:07:48Z",
+     "social_telegram_user_id": 8434332423,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 7,
+    "identifier": null,
+    "name": "SG-SST ",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBDZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--7d4c1d4e8629e25af6c8dfd0b5cbe1e6fc9c8538/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_2.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 997,
+   "content": "Gracias, María. ¿Quieres dejar alguna observación para la orden o la registramos sin observaciones?",
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333128,
+   "private": false,
+   "source_id": "2130",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 1000,
+   "content": "Es urgencia",
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333141,
+   "private": false,
+   "source_id": "2133",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "b58769cebe01e8fd4b65178df4967037b626c20694654d61000277bcbcfc993d",
+     "last_avatar_sync_at": "2026-05-13T15:07:48Z",
+     "social_telegram_user_id": 8434332423,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 7,
+    "identifier": null,
+    "name": "SG-SST ",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBDZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--7d4c1d4e8629e25af6c8dfd0b5cbe1e6fc9c8538/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_2.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 1001,
+   "content": "Entendido. Para dejar la orden completa, ¿quieres que registremos la observación como “urgencia” o prefieres especificar el motivo?",
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333146,
+   "private": false,
+   "source_id": "2135",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 1004,
+   "content": "Si, urgencia",
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333160,
+   "private": false,
+   "source_id": "2137",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "b58769cebe01e8fd4b65178df4967037b626c20694654d61000277bcbcfc993d",
+     "last_avatar_sync_at": "2026-05-13T15:07:48Z",
+     "social_telegram_user_id": 8434332423,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 7,
+    "identifier": null,
+    "name": "SG-SST ",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBDZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--7d4c1d4e8629e25af6c8dfd0b5cbe1e6fc9c8538/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_2.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 1006,
+   "content": "Antes de cerrar, ¿prefieres pagar ahora (contado) o contraentrega con el motorizado?",
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333165,
+   "private": false,
+   "source_id": "2139",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 1008,
+   "content": "Pagar ahora",
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333178,
+   "private": false,
+   "source_id": "2141",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "b58769cebe01e8fd4b65178df4967037b626c20694654d61000277bcbcfc993d",
+     "last_avatar_sync_at": "2026-05-13T15:07:48Z",
+     "social_telegram_user_id": 8434332423,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 7,
+    "identifier": null,
+    "name": "SG-SST ",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBDZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--7d4c1d4e8629e25af6c8dfd0b5cbe1e6fc9c8538/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_2.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 1009,
+   "content": "Listo, entonces registramos el pago como contado. Quedó registrado:\n- Veterinaria: Puppy Export Centro Mayor\n- Dirección de retiro: Calle 38 A Sur No 34A-04\n- Médico solicitante: La caracas\n- Teléfono: 3043375103\n- Paciente: Lola (Vaca, Holstein, Hembra, 5 años)\n- Propietario: María\n- Análisis: 202-Perfil Cachorros II\n- Observaciones: urgencia\n- Forma de pago: contado\n\nNuestro motorizado pasará a recoger la muestra.\n\nMotorizado asignado: Luis (00054ba429228).",
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780333184,
+   "private": false,
+   "source_id": "2142",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 1024,
+   "content": "Buenas tardes",
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780334950,
+   "private": false,
+   "source_id": "2157",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "b58769cebe01e8fd4b65178df4967037b626c20694654d61000277bcbcfc993d",
+     "last_avatar_sync_at": "2026-05-13T15:07:48Z",
+     "social_telegram_user_id": 8434332423,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 7,
+    "identifier": null,
+    "name": "SG-SST ",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBDZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--7d4c1d4e8629e25af6c8dfd0b5cbe1e6fc9c8538/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_2.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 1025,
+   "content": "Hola. ¿En qué podemos ayudarte hoy?",
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780334954,
+   "private": false,
+   "source_id": "2158",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 1026,
+   "content": null,
+   "inbox_id": 1,
+   "conversation_id": 8,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1780334980,
+   "private": false,
+   "source_id": "2159",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "b58769cebe01e8fd4b65178df4967037b626c20694654d61000277bcbcfc993d",
+     "last_avatar_sync_at": "2026-05-13T15:07:48Z",
+     "social_telegram_user_id": 8434332423,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 7,
+    "identifier": null,
+    "name": "SG-SST ",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBDZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--7d4c1d4e8629e25af6c8dfd0b5cbe1e6fc9c8538/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_2.jpg",
+    "blocked": false,
+    "type": "contact"
+   },
+   "attachments": [
+    {
+     "id": 2,
+     "message_id": 1026,
+     "file_type": "image",
+     "account_id": 2,
+     "extension": null,
+     "data_url": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/blobs/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBEUT09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--a4b923e30e838f43ca1aeb3ff34e1cd1d47c76bd/file_4.jpg",
+     "thumb_url": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBEUT09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--a4b923e30e838f43ca1aeb3ff34e1cd1d47c76bd/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_4.jpg",
+     "file_size": 115482,
+     "width": 720,
+     "height": 1280
+    }
+   ]
+  }
+ ]
+}

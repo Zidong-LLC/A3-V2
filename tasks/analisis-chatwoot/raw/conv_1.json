@@ -1,0 +1,572 @@
+{
+ "meta": {
+  "labels": [],
+  "additional_attributes": {
+   "chat_id": 8230925682,
+   "business_connection_id": null
+  },
+  "contact": {
+   "additional_attributes": {
+    "username": null,
+    "language_code": "es",
+    "avatar_url_hash": "1c9e9c3eb2cda06b9efccc0bac03fd157b9b633b63d7edbc2463e48435c8e79a",
+    "last_avatar_sync_at": "2026-05-03T20:02:47Z",
+    "social_telegram_user_id": 8230925682,
+    "social_telegram_user_name": null
+   },
+   "custom_attributes": {},
+   "email": null,
+   "id": 1,
+   "identifier": null,
+   "name": "Luciano ivan Cutipa Dalponte",
+   "phone_number": null,
+   "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBCZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--e92aa1ab3b63a90b39da6cb4965621a39fc384ff/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_0.jpg",
+   "blocked": false,
+   "type": "contact"
+  },
+  "agent_last_seen_at": "2026-06-16T19:32:39.730Z",
+  "assignee_last_seen_at": null
+ },
+ "payload": [
+  {
+   "id": 2326,
+   "content": "No",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781622973,
+   "private": false,
+   "source_id": "3555",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "1c9e9c3eb2cda06b9efccc0bac03fd157b9b633b63d7edbc2463e48435c8e79a",
+     "last_avatar_sync_at": "2026-05-03T20:02:47Z",
+     "social_telegram_user_id": 8230925682,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 1,
+    "identifier": null,
+    "name": "Luciano ivan Cutipa Dalponte",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBCZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--e92aa1ab3b63a90b39da6cb4965621a39fc384ff/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_0.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2327,
+   "content": "Por último, ¿qué análisis o perfil van a enviar?",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781622977,
+   "private": false,
+   "source_id": "3556",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2328,
+   "content": "Para un análisis de orina que quiero hacerle",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781622987,
+   "private": false,
+   "source_id": "3557",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "1c9e9c3eb2cda06b9efccc0bac03fd157b9b633b63d7edbc2463e48435c8e79a",
+     "last_avatar_sync_at": "2026-05-03T20:02:47Z",
+     "social_telegram_user_id": 8230925682,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 1,
+    "identifier": null,
+    "name": "Luciano ivan Cutipa Dalponte",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBCZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--e92aa1ab3b63a90b39da6cb4965621a39fc384ff/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_0.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2329,
+   "content": "Para análisis de orina tenemos estas opciones:\n1. 1507 Cortisol en Orina ($33k)\n2. 1601 Parcial de Orina (14 parámetros) ($16k)\n3. 1602 Lectura Sedimento Urinario ($7k)\n4. 1604 Parcial de Orina y Tinción de Wright ($22k)\n5. 1605 Parcial de Orina y Tinción de Gram ($22k)\n6. 1606 Parcial de Orina + Tinción Gram y Wright ($30k)\n7. 2102 Urocultivo y Antibiograma ($80k)\nDecime el número (o el nombre) del que necesitas. Puedes elegir varios.",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781623000,
+   "private": false,
+   "source_id": "3558",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2330,
+   "content": "La primera y la cuarta quiero",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781623010,
+   "private": false,
+   "source_id": "3559",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "1c9e9c3eb2cda06b9efccc0bac03fd157b9b633b63d7edbc2463e48435c8e79a",
+     "last_avatar_sync_at": "2026-05-03T20:02:47Z",
+     "social_telegram_user_id": 8230925682,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 1,
+    "identifier": null,
+    "name": "Luciano ivan Cutipa Dalponte",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBCZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--e92aa1ab3b63a90b39da6cb4965621a39fc384ff/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_0.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2331,
+   "content": "Listo, registro 1507 Cortisol en Orina, 1604 Parcial de Orina y Tinción de Wright. Antes de cerrar, ¿cómo prefieres el pago: contraentrega con el motorizado o pago en línea?",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781623012,
+   "private": false,
+   "source_id": "3560",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2332,
+   "content": "Online quiero pagar más o menos a qué hora llegaría el el repartidor?",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781623026,
+   "private": false,
+   "source_id": "3561",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "1c9e9c3eb2cda06b9efccc0bac03fd157b9b633b63d7edbc2463e48435c8e79a",
+     "last_avatar_sync_at": "2026-05-03T20:02:47Z",
+     "social_telegram_user_id": 8230925682,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 1,
+    "identifier": null,
+    "name": "Luciano ivan Cutipa Dalponte",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBCZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--e92aa1ab3b63a90b39da6cb4965621a39fc384ff/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_0.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2333,
+   "content": "Antes de registrar, te resumo la orden:\n- Veterinaria: Animal Planet Hvp\n- Dirección de retiro: CR 6A 12A-13\n- Médico solicitante: Luciano\n- Paciente: Gastón (Canino, Rottweiler, Macho, 5 años)\n- Propietario: Jorge\n- Análisis: Perfil personalizado (2 análisis)\n- Observaciones: sin observaciones\n- Forma de pago: pago_linea\n- Análisis incluidos: 1507-Cortisol en Orina $33k, 1604-Parcial de Orina y Tinción de Wright $22k\n- Valor estimado: $48,400 COP\n¿Confirmas estos datos? (Sí / Corregir)",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781623032,
+   "private": false,
+   "source_id": "3562",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2334,
+   "content": "Si",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781623040,
+   "private": false,
+   "source_id": "3563",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "1c9e9c3eb2cda06b9efccc0bac03fd157b9b633b63d7edbc2463e48435c8e79a",
+     "last_avatar_sync_at": "2026-05-03T20:02:47Z",
+     "social_telegram_user_id": 8230925682,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 1,
+    "identifier": null,
+    "name": "Luciano ivan Cutipa Dalponte",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBCZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--e92aa1ab3b63a90b39da6cb4965621a39fc384ff/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_0.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2335,
+   "content": "Tu orden quedó registrada. Como elegiste pago en línea, nuestro equipo de contabilidad te contactará en breve para enviarte el link y procesar el pago. La recogida de la muestra sigue programada con normalidad.\n\nNúmero de orden: A3-2026-040\n\nMotorizado asignado: Cesar.",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781623045,
+   "private": false,
+   "source_id": "3564",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2336,
+   "content": "OK listo, perfecto, podría ser otra otro análisis para otro para otro paciente",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781623065,
+   "private": false,
+   "source_id": "3565",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "1c9e9c3eb2cda06b9efccc0bac03fd157b9b633b63d7edbc2463e48435c8e79a",
+     "last_avatar_sync_at": "2026-05-03T20:02:47Z",
+     "social_telegram_user_id": 8230925682,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 1,
+    "identifier": null,
+    "name": "Luciano ivan Cutipa Dalponte",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBCZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--e92aa1ab3b63a90b39da6cb4965621a39fc384ff/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_0.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2337,
+   "content": "Perfecto, creamos otra orden de servicio. Mantengo estos datos de la orden anterior:\n- Veterinaria: Animal Planet Hvp\n- Dirección de retiro: CR 6A 12A-13\n- Médico solicitante: Luciano\n- Forma de pago: pago en línea\n¿Confirmas o quieres cambiar alguno (dirección, médico o forma de pago)?",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781623067,
+   "private": false,
+   "source_id": "3566",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2338,
+   "content": "Quisiera cambiar en este caso, el médico, el médico ahora de Gastón, el resto está igual",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781623084,
+   "private": false,
+   "source_id": "3567",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "1c9e9c3eb2cda06b9efccc0bac03fd157b9b633b63d7edbc2463e48435c8e79a",
+     "last_avatar_sync_at": "2026-05-03T20:02:47Z",
+     "social_telegram_user_id": 8230925682,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 1,
+    "identifier": null,
+    "name": "Luciano ivan Cutipa Dalponte",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBCZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--e92aa1ab3b63a90b39da6cb4965621a39fc384ff/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_0.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2339,
+   "content": "¿Cuál es el médico solicitante?",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781623086,
+   "private": false,
+   "source_id": "3568",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2340,
+   "content": "Gastón, te dije",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781623094,
+   "private": false,
+   "source_id": "3569",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "1c9e9c3eb2cda06b9efccc0bac03fd157b9b633b63d7edbc2463e48435c8e79a",
+     "last_avatar_sync_at": "2026-05-03T20:02:47Z",
+     "social_telegram_user_id": 8230925682,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 1,
+    "identifier": null,
+    "name": "Luciano ivan Cutipa Dalponte",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBCZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--e92aa1ab3b63a90b39da6cb4965621a39fc384ff/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_0.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2341,
+   "content": "Tu orden quedó registrada. Como elegiste pago en línea, nuestro equipo de contabilidad te contactará en breve para enviarte el link y procesar el pago. La recogida de la muestra sigue programada con normalidad.\n\nNúmero de orden: A3-2026-041\n\nMotorizado asignado: Cesar.",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781623100,
+   "private": false,
+   "source_id": "3570",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2430,
+   "content": "Hola, como está? Me podrías dar cuánto sería para análisis?",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781627509,
+   "private": false,
+   "source_id": "3658",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "1c9e9c3eb2cda06b9efccc0bac03fd157b9b633b63d7edbc2463e48435c8e79a",
+     "last_avatar_sync_at": "2026-05-03T20:02:47Z",
+     "social_telegram_user_id": 8230925682,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 1,
+    "identifier": null,
+    "name": "Luciano ivan Cutipa Dalponte",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBCZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--e92aa1ab3b63a90b39da6cb4965621a39fc384ff/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_0.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2431,
+   "content": "Hola! Buen día, me alegra que nos visites.\nBienvenido a A3 laboratorio clínico veterinario 🧪 🧫\nAtendemos clínicas y profesionales veterinarios registrados.\n\n¿Con qué te ayudamos hoy? Respóndeme con el número:\n1. Programar análisis y recogida de muestra\n2. Consultar resultados\n3. Pagos\n4. Otro",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781627511,
+   "private": false,
+   "source_id": "3659",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 2488,
+   "content": "Hola",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781638349,
+   "private": false,
+   "source_id": "3716",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "1c9e9c3eb2cda06b9efccc0bac03fd157b9b633b63d7edbc2463e48435c8e79a",
+     "last_avatar_sync_at": "2026-05-03T20:02:47Z",
+     "social_telegram_user_id": 8230925682,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 1,
+    "identifier": null,
+    "name": "Luciano ivan Cutipa Dalponte",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBCZz09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--e92aa1ab3b63a90b39da6cb4965621a39fc384ff/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_0.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 2489,
+   "content": "Hola! Buen día, me alegra que nos visites.\nBienvenido a A3 laboratorio clínico veterinario 🧪 🧫\nAtendemos clínicas y profesionales veterinarios registrados.\n\n¿Con qué te ayudamos hoy? Respóndeme con el número:\n1. Programar análisis y recogida de muestra\n2. Consultar resultados\n3. Pagos\n4. Otro",
+   "inbox_id": 1,
+   "conversation_id": 1,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1781638352,
+   "private": false,
+   "source_id": "3717",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  }
+ ]
+}

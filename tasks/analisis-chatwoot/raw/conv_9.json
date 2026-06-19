@@ -1,0 +1,533 @@
+{
+ "meta": {
+  "labels": [],
+  "additional_attributes": {
+   "chat_id": 5698890570,
+   "business_connection_id": null
+  },
+  "contact": {
+   "additional_attributes": {
+    "username": null,
+    "language_code": "es",
+    "social_telegram_user_id": 5698890570,
+    "social_telegram_user_name": null
+   },
+   "custom_attributes": {},
+   "email": null,
+   "id": 8,
+   "identifier": null,
+   "name": "Clara Patricia Rodriguez",
+   "phone_number": null,
+   "thumbnail": "",
+   "blocked": false,
+   "type": "contact"
+  },
+  "agent_last_seen_at": "2026-05-27T18:07:02.790Z",
+  "assignee_last_seen_at": null
+ },
+ "payload": [
+  {
+   "id": 538,
+   "content": "No encuentro ninguna veterinaria registrada con ese dato.\n¿Sos cliente nuevo?",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779895990,
+   "private": false,
+   "source_id": "1680",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 540,
+   "content": "Si",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779896033,
+   "private": false,
+   "source_id": "1682",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 5698890570,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 8,
+    "identifier": null,
+    "name": "Clara Patricia Rodriguez",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 541,
+   "content": "En este momento no encuentro la veterinaria registrada en nuestra base de datos. Para poder coordinar el retiro de muestras, primero necesitamos realizar el registro del cliente. Te voy a comunicar con atención al cliente para que puedan ayudarte con este proceso.",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779896039,
+   "private": false,
+   "source_id": "1683",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 542,
+   "content": "Asignado a operaciones por Luciano",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 2,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779896040,
+   "private": false,
+   "source_id": null
+  },
+  {
+   "id": 543,
+   "content": "Gracias",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779896054,
+   "private": false,
+   "source_id": "1684",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 5698890570,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 8,
+    "identifier": null,
+    "name": "Clara Patricia Rodriguez",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 544,
+   "content": "Con mucho gusto, para eso estamos! Si en algún momento necesitás algo más, acá seguimos. ¡Hasta luego, cuídate!",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779896055,
+   "private": false,
+   "source_id": "1685",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 545,
+   "content": "Hola",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779896067,
+   "private": false,
+   "source_id": "1686",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 5698890570,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 8,
+    "identifier": null,
+    "name": "Clara Patricia Rodriguez",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 546,
+   "content": "Hola. ¿En qué podemos ayudarte hoy?",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779896069,
+   "private": false,
+   "source_id": "1687",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 547,
+   "content": "Programar una recolección de muestras",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779896086,
+   "private": false,
+   "source_id": "1688",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 5698890570,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 8,
+    "identifier": null,
+    "name": "Clara Patricia Rodriguez",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 548,
+   "content": "Claro, con gusto. ¿Me indicás el NIT o el nombre de la veterinaria para ver si está registrada?",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779896091,
+   "private": false,
+   "source_id": "1689",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 549,
+   "content": "Digo",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779896100,
+   "private": false,
+   "source_id": "1690",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 5698890570,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 8,
+    "identifier": null,
+    "name": "Clara Patricia Rodriguez",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 550,
+   "content": "Perfecto. Para programar la recolección, decime por favor el NIT o el nombre de la veterinaria para ver si está registrada.",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779896105,
+   "private": false,
+   "source_id": "1692",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 551,
+   "content": "Dog",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779896106,
+   "private": false,
+   "source_id": "1691",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 5698890570,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 8,
+    "identifier": null,
+    "name": "Clara Patricia Rodriguez",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 552,
+   "content": "Perfecto, encontramos Mechudos Dog. Tenemos como domicilio de retiro: CL 47 SUR 8-151. ¿Es correcta?",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779896110,
+   "private": false,
+   "source_id": "1693",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 553,
+   "content": "Ok",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779896127,
+   "private": false,
+   "source_id": "1694",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 5698890570,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 8,
+    "identifier": null,
+    "name": "Clara Patricia Rodriguez",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 554,
+   "content": "Listo. Para dejar la orden de servicio completa, empecemos con el médico solicitante. ¿Cuál es el nombre?",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779896131,
+   "private": false,
+   "source_id": "1695",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 555,
+   "content": "Dr. Carlos Pico",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779896167,
+   "private": false,
+   "source_id": "1696",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 5698890570,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 8,
+    "identifier": null,
+    "name": "Clara Patricia Rodriguez",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 556,
+   "content": "Perfecto, Dr. Carlos Pico. ¿Cuál es el teléfono de contacto de la veterinaria para esta orden?",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779896172,
+   "private": false,
+   "source_id": "1697",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 557,
+   "content": "3104567892",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779896186,
+   "private": false,
+   "source_id": "1698",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 5698890570,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 8,
+    "identifier": null,
+    "name": "Clara Patricia Rodriguez",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 558,
+   "content": "Gracias. ¿Qué tipo de análisis o perfil necesitás?",
+   "inbox_id": 1,
+   "conversation_id": 9,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1779896191,
+   "private": false,
+   "source_id": "1699",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  }
+ ]
+}

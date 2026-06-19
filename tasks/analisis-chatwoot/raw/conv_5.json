@@ -1,0 +1,404 @@
+{
+ "meta": {
+  "labels": [],
+  "additional_attributes": {
+   "chat_id": 899725247,
+   "business_connection_id": null
+  },
+  "contact": {
+   "additional_attributes": {
+    "username": null,
+    "language_code": "es",
+    "avatar_url_hash": "855303854d010f33cbe1dca4cf3c06e6e720fe3f7435406e978d0c5fdad90603",
+    "last_avatar_sync_at": "2026-05-06T15:39:33Z",
+    "social_telegram_user_id": 899725247,
+    "social_telegram_user_name": null
+   },
+   "custom_attributes": {},
+   "email": null,
+   "id": 4,
+   "identifier": null,
+   "name": "Sérgio Palacios",
+   "phone_number": null,
+   "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBDQT09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--a83aa9729f933f58187c1f34cf92465deedcd64a/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_1.jpg",
+   "blocked": false,
+   "type": "contact"
+  },
+  "agent_last_seen_at": "2026-05-20T15:07:46.084Z",
+  "assignee_last_seen_at": null
+ },
+ "payload": [
+  {
+   "id": 44,
+   "content": "/star",
+   "inbox_id": 1,
+   "conversation_id": 5,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1778081973,
+   "private": false,
+   "source_id": "1120",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "855303854d010f33cbe1dca4cf3c06e6e720fe3f7435406e978d0c5fdad90603",
+     "last_avatar_sync_at": "2026-05-06T15:39:33Z",
+     "social_telegram_user_id": 899725247,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 4,
+    "identifier": null,
+    "name": "Sérgio Palacios",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBDQT09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--a83aa9729f933f58187c1f34cf92465deedcd64a/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_1.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 45,
+   "content": "Hola! Buen día, me alegra que nos visites.\nBienvenido a A3 laboratorio clínico veterinario 🧪 🧫\n¿En qué podemos ayudarte?",
+   "inbox_id": 1,
+   "conversation_id": 5,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1778081975,
+   "private": false,
+   "source_id": "1121",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 48,
+   "content": "Soy cliente nuevo y quiero tomar servicios",
+   "inbox_id": 1,
+   "conversation_id": 5,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1778081993,
+   "private": false,
+   "source_id": "1124",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "855303854d010f33cbe1dca4cf3c06e6e720fe3f7435406e978d0c5fdad90603",
+     "last_avatar_sync_at": "2026-05-06T15:39:33Z",
+     "social_telegram_user_id": 899725247,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 4,
+    "identifier": null,
+    "name": "Sérgio Palacios",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBDQT09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--a83aa9729f933f58187c1f34cf92465deedcd64a/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_1.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 49,
+   "content": "Claro, con gusto.",
+   "inbox_id": 1,
+   "conversation_id": 5,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1778081997,
+   "private": false,
+   "source_id": "1126",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 51,
+   "content": "Conversation was marked open by system due to an error with the agent bot.",
+   "inbox_id": 1,
+   "conversation_id": 5,
+   "message_type": 2,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1778081998,
+   "private": false,
+   "source_id": null
+  },
+  {
+   "id": 52,
+   "content": "Asignado a operaciones por Luciano",
+   "inbox_id": 1,
+   "conversation_id": 5,
+   "message_type": 2,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1778081998,
+   "private": false,
+   "source_id": null
+  },
+  {
+   "id": 54,
+   "content": "hola si que necesitas",
+   "inbox_id": 1,
+   "conversation_id": 5,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1778082051,
+   "private": false,
+   "source_id": "1128",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 74,
+   "content": "/star",
+   "inbox_id": 1,
+   "conversation_id": 5,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1778082486,
+   "private": false,
+   "source_id": "1147",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "855303854d010f33cbe1dca4cf3c06e6e720fe3f7435406e978d0c5fdad90603",
+     "last_avatar_sync_at": "2026-05-06T15:39:33Z",
+     "social_telegram_user_id": 899725247,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 4,
+    "identifier": null,
+    "name": "Sérgio Palacios",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBDQT09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--a83aa9729f933f58187c1f34cf92465deedcd64a/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_1.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 75,
+   "content": "Perfecto.",
+   "inbox_id": 1,
+   "conversation_id": 5,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1778082491,
+   "private": false,
+   "source_id": "1148",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 76,
+   "content": "Quiero programar ruta",
+   "inbox_id": 1,
+   "conversation_id": 5,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1778082524,
+   "private": false,
+   "source_id": "1149",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "855303854d010f33cbe1dca4cf3c06e6e720fe3f7435406e978d0c5fdad90603",
+     "last_avatar_sync_at": "2026-05-06T15:39:33Z",
+     "social_telegram_user_id": 899725247,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 4,
+    "identifier": null,
+    "name": "Sérgio Palacios",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBDQT09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--a83aa9729f933f58187c1f34cf92465deedcd64a/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_1.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 78,
+   "content": "¡Listo! Para programar la recogida, claro con gusto.\n¿Me indicás el NIT o el nombre de la veterinaria para ver si está registrada?",
+   "inbox_id": 1,
+   "conversation_id": 5,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1778082528,
+   "private": false,
+   "source_id": "1151",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 91,
+   "content": "Pok store mascotas",
+   "inbox_id": 1,
+   "conversation_id": 5,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1778082627,
+   "private": false,
+   "source_id": "1163",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "855303854d010f33cbe1dca4cf3c06e6e720fe3f7435406e978d0c5fdad90603",
+     "last_avatar_sync_at": "2026-05-06T15:39:33Z",
+     "social_telegram_user_id": 899725247,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 4,
+    "identifier": null,
+    "name": "Sérgio Palacios",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBDQT09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--a83aa9729f933f58187c1f34cf92465deedcd64a/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_1.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 92,
+   "content": "Perfecto, con gusto. Para ver si está registrada, ¿me confirmás el NIT de Pok Store Mascotas?",
+   "inbox_id": 1,
+   "conversation_id": 5,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1778082632,
+   "private": false,
+   "source_id": "1164",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 93,
+   "content": "1085253918",
+   "inbox_id": 1,
+   "conversation_id": 5,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1778082686,
+   "private": false,
+   "source_id": "1165",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "avatar_url_hash": "855303854d010f33cbe1dca4cf3c06e6e720fe3f7435406e978d0c5fdad90603",
+     "last_avatar_sync_at": "2026-05-06T15:39:33Z",
+     "social_telegram_user_id": 899725247,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 4,
+    "identifier": null,
+    "name": "Sérgio Palacios",
+    "phone_number": null,
+    "thumbnail": "https://n3-chatwoot.1hqzy5.easypanel.host/rails/active_storage/representations/redirect/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaHBDQT09IiwiZXhwIjpudWxsLCJwdXIiOiJibG9iX2lkIn19--a83aa9729f933f58187c1f34cf92465deedcd64a/eyJfcmFpbHMiOnsibWVzc2FnZSI6IkJBaDdCem9MWm05eWJXRjBTU0lJYW5CbkJqb0dSVlE2RTNKbGMybDZaVjkwYjE5bWFXeHNXd2RwQWZvdyIsImV4cCI6bnVsbCwicHVyIjoidmFyaWF0aW9uIn19--0b6ac46103896788c4820e8ae4728bfc577f018e/file_1.jpg",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 94,
+   "content": "No encuentro ninguna veterinaria registrada con ese dato.\n¿Sos cliente nuevo?",
+   "inbox_id": 1,
+   "conversation_id": 5,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1778082691,
+   "private": false,
+   "source_id": "1166",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  }
+ ]
+}

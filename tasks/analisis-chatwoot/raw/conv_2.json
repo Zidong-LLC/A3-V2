@@ -1,0 +1,507 @@
+{
+ "meta": {
+  "labels": [],
+  "additional_attributes": {
+   "chat_id": 7800708109,
+   "business_connection_id": null
+  },
+  "contact": {
+   "additional_attributes": {
+    "username": null,
+    "language_code": "es",
+    "social_telegram_user_id": 7800708109,
+    "social_telegram_user_name": null
+   },
+   "custom_attributes": {},
+   "email": null,
+   "id": 2,
+   "identifier": null,
+   "name": "Chuuck ",
+   "phone_number": null,
+   "thumbnail": "",
+   "blocked": false,
+   "type": "contact"
+  },
+  "agent_last_seen_at": "2026-05-20T15:07:48.713Z",
+  "assignee_last_seen_at": null
+ },
+ "payload": [
+  {
+   "id": 19,
+   "content": "Si soy nuevo",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777898558,
+   "private": false,
+   "source_id": "1094",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7800708109,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 2,
+    "identifier": null,
+    "name": "Chuuck ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 20,
+   "content": "En este momento no encuentro la veterinaria registrada en nuestra base de datos. Para poder coordinar el retiro de muestras, primero necesitamos realizar el registro del cliente. Te voy a comunicar con atención al cliente para que puedan ayudarte con este proceso.",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777898564,
+   "private": false,
+   "source_id": "1095",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 21,
+   "content": "Asignado a operaciones por Luciano",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 2,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777898565,
+   "private": false,
+   "source_id": null
+  },
+  {
+   "id": 22,
+   "content": "Ok gracias",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777898571,
+   "private": false,
+   "source_id": "1096",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7800708109,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 2,
+    "identifier": null,
+    "name": "Chuuck ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 23,
+   "content": "Con mucho gusto, para eso estamos! Si en algún momento necesitás algo más, acá seguimos. ¡Hasta luego, cuídate!",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777898573,
+   "private": false,
+   "source_id": "1097",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 24,
+   "content": "hola como vaa",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777898594,
+   "private": false,
+   "source_id": "1098",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 25,
+   "content": "Hola cómo estás?",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777898621,
+   "private": false,
+   "source_id": "1099",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7800708109,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 2,
+    "identifier": null,
+    "name": "Chuuck ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 26,
+   "content": "Bien, gracias. Para poder coordinar el retiro y el análisis de las 3 muestras, ya te dejé el caso para que atención al cliente haga el registro del cliente nuevo.",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777898627,
+   "private": false,
+   "source_id": "1100",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 27,
+   "content": "Cómo es el tema de los perfiles?",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777898899,
+   "private": false,
+   "source_id": "1101",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7800708109,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 2,
+    "identifier": null,
+    "name": "Chuuck ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 28,
+   "content": "Los perfiles son paquetes de análisis ya armados (por ejemplo, hematología, química, hormonas, etc.) para que no tengas que escoger cada examen uno por uno. Si querés, también podemos armarte un perfil a medida con los análisis que necesites.\n\nPara orientarte: ¿lo querés como perfil prearmado o a medida?",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777898906,
+   "private": false,
+   "source_id": "1102",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 29,
+   "content": "Dame alguna opciones que me recomiendes de los pre armados",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777898959,
+   "private": false,
+   "source_id": "1103",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7800708109,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 2,
+    "identifier": null,
+    "name": "Chuuck ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 30,
+   "content": "Claro. Para perfiles prearmados, decime por favor la especie (canino o felino) y con eso te recomiendo las opciones más usadas para tu caso.",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777898965,
+   "private": false,
+   "source_id": "1104",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 31,
+   "content": "Canino",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777898976,
+   "private": false,
+   "source_id": "1105",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7800708109,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 2,
+    "identifier": null,
+    "name": "Chuuck ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 32,
+   "content": "Perfecto, para canino te dejo opciones prearmadas que suelen usarse mucho:\n\n1330-Panel Control de Salud — $108k\n1333-Panel Pre-operativos — $90k\n1336-Panel Comprensivo — $95k\n151-Perfil General — $32k\n401-Perfil Hepático Canino I — $37k\n\n¿Cuál de estos querés para la muestra? (podés decir el código o el nombre)",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777898982,
+   "private": false,
+   "source_id": "1106",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 33,
+   "content": "Es un pre quirúrgico q necesito",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777899009,
+   "private": false,
+   "source_id": "1107",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7800708109,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 2,
+    "identifier": null,
+    "name": "Chuuck ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 34,
+   "content": "Perfecto, para prequirúrgico en canino tenemos estos perfiles:\n152-Perfil Prequirúrgico I — $24k\n153-Perfil Prequirúrgico II — $36k\n154-Perfil Prequirúrgico III — $38k\n155-Perfil Prequirúrgico IV — $36k\n156-Perfil Prequirúrgico V — $27k\n\n¿Cuál de estos códigos necesitás?",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777899015,
+   "private": false,
+   "source_id": "1108",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 35,
+   "content": "Dime que abarcan el 1 y el 2",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 0,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777899056,
+   "private": false,
+   "source_id": "1109",
+   "sender": {
+    "additional_attributes": {
+     "username": null,
+     "language_code": "es",
+     "social_telegram_user_id": 7800708109,
+     "social_telegram_user_name": null
+    },
+    "custom_attributes": {},
+    "email": null,
+    "id": 2,
+    "identifier": null,
+    "name": "Chuuck ",
+    "phone_number": null,
+    "thumbnail": "",
+    "blocked": false,
+    "type": "contact"
+   }
+  },
+  {
+   "id": 36,
+   "content": "Para darte el detalle exacto de qué pruebas incluye cada perfil (Prequirúrgico I y Prequirúrgico II), necesito derivarte con el equipo que maneja el catálogo completo.",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 1,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777899062,
+   "private": false,
+   "source_id": "1110",
+   "sender": {
+    "id": 2,
+    "name": "Luciano",
+    "available_name": "Luciano",
+    "avatar_url": "",
+    "type": "user",
+    "availability_status": "offline",
+    "thumbnail": ""
+   }
+  },
+  {
+   "id": 37,
+   "content": "La conversación fue marcada por Luciano",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 2,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777899108,
+   "private": false,
+   "source_id": null
+  },
+  {
+   "id": 40,
+   "content": "La conversación fue reabierta por Luciano",
+   "inbox_id": 1,
+   "conversation_id": 2,
+   "message_type": 2,
+   "content_type": "text",
+   "status": "sent",
+   "content_attributes": {},
+   "created_at": 1777899183,
+   "private": false,
+   "source_id": null
+  }
+ ]
+}
