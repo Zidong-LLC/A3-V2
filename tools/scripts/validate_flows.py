@@ -117,7 +117,7 @@ def _area_tests(value, species=None, limit=15):
     return ("Uroanálisis", URO_TESTS[:limit]) if "orina" in _norm(value) else (None, [])
 
 
-def _find_label(query):
+def _find_label(query, species=None):
     """find_diagnostic_label: 'renal' mapea a la etiqueta RENAL."""
     return RENAL_LABEL if "renal" in _norm(query) else None
 

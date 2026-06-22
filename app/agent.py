@@ -1,8 +1,14 @@
 import re
+import logging
 from typing import Callable
+from datetime import datetime
 
-from app.services import ai, db
+from app import billing
+from app.config import ALEGRA_ENABLED, APP_TIMEZONE
+from app.services import ai, db, alegra
 from app.rules import TERMINAL_PHASES, calculate_custom_profile_total, calculate_profile_adjusted_total
+
+logger = logging.getLogger(__name__)
 
 CLIENT_LOOKUP_PROGRESS_MESSAGE = "Permíteme un momentico mientras reviso nuestros registros 🔍"
 
@@ -198,6 +204,14 @@ PAYMENT_ONLINE_HANDOFF_MESSAGE = (
     "La recogida de la muestra sigue programada con normalidad."
 )
 
+# Oferta de agregar más análisis antes del pago. Se repite tras cada agregado hasta que el
+# cliente decida seguir (decline o dé el método de pago). El "si ya está, seguimos con el
+# pago" deja la salida clara para no caer en bucle.
+EXTRA_ANALYSIS_OFFER = (
+    "¿Quieres agregar otro análisis o perfil, o personalizar este? "
+    "Si ya está, seguimos con el pago."
+)
+
 # Cierre cordial al final de una orden registrada: ofrecer otra orden o terminar.
 CLOSING_PROMPT = (
     "Si necesitas crear otra orden para otro paciente, escríbeme: otra orden. "
@@ -336,7 +350,8 @@ _ORDER_RESET_FIELDS = frozenset({
     "_selected_profile_description", "_profile_detail_offered",
     "_profile_detail_confirmed", "_profile_customizing",
     "_profile_options_offered", "_diagnostic_label", "_prev_order_snapshot",
-    "_test_menu_options",
+    "_test_menu_options", "_test_menu_adds_to_profile", "_awaiting_additional_test",
+    "_offering_extra_analysis",
 })
 
 _IDENTIFICATION_RETRY_RESET_FIELDS = frozenset({
@@ -655,6 +670,9 @@ def _wants_partial_analysis_change(text: str) -> bool:
     tokens = set(_tokenize(text))
     if tokens & _ANALYSIS_ADD_REMOVE_TOKENS:
         return True
+    if (tokens & {"extra", "extras", "adicional", "adicionales"}
+            and tokens & {"analisis", "análisis", "examen", "examenes", "exámenes", "prueba", "pruebas"}):
+        return True
     if tokens & {"personalizar", "personalizarlo", "ajustar", "ajustarlo", "modificar"}:
         return True
     if (_is_same_as_previous(text) or tokens & _SAME_AS_PREVIOUS_TOKENS) and tokens & _PARTIAL_KEEP_MARKERS:
@@ -703,7 +721,25 @@ def _select_profile_from_menu(text: str, options: list[dict]) -> dict | None:
     return picks[0] if picks else None
 
 
-def _capture_profile_menu_selection(session: dict, fields: dict, option: dict) -> dict:
+def _selected_profile_addition_response(session: dict, fields: dict, user_message: str, intro: str) -> dict:
+    fields["_profile_customizing"] = True
+    area_response = _area_options_for_profile_addition(fields, user_message)
+    if area_response:
+        area_response["reply"] = f"{intro}\n{area_response['reply']}"
+        return area_response
+    extra = db.get_tests_by_codes_or_names(_named_analysis_terms(user_message))
+    if extra:
+        _add_tests_to_order(fields, extra, "add")
+        missing = _missing_route_field(session, fields)
+        reply = f"{intro} Agrego {_format_test_items(extra)}."
+        if missing and missing != "exam_type":
+            reply += f" {_missing_route_field_question(missing)}"
+        return _base_route_response(reply, fields)
+    fields["_awaiting_additional_test"] = "add"
+    return _base_route_response(f"{intro} ¿Qué análisis quieres agregarle?", fields)
+
+
+def _capture_profile_menu_selection(session: dict, fields: dict, option: dict, user_message: str = "") -> dict:
     """Guarda el perfil elegido del menú de recomendación con su código, nombre y precio
     reales (para que el resumen muestre el valor) y avanza al siguiente dato faltante."""
     species = fields.get("species")
@@ -714,15 +750,44 @@ def _capture_profile_menu_selection(session: dict, fields: dict, option: dict) -
     fields.pop("_test_menu_options", None)
     fields.pop("_correction_pending", None)
     intro = f"Listo, registro {profile.get('code')} {profile.get('name')} ({_money(profile.get('price'))})."
-    missing = _missing_route_field(session, fields)
-    if missing and missing != "exam_type":
-        return _base_route_response(f"{intro} {_missing_route_field_question(missing)}", fields)
-    summary = _route_confirmation_summary(fields)
-    if summary:
-        ai = _base_route_response(f"{intro}\n{summary}", fields)
-        ai["phase"] = CONFIRMATION_PHASE
-        return ai
-    return _base_route_response(intro, fields)
+    if user_message and _wants_partial_analysis_change(user_message):
+        return _selected_profile_addition_response(session, fields, user_message, intro)
+    return _analysis_settled_response(session, fields, intro)
+
+
+def _enforce_catalog_profile_code_selection(session: dict, ai_response: dict, user_message: str) -> dict:
+    if ai_response.get("intent") != "route_scheduling" or _is_profile_detail_question(user_message):
+        return ai_response
+    fields = ai_response.get("captured_fields", {})
+    if not (session.get("client_id") or fields.get("_client_found")):
+        return ai_response
+    codes = _profile_codes_from_text(user_message)
+    if not codes:
+        return ai_response
+    try:
+        profiles = db.get_catalog_profiles_by_codes(codes, fields.get("species"))
+    except Exception:
+        return ai_response
+    if len(profiles) != 1:
+        return ai_response
+    fields["selected_tests"] = None
+    fields["removed_tests"] = None
+    fields.pop("_diagnostic_label", None)
+
+    # Intención compuesta: 'el perfil 152 al que le quiero agregar un análisis extra'.
+    # Fijar el perfil base y, en vez de saltar al pago, abrir el ajuste preguntando qué
+    # agregar (o listar el área si ya la nombró). Solo cuando pide agregar/quitar y no
+    # nombró el análisis concreto en el mismo mensaje.
+    if _wants_partial_analysis_change(user_message):
+        _store_selected_profile_fields(fields, profiles[0])
+        fields.pop("_profile_menu_options", None)
+        fields.pop("_test_menu_options", None)
+        fields.pop("_correction_pending", None)
+        name = fields.get("_selected_profile_name") or "el perfil"
+        intro = f"Listo, parto del {name} ({_money(fields.get('_selected_profile_price'))})."
+        return _selected_profile_addition_response(session, fields, user_message, intro)
+
+    return _capture_profile_menu_selection(session, fields, profiles[0])
 
 
 def _diagnostic_label_suggestion_reply(label: str, tests: list[dict]) -> str:
@@ -846,6 +911,7 @@ def _test_options_response(fields: dict, tests: list[dict], reply: str) -> dict:
     fields["exam_type"] = None
     fields["selected_tests"] = []
     fields["removed_tests"] = []
+    fields.pop("_test_menu_adds_to_profile", None)
     _store_test_menu_options(fields, tests)
     return _base_route_response(reply, fields)
 
@@ -905,10 +971,6 @@ def _select_tests_from_menu(text: str, options: list[dict]) -> list[dict]:
     return partial if len(partial) == 1 else []
 
 
-def _format_selected_tests(tests: list[dict]) -> str:
-    return ", ".join(f"{t['code']} {t['name']}" for t in tests)
-
-
 def _capture_test_menu_selection(session: dict, fields: dict, selected: list[dict]) -> dict:
     """Guarda los análisis elegidos del menú (con su código real) y avanza: pide el
     siguiente dato faltante o, si la orden está completa, muestra el resumen."""
@@ -919,8 +981,89 @@ def _capture_test_menu_selection(session: dict, fields: dict, selected: list[dic
     else:
         fields["exam_type"] = f"Perfil personalizado ({len(selected)} análisis)"
     fields.pop("_test_menu_options", None)
+    fields.pop("_test_menu_adds_to_profile", None)
 
-    intro = f"Listo, registro {_format_selected_tests(selected)}."
+    # Mostrar el precio al lado de cada análisis (y el total si son varios), no solo el nombre.
+    intro = f"Listo, registro {_format_test_items(selected)}."
+    if len(selected) >= 2:
+        total = calculate_custom_profile_total(selected)["total"]
+        intro += f" Valor estimado: {_money(total)}."
+    return _analysis_settled_response(session, fields, intro)
+
+
+def _add_tests_to_order(fields: dict, rows: list[dict], action: str) -> None:
+    """Suma (action='add') o quita (action='remove') los análisis de `rows` sobre la
+    orden en curso, conservando el perfil base si lo hay. Fuente única usada tanto por
+    el ajuste en confirmación como por la selección de un menú de área para agregar."""
+    selected = _as_text_items(fields.get("selected_tests"))
+    removed = _as_text_items(fields.get("removed_tests"))
+
+    # Sin perfil base y sin análisis aún: el exam_type actual es el primer análisis del
+    # perfil personalizado; lo sembramos para no perderlo al agregar el siguiente.
+    if not fields.get("_selected_profile_code") and not selected and action == "add":
+        base_rows = db.get_tests_by_codes_or_names([fields.get("exam_type")])
+        if len(base_rows) == 1:
+            selected = [str(base_rows[0].get("code") or base_rows[0].get("name"))]
+
+    for row in rows:
+        code = str(row.get("code") or row.get("name"))
+        if action == "remove":
+            if code in selected:
+                selected.remove(code)
+            if fields.get("_selected_profile_code") and code not in removed:
+                removed.append(code)
+        else:
+            if code not in selected:
+                selected.append(code)
+            if code in removed:
+                removed.remove(code)
+
+    fields["selected_tests"] = selected
+    fields["removed_tests"] = removed if fields.get("_selected_profile_code") else []
+    if not fields.get("_selected_profile_code") and selected:
+        fields["exam_type"] = f"Perfil personalizado ({len(selected)} análisis)"
+
+
+_AREA_OPTION_QUESTION_TOKENS = frozenset({
+    "que", "qué", "cuales", "cuáles", "cual", "cuál", "tienen", "tienes", "tiene",
+    "hay", "ofrecen", "ofreces", "manejan", "maneja", "disponibles", "disponible",
+    "opciones", "tipos", "tipo", "muestrame", "muéstrame", "muestra", "lista",
+})
+
+
+def _asks_for_area_options(text: str) -> bool:
+    """¿El mensaje es una pregunta abierta por opciones de un área ('qué análisis de
+    orina tienen', 'qué tipos de sangre manejan'), en vez de nombrar un test exacto?"""
+    tokens = set(_tokenize(text))
+    return bool(tokens & _AREA_OPTION_QUESTION_TOKENS) or "?" in (text or "")
+
+
+def _area_options_for_profile_addition(fields: dict, user_message: str) -> dict | None:
+    """Si el cliente, mientras ajusta un perfil, pregunta por análisis de un ÁREA
+    ('qué análisis de orina tienen'), devuelve el menú de esa área marcado para AGREGAR
+    al perfil base (no reemplazarlo). None si el mensaje no es una pregunta por área."""
+    if not _asks_for_area_options(user_message):
+        return None
+    area, tests = db.find_tests_by_area(user_message, fields.get("species"), limit=10)
+    if not area or not tests:
+        return None
+    _store_test_menu_options(fields, tests)
+    fields["_test_menu_adds_to_profile"] = True
+    fields.pop("_awaiting_additional_test", None)
+    return _base_route_response(_test_area_suggestion_reply(area, tests), fields)
+
+
+def _analysis_settled_response(session: dict, fields: dict, intro: str) -> dict:
+    """Respuesta única tras fijar o ajustar el análisis. Si la orden YA tiene análisis y lo
+    único que falta es el pago, OFRECE agregar más (se repite tras cada agregado hasta que el
+    cliente siga). Si faltan otros datos, pide el siguiente; si está todo, muestra el resumen.
+    Centraliza el 'paso de agregar otro análisis' para todas las vías de captura (RESUELTO-017)."""
+    has_analysis = bool(
+        fields.get("exam_type") or fields.get("selected_tests") or fields.get("_selected_profile_code")
+    )
+    if has_analysis and _missing_route_field(session, fields) == "payment_method":
+        fields["_offering_extra_analysis"] = True
+        return _base_route_response(f"{intro} {EXTRA_ANALYSIS_OFFER}", fields)
     missing = _missing_route_field(session, fields)
     if missing:
         return _base_route_response(f"{intro} {_missing_route_field_question(missing)}", fields)
@@ -930,6 +1073,127 @@ def _capture_test_menu_selection(session: dict, fields: dict, selected: list[dic
         ai["phase"] = CONFIRMATION_PHASE
         return ai
     return _base_route_response(intro, fields)
+
+
+def _capture_menu_addition_to_profile(session: dict, fields: dict, selected: list[dict]) -> dict:
+    """El cliente eligió análisis de un menú de área que se mostró para AGREGAR al perfil
+    base (no para empezar de cero). Los suma, recalcula y re-ofrece agregar más o avanza.
+    Cierra el estado de personalización."""
+    fields.pop("_test_menu_options", None)
+    fields.pop("_test_menu_adds_to_profile", None)
+    fields.pop("_awaiting_additional_test", None)
+    fields.pop("_correction_pending", None)
+    fields["_profile_customizing"] = False
+    _add_tests_to_order(fields, selected, "add")
+    return _analysis_settled_response(session, fields, f"Listo, agrego {_format_test_items(selected)}.")
+
+
+_PROCEED_TO_PAYMENT_TOKENS = frozenset({
+    "no", "nada", "ninguno", "ninguna", "listo", "lista", "seguimos", "sigamos", "sigue",
+    "continuemos", "continua", "continúa", "ya", "pago", "paga", "pagar", "cerramos",
+    "cierra", "finalizar", "terminar", "eso", "suficiente", "completo", "completa",
+})
+_PROCEED_TO_PAYMENT_PHRASES = (
+    "asi esta", "asi está", "esta bien", "está bien", "asi nomas", "nada mas", "nada más",
+    "es todo", "con eso", "sigamos con el pago", "seguimos con el pago", "vamos al pago",
+    "asi quedamos", "ya esta", "ya está", "dejalo asi", "déjalo así",
+)
+_REMOVE_TOKENS = frozenset({"quitar", "quita", "quitale", "quítale", "sacar", "saca", "sacale",
+                            "sácale", "sin", "menos", "retirar", "remover", "remueve"})
+
+
+def _wants_to_proceed_to_payment(text: str) -> bool:
+    """Ante la oferta de agregar más, ¿el cliente decide SEGUIR al pago (o ya dio el método)?
+    Una orden de agregar/quitar ('agregale X') nunca cuenta como seguir."""
+    if _payment_method_from_text(text):
+        return True
+    ordered = _tokenize(text)
+    tokens = set(ordered)
+    if tokens & (_ANALYSIS_ADD_REMOVE_TOKENS | _REMOVE_TOKENS):
+        return False
+    normalized = " ".join(ordered)  # ORDENADO: las frases necesitan el orden original
+    if any(p in normalized for p in _PROCEED_TO_PAYMENT_PHRASES):
+        return True
+    return bool(tokens & _PROCEED_TO_PAYMENT_TOKENS)
+
+
+def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str) -> dict | None:
+    """Interpreta la respuesta del cliente a la oferta '¿agregar otro análisis o seguimos con
+    el pago?'. Devuelve la respuesta del bot, o None si dio el método de pago (que el pipeline
+    normal capture). Se repite tras cada agregado hasta que el cliente decida seguir."""
+    # 1) Sigue al pago: dio el método o dijo que ya está.
+    if _wants_to_proceed_to_payment(user_message):
+        fields.pop("_offering_extra_analysis", None)
+        if _payment_method_from_text(user_message):
+            return None  # el pipeline normal captura el método de pago
+        return _base_route_response(PAYMENT_METHOD_QUESTION, fields)
+
+    tokens = set(_tokenize(user_message))
+
+    # 2) Pregunta por opciones de un área ('qué análisis de orina tienen') -> menú que SUMA.
+    area_resp = _area_options_for_profile_addition(fields, user_message)
+    if area_resp:
+        return area_resp
+
+    # 3) Pide recomendación / no sabe / 'otro perfil' -> lista de perfiles por especie.
+    species = fields.get("species")
+    if species and (_wants_profile_recommendation(user_message) or _doesnt_know_what_to_ask(user_message)
+                    or ("perfil" in tokens and tokens & {"otro", "otra", "mas", "más"})):
+        profiles = db.list_catalog_profiles_for_species(species, limit=6)
+        if profiles:
+            fields["_profile_menu_options"] = [
+                {"code": p.get("code"), "name": p.get("name"), "price": int(p.get("price") or 0)}
+                for p in profiles if p.get("code")
+            ]
+            return _base_route_response(_format_profile_recommendation(species, profiles), fields)
+
+    # 4) Nombró análisis concreto(s) para agregar o quitar.
+    rows = db.get_tests_by_codes_or_names([user_message] + _named_analysis_terms(user_message))
+    if rows:
+        action = "remove" if (tokens & _REMOVE_TOKENS) else "add"
+        _add_tests_to_order(fields, rows, action)
+        fields.pop("_awaiting_additional_test", None)
+        verb = "quito" if action == "remove" else "agrego"
+        return _analysis_settled_response(session, fields, f"Listo, {verb} {_format_test_items(rows)}.")
+
+    # 5) Quiere agregar pero no dijo cuál (un 'sí' suelto o 'personalizar').
+    if _is_affirmative_text(user_message) or _is_profile_customization_request(user_message):
+        fields["_awaiting_additional_test"] = "add"
+        return _base_route_response("Claro. ¿Qué análisis quieres agregar? Decime el nombre o el código.", fields)
+
+    # 6) No se entendió: aclarar sin perder el estado ni cerrar a ciegas.
+    return _base_route_response(
+        "¿Quieres agregar algún análisis más (decime cuál) o seguimos con el pago?", fields
+    )
+
+
+def _enforce_extra_analysis_offer(session: dict, ai_response: dict, prev_fields: dict) -> dict:
+    """Vía del modelo: cuando el AI captura el análisis directamente (texto libre) y solo
+    falta el pago, ofrecer una vez agregar otro/personalizar antes de seguir, igual que las
+    vías de selección por menú. La respuesta a la oferta la maneja `_handle_extra_analysis_answer`."""
+    if ai_response.get("intent") != "route_scheduling":
+        return ai_response
+    fields = ai_response.get("captured_fields", {})
+    if not (session.get("client_id") or fields.get("_client_found")):
+        return ai_response
+    if fields.get("_offering_extra_analysis") or fields.get("payment_method"):
+        return ai_response
+    # No interferir si hay un menú/selección de análisis a medio resolver.
+    if (fields.get("_test_menu_options") or fields.get("_profile_menu_options")
+            or fields.get("_test_menu_adds_to_profile") or fields.get("_diagnostic_label")):
+        return ai_response
+    has_analysis = bool(fields.get("exam_type") or fields.get("selected_tests") or fields.get("_selected_profile_code"))
+    if not has_analysis:
+        return ai_response
+    analysis_new = (
+        (fields.get("exam_type") or None) != (prev_fields.get("exam_type") or None)
+        or _as_text_items(fields.get("selected_tests")) != _as_text_items(prev_fields.get("selected_tests"))
+        or fields.get("_selected_profile_code") != prev_fields.get("_selected_profile_code")
+    )
+    if not analysis_new or _missing_route_field(session, fields) != "payment_method":
+        return ai_response
+    exam = fields.get("_selected_profile_name") or fields.get("exam_type")
+    return _analysis_settled_response(session, fields, f"Listo, queda {exam}.")
 
 
 def _enforce_multiple_tests_capture(session: dict, ai_response: dict, prev_fields: dict) -> dict:
@@ -974,17 +1238,32 @@ def _enforce_multiple_tests_capture(session: dict, ai_response: dict, prev_field
     fields["removed_tests"] = []
     fields["exam_type"] = f"Perfil personalizado ({len(rows)} análisis)"
 
-    lines = [
-        f"Listo, registro estos {len(rows)} análisis: {_format_test_items(rows)}.",
-        f"Valor estimado: {_money(totals['total'])}.",
-    ]
-    missing = _missing_route_field(session, fields)
-    if missing and missing != "exam_type":
-        lines.append(_missing_route_field_question(missing))
-    return _base_route_response("\n".join(lines), fields)
+    intro = (
+        f"Listo, registro estos {len(rows)} análisis: {_format_test_items(rows)}. "
+        f"Valor estimado: {_money(totals['total'])}."
+    )
+    return _analysis_settled_response(session, fields, intro)
 
 
-def _enforce_test_category_help(session: dict, ai_response: dict, prev_fields: dict) -> dict:
+def _analysis_help_candidate(fields: dict, prev_fields: dict, user_message: str, history: list[dict]) -> str | None:
+    """Término con el que buscar un área o etiqueta diagnóstica al responder el análisis.
+    Prioriza lo que el AI capturó en exam_type (si es nuevo en este turno); si el AI lo
+    dejó vacío pero el bot ACABA de pedir el análisis, usa el propio mensaje del usuario.
+    Así la lista seleccionable no depende de que el modelo guarde el término (la regresión:
+    el modelo improvisaba la lista en el texto y dejaba exam_type vacío → ver RESUELTO-016)."""
+    candidate = fields.get("exam_type")
+    if candidate and candidate != prev_fields.get("exam_type"):
+        return candidate
+    if (not candidate
+            and _detect_which_field_is_being_asked(history) == "exam_type"
+            and not _wants_partial_analysis_change(user_message)
+            and not _profile_codes_from_text(user_message)):
+        return user_message
+    return None
+
+
+def _enforce_test_category_help(session: dict, ai_response: dict, prev_fields: dict,
+                                user_message: str, history: list[dict]) -> dict:
     """Si el cliente pide análisis por área o tipo de muestra (ej. "orina",
     "materia fecal") y no es un perfil ni una etiqueta diagnóstica, despliega los
     análisis individuales de esa área y arranca la selección (perfil personalizado)."""
@@ -997,10 +1276,8 @@ def _enforce_test_category_help(session: dict, ai_response: dict, prev_fields: d
     if fields.get("selected_tests") is not None or fields.get("_diagnostic_label"):
         return ai_response
 
-    candidate = fields.get("exam_type")
-    # Solo evaluar cuando el examen es nuevo en este turno: evita I/O y re-disparos
-    # en los pasos posteriores (paciente, dirección, cierre) donde exam_type no cambia.
-    if not candidate or candidate == prev_fields.get("exam_type"):
+    candidate = _analysis_help_candidate(fields, prev_fields, user_message, history)
+    if not candidate:
         return ai_response
     if _looks_like_specific_profile_query(candidate):
         return ai_response
@@ -1013,7 +1290,49 @@ def _enforce_test_category_help(session: dict, ai_response: dict, prev_fields: d
     fields["selected_tests"] = []
     fields["removed_tests"] = []
     _store_test_menu_options(fields, tests)
-    return _base_route_response(_test_area_suggestion_reply(candidate, tests), fields)
+    return _base_route_response(_test_area_suggestion_reply(area or candidate, tests), fields)
+
+
+def _enforce_analysis_help_fallback(session: dict, ai_response: dict, prev_fields: dict,
+                                    user_message: str, history: list[dict]) -> dict:
+    """Red de seguridad final del paso de análisis: si el bot pidió el análisis y el cliente
+    respondió algo VAGO (un síntoma/necesidad que no mapeó a área ni etiqueta, o no supo qué
+    pedir) y el AI dejó exam_type vacío, mostrar perfiles de la especie en una lista
+    seleccionable con precios REALES, en vez de dejar que el modelo improvise una lista sin
+    menú detrás (no seleccionable y con riesgo de inventar precios). Ver RESUELTO-016."""
+    if ai_response.get("intent") != "route_scheduling":
+        return ai_response
+    fields = ai_response.get("captured_fields", {})
+    if not (session.get("client_id") or fields.get("_client_found")):
+        return ai_response
+    species = fields.get("species")
+    if not species:
+        return ai_response
+    # Si ya hay análisis capturado o un menú/perfil/etiqueta en curso, no interferir.
+    if (fields.get("exam_type") or fields.get("_selected_profile_code")
+            or fields.get("selected_tests") is not None or fields.get("_diagnostic_label")
+            or fields.get("_test_menu_options") or fields.get("_profile_menu_options")):
+        return ai_response
+    if _detect_which_field_is_being_asked(history) != "exam_type":
+        return ai_response
+    if _wants_partial_analysis_change(user_message) or _profile_codes_from_text(user_message):
+        return ai_response
+    # ¿El mensaje nombra un análisis concreto del catálogo? Entonces NO es vago: dejar que
+    # el flujo normal lo registre, no mostrar una lista.
+    if db.get_tests_by_codes_or_names(_named_analysis_terms(user_message)):
+        return ai_response
+
+    profiles = db.list_catalog_profiles_for_species(species, limit=6)
+    if not profiles:
+        return ai_response
+    fields["exam_type"] = None
+    fields["selected_tests"] = None
+    fields["removed_tests"] = None
+    fields["_profile_menu_options"] = [
+        {"code": p.get("code"), "name": p.get("name"), "price": int(p.get("price") or 0)}
+        for p in profiles if p.get("code")
+    ]
+    return _base_route_response(_format_profile_recommendation(species, profiles), fields)
 
 
 def _enforce_generic_blood_analysis_help(session: dict, ai_response: dict) -> dict:
@@ -1043,7 +1362,8 @@ def _catalog_overview_response(fields: dict) -> dict:
     return _test_options_response(fields, choices, _test_catalog_overview_reply(choices))
 
 
-def _enforce_diagnostic_label_help(session: dict, ai_response: dict, user_message: str) -> dict:
+def _enforce_diagnostic_label_help(session: dict, ai_response: dict, user_message: str,
+                                   prev_fields: dict, history: list[dict]) -> dict:
     """Si el cliente pide un perfil por necesidad diagnóstica (etiqueta: CARDIACO,
     SENIOR CANINO, HEPÁTICO, etc.) sugiere las pruebas que lo conforman y arranca
     un perfil personalizado para que el cliente escoja y agregue otras."""
@@ -1056,16 +1376,16 @@ def _enforce_diagnostic_label_help(session: dict, ai_response: dict, user_messag
     if fields.get("selected_tests") is not None or fields.get("_diagnostic_label"):
         return ai_response
 
-    # Solo el análisis que el AI capturó (exam_type). No usar el mensaje suelto,
-    # para no disparar la sugerencia cuando el cliente apenas confirma la clínica.
-    candidate = fields.get("exam_type")
+    # Lo que el AI capturó en exam_type o, si lo dejó vacío y el bot acaba de pedir el
+    # análisis, el propio mensaje del usuario (la lista no debe depender del modelo).
+    candidate = _analysis_help_candidate(fields, prev_fields, user_message, history)
     if not candidate:
         return ai_response
     # Si pide un perfil de catálogo específico (con versión "I/II" o código),
     # respetar ese flujo; las etiquetas son para necesidades clínicas genéricas.
     if _looks_like_specific_profile_query(candidate):
         return ai_response
-    label = db.find_diagnostic_label(candidate)
+    label = db.find_diagnostic_label(candidate, species=fields.get("species"))
     if not label:
         return ai_response
     tests = db.get_tests_for_label(label)
@@ -1097,6 +1417,13 @@ def _enforce_catalog_profile_help(session: dict, ai_response: dict, user_message
 
     detail_question = _is_profile_detail_question(user_message)
     species = fields.get("species")
+
+    if fields.get("_profile_detail_offered"):
+        if detail_question and fields.get("_selected_profile_code"):
+            profiles = db.get_catalog_profiles_by_codes([fields["_selected_profile_code"]], species)
+            if profiles:
+                return _base_route_response(_profile_detail_reply(profiles[0]), fields)
+        return ai_response
 
     if detail_question:
         codes = _profile_codes_from_text(user_message) or _profile_codes_from_text(_last_bot_message(history))
@@ -1373,6 +1700,19 @@ _ROUTE_TIMING_TOKENS = frozenset({
     "retiro", "retirar", "recoger", "pasan", "pasar", "llega", "llegaria", "llegaría",
 })
 _PRICE_QUESTION_TOKENS = frozenset({"cuanto", "cuánto", "cuesta", "costaria", "costaría", "valor", "precio", "cotizar", "cotizacion", "cotización"})
+# El cliente pregunta por el TOTAL de varios análisis ("¿cuánto serían todos?", "en total").
+_TOTAL_QUESTION_TOKENS = frozenset({
+    "todos", "todas", "total", "todo", "junto", "juntos", "completo", "suma", "sumando",
+    "conjunto", "sumados",
+})
+# Palabras que NO nombran un análisis: se descartan al buscar el precio de uno puntual.
+_PRICE_STOPWORDS = _PRICE_QUESTION_TOKENS | _TOTAL_QUESTION_TOKENS | {
+    "el", "la", "los", "las", "un", "una", "unos", "unas", "de", "del", "ese", "esos",
+    "esa", "esas", "esto", "este", "estos", "y", "e", "o", "u", "me", "que", "es", "son",
+    "seria", "serían", "serian", "sería", "sale", "saldria", "saldría", "para", "por",
+    "con", "sin", "mas", "más", "todos", "analisis", "análisis", "examen", "examenes",
+    "exámenes", "prueba", "pruebas", "perfil", "perfiles", "cada", "uno",
+}
 # Marcadores de que el cliente PREGUNTA por el servicio de recogida (vs. ORDENA
 # impacientemente "programen la recogida ya"). Sin esto, cualquier mención de
 # "recogida/recoger" disparaba la respuesta operativa fija y metía bucle.
@@ -1413,8 +1753,10 @@ def _operational_side_question_answer(text: str) -> str | None:
             "La hora exacta de recogida la confirma operaciones según la ruta y la disponibilidad "
             "del motorizado; si es urgente, lo dejamos marcado para priorizar la coordinación."
         )
-    if tokens & _PRICE_QUESTION_TOKENS and tokens & _ANALYSIS_TOKENS:
-        return "El valor depende del análisis o perfil que necesites; dime cuál es y revisamos la opción correcta."
+    # Las preguntas de precio NO se deflectan acá con una frase genérica: el precio real lo
+    # resuelve `_catalog_price_answer` (casos seguros) o el LLM, que recibe el catálogo con
+    # precios y conoce los sinónimos (hemograma = Cuadro Hemático). Deflectar bloqueaba esa
+    # respuesta y el cliente dejaba de ver el precio.
     if tokens & {"animal", "animales", "especie", "especies"} and tokens & {"cantidad", "cuantos", "cuántos", "cuales", "cuáles", "que", "qué", "hacen", "atienden"}:
         return (
             "Trabajamos principalmente con pacientes veterinarios como caninos y felinos; "
@@ -1862,6 +2204,16 @@ def _confirms_new_client(text: str) -> bool:
     return len(tokens) <= 4 and bool(words & _AFFIRMATIVE_TOKENS) and not any(token.isdigit() for token in tokens)
 
 
+def _explicitly_says_new_client(text: str) -> bool:
+    """Mención EXPLÍCITA de ser cliente nuevo ('soy cliente nuevo', 'cliente nuevo').
+    A diferencia de `_confirms_new_client`, no cuenta una afirmación pelada ('sí',
+    'la uno'): esas solo significan 'soy nuevo' si el bot acaba de preguntarlo (L46)."""
+    words = set(_tokenize(text))
+    if "no" in words:
+        return False
+    return "cliente" in words and "nuevo" in words
+
+
 def _claims_unregistered_client(text: str) -> bool:
     normalized = " ".join(_tokenize(text))
     phrases = (
@@ -1930,7 +2282,10 @@ def _confirms_address(text: str) -> bool:
         return False
     if words == {"1"}:  # respondió la opción "1) sí, esa dirección está bien"
         return True
-    return bool(words & _ADDRESS_CONFIRM_TOKENS)
+    if words & _ADDRESS_CONFIRM_TOKENS:
+        return True
+    # Confirmaciones coloquiales pegadas o alargadas: "sisi", "sisisi", "siii", "sí sí".
+    return any(re.fullmatch(r"(s[ií]+)+", w) for w in words)
 
 
 def _rejects_address(text: str) -> bool:
@@ -2325,6 +2680,11 @@ def _store_client_context(fields: dict, client: dict) -> None:
     fields["_client_display_name"] = client.get("clinic_name", "")
     fields["_client_address"] = client.get("address") or ""
     fields["_client_phone"] = client.get("phone") or ""
+    # NIT canónico del cliente (de la BD): necesario para facturar en Alegra cuando el
+    # cliente se identificó por NOMBRE. Sin esto, `_try_invoice_in_alegra` recibía
+    # tax_id=None y la facturación se saltaba en silencio aunque el cliente tuviera NIT.
+    if client.get("tax_id"):
+        fields["tax_id"] = client.get("tax_id")
 
 
 def _limit_to_single_question(text: str) -> str:
@@ -2512,6 +2872,9 @@ def _enforce_first_missing_after_progress(session: dict, ai_response: dict, prev
 
     fields = ai_response.get("captured_fields", {})
     if fields.get("_client_match_options") or fields.get("_client_not_found"):
+        return ai_response
+    # Oferta de agregar otro análisis activa (Parte B): no pisarla con la pregunta de pago.
+    if fields.get("_offering_extra_analysis"):
         return ai_response
     if fields.get("_test_menu_options") or (fields.get("selected_tests") is not None and not fields.get("exam_type")):
         return ai_response
@@ -2876,6 +3239,12 @@ def _prevent_incomplete_route_closure(session: dict, ai_response: dict, fields: 
 def _enforce_payment_step(session: dict, ai_response: dict, fields: dict) -> dict:
     if ai_response.get("intent") != "route_scheduling":
         return ai_response
+    if fields.get("_profile_customizing"):
+        return ai_response
+    # Mientras está activa la oferta de agregar otro análisis (Parte B), no saltar al pago:
+    # ese paso lo decide _handle_extra_analysis_answer cuando el cliente diga que sigue.
+    if fields.get("_offering_extra_analysis"):
+        return ai_response
 
     if not _route_ready_for_payment(session, fields):
         return ai_response
@@ -2911,18 +3280,38 @@ def _enforce_profile_detail_step(session: dict, ai_response: dict, fields: dict,
         return ai_response
 
     if fields.get("_profile_detail_offered"):
+        signal = ai_response.get("user_intent_signal")
         # Ajuste PARCIAL del perfil base: 'personalizar/agregar/quitar' (tokens explícitos) o
         # 'el mismo pero sin X / igual más Y'. Mantiene el perfil base y entra al modo
         # personalización; el detalle (qué agregar/quitar) lo captura el LLM con el contexto
         # de "PERFIL BASE EN PERSONALIZACIÓN" inyectado.
-        if _is_profile_customization_request(user_message) or _wants_partial_analysis_change(user_message):
+        wants_customization = _is_profile_customization_request(user_message) or _wants_partial_analysis_change(user_message)
+        rows = db.get_tests_by_codes_or_names([user_message] + _named_analysis_terms(user_message)) if wants_customization else []
+        if wants_customization and (rows or signal != "negate"):
             fields["_profile_customizing"] = True
             if not isinstance(fields.get("selected_tests"), list):
                 fields["selected_tests"] = []
             if not isinstance(fields.get("removed_tests"), list):
                 fields["removed_tests"] = []
+            if rows:
+                selected = _as_text_items(fields.get("selected_tests"))
+                removed = _as_text_items(fields.get("removed_tests"))
+                target = removed if {"quitar", "quita", "sacar", "saca", "retirar", "remover"} & set(_tokenize(user_message)) else selected
+                action = "quito" if target is removed else "agrego"
+                for row in rows:
+                    code = str(row.get("code") or row.get("name"))
+                    if code not in target:
+                        target.append(code)
+                    if target is removed and code in selected:
+                        selected.remove(code)
+                fields["selected_tests"] = selected
+                fields["removed_tests"] = removed
+                return _base_route_response(
+                    f"Listo, {action} {_format_test_items(rows)}. ¿Agregas o quitas otro análisis, o cerramos así?",
+                    fields,
+                )
             return _base_route_response(_profile_customization_reply(fields), fields)
-        if _is_profile_confirmation(user_message):
+        if signal in {"affirm", "negate"} or _is_profile_confirmation(user_message):
             fields["_profile_detail_confirmed"] = True
         return ai_response
 
@@ -2951,6 +3340,16 @@ def _enforce_custom_profile_close(session: dict, ai_response: dict, prev_fields:
     if ai_response.get("intent") != "route_scheduling":
         return ai_response
     fields = ai_response.get("captured_fields", {})
+    if fields.get("_selected_profile_code") and fields.get("_profile_customizing"):
+        if not _wants_to_close_custom_profile(user_message):
+            return ai_response
+        fields["_profile_customizing"] = False
+        fields["_profile_detail_confirmed"] = True
+        missing = _missing_route_field(session, fields)
+        reply = "Perfecto, dejamos ese perfil así."
+        if missing and missing != "exam_type":
+            reply += f" {_missing_route_field_question(missing)}"
+        return _base_route_response(reply, fields)
     selected = _as_text_items(fields.get("selected_tests"))
     if not selected or fields.get("_selected_profile_code") or fields.get("exam_type"):
         return ai_response
@@ -2973,6 +3372,14 @@ def _enforce_profile_customization_changes(ai_response: dict, prev_fields: dict,
     fields = ai_response.get("captured_fields", {})
     if ai_response.get("intent") != "route_scheduling" or not fields.get("_profile_customizing"):
         return ai_response
+
+    # Pregunta abierta por ÁREA mientras se ajusta el perfil ('qué análisis de orina
+    # tienen'): listar las opciones de esa área para AGREGAR al perfil base, en vez de
+    # ignorar la pregunta y repetir el resumen (bucle reportado en chat 4).
+    if _profile_lists_unchanged(prev_fields, fields):
+        area_response = _area_options_for_profile_addition(fields, user_message)
+        if area_response:
+            return area_response
 
     if _is_ambiguous_profile_change(user_message) and _profile_lists_unchanged(prev_fields, fields):
         return _base_route_response(
@@ -3025,10 +3432,23 @@ def _resolve_profile_base_if_missing(fields: dict) -> None:
     # su total se calcula con sus análisis sueltos, no hay base que resolver.
     if "personalizado" in exam.lower():
         return
-    try:
-        profile = db.find_catalog_profile(exam, fields.get("species"))
-    except Exception:
-        profile = None
+    # Resolver por CÓDIGO primero: el exam_type suele venir como "152-Perfil Prequirúrgico I"
+    # (código + nombre). find_catalog_profile no matchea esa cadena combinada y el match por
+    # nombre es ambiguo ("Perfil Prequirúrgico I" devolvía el X de $90k en vez del I de $24k).
+    # El código del catálogo es la fuente determinística del precio correcto.
+    profile = None
+    codes = _profile_codes_from_text(exam)
+    if codes:
+        try:
+            matches = db.get_catalog_profiles_by_codes(codes[:1], fields.get("species"))
+        except Exception:
+            matches = []
+        profile = matches[0] if matches else None
+    if not profile:
+        try:
+            profile = db.find_catalog_profile(exam, fields.get("species"))
+        except Exception:
+            profile = None
     if profile:
         fields["_selected_profile_code"] = profile.get("code")
         fields["_selected_profile_name"] = profile.get("name") or fields.get("exam_type")
@@ -3045,6 +3465,9 @@ def _order_summary_lines(fields: dict, header: str) -> list[str] | None:
     _resolve_profile_base_if_missing(fields)
 
     clinic_name = fields.get("clinic_name") or fields.get("_client_display_name") or "cliente registrado"
+    analysis = fields.get("exam_type")
+    if fields.get("_selected_profile_code"):
+        analysis = f"{fields.get('_selected_profile_name') or analysis} — {_money(fields.get('_selected_profile_price'))}"
     lines = [
         header,
         f"- Veterinaria: {clinic_name}",
@@ -3055,7 +3478,7 @@ def _order_summary_lines(fields: dict, header: str) -> list[str] | None:
             f"({fields.get('species')}, {fields.get('breed')}, {fields.get('sex')}, {fields.get('patient_age')})"
         ),
         f"- Propietario: {fields.get('owner_name')}",
-        f"- Análisis: {fields.get('exam_type')}",
+        f"- Análisis: {analysis}",
         f"- Observaciones: {fields.get('observations')}",
         f"- Forma de pago: {fields.get('payment_method')}",
     ]
@@ -3069,8 +3492,6 @@ def _order_summary_lines(fields: dict, header: str) -> list[str] | None:
             [row["price"] for row in added_rows],
             [row["price"] for row in removed_rows],
         )
-        profile_name = fields.get("_selected_profile_name") or fields.get("exam_type")
-        lines.append(f"- Perfil base: {profile_name} ({_money(base_price)})")
         if added_rows:
             lines.append(f"- Agregados: {_format_test_items(added_rows)}")
         if removed_rows:
@@ -3151,17 +3572,104 @@ def _clear_field_for_correction(fields: dict, field: str) -> None:
             fields.pop(key, None)
 
 
-def _price_answer_for_order(fields: dict, user_message: str) -> str | None:
-    """Si el cliente pregunta el precio y ya tenemos el análisis/perfil elegido con su
-    valor, devolver el precio REAL (no la respuesta genérica). Sirve para responder la
-    duda de precio mezclada con la confirmación, antes de registrar."""
-    if not (set(_tokenize(user_message)) & _PRICE_QUESTION_TOKENS):
+def _named_analysis_terms(text: str) -> list[str]:
+    """Palabras de la pregunta que podrían nombrar un análisis (descarta las de precio,
+    artículos y muletillas). Sirve para resolver '¿cuánto sale el hemograma?'."""
+    return [t for t in _tokenize(text) if (len(t) >= 4 or t.isdigit()) and t not in _PRICE_STOPWORDS]
+
+
+def _format_tests_total(rows: list[dict]) -> str:
+    """Lista los análisis con su precio y el total. Si hay descuento por volumen, lo muestra
+    explícito (subtotal → descuento → total) para que el total no parezca incoherente con la
+    suma de cada precio."""
+    totals = calculate_custom_profile_total(rows)
+    if totals["discount"]:
+        return (
+            f"{_format_test_items(rows)}. Subtotal {_money(totals['subtotal'])}, "
+            f"descuento por volumen {_money(totals['discount'])} → total {_money(totals['total'])}."
+        )
+    return f"{_format_test_items(rows)}. Total: {_money(totals['total'])}."
+
+
+def _catalog_price_answer(fields: dict, user_message: str) -> str | None:
+    """Responde una pregunta de precio con valores REALES del catálogo, sin inventar:
+    1) el total de los análisis ya elegidos ('¿cuánto serían todos?'),
+    2) un análisis puntual nombrado en la pregunta ('¿cuánto sale el hemograma?'),
+    3) el perfil ya seleccionado con su valor.
+    Devuelve None si no es pregunta de precio o no hay con qué responder con certeza."""
+    tokens = set(_tokenize(user_message))
+    if not (tokens & _PRICE_QUESTION_TOKENS):
         return None
+
+    # 1) Total de los análisis que el cliente ya está armando (perfil personalizado).
+    selected_codes = _as_text_items(fields.get("selected_tests"))
+    if selected_codes and (tokens & _TOTAL_QUESTION_TOKENS or len(selected_codes) >= 2):
+        rows = db.get_tests_by_codes_or_names(selected_codes)
+        if rows:
+            return _format_tests_total(rows)
+
+    # 2) Análisis nombrado(s) en la propia pregunta. Resolver por catálogo o por el menú
+    #    que se acabe de mostrar ('¿cuánto el primero?').
+    terms = _named_analysis_terms(user_message)
+    rows = db.get_tests_by_codes_or_names(terms) if terms else []
+    if not rows:
+        menu = fields.get("_test_menu_options") or []
+        rows = _select_tests_from_menu(user_message, menu) if menu else []
+    if rows:
+        if len(rows) == 1:
+            r = rows[0]
+            return f"El {r.get('name')} tiene un valor de {_money(r.get('price'))}."
+        return _format_tests_total(rows)
+
+    # 3) Perfil ya elegido con su precio.
     price = fields.get("_selected_profile_price")
     name = fields.get("_selected_profile_name") or fields.get("exam_type")
     if price and name:
         return f"El valor de {name} es {_money(int(price))}."
     return None
+
+
+def _price_answer_for_order(fields: dict, user_message: str) -> str | None:
+    """Compat: precio REAL del análisis/perfil ya elegido al confirmar. Delega en
+    `_catalog_price_answer` para cubrir también el análisis puntual y el total."""
+    return _catalog_price_answer(fields, user_message)
+
+
+def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message: str, signal: str | None) -> dict | None:
+    pending_action = fields.get("_awaiting_additional_test")
+    if not pending_action and not _wants_partial_analysis_change(user_message):
+        return None
+
+    tokens = set(_tokenize(user_message))
+    action = pending_action or "add"
+    if tokens & {"quitar", "quita", "quitale", "quítale", "sacar", "saca", "sin", "menos", "retirar", "remover"}:
+        action = "remove"
+
+    rows = db.get_tests_by_codes_or_names([user_message] + _named_analysis_terms(user_message))
+    if not rows:
+        if signal == "negate" or tokens & {"nada", "ninguno", "ninguna"}:
+            return None
+        # No nombró un test exacto: si pregunta por un ÁREA ('qué análisis de orina
+        # tienen'), ofrecer las opciones de esa área para agregar, en vez de repreguntar
+        # a ciegas y dejarlo trabado.
+        area_response = _area_options_for_profile_addition(fields, user_message)
+        if area_response:
+            area_response["phase"] = CONFIRMATION_PHASE
+            return area_response
+        fields["_awaiting_additional_test"] = action
+        ask = "¿Qué análisis quieres quitar?" if action == "remove" else "¿Qué análisis quieres agregar?"
+        response = _base_route_response(f"Claro. {ask}", fields)
+        response["phase"] = CONFIRMATION_PHASE
+        return response
+
+    _add_tests_to_order(fields, rows, action)
+    fields.pop("_awaiting_additional_test", None)
+    fields.pop("_correction_pending", None)
+
+    summary = _route_confirmation_summary(fields)
+    response = _base_route_response(summary or _missing_route_field_question(_missing_route_field(session, fields)), fields)
+    response["phase"] = CONFIRMATION_PHASE
+    return response
 
 
 def _enforce_confirmation_step(session: dict, ai_response: dict, fields: dict, previous_phase: str, user_message: str) -> dict:
@@ -3171,6 +3679,13 @@ def _enforce_confirmation_step(session: dict, ai_response: dict, fields: dict, p
         return ai_response
     if ai_response.get("message_mode") == "cancellation":
         return ai_response
+
+    if previous_phase == CONFIRMATION_PHASE:
+        adjusted = _confirmation_analysis_adjustment(
+            session, fields, user_message, ai_response.get("user_intent_signal")
+        )
+        if adjusted:
+            return adjusted
 
     # Cierre DETERMINÍSTICO: si venimos del resumen (fase_4) y el usuario confirma
     # con la orden completa, cerrar SIEMPRE acá, sin depender de que el modelo emita
@@ -3285,6 +3800,8 @@ def _finalize_request(chat_id: str, session: dict, ai_response: dict, started_fr
         return ai_response
 
     order_info = db.create_request(chat_id, session, ai_response)
+    if ALEGRA_ENABLED and ai_response.get("intent") == "route_scheduling" and order_info:
+        _try_invoice_in_alegra(order_info, ai_response)
     # Marca que ya se registró una ORDEN DE RECOGIDA real, para reconocer un pedido de
     # "otra orden" más adelante aunque la conversación haya salido de la fase terminal.
     # Solo aplica a route_scheduling: un escalado de cliente nuevo / pagos / opción 4 NO
@@ -3306,6 +3823,29 @@ def _finalize_request(chat_id: str, session: dict, ai_response: dict, started_fr
         # Cierre cordial al final: ofrecer otra orden o terminar (en todos los casos).
         ai_response["reply"] = f"{ai_response['reply']}\n\n{CLOSING_PROMPT}"
     return ai_response
+
+
+def _try_invoice_in_alegra(order_info: dict, ai_response: dict) -> None:
+    """Factura la orden en Alegra (borrador) al cerrarla. La facturación es complementaria:
+    cualquier fallo se loggea y se ignora — nunca rompe el cierre ni la recogida del cliente.
+    Guarda los IDs de Alegra como evento `alegra_invoiced` (no toca el esquema de Supabase)."""
+    try:
+        fields = ai_response.get("captured_fields", {})
+        profile = (order_info.get("event_payload") or {}).get("profile")
+        lines = billing.build_invoice_lines(profile)
+        if not lines:
+            return
+        nit = fields.get("tax_id")
+        name = fields.get("clinic_name") or fields.get("_client_display_name") or "Cliente A3"
+        date = datetime.now(APP_TIMEZONE).date().isoformat()
+        extra = {"email": fields.get("_client_email"), "phone": fields.get("_client_phone")}
+        result = billing.invoice_order(nit, name, lines, date, {k: v for k, v in extra.items() if v})
+        if result and result.get("invoice_id"):
+            db.create_request_event(order_info["request_id"], "alegra_invoiced", result)
+    except alegra.AlegraError as e:
+        logger.warning("Alegra: no se pudo facturar la orden %s: %s", order_info.get("request_id"), e)
+    except Exception as e:  # noqa: BLE001 — la facturación jamás debe tumbar el cierre
+        logger.warning("Alegra: error inesperado facturando %s: %s", order_info.get("request_id"), e)
 
 
 def _remember_client_fields(fields: dict) -> None:
@@ -3455,6 +3995,15 @@ def process_turn(
             return _persist_turn(chat_id, user_message, info_response)
 
     if session.get("intent_current") == "route_scheduling" and (session.get("client_id") or prev_captured.get("_client_found")):
+        # Precio REAL del catálogo primero: un análisis puntual, el total de los elegidos o
+        # el perfil ya seleccionado. Va antes de la respuesta genérica ("depende del análisis")
+        # para que "¿cuánto sale el hemograma?" o "¿cuánto serían todos?" se respondan con valor.
+        price_answer = _catalog_price_answer(dict(prev_captured), user_message)
+        if price_answer and not _payment_method_from_text(user_message):
+            response = _base_route_response(price_answer, dict(prev_captured))
+            response["message_mode"] = "side_question"
+            response = _resume_route_after_lateral_turn(session, response)
+            return _persist_turn(chat_id, user_message, response)
         operational_answer = _operational_side_question_answer(user_message)
         if operational_answer and not _payment_method_from_text(user_message):
             response = _base_route_response(operational_answer, dict(prev_captured))
@@ -3472,7 +4021,7 @@ def process_turn(
         if chosen_profile:
             return _persist_turn(
                 chat_id, user_message,
-                _capture_profile_menu_selection(session, prev_captured, chosen_profile),
+                _capture_profile_menu_selection(session, prev_captured, chosen_profile, user_message),
             )
         # Sin selección clara: seguir el pipeline normal (puede haber preguntado otra cosa).
 
@@ -3483,11 +4032,27 @@ def process_turn(
     if prev_captured.get("_test_menu_options"):
         _selected_tests = _select_tests_from_menu(user_message, prev_captured["_test_menu_options"])
         if _selected_tests:
+            # Menú mostrado para AGREGAR a un perfil base ('qué análisis de orina tienen'
+            # durante el ajuste): sumar al perfil, no reemplazarlo.
+            if prev_captured.get("_test_menu_adds_to_profile"):
+                return _persist_turn(
+                    chat_id, user_message,
+                    _capture_menu_addition_to_profile(session, prev_captured, _selected_tests),
+                )
             return _persist_turn(
                 chat_id, user_message,
                 _capture_test_menu_selection(session, prev_captured, _selected_tests),
             )
         # Sin selección clara (preguntó otra cosa): seguir el pipeline normal.
+
+    # Respuesta a la oferta '¿agregar otro análisis/perfil o seguimos con el pago?' (Parte B):
+    # se repite tras cada agregado hasta que el cliente decida seguir. Determinístico para no
+    # caer en el bucle histórico (RESUELTO-017).
+    if prev_captured.get("_offering_extra_analysis") and not prev_captured.get("payment_method"):
+        extra_resp = _handle_extra_analysis_answer(session, prev_captured, user_message)
+        if extra_resp is not None:
+            return _persist_turn(chat_id, user_message, extra_resp)
+        # extra_resp None: el cliente dio el método de pago -> seguir el pipeline normal.
 
     # Pedido de recomendación de análisis ('no sé / qué me recomiendas') en cualquier punto
     # de una ruta con especie ya conocida. Va ANTES de los detectores de corrección, que
@@ -3767,6 +4332,12 @@ def process_turn(
             fields[same_resolution["field"]] = same_resolution["value"]
             if "_prev_order_snapshot" not in fields and prev_captured.get("_prev_order_snapshot"):
                 fields["_prev_order_snapshot"] = prev_captured["_prev_order_snapshot"]
+            # "El mismo / esa misma" cuando hay dirección registrada o recordada CONFIRMA la
+            # dirección de retiro. Sin esto, la bandera _address_confirmation_pending quedaba
+            # pegada y el bot volvía a pedir la dirección turnos después (RESUELTO-010).
+            if fields.get("pickup_address") and fields.get("_address_confirmation_pending"):
+                fields["_address_confirmation_pending"] = False
+                fields["_address_confirmed"] = True
             ai_response = _base_route_response(same_resolution["reply"], fields)
             ai_response["captured_fields"] = fields
             return _persist_turn(chat_id, user_message, ai_response)
@@ -3899,10 +4470,30 @@ def process_turn(
         # Fuente primaria: la lectura semántica de la IA (user_intent_signal); las listas
         # de tokens quedan como red de seguridad (fallback) si la IA no clasificó.
         signal = ai_response.get("user_intent_signal")
+        # PRIORIDAD: si el bot mostró una lista de coincidencias y el mensaje resuelve a
+        # una de ellas (número, ordinal "la primera", o el nombre listado), eso es una
+        # SELECCIÓN — no "soy cliente nuevo" ni una veterinaria nueva — aunque traiga un
+        # "exacto"/"sí" de confirmación. El código ya entiende el ordinal
+        # (_select_client_match); sin esta prioridad, el "exacto" disparaba el escalado a
+        # cliente nuevo y "la primera" se re-buscaba como nombre (bug "exacto, es la
+        # primera"). La selección en sí se resuelve más abajo con la lista aún intacta.
+        picks_from_match_list = bool(
+            fields.get("_client_match_options")
+            and _select_client_match(user_message, fields)
+        )
+        # Una afirmación pelada ("sí", "Si la uno") NO es "soy cliente nuevo" salvo que el
+        # bot acabe de preguntarlo. Sin este contexto, una selección del menú de bienvenida
+        # ("la uno" = programar) escalaba por error a recepción (L46: entender por contexto,
+        # no por longitud). La mención explícita de "cliente nuevo" sí cuenta siempre.
+        bot_asked_new = _asks_if_new_client(_last_bot_message(history))
         says_new_client = (
-            signal == "new_or_unregistered_client"
-            or _confirms_new_client(user_message)
-            or _claims_unregistered_client(user_message)
+            not picks_from_match_list
+            and (
+                signal == "new_or_unregistered_client"
+                or _claims_unregistered_client(user_message)
+                or _explicitly_says_new_client(user_message)
+                or (bot_asked_new and _confirms_new_client(user_message))
+            )
         )
         gives_identifier = (
             signal == "provides_client_identifier"
@@ -3936,7 +4527,11 @@ def process_turn(
                 return _persist_turn(chat_id, user_message, _unsupported_final_user_response(fields))
             return _escalate_new_client_turn(chat_id, session, user_message, fields, started_from_escalation)
 
-        _apply_identification_fallbacks(fields, user_message, history, signal)
+        # Con una selección de la lista pendiente, NO reinterpretar el mensaje como un
+        # nombre/NIT nuevo: los fallbacks borrarían la lista y tomarían el ordinal como
+        # nombre. La selección se resuelve intacta en el bloque _client_match_options.
+        if not picks_from_match_list:
+            _apply_identification_fallbacks(fields, user_message, history, signal)
         _apply_identification_retry(fields, prev_captured, user_message, history)
 
         if _is_final_user_text(user_message):
@@ -3993,10 +4588,10 @@ def process_turn(
         # hecho: bajamos el flag para no reinterpretar un "no" posterior (p. ej. de
         # observaciones) como rechazo de la dirección.
         progressed = any(
-            prev_captured.get(f)
+            fields.get(f) or prev_captured.get(f)
             for f in ("requesting_doctor", "patient_name", "species", "exam_type")
         )
-        if progressed and prev_captured.get("pickup_address"):
+        if progressed and (fields.get("pickup_address") or prev_captured.get("pickup_address")):
             fields["_address_confirmation_pending"] = False
             fields["_address_confirmed"] = True
         elif _rejects_address(user_message):
@@ -4149,17 +4744,23 @@ def process_turn(
     fields = ai_response.get("captured_fields", fields)
     ai_response = _enforce_multiple_tests_capture(session, ai_response, prev_captured)
     fields = ai_response.get("captured_fields", fields)
-    ai_response = _enforce_diagnostic_label_help(session, ai_response, user_message)
+    ai_response = _enforce_catalog_profile_code_selection(session, ai_response, user_message)
+    fields = ai_response.get("captured_fields", fields)
+    ai_response = _enforce_diagnostic_label_help(session, ai_response, user_message, prev_captured, history)
     fields = ai_response.get("captured_fields", fields)
     ai_response = _enforce_catalog_profile_help(session, ai_response, user_message, history)
     fields = ai_response.get("captured_fields", fields)
     ai_response = _enforce_generic_blood_analysis_help(session, ai_response)
     fields = ai_response.get("captured_fields", fields)
-    ai_response = _enforce_test_category_help(session, ai_response, prev_captured)
+    ai_response = _enforce_test_category_help(session, ai_response, prev_captured, user_message, history)
+    fields = ai_response.get("captured_fields", fields)
+    ai_response = _enforce_analysis_help_fallback(session, ai_response, prev_captured, user_message, history)
     fields = ai_response.get("captured_fields", fields)
     ai_response = _enforce_profile_detail_step(session, ai_response, fields, user_message)
     fields = ai_response.get("captured_fields", fields)
     ai_response = _enforce_custom_profile_close(session, ai_response, prev_captured, user_message)
+    fields = ai_response.get("captured_fields", fields)
+    ai_response = _enforce_extra_analysis_offer(session, ai_response, prev_captured)
     fields = ai_response.get("captured_fields", fields)
     ai_response = _enforce_payment_step(session, ai_response, fields)
     ai_response = _enforce_profile_customization_changes(ai_response, prev_captured, user_message)

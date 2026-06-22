@@ -27,6 +27,269 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### RESUELTO-019 — Orden registrada no aparecía como borrador en Alegra por contacto duplicado con NIT/DV (2026-06-22)
+
+- **Síntoma (reporte del usuario, 2026-06-22):** la conversación cerró y registró la orden de
+  `Animal Pets`, pero la factura borrador no apareció reflejada en Alegra.
+- **Evidencia:** Supabase sí creó la orden `7c74b1ac-2124-4117-ad69-6cb297dc497f` con evento
+  `created`, perfil base `152` ($24.000), agregado `1507 Cortisol en Orina` ($33.000) y total
+  $57.000. La sesión tenía `tax_id` en `captured_fields`. No existía evento `alegra_invoiced`.
+  El log local mostró: `Alegra POST /contacts -> HTTP 400`, code `2006`, `Ya existe un contacto
+  con la identificación 53115419`, `contactId=3`, DV `1`.
+- **Causa raíz:** `find_contact_by_nit` buscaba el NIT tal como venía de Supabase
+  (`53115419-1`). En Alegra el contacto existente estaba guardado como identificación
+  `53115419` + `identificationObject.dv=1`. El lookup no lo encontró, `get_or_create_contact`
+  intentó crear el contacto y Alegra rechazó el duplicado antes de crear la factura.
+- **Solución:** `get_or_create_contact` ahora, si no encuentra el NIT original, separa número/DV
+  con `_split_nit` y busca también por el número sin DV antes de hacer `POST /contacts`.
+- **Tests:** `tests/test_alegra_billing.py::test_contact_lookup_retries_without_dv_before_create`.
+  Suite enfocada: `python -m pytest tests/test_add_analysis_during_adjustment.py tests/test_extra_analysis_offer.py tests/test_alegra_billing.py` -> 21/21.
+- **Estado:** ✅ CORREGIDO TÉCNICAMENTE. No se creó retroactivamente la factura de esa orden para
+  evitar duplicados sin autorización; validar con la próxima orden real o crear ese borrador manualmente si se necesita.
+
+### RESUELTO-018 — “Perfil 152 más un análisis extra” seleccionaba solo el perfil y descartaba el extra (2026-06-22)
+
+- **Síntoma (reporte del usuario, 2026-06-22):** al responder en un solo mensaje algo como
+  `sí quiero el perfil 152 más un análisis extra`, el bot registraba correctamente el perfil 152,
+  pero no entendía la segunda parte. Contestaba la oferta genérica `¿Quieres agregar otro análisis
+  o perfil...? Si ya está, seguimos con el pago`, aunque el usuario ya había dicho que quería un
+  análisis extra.
+- **Causa raíz:** `_wants_partial_analysis_change` detectaba ajustes parciales por verbos
+  (`agregar`, `agrégale`, `sumar`, etc.) o marcadores con `el mismo`, pero no por la forma natural
+  `análisis extra/adicional`. Además, cuando la selección del perfil venía desde
+  `_profile_menu_options`, `_capture_profile_menu_selection` recibía solo la opción elegida y no el
+  mensaje completo del usuario, por lo que no podía consumir la intención compuesta.
+- **Solución:**
+  1. `_wants_partial_analysis_change` ahora trata `análisis/prueba/examen + extra/adicional` como
+     ajuste parcial del perfil base.
+  2. Se centralizó la respuesta de “perfil seleccionado + agregar algo” en
+     `_selected_profile_addition_response` y se usa tanto para selección por código como para
+     selección desde menú.
+  3. `process_turn` ahora pasa el `user_message` a `_capture_profile_menu_selection` para no perder
+     el resto del turno.
+- **Tests:** `tests/test_add_analysis_during_adjustment.py` cubre el código directo y el menú de
+  perfiles con `si quiero el perfil 152 mas un analisis extra`. Suite enfocada: 21/21.
+- **Estado:** ✅ CORREGIDO TÉCNICAMENTE. Pendiente re-prueba conversacional en vivo.
+
+### RESUELTO-017 — Paso "¿agregar otro análisis/perfil?" antes del resumen final (2026-06-22)
+
+- **Pedido del usuario (2026-06-22):** antes de pasar al resumen final, el bot debe ofrecer
+  agregar otro análisis, otro perfil o personalizar, y repetir esa oferta tras cada agregado
+  hasta que el cliente decida seguir. Todo con datos reales de la BD, sin inventar.
+- **Riesgo:** es la zona del bucle histórico "¿agregás otro análisis?" (ver RESUELTO-013/014).
+  Por eso la salida tiene que ser robusta (no quedar atrapado pidiendo "¿algo más?").
+- **Solución:**
+  1. `_analysis_settled_response`: punto único tras fijar/ajustar el análisis. Si la orden ya
+     tiene análisis y solo falta el pago, OFRECE agregar más (`EXTRA_ANALYSIS_OFFER`, con salida
+     explícita "si ya está, seguimos con el pago") y marca `_offering_extra_analysis`. Lo usan
+     todas las vías de captura (perfil por código, menú de recomendación, menú de área,
+     múltiples análisis).
+  2. `_handle_extra_analysis_answer` (pre-modelo): interpreta la respuesta — sigue al pago
+     (`_wants_to_proceed_to_payment`), agrega un análisis nombrado, abre menú de área que SUMA,
+     lista perfiles, o pide "¿cuál?" ante un "sí" suelto. Tras cada agregado vuelve a ofrecer.
+  3. `_enforce_extra_analysis_offer`: misma oferta cuando el análisis lo captura el modelo por
+     texto libre. `_enforce_payment_step` y `_enforce_first_missing_after_progress` respetan
+     `_offering_extra_analysis` (no pisan la oferta con la pregunta de pago).
+- **Bug encontrado y corregido al probar:** `_wants_to_proceed_to_payment` armaba el texto
+  normalizado desde un `set` (orden no determinista) → el match de frases ("asi esta bien")
+  fallaba de forma intermitente según el hash seed. Se cambió a tokens ORDENADOS.
+- **Verificado contra el modelo real** (`tools/scripts/repro_partb.py`): perfil 152 → oferta →
+  "agregale glucosa" (suma, re-ofrece) → "qué análisis de orina tienen" (menú área) → "la 1"
+  (suma Cortisol, re-ofrece) → "no, seguimos con el pago" → "contraentrega" → resumen con
+  total correcto $69.000 (24+12+33). También: dar el método de pago en la propia oferta salta
+  directo al resumen.
+- **Tests:** `tests/test_extra_analysis_offer.py` (7 casos). Suite 142/142 (determinista x3).
+- **Estado:** ✅ IMPLEMENTADO Y VERIFICADO. Pendiente: aprobación visual del usuario en vivo.
+
+### RESUELTO-016 — Al pedir el análisis, dejó de mostrar la lista seleccionable de perfiles/análisis (2026-06-22)
+
+- **Síntoma (reporte del usuario, 2026-06-22):** antes, cuando el bot preguntaba el análisis y
+  el cliente respondía vago, por área o por síntoma ("no sé", "algo de orina", "algo para el
+  dolor de panza de mi perro"), mostraba una lista de perfiles/análisis seleccionables con
+  número y precio real. Dejó de hacerlo: el modelo improvisaba la lista en el texto, sin menú
+  detrás (no seleccionable por número, riesgo de inventar precios).
+- **Causa raíz:** asimetría en los guards. `_enforce_profile_recommendation_help` (B7) lee el
+  MENSAJE del usuario, por eso "no sé" seguía funcionando. Pero `_enforce_test_category_help`
+  (área) y `_enforce_diagnostic_label_help` (etiqueta) dependían de que el modelo guardara el
+  término en `exam_type`. El modelo ahora suele dejar `exam_type` vacío y escribir él la lista
+  → esos guards no disparaban y la lista quedaba improvisada (sin `_test_menu_options`/
+  `_profile_menu_options`).
+- **Solución:**
+  1. Helper `_analysis_help_candidate`: usa `exam_type` si el AI lo capturó; si lo dejó vacío y
+     el bot ACABA de pedir el análisis, usa el propio mensaje del usuario. Los guards de área y
+     etiqueta ahora reciben `user_message` + `history` y disparan con eso.
+  2. Catch-all `_enforce_analysis_help_fallback`: si la respuesta es vaga y no mapea a área ni
+     etiqueta (ej. "dolor de panza" sin etiqueta directa), muestra perfiles por especie
+     SELECCIONABLES (B7) en vez de dejar improvisar al modelo.
+  3. Prompt (`app/prompt.py`): el modelo mapea más síntomas a etiquetas canónicas
+     (panza/vómito/diarrea→PANCREÁTICO, etc.), deja `exam_type` en null si no hay etiqueta
+     clara, y REGLA CRÍTICA: nunca escribe él la lista — el sistema la arma desde la BD.
+- **Verificado contra el modelo real** (`tools/scripts/repro_reco.py`): "no sé" → perfiles
+  caninos; "algo de orina" → 7 análisis de Uroanálisis (menú seleccionable, elegí "la 2" →
+  registró 1601); "función renal" → etiqueta RENAL; "dolor de panza" → PANCREÁTICO; "hígado" →
+  HEPÁTICO CANINO; "hemograma"/"perfil 152" → registran directo sin lista.
+- **Tests:** `tests/test_analysis_options_restore.py` (5 casos). Suite 135/135.
+- **Estado:** ✅ CORREGIDO Y VERIFICADO. Pendiente: confirmación visual del usuario en vivo.
+
+### RESUELTO-015 — "Si la uno" (opción 1 del menú) escalaba a recepción como cliente nuevo (2026-06-22)
+
+- **Síntoma (chat 4 real, 2026-06-22):** tras la bienvenida, el usuario eligió la opción 1 con
+  "Si la uno" y el bot respondió `CLIENT_NEW_REGISTRATION_MESSAGE` (escala a recepción como
+  cliente nuevo), en vez de pedir el NIT/nombre para identificarlo.
+- **Causa raíz:** en el flujo de identificación (`process_turn`), `says_new_client` se activaba
+  con `_confirms_new_client(user_message)` y escalaba **sin verificar si el bot había preguntado
+  "¿eres cliente nuevo?"**. `_confirms_new_client` da True para cualquier afirmación pelada de
+  ≤4 palabras con "sí" → "Si la uno" la disparaba. Es el patrón de L46 (clasificar por longitud
+  en vez de por contexto).
+- **Solución:** nuevo helper `_explicitly_says_new_client` (solo mención EXPLÍCITA de "cliente
+  nuevo", no afirmación pelada). En `says_new_client`, la afirmación pelada (`_confirms_new_client`)
+  solo cuenta cuando el bot ACABA de preguntarlo (`_asks_if_new_client(_last_bot_message(history))`);
+  la mención explícita y `_claims_unregistered_client` cuentan siempre.
+- **Tests:** `tests/test_new_client_classification.py` (4 casos). Suite 130/130.
+- **Estado:** ✅ CORREGIDO TÉCNICAMENTE — pendiente re-prueba conversacional del usuario.
+
+### RESUELTO-014 — Agregar otro análisis/perfil se trababa al preguntar por área (2026-06-22)
+
+- **Síntoma (chat 4 real, 2026-06-22):** dos fallos al querer agregar análisis a un perfil:
+  1. **Intención compuesta ignorada:** "quiero el perfil 152 al cual le quiero agregar un
+     analisis extra" → el bot fijaba el perfil y saltaba directo al pago, descartando el
+     "agregar un analisis extra".
+  2. **Pregunta de catálogo durante el ajuste → trabazón:** ya en confirmación/personalización,
+     el usuario dijo "quiero agregar otro analisis a ese perfil" (el bot pidió el nombre exacto)
+     y luego "que analisis de orina tienen". El bot **repitió el resumen** sin listar ningún
+     análisis de orina. El usuario quedó sin respuesta y abandonó.
+- **Causa raíz:** durante el ajuste de un perfil, el código solo resolvía nombre/código EXACTO
+  de un análisis (`_confirmation_analysis_adjustment`, `_enforce_profile_customization_changes`).
+  Una pregunta abierta por ÁREA nunca llegaba a `db.find_tests_by_area`: los helpers que listan
+  por área (`_enforce_test_category_help`, `_enforce_diagnostic_label_help`) se auto-desactivan
+  cuando ya hay `selected_tests`/perfil base. Sin un test exacto que resolver, el flujo caía al
+  resumen → bucle.
+- **Solución:** helper `_area_options_for_profile_addition`: ante una pregunta por área durante
+  el ajuste, lista las opciones de esa área marcadas para AGREGAR al perfil base
+  (`_test_menu_adds_to_profile`), sin reemplazarlo. Integrado en
+  `_confirmation_analysis_adjustment` (cuando no hay test exacto) y en
+  `_enforce_profile_customization_changes`. La selección del menú (`process_turn`, bloque
+  `_test_menu_options`) ahora suma al perfil vía `_capture_menu_addition_to_profile` cuando la
+  bandera está activa, en vez de reemplazar. La lógica de sumar/quitar se factorizó en
+  `_add_tests_to_order` (fuente única). Para la intención compuesta,
+  `_enforce_catalog_profile_code_selection` fija el perfil y, si el mismo mensaje pide agregar,
+  abre el ajuste (lista el área si la nombró, o pregunta qué agregar) en vez de saltar al pago.
+- **Tests:** `tests/test_add_analysis_during_adjustment.py` (5 casos, mocks de catálogo).
+  Verificado además contra la base real: `find_tests_by_area("que analisis de orina tienen",
+  "Felino")` → 7 análisis de Uroanálisis. Suite completa 126/126.
+- **Estado:** ✅ CORREGIDO TÉCNICAMENTE — pendiente re-prueba conversacional del usuario
+  (reiniciar el Flask local: el historial del chat 4 venía de una versión anterior a los
+  últimos fixes, por eso mostraba la línea "Perfil base:" ya removida en RESUELTO-012).
+
+### RESUELTO-011 — Regresión: con perfil de catálogo + pago en línea, el bot escalaba sin mostrar el resumen (2026-06-22)
+
+- **Síntoma:** cliente identificado, orden completa, elige un perfil por código (ej. "perfil
+  152") y luego "pago en línea". El bot escalaba a Contabilidad SIN mostrar antes el resumen
+  de confirmación; los datos del paciente quedaban en NULL y, al pedir el usuario "agregar
+  otro análisis", el flujo multi-orden (B14) limpiaba el paciente y reiniciaba pidiendo el
+  médico solicitante.
+- **Causa raíz:** tres cambios encadenados introducidos en una edición previa para resolver
+  "agregar análisis en la confirmación" (B11): (1) reescritura de `_order_summary_lines` con
+  `analysis_line` y "Valor estimado" condicional; (2) guarda de `_wants_partial_analysis_change`
+  al inicio de `_enforce_confirmation_step`; (3) Sección 7.0 `_awaiting_additional_test` en
+  `process_turn`. La combinación rompió el camino del resumen para el perfil de catálogo.
+- **Solución:** revertir los 3 cambios al estado del commit `9570b50` (solo esas funciones;
+  Alegra y el resto se mantienen). Decisión acordada con el usuario (revert + re-implementar
+  limpio después). Quedó documentado el contrato del flujo en
+  `docs/contrato-flujo-conversacional.md` y la regla de no tocar el flujo sin avisar en `CLAUDE.md`.
+- **Verificación:** `validate_flows.py` 20/20 OK con modelo real (incluye F: pago en línea;
+  A: multi-orden) + repro dirigido perfil-por-código (401) + "pago en línea" → muestra el
+  resumen en `fase_4_confirmacion`, no escala directo.
+- **Pendiente derivado:** B10 fue corregido en RESUELTO-012 y B11 fue corregido en
+  RESUELTO-013.
+- **Estado:** RESUELTO.
+
+### RESUELTO-012 — B10: resumen duplicaba perfil de catálogo en "Análisis" y "Perfil base" (2026-06-22)
+
+- **Síntoma:** al llegar a `fase_4_confirmacion` con un perfil de catálogo, el resumen mostraba
+  el mismo perfil dos veces: `- Análisis: X` y luego `- Perfil base: X ($Y)`. El precio quedaba
+  separado de la línea principal del análisis y el usuario lo percibía como estructura partida.
+- **Causa raíz:** `_order_summary_lines` agregaba siempre la línea `- Análisis: exam_type` antes
+  de saber si el análisis era un perfil de catálogo; después, en la rama `_selected_profile_code`,
+  agregaba otra línea `- Perfil base: profile_name (precio)` para el mismo concepto.
+- **Solución:** en perfiles de catálogo, `_order_summary_lines` arma la línea principal como
+  `- Análisis: Nombre del perfil — $Y COP` y deja de emitir `- Perfil base:`. Si hay agregados o
+  quitados, se siguen mostrando en líneas separadas y el `Valor estimado` conserva el total.
+- **Verificación:** `python -m pytest tests/test_profile_price_resolution.py` → 11/11; `python -m
+  pytest` → 119/119; `python tools/scripts/validate_flows.py F M Q` → 4/4 flujos OK. El intento
+  de `validate_flows.py` completo no falló por aserción, pero quedó cortado por timeout antes del
+  resumen final.
+- **Estado:** RESUELTO técnicamente; pendiente aprobación visual del usuario.
+
+### RESUELTO-013 — B11: agregar análisis durante la confirmación cerraba la orden (2026-06-22)
+
+- **Síntoma:** en `fase_4_confirmacion`, si el usuario respondía algo como `sí, pero agrégale
+  glucosa`, el bot tomaba el `sí` como confirmación final y cerraba la orden antes de aplicar
+  el cambio de análisis.
+- **Causa raíz:** el cierre determinístico de `_enforce_confirmation_step` corría antes de
+  revisar si el mismo mensaje traía un ajuste parcial del análisis (`agregar/quitar`).
+  `_is_order_confirmation` veía el `sí` y marcaba `fase_6_cierre`.
+- **Solución:** agregar `_confirmation_analysis_adjustment` antes del cierre determinístico.
+  Si hay análisis nombrado, lo suma/quita, recalcula el resumen y mantiene
+  `fase_4_confirmacion`; si el usuario solo dice `agregale otro análisis`, pregunta cuál y deja
+  `_awaiting_additional_test` para el siguiente turno. El cierre normal queda intacto.
+- **Verificación:** primero se reprodujo la falla con una prueba nueva (`fase_6_cierre` en vez
+  de `fase_4_confirmacion`). Luego: `python -m pytest tests/test_profile_price_resolution.py`
+  → 13/13; `python -m pytest` → 121/121; `python tools/scripts/validate_flows.py F M Q` → 4/4;
+  `python tools/scripts/validate_flows.py A` → 1/1.
+- **Estado:** RESUELTO técnicamente; pendiente aprobación visual del usuario.
+
+### RESUELTO-010 — El bot vuelve a pedir la dirección tras confirmarla con "sisi" (caso Animal Pets) (2026-06-19)
+
+- **Síntoma:** cliente registrado, el bot ofrece la dirección de retiro de la BD ("¿Es
+  correcta?"), el usuario responde "sisi", el bot avanza al médico solicitante y, tras dar
+  el médico, vuelve a preguntar "¿Cuál es la dirección de retiro?" aunque ya estaba puesta.
+- **Causa raíz:** `_confirms_address("sisi")` devolvía False — "sisi" (pegado) no está en
+  `_ADDRESS_CONFIRM_TOKENS` (que tiene "si"/"sí"/"sip"). El LLM sí entendió y avanzó, pero
+  el guardrail determinista no bajaba `_address_confirmation_pending`. Esa bandera quedaba
+  pegada en True y `_missing_route_field` reporta `pickup_address` como faltante mientras
+  siga encendida, aunque el campo tenga valor. Evidencia: sesión chat 4 con
+  `pickup_address` poblado pero `_address_confirmation_pending=True`. **Independiente de la
+  integración de Alegra** (el hook de facturación está aislado en el cierre).
+- **Solución (2 fixes, `app/agent.py`):**
+  1. `_confirms_address`: reconoce confirmaciones coloquiales pegadas/alargadas con
+     `re.fullmatch(r"(s[ií]+)+", w)` → "sisi", "sisisi", "siii", "sí sí".
+  2. Red de seguridad anti-bandera-pegada: el bloque que baja `_address_confirmation_pending`
+     cuando el flujo ya avanzó ahora evalúa los `fields` ACTUALES (no solo `prev_captured`),
+     así desatasca la bandera aunque la confirmación venga en una forma no prevista.
+- **Segundo camino (mismo bug, otra entrada):** cuando el cliente confirma con "el mismo"/
+  "esa misma" y la sesión ya tiene `_client_memory`/`_prev_order_snapshot`, el flujo entra a
+  `_resolve_same_as_previous` (process_turn ~3890), que pone `pickup_address` y hace `return`
+  temprano — **saltándose** el handler que baja la bandera. La bandera quedaba pegada igual.
+  Fix: en ese `return` temprano, si la resolución dejó `pickup_address` y la bandera estaba
+  pendiente, bajarla (`_address_confirmation_pending=False`, `_address_confirmed=True`).
+  **No es regresión de Alegra:** el `git diff` muestra `_resolve_same_as_previous` intacto
+  desde el commit; el único cambio Alegra cercano (`_store_client_context` setea `tax_id`)
+  no toca este flujo.
+- **Verificación:** `tests/test_address_confirmation.py` (16 casos) + reproducción de la
+  cadena completa (`_resolve_same_as_previous` → bandera abajo → `_missing_route_field` ya no
+  pide la dirección, ni antes ni después de capturar el médico). Suite 112/112.
+- **Pendiente operativo:** REINICIAR el server Flask para tomar el fix (el código no se
+  recarga solo); reiniciar la conversación de prueba o seguir (se desatasca sola).
+
+### RESUELTO-009 — Cuenta Alegra de pruebas era de Argentina, no de Colombia (2026-06-19)
+
+- **Síntoma:** al probar `app/services/alegra.py`, el alta de contacto fallaba con `2055`
+  ("condición de IVA obligatoria"), `2054` ("valor de IVA inválido") y `2039` ("tipo de
+  identificación no válido"); cuando un alta "tenía éxito" el contacto quedaba con
+  `identification=None` y la búsqueda por NIT no lo encontraba (duplicados, sin idempotencia).
+- **Causa raíz:** `GET /company` devolvía `applicationVersion="argentina"`. La primera cuenta
+  de pruebas quedó configurada como **Argentina**, no Colombia: aceptaba `ivaCondition`
+  argentino y rechazaba NIT/CC y los regímenes colombianos.
+- **Solución:** se usó una cuenta de pruebas de **Colombia** (`applicationVersion="colombia"`).
+  El alta con el formato oficial de Colombia (`identificationObject` con NIT + `regime` +
+  `kindOfPerson`) funciona: el NIT se guarda (`identification:"900123456"`) y la búsqueda por
+  NIT lo encuentra (idempotencia OK, no duplica).
+- **Verificación:** `python scripts/alegra_smoke.py --contact` (2 corridas → mismo id=2).
+- **Lección:** validar siempre `company.applicationVersion` antes de probar flujos por país.
+- **Referencias:** `app/services/alegra.py`, `scripts/alegra_smoke.py`,
+  `docs/decisions/009-alegra-integracion-por-fases.md`.
+
 ### ABIERTO-005 — Confirmacion no cierra cuando falta confirmar la direccion (caso Gusmery)
 - Severidad: alto
 - Flujo: orden de servicio / confirmacion
@@ -60,6 +323,67 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 ---
 
 ## Correcciones aplicadas
+
+### ERR-044 — Confirmar el detalle de un perfil reabría opciones de Perfil General
+- Severidad: medio (respuesta confusa tras mostrar detalle de perfil)
+- Flujo: catálogo / confirmación de perfil predefinido
+- Síntoma observado (chat 4, 2026-06-21): tras preguntar `me dirías qué análisis contiene el perfil 151`, el bot respondió correctamente el detalle del `Perfil General` y preguntó si lo dejábamos así o se personalizaba. El usuario respondió `no asi esta bien`; el bot contestó: "Para Perfil General, estas son las combinaciones..." y listó `1339 Panel Generales de Salud` + `151 Perfil General`.
+- Causa raíz: orden de guardrails. `_enforce_catalog_profile_help` corría antes de `_enforce_profile_detail_step`. Aunque `no asi esta bien` era una confirmación válida para `_is_profile_confirmation`, primero el guard de catálogo volvió a buscar `exam_type="Perfil General"`; `db.find_catalog_profiles("Perfil General")` matcheó tanto la categoría/nombre `General` como el panel `1339`, y mostró opciones. La confirmación nunca llegó limpia al handler de detalle.
+- Solución aplicada: si `_profile_detail_offered` ya está activo, `_enforce_catalog_profile_help` no vuelve a buscar opciones por nombre; deja que `_enforce_profile_detail_step` procese confirmación o personalización. Esa decisión usa `user_intent_signal` como fuente primaria (`affirm`/`negate`) y deja los tokens como fallback: frases distintas como `tal cual` o `no quiero agregar nada` confirman el perfil si la intención semántica es dejarlo igual. Si el usuario vuelve a preguntar el detalle y hay `_selected_profile_code`, se responde el detalle por código.
+- Tests: `test_confirming_profile_detail_does_not_reopen_catalog_options`, `test_profile_detail_confirmation_uses_intent_signal_not_exact_words`, `test_negated_customization_signal_keeps_profile_as_is` en `tests/test_profile_price_resolution.py`; suite completa `pytest` -> 118/118.
+- Estado: corregido.
+
+### ERR-043 — `perfil 151` se trataba como perfil diagnóstico GENERAL en vez de perfil cerrado
+- Severidad: medio (confunde selección de catálogo y retrasa el cierre)
+- Flujo: catálogo / selección de perfil
+- Síntoma observado (chat 4, 2026-06-21): al pedir `perfil 151` cuando el bot preguntaba qué análisis o perfil deseaban, respondió "Para un perfil General suelo sugerir estas pruebas... ¿Cuáles quieres incluir?". El usuario tuvo que aclarar "el perfil que deseo es el 151". El estado final sí terminó con `_selected_profile_code=151`, `_selected_profile_price=32000`, pero el primer turno fue incorrecto.
+- Causa raíz: el guard de perfil diagnóstico (`_enforce_diagnostic_label_help`) corría antes de resolver códigos de perfiles del catálogo desde el texto real del usuario. El modelo reinterpretó `perfil 151` como `Perfil General`; al llegar al guard diagnóstico, `find_diagnostic_label("Perfil General")` devolvió `GENERAL` y abrió el flujo de perfil personalizado, aunque el usuario había dado un código cerrado del catálogo.
+- Solución aplicada: nuevo guard `_enforce_catalog_profile_code_selection` en `app/agent.py`, ejecutado antes del guard diagnóstico. Si el texto del usuario trae un código de perfil existente (`151`) y no es una pregunta de detalle, resuelve por `db.get_catalog_profiles_by_codes`, guarda código/nombre/precio con `_store_selected_profile_fields`, limpia marcas de perfil diagnóstico y avanza al siguiente dato faltante. Además, si después de elegir un perfil cerrado el usuario dice `agrégale X`/`quítale X`, el pago ya no pisa la personalización: se agrega/quita el análisis, se permite seguir ajustando y `cerramos así` cierra la personalización antes de pedir pago.
+- Tests: `test_profile_code_selection_wins_over_diagnostic_label`, `test_selected_profile_can_be_customized_before_payment`, `test_customized_selected_profile_can_be_closed_then_asks_payment` en `tests/test_profile_price_resolution.py`; suite completa `pytest` -> 115/115.
+- Estado: corregido.
+
+### ERR-042 — El agente dejó de mostrar el precio de los análisis y no respondía "¿cuánto cuesta?"
+- Severidad: medio (experiencia de cotización)
+- Flujo: catálogo / precios / preguntas laterales
+- Síntoma observado (testeo real): al mencionar un análisis ya no aparecía el precio al lado, y al preguntar "¿cuánto sale este análisis?" o "¿cuánto serían todos esos?" el agente no respondía el valor.
+- Causa raíz: (1) `_operational_side_question_answer` interceptaba toda pregunta de precio con una frase genérica ("el valor depende del análisis, dime cuál") que se devolvía como respuesta y CORTABA al LLM, que sí tiene el catálogo con precios y conoce los sinónimos (hemograma = Cuadro Hemático). (2) No había una respuesta determinista para el total de los análisis ya elegidos ni para un análisis puntual; `_price_answer_for_order` solo cubría un perfil ya seleccionado. (3) La confirmación de selección de menú (`_capture_test_menu_selection`) registraba "Listo, registro X" con `_format_selected_tests`, que no incluía precio.
+- Solución aplicada:
+  1. `_catalog_price_answer(fields, msg)`: responde con valores REALES del catálogo — el total de los análisis ya elegidos (con subtotal/descuento por volumen/total explícitos vía `_format_tests_total`), un análisis puntual por código/nombre exacto, una selección del menú mostrado, o el perfil ya elegido. Se engancha antes de la respuesta genérica en el flujo activo y en la confirmación.
+  2. Se quitó la frase genérica de deflección de precio: las preguntas que el código no resuelve con certeza pasan al LLM, que las contesta con el catálogo inyectado (incluye precios) y mapeando sinónimos.
+  3. La confirmación de selección ahora usa `_format_test_items` (precio al lado de cada análisis) + "Valor estimado" si son varios. Se eliminó `_format_selected_tests` (sin uso).
+  4. Prompt reforzado: precio SIEMPRE visible al nombrar/registrar un análisis; responder preguntas de precio con el catálogo y nunca inventar.
+- División IA/código: el código resuelve lo seguro (total de elegidos, código/nombre exacto, menú, perfil); el LLM resuelve el vocabulario del cliente (sinónimos), porque el catálogo real usa "Cuadro Hemático Completo" / "Parcial de Orina", no "hemograma" / "uroanálisis" (el match por substring fallaba y no se quiso construir un diccionario de sinónimos).
+- Archivos afectados: `app/agent.py` (`_catalog_price_answer`, `_format_tests_total`, `_named_analysis_terms`, `_capture_test_menu_selection`, `_operational_side_question_answer`), `app/prompt.py`, `tests/test_price_answers.py` (nuevo).
+- Tests: `test_specific_analysis_price`, `test_total_of_selected_tests`, `test_selected_profile_price_when_no_named_analysis`, `test_non_price_question_returns_none`, `test_price_from_menu_options_selection`. Verificado además contra el catálogo real (Cuadro Hemático $14k, total de elegidos con descuento). Suite 96/96.
+- Estado: corregido.
+
+### ERR-041 — Orden con perfil del catálogo cerraba con precio $0 y no facturaba en Alegra (caso gato, orden A3-2026-062)
+- Severidad: alto (afecta precio mostrado, registro y facturación electrónica)
+- Flujo: catálogo / precio / persistencia / integración Alegra
+- Síntoma observado (testeo real con la cuenta de pruebas Alegra): una orden de un gato con "Perfil Prequirúrgico I" cerró registrando precio $0 (el perfil real cuesta $24.000) y NO generó factura en Alegra; la única factura en la cuenta era la demo manual (canino $58k), no la del flujo conversacional.
+- Causa raíz (dos bugs que se combinan):
+  1. **Precio $0:** el `exam_type` quedó como "152-Perfil Prequirúrgico I" (código + nombre juntos) sin `_selected_profile_code`. El backstop `_resolve_profile_base_if_missing` resolvía por NOMBRE: `find_catalog_profile("152-Perfil Prequirúrgico I")` no matchea la cadena combinada, y por nombre suelto ("Perfil Prequirúrgico I") devolvía un perfil EQUIVOCADO ($90k, perfil X en vez del I). Quedaba sin resolver → `_profile_event_payload` persistía base price 0 y total 0. Además `billing.build_invoice_lines` descarta líneas con precio 0 → sin factura aunque hubiera NIT.
+  2. **NIT no llegaba a facturación:** cuando el cliente se identifica por NOMBRE, `_store_client_context` no copiaba el `tax_id` del cliente a `fields`. `_try_invoice_in_alegra` lee `fields.get("tax_id")` → None → `billing.invoice_order` retorna None y la facturación se salta en silencio, aunque el cliente tenga NIT en la BD.
+- Solución aplicada:
+  1. `_resolve_profile_base_if_missing` resuelve primero por CÓDIGO (extrae el código del `exam_type` con `_profile_codes_from_text` y usa `db.get_catalog_profiles_by_codes`), que es la fuente determinística del precio; el match por nombre queda solo como fallback. Corrige las tres superficies a la vez: el resumen que ve el cliente, el evento persistido (dashboard) y la factura de Alegra.
+  2. `_store_client_context` ahora copia el NIT canónico del cliente (`client.tax_id`) a `fields` para que la facturación lo tenga aunque la identificación haya sido por nombre.
+- Archivos afectados: `app/agent.py` (`_resolve_profile_base_if_missing`, `_store_client_context`), `tests/test_profile_price_resolution.py` (nuevo).
+- Tests: `test_combined_code_name_resolves_by_code_not_name`, `test_already_resolved_is_left_untouched`, `test_custom_profile_is_not_resolved`, `test_invoice_lines_have_price_after_resolution`. Suite completa 91/91.
+- Estado: corregido (precio y facturación).
+- Verificación de datos: el cliente "Animal Pets" SÍ tiene NIT en la BD (`tax_id=53115419-1`); la corrección inicial de que "no tenía NIT" era falsa (venía de cómo el join de `list_requests` traía la columna). La base está bien cargada: 492 de 500 clientes con NIT, y el catálogo tiene los precios reales. Por eso el bug #2 (NIT no llega a facturación) era la causa real, no un dato faltante. Probado en memoria (sin escribir en Alegra): con ambos fixes la orden del gato lleva NIT 53115419-1, resuelve 152 a $24.000 y arma la línea de factura.
+- Relacionado con ERR-039 (misma clase: perfil base elegido por texto pierde código/precio). Deuda aparte: `find_catalog_profile` por nombre puede devolver un perfil de la misma familia con número distinto (I/II/X); por eso se resuelve por código primero.
+- Recordatorio de entorno: TODO es prueba. La facturación se crea solo en BORRADOR en la cuenta de pruebas (`create_invoice` sin `status`); la emisión DIAN real no está conectada y no debe activarse en pruebas.
+
+### ERR-040 — Elegir una opción de la lista de coincidencias con respuesta corta de confirmación se tomaba como cliente nuevo o nombre de otra veterinaria ("exacto, es la primera")
+- Severidad: alto
+- Flujo: identificación cliente / selección de coincidencias
+- Síntoma observado (testeo real): el bot mostró varias veterinarias que coincidían y preguntó "¿cuál es?". El cliente respondió "exacto, es la primera" (= sí, la opción 1) y el bot NO lo detectó como selección: lo interpretó como el nombre de OTRA veterinaria y la re-buscó (también podía escalar a "cliente nuevo").
+- Causa raíz: orden de prioridad equivocado en `process_turn`. Con la lista de coincidencias pendiente (`_client_match_options`), el mensaje se reinterpretaba ANTES de resolver la selección: (1) `_confirms_new_client("exacto, es la primera")` devolvía True por una heurística frágil de "≤4 palabras + token afirmativo" (el "exacto" la disparaba) → escalaba a cliente nuevo; y (2) `_apply_identification_fallbacks` tomaba "la primera" como un nombre nuevo (`_looks_like_bare_client_name`, también basada en longitud) y BORRABA la lista, así que el selector de ordinales (`_select_client_match`, que ya entiende "la primera" → opción 1) nunca corría. El problema no era falta de frases en un diccionario, sino que las heurísticas por longitud de mensaje ganaban a la comprensión por contexto.
+- Solución aplicada: prioridad por contexto, sin depender de la cantidad de palabras. Al inicio del bloque de identificación se calcula `picks_from_match_list` = hay lista pendiente Y `_select_client_match(user_message)` resuelve una opción (número, ordinal o nombre listado). Si es una selección: `says_new_client` se fuerza a False (no escala por un "exacto" de confirmación) y se omite `_apply_identification_fallbacks` (no reinterpreta el ordinal como nombre ni borra la lista). La selección se resuelve en el bloque `_client_match_options` ya existente, con la lista intacta. La IA interpreta el significado; el código hace cumplir la selección determinísticamente.
+- Archivos afectados: `app/agent.py` (`process_turn`, bloque de identificación), `tests/test_client_match_selection.py` (nuevo).
+- Tests: `test_short_confirmation_with_ordinal_selects_option_one`, `test_plain_ordinal_selects_option_two`, `test_number_selection_still_works`. Verificado que fallan sin el fix (2/3) y pasan con él. Suite completa 87/87.
+- Estado: corregido.
+- Pendiente relacionado (no bloqueante, ver ERR-011/ABIERTO-003): las heurísticas por longitud (`_confirms_new_client`, `_looks_like_bare_client_name` con su corte de ≤4 palabras) siguen siendo frágiles fuera de este flujo; deberían gatillarse por contexto/señal del LLM, no por cantidad de palabras. Este fix las neutraliza cuando hay lista pendiente, pero conviene migrarlas a comprensión por intención en las etapas restantes.
 
 ### ERR-039 — Agregar un análisis a un perfil del catálogo perdía el precio base (total mal calculado)
 - Severidad: alto

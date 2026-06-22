@@ -707,23 +707,79 @@ def list_diagnostic_labels(limit: int = 200) -> list[str]:
     return sorted(seen)[:limit]
 
 
-def find_diagnostic_label(query: str | None) -> str | None:
+def _label_prefix_overlap(q_tokens: list[str], l_tokens: list[str], min_root: int = 5) -> bool:
+    """Dos grupos de tokens comparten raíz morfológica si algún par tiene un prefijo
+    común de al menos `min_root` caracteres (ej. 'dermatitis' y 'dermatologico' → 'dermat').
+    Esto detecta variantes morfológicas sin necesitar listas de sinónimos."""
+    for qt in q_tokens:
+        for lt in l_tokens:
+            if qt == lt:
+                return True
+            n = min(len(qt), len(lt))
+            if n >= min_root:
+                shared = sum(1 for a, b in zip(qt, lt) if a == b)
+                # El prefijo compartido debe ser consecutivo desde el inicio
+                prefix_len = 0
+                for a, b in zip(qt, lt):
+                    if a == b:
+                        prefix_len += 1
+                    else:
+                        break
+                if prefix_len >= min_root:
+                    return True
+    return False
+
+
+def find_diagnostic_label(query: str | None, species: str | None = None) -> str | None:
     """Encuentra la etiqueta diagnóstica que mejor corresponde al texto del usuario.
-    Coincidencia por clave normalizada (exacta o contenida)."""
+
+    Tres niveles de coincidencia, del más al menos estricto:
+    1. Exacta: el texto normalizado es idéntico a la clave de la etiqueta.
+    2. Contenida: la etiqueta completa aparece como subcadena del texto.
+    3. Raíz morfológica: algún token del texto y algún token de la etiqueta
+       comparten un prefijo de ≥5 caracteres (ej. 'hepatico' ~ 'hepatico_canino',
+       'dermatitis' ~ 'dermatologico', 'parasitos' ~ 'parasitologico').
+       Cuando varios candidatos coinciden por raíz, se prefiere el que incluye
+       la especie ya conocida; si hay empate, se devuelve el más corto/general.
+    """
     key = _normalize_lookup_key(query)
     if not key:
         return None
     labels = list_diagnostic_labels()
     label_keys = {label: _normalize_lookup_key(label) for label in labels}
+
+    # 1. Exacta
     for label, lk in label_keys.items():
         if lk == key:
             return label
-    # Solo si la etiqueta COMPLETA aparece en el texto (ej. "perfil convulsivo canino"),
-    # no al revés (una palabra suelta como "canino" no debe matchear "convulsivo canino").
+
+    # 2. Etiqueta completa contenida en el texto
     for label, lk in label_keys.items():
         if lk and lk in key:
             return label
-    return None
+
+    # 3. Raíz morfológica compartida (tokens significativos ≥ 4 chars)
+    q_tokens = [t for t in key.split("_") if len(t) >= 4]
+    if not q_tokens:
+        return None
+    candidates: list[tuple[str, str]] = []
+    for label, lk in label_keys.items():
+        l_tokens = [t for t in lk.split("_") if len(t) >= 4]
+        if _label_prefix_overlap(q_tokens, l_tokens):
+            candidates.append((label, lk))
+    if not candidates:
+        return None
+    if len(candidates) == 1:
+        return candidates[0][0]
+    # Desambiguar por especie cuando hay variantes canino/felino
+    if species:
+        species_key = _normalize_lookup_key(species)
+        for label, lk in candidates:
+            if species_key in lk:
+                return label
+    # Sin especie: devolver el más corto (más general)
+    candidates.sort(key=lambda x: len(x[1]))
+    return candidates[0][0]
 
 
 def get_tests_for_label(label: str | None) -> list[dict]:
@@ -1233,7 +1289,9 @@ def create_request(chat_id: str, session: dict, ai_response: dict) -> str | None
         "event_payload":  event_payload,
     }).execute()
 
-    return {"request_id": request_id, "order_number": order_number}
+    # Se devuelve el event_payload (con `profile` y `service_order`) para que la capa de
+    # facturación (app/billing.py) arme las líneas sin reconstruir la lógica de catálogo.
+    return {"request_id": request_id, "order_number": order_number, "event_payload": event_payload}
 
 
 def get_last_order_for_client(client_id: str) -> dict | None:

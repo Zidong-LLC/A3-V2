@@ -47,3 +47,12 @@ CHATWOOT_TEAM_OPERACIONES = os.environ.get("CHATWOOT_TEAM_OPERACIONES", "")
 PLATFORM_API_TOKEN = os.environ.get("PLATFORM_API_TOKEN", "")
 DASHBOARD_ADMIN_USER = os.environ.get("DASHBOARD_ADMIN_USER", "admin")
 DASHBOARD_ADMIN_PASSWORD = os.environ.get("DASHBOARD_ADMIN_PASSWORD", "admin123")
+
+# Alegra — facturación electrónica DIAN (integración por fases, ver decisión 009).
+# Con ALEGRA_ENABLED desactivado el agente se comporta igual que hoy: el flag protege
+# producción mientras se prueba contra una cuenta nueva. Para migrar a la cuenta del
+# cliente solo se cambian ALEGRA_EMAIL/ALEGRA_API_TOKEN en el .env, sin tocar código.
+ALEGRA_ENABLED = os.environ.get("ALEGRA_ENABLED", "false").lower() in ("1", "true", "yes")
+ALEGRA_EMAIL = os.environ.get("ALEGRA_EMAIL", "")
+ALEGRA_API_TOKEN = os.environ.get("ALEGRA_API_TOKEN", "")
+ALEGRA_BASE_URL = os.environ.get("ALEGRA_BASE_URL", "https://api.alegra.com/api/v1").rstrip("/")

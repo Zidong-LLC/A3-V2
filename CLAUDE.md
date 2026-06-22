@@ -4,6 +4,17 @@
 
 ---
 
+## ⛔ Entorno de pruebas y datos (NO NEGOCIABLE)
+
+> Leer `docs/guardrails-entorno-y-datos.md` antes de tocar facturación o datos.
+> - **TODO es prueba: NUNCA emitir facturas reales a la DIAN ni facturar a un cliente real
+>   con datos de prueba.** En Alegra solo se crean BORRADORES en la cuenta de pruebas; no
+>   crear facturas (ni borrador) sin avisar antes. Verificar en solo lectura.
+> - **La base ya existe y está completa** (Supabase, ~800 clientes con NIT, catálogo con
+>   precios reales). Verificar antes de asumir que falta un dato. Credenciales solo en `.env`.
+
+---
+
 ## Sesión local de desarrollo
 
 > Al iniciar cualquier sesión de trabajo leer `docs/runbooks/sesion-local.md`.
@@ -13,6 +24,19 @@
 ---
 
 ## Workflow de trabajo
+
+### ⛔ No tocar el flujo conversacional sin avisar (NO NEGOCIABLE)
+> El flujo conversacional ya funciona en su gran mayoría. Cada paso/proceso aprobado está
+> documentado en `docs/contrato-flujo-conversacional.md` (fuente única de verdad).
+> - **ANTES de modificar cualquier paso del flujo**, avisar al usuario: "voy a tocar X, por
+>   esto", y esperar su OK explícito. No editar y después contar.
+> - **Un paso marcado ✅ APROBADO no se toca** salvo pedido directo del usuario.
+> - **No rediseñar un paso aprobado como efecto colateral de arreglar otro.** Si arreglar un
+>   bug obliga a tocar un paso aprobado, PARAR y avisar primero.
+> - **Cambios mínimos y localizados:** un fix toca el paso reportado, no encadena ediciones
+>   en pasos vecinos que ya estaban bien.
+> - Si no sabés si un paso está bien o mal, **preguntar** ("¿este paso está bien?") y marcar
+>   el estado en el contrato antes de avanzar.
 
 ### Modo Plan por defecto
 - Entrar en modo plan para cualquier tarea no trivial (3+ pasos o decisiones arquitectónicas)

@@ -88,6 +88,16 @@ PERSONAS = {
         "y al rato 'perdón, es hembra'; o cambiás la edad o el nombre del paciente. "
         "Esperás que el bot tome la última versión sin repreguntar lo que ya diste."
     ),
+    "precios": (
+        "Sos un veterinario registrado al que le importa el PRECIO. PRIMER mensaje: "
+        "elegí la opción 1 (programar) e identificate de una ('soy de Veterinaria San "
+        "Roque, NIT 900123456'). Cuando el bot te pida el análisis, ANTES de elegir "
+        "preguntás '¿cuánto sale un hemograma?'. Cuando te den el valor, decís 'dale, "
+        "un hemograma, y agregale una glucosa, ¿cuánto sería todo junto?'. Querés ver "
+        "el valor de cada análisis al lado de su nombre. Después das el resto de datos "
+        "(Firulais, canino labrador macho 3 años, Dra. Laura Méndez, dueño Pedro Gómez, "
+        "pago contraentrega) y cerrás la orden."
+    ),
 }
 
 JUEZ_SYSTEM = (
@@ -154,7 +164,7 @@ def _run_persona(name, desc, max_turns):
     _reset(chat_id)
     objetivo = DATOS_CLIENTE if name in (
         "apurado", "caotico", "evasivo", "desordenado",
-        "multi_orden", "multi_intencion", "contradictorio",
+        "multi_orden", "multi_intencion", "contradictorio", "precios",
     ) else (
         "Estás registrado y querés programar; usá los datos que tengas a mano."
         if name == "preventa" else "Usá tu situación tal cual; no inventes registro."

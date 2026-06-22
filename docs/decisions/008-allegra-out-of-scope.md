@@ -2,6 +2,10 @@
 
 Fecha: 2026-06-13
 
+> **⚠️ SUPERADO por [009 — Alegra: integración por fases](009-alegra-integracion-por-fases.md).**
+> Alegra sí entra en alcance mediante una integración por fases (solo borradores en
+> cuenta de pruebas). Esta decisión se conserva como historial; no aplicar.
+
 ## Decisión
 
 Allegra no está integrado todavía y no debe formar parte del camino activo de

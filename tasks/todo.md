@@ -2,6 +2,89 @@
 
 ---
 
+## Bug: agregar otro análisis/perfil se traba (chat 4 real) — En curso
+
+Reportado por el usuario y reproducido en el historial real (`external_chat_id=4`):
+1. **Intención compuesta ignorada:** "quiero el perfil 152 al cual le quiero agregar un
+   analisis extra" → el bot captura el perfil y salta al pago, descartando el "agregar".
+2. **Pregunta de catálogo durante el ajuste se traba:** estando en personalización/confirmación,
+   "que analisis de orina tienen" → el bot repite el resumen sin listar opciones de orina.
+   El usuario quedó sin respuesta.
+
+Causa raíz: durante el ajuste de un perfil, el código solo resuelve nombre/código EXACTO de
+análisis; una pregunta abierta por área no llega a `find_tests_by_area` y cae al resumen.
+
+Plan (mínimo, avisado y aprobado por el usuario):
+- [x] Helper `_area_options_for_profile_addition`: ante pregunta por área durante el ajuste,
+      muestra el menú de esa área marcado para AGREGAR al perfil base (`_test_menu_adds_to_profile`).
+- [x] `_enforce_profile_customization_changes`: si llega una pregunta por área, mostrar el menú.
+- [x] `_confirmation_analysis_adjustment`: si no resuelve test exacto, intentar opciones por área.
+- [x] Selección de menú en `process_turn`: si `_test_menu_adds_to_profile`, AGREGAR al
+      perfil en vez de reemplazar (`_capture_menu_addition_to_profile`).
+- [x] Fix intención compuesta: en `_enforce_catalog_profile_code_selection`, si el mismo mensaje
+      pide agregar, tras fijar el perfil preguntar qué análisis agregar.
+- [x] Tests de regresión (`tests/test_add_analysis_during_adjustment.py`, 5 casos).
+- [x] Registrar en `errores-soluciones.md` (RESUELTO-014) y actualizar el contrato (B9/B11).
+
+**Resultado:** suite 126/126 verde. Verificado contra base real (`find_tests_by_area` →
+7 análisis de Uroanálisis; perfil 152 = $24.000). Pendiente: que el usuario reinicie el Flask
+local y re-pruebe la conversación (el historial del chat 4 era de código anterior).
+
+---
+
+## Integración de Alegra (facturación electrónica DIAN) — Por fases — En curso
+
+Decisión [009](../docs/decisions/009-alegra-integracion-por-fases.md) (supersede la 008).
+Plan completo en el archivo de plan aprobado. Cubre las 4 capacidades (facturación DIAN,
+link de pago en chat, consulta de facturas/saldo, sync de clientes), por fases. Se prueba
+PRIMERO con una cuenta nueva detrás de `ALEGRA_ENABLED`; migrar a la del cliente = cambiar
+solo `.env`.
+
+### Fase 0 — Credenciales y feature flag ✅ COMPLETA
+- [x] `config.py`: `ALEGRA_ENABLED` (default false), `ALEGRA_EMAIL`, `ALEGRA_API_TOKEN`, `ALEGRA_BASE_URL`.
+- [x] `.env.example`: bloque Alegra documentado.
+- [x] `docs/decisions/009-alegra-integracion-por-fases.md` (supersede 008).
+- [x] `scripts/alegra_smoke.py`: ping de conectividad + get_or_create de contacto demo.
+
+### Fase 1 — Cliente API + sync de contactos (backend) — Base validada
+- [x] `app/services/alegra.py`: cliente Basic auth aislado, `ping`, `find_contact_by_nit`,
+      `get_or_create_contact`. urllib (igual que chatwoot.py), errores re-lanzados como `AlegraError`.
+- [x] Validado contra API real (cuenta Colombia, `applicationVersion="colombia"`):
+      conectividad, lectura y **alta de contacto con NIT** OK. El NIT se guarda y la búsqueda
+      lo encuentra → idempotencia confirmada (ver RESUELTO-009). Formato: `identificationObject`
+      (NIT) + `regime` + `kindOfPerson`.
+- [ ] Hook de sync: al identificar cliente, `get_or_create_contact` por NIT y guardar
+      `alegra_contact_id` en `request_events.event_payload` (bajo `ALEGRA_ENABLED`).
+      → Toca `agent.py`/`db.py`; siguiente paso.
+
+### Fase 2 — Facturación (backend) — Base API validada
+- [x] `app/services/alegra.py`: `find_item_by_reference`, `get_or_create_item` (idempotente
+      por código), `create_invoice` (borrador por defecto). Validado contra cuenta Colombia:
+      ítem idempotente, factura con total correcto (2×35000=70000), status `draft`.
+- [x] Confirmado: la cuenta de pruebas tiene numeración de factura de venta `id=1`
+      `electronic=false` → se factura en borrador/no-electrónico ahora; la emisión DIAN real
+      (timbrado) se valida con la cuenta del cliente que sí tiene facturación electrónica.
+- [x] Mapeo catálogo → ítems Alegra: `app/billing.py` (`build_invoice_lines` puro +
+      `invoice_order`). El total cuadra con `price_adjustment.total` del event_payload
+      (base ajustado por removidas + agregadas como líneas). `create_request` ahora devuelve
+      `event_payload` (cambio aditivo) para no reconstruir la lógica de catálogo.
+- [x] Hook al cerrar orden `route_scheduling`: `agent._try_invoice_in_alegra` tras
+      `db.create_request`, bajo `ALEGRA_ENABLED`. Sync de contacto + factura borrador; guarda
+      IDs como evento `alegra_invoiced` (sin tocar esquema Supabase). try/except: si Alegra
+      falla, loggea y NO rompe el cierre ni la recogida.
+- [x] Tests: `tests/test_alegra_billing.py` (7) — build_invoice_lines + hook (éxito, fallo
+      no rompe, orden sin perfil no factura). Suite 84/84.
+- [x] Validado end-to-end contra cuenta Colombia real: hook → factura con total correcto
+      (95000) → evento guardado. Decisión del usuario: facturar TODA orden, automático.
+- [ ] PENDIENTE emisión DIAN real (cuenta del cliente): IVA de análisis, régimen por cliente,
+      numeración electrónica. Hoy se factura en borrador/no-electrónico.
+
+### Fases 3–4 — Pendientes
+- [ ] Fase 3: link de pago en chat para `pago_linea` (requiere activar pagos electrónicos / Mercado Pago).
+- [ ] Fase 4: consulta de facturas/saldo (read-only) dentro del intent `accounting`.
+
+---
+
 ## Bucle de especie/typos + fallback robótico (caso Luciano) ✅ COMPLETA
 
 Bug reportado: pidiendo la especie, el cliente responde "Kanino"/"Kany"; el modelo

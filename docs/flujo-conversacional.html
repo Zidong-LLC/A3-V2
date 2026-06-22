@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A3 Laboratorio Veterinario — Diagrama de flujo del agente</title>
+<style>
+  body{margin:0;background:#fff;font-family:"Segoe UI",Roboto,Arial,sans-serif;color:#1d2733;}
+  .wrap{width:1180px;margin:0 auto;padding:26px 24px 30px;}
+  .head{border-bottom:3px solid #1559b5;padding-bottom:14px;margin-bottom:14px;display:flex;align-items:center;gap:14px;}
+  .logo{width:46px;height:46px;border-radius:11px;background:#1559b5;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:19px;}
+  .head h1{margin:0;font-size:23px;}
+  .head p{margin:3px 0 0;color:#5b6b7b;font-size:14px;}
+  .legend{display:flex;gap:20px;flex-wrap:wrap;font-size:12.5px;color:#36475a;margin:12px 2px 8px;}
+  .legend span{display:inline-flex;align-items:center;gap:7px;}
+  .legend i{width:26px;height:15px;border-radius:4px;display:inline-block;border:2px solid;}
+  .li-proc{background:#e8f1fc;border-color:#1559b5;}
+  .li-dec{background:#fff6e0;border-color:#e08a1e;}
+  .li-der{background:#fbeae8;border-color:#c0392b;}
+  .li-end{background:#e6f6ee;border-color:#1f9d63;}
+
+  /* nodos dentro del SVG (foreignObject) */
+  .box{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;width:100%;
+       text-align:center;border-radius:12px;padding:6px 12px;box-sizing:border-box;
+       font-size:14px;line-height:1.3;}
+  .proc{background:#e8f1fc;border:2px solid #1559b5;color:#143b6b;}
+  .startn{background:#1559b5;border:2px solid #1559b5;color:#fff;border-radius:30px;font-weight:600;}
+  .endn{background:#1f9d63;border:2px solid #1f9d63;color:#fff;border-radius:30px;font-weight:600;}
+  .closen{background:#e6f6ee;border:2px solid #1f9d63;color:#125e3b;}
+  .derail{background:#fbeae8;border:2px solid #c0392b;color:#8e2419;}
+  .info{background:#fdf2e2;border:2px solid #e08a1e;color:#8a5410;}
+  .box b{font-size:14.5px;}
+  .box small{font-size:12.5px;opacity:.92;margin-top:2px;}
+  .tag{font-weight:700;letter-spacing:.3px;}
+  .dec{display:flex;align-items:center;justify-content:center;height:100%;width:100%;text-align:center;
+       font-size:13.5px;font-weight:600;color:#8a5410;line-height:1.22;padding:0 4px;}
+  .diamond{fill:#fff6e0;stroke:#e08a1e;stroke-width:2.5;}
+  .lbl{font-size:12.5px;font-weight:700;fill:#36475a;stroke:#fff;stroke-width:4px;paint-order:stroke;}
+  .lblc{font-size:12.5px;font-weight:700;fill:#1559b5;stroke:#fff;stroke-width:4px;paint-order:stroke;}
+  .edge{stroke:#5b6b7b;stroke-width:2.2;fill:none;}
+  .loop{stroke:#9aa7b4;stroke-width:2.2;fill:none;stroke-dasharray:7 5;}
+  @page{size:1180px 1980px;margin:0;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="head">
+    <div class="logo">A3</div>
+    <div>
+      <h1>A3 Laboratorio Veterinario — Flujo del agente conversacional</h1>
+      <p>Recorrido de una conversación por Telegram, de inicio a fin</p>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><i class="li-proc"></i> Acción del agente</span>
+    <span><i class="li-dec"></i> Decisión</span>
+    <span><i class="li-der"></i> Deriva a una persona</span>
+    <span><i class="li-end"></i> Cierre / fin</span>
+    <span><i style="width:26px;height:0;border:0;border-top:2.2px dashed #9aa7b4;border-radius:0;"></i> Vuelve atrás</span>
+  </div>
+
+  <svg viewBox="0 0 1180 1700" width="100%" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#5b6b7b"/>
+      </marker>
+      <marker id="arl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7.5" markerHeight="7.5" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#9aa7b4"/>
+      </marker>
+    </defs>
+
+    <!-- ===== CONECTORES (debajo de los nodos) ===== -->
+    <!-- tronco -->
+    <line class="edge" x1="440" y1="86"  x2="440" y2="118" marker-end="url(#ar)"/>
+    <line class="edge" x1="440" y1="184" x2="440" y2="198" marker-end="url(#ar)"/>
+    <line class="edge" x1="440" y1="340" x2="440" y2="378" marker-end="url(#ar)"/>
+    <line class="edge" x1="440" y1="466" x2="440" y2="488" marker-end="url(#ar)"/>
+    <line class="edge" x1="440" y1="630" x2="440" y2="666" marker-end="url(#ar)"/>
+    <line class="edge" x1="440" y1="732" x2="440" y2="765" marker-end="url(#ar)"/>
+    <line class="edge" x1="440" y1="877" x2="440" y2="948" marker-end="url(#ar)"/>
+    <line class="edge" x1="440" y1="1030" x2="440" y2="1103" marker-end="url(#ar)"/>
+    <line class="edge" x1="440" y1="1245" x2="440" y2="1281" marker-end="url(#ar)"/>
+    <line class="edge" x1="440" y1="1373" x2="440" y2="1413" marker-end="url(#ar)"/>
+    <line class="edge" x1="440" y1="1555" x2="440" y2="1591" marker-end="url(#ar)"/>
+
+    <!-- C: salidas a opciones 2,3,4 (bus a la derecha) -->
+    <path class="edge" d="M610,270 H700"/>
+    <path class="edge" d="M700,249 V431"/>
+    <line class="edge" x1="700" y1="249" x2="758" y2="249" marker-end="url(#ar)"/>
+    <line class="edge" x1="700" y1="339" x2="758" y2="339" marker-end="url(#ar)"/>
+    <line class="edge" x1="700" y1="431" x2="758" y2="431" marker-end="url(#ar)"/>
+
+    <!-- E: no registrado -> deriva -->
+    <line class="edge" x1="600" y1="560" x2="758" y2="562" marker-end="url(#ar)"/>
+
+    <!-- H: nota pago en línea -->
+    <line class="loop" x1="600" y1="990" x2="758" y2="990" marker-end="url(#arl)"/>
+
+    <!-- Loop Corregir: I -> G (izquierda) -->
+    <path class="loop" d="M280,1175 H198 V822 H278" marker-end="url(#arl)"/>
+    <!-- Loop Otra orden: K -> G (derecha) -->
+    <path class="loop" d="M600,1485 H688 V822 H602" marker-end="url(#arl)"/>
+
+    <!-- ===== ETIQUETAS DE FLECHA ===== -->
+    <text class="lblc" x="462" y="362" text-anchor="start">1 · Programar</text>
+    <text class="lbl"  x="726" y="240" text-anchor="middle">2</text>
+    <text class="lbl"  x="726" y="330" text-anchor="middle">3</text>
+    <text class="lbl"  x="726" y="422" text-anchor="middle">4</text>
+    <text class="lbl"  x="676" y="548" text-anchor="middle">No</text>
+    <text class="lbl"  x="460" y="652" text-anchor="start">Sí</text>
+    <text class="lbl"  x="460" y="1268" text-anchor="start">Sí</text>
+    <text class="lbl"  x="460" y="1578" text-anchor="start">No</text>
+    <text class="lbl"  x="234" y="1166" text-anchor="middle">Corregir</text>
+    <text class="lbl"  x="664" y="1476" text-anchor="middle">Otra orden</text>
+
+    <!-- ===== ROMBOS DE DECISIÓN ===== -->
+    <polygon class="diamond" points="270,270 440,200 610,270 440,340"/>
+    <polygon class="diamond" points="280,560 440,490 600,560 440,630"/>
+    <polygon class="diamond" points="280,1175 440,1105 600,1175 440,1245"/>
+    <polygon class="diamond" points="280,1485 440,1415 600,1485 440,1555"/>
+
+    <!-- ===== NODOS (foreignObject) ===== -->
+    <!-- START -->
+    <foreignObject x="300" y="30" width="280" height="56">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="box startn">El cliente escribe a A3 por Telegram</div>
+    </foreignObject>
+    <!-- B menú -->
+    <foreignObject x="280" y="120" width="320" height="64">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="box proc">El agente saluda y ofrece el menú de opciones (1–4)</div>
+    </foreignObject>
+    <!-- C decisión texto -->
+    <foreignObject x="325" y="224" width="230" height="92">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="dec">¿Qué opción elige el usuario?</div>
+    </foreignObject>
+
+    <!-- D opción 1 -->
+    <foreignObject x="280" y="380" width="320" height="86">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="box proc"><b>Pide el NIT o el nombre</b><small>Busca y verifica al cliente en la base de datos</small></div>
+    </foreignObject>
+    <!-- E decisión cliente registrado -->
+    <foreignObject x="325" y="514" width="230" height="92">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="dec">¿El cliente está registrado?</div>
+    </foreignObject>
+    <!-- F dirección -->
+    <foreignObject x="280" y="668" width="320" height="64">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="box proc">Confirma la dirección de retiro</div>
+    </foreignObject>
+    <!-- G arma orden -->
+    <foreignObject x="280" y="767" width="320" height="110">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="box proc"><b>Arma la orden de servicio</b><small>Médico, paciente (especie, raza, sexo, edad), propietario, observaciones y análisis/perfil con precios</small></div>
+    </foreignObject>
+    <!-- H forma de pago -->
+    <foreignObject x="280" y="950" width="320" height="80">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="box proc">El cliente elige la forma de pago: contraentrega o en línea</div>
+    </foreignObject>
+    <!-- I decisión confirma -->
+    <foreignObject x="325" y="1129" width="230" height="92">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="dec">¿Confirma el resumen de la orden?</div>
+    </foreignObject>
+    <!-- J cierre -->
+    <foreignObject x="280" y="1283" width="320" height="90">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="box closen"><b>Orden registrada</b><small>Genera el N° (A3-2026-001) y asigna el motorizado</small></div>
+    </foreignObject>
+    <!-- K decisión otra orden -->
+    <foreignObject x="325" y="1439" width="230" height="92">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="dec">¿Desea crear otra orden?</div>
+    </foreignObject>
+    <!-- L fin -->
+    <foreignObject x="300" y="1593" width="280" height="56">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="box endn">Fin de la atención</div>
+    </foreignObject>
+
+    <!-- ===== RAMAS DERECHAS ===== -->
+    <!-- Opción 2 -->
+    <foreignObject x="760" y="210" width="400" height="78">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="box info"><b>Opción 2 · Consultar resultados</b><small>Informa que aún no está disponible por este medio (en integración)</small></div>
+    </foreignObject>
+    <!-- Opción 3 -->
+    <foreignObject x="760" y="300" width="400" height="78">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="box derail"><b>Opción 3 · Pagos</b><small>Deriva siempre a Contabilidad</small></div>
+    </foreignObject>
+    <!-- Opción 4 -->
+    <foreignObject x="760" y="390" width="400" height="82">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="box derail"><b>Opción 4 · Otro / cliente nuevo</b><small>Deriva a una persona del equipo (recepción)</small></div>
+    </foreignObject>
+    <!-- E No: deriva recepción -->
+    <foreignObject x="760" y="520" width="400" height="84">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="box derail"><b>Cliente no registrado → Recepción</b><small>El alta de un cliente nuevo siempre la hace una persona, nunca el bot</small></div>
+    </foreignObject>
+    <!-- H nota pago en línea -->
+    <foreignObject x="760" y="948" width="400" height="84">
+      <div xmlns="http://www.w3.org/1999/xhtml" class="box info"><b>Si paga en línea</b><small>La orden se registra igual y Contabilidad le envía el link de pago</small></div>
+    </foreignObject>
+  </svg>
+
+  <div class="legend" style="margin-top:14px;color:#5b6b7b;">
+    <span>📌 Reglas que el agente siempre respeta: solo atiende clientes registrados (B2B) · corte 17:30 → segundo día hábil · motorizado asignado automáticamente · confirma antes de registrar · nunca inventa datos.</span>
+  </div>
+
+</div>
+</body>
+</html>

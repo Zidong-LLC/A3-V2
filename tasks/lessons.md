@@ -3,7 +3,65 @@
 > Actualizar después de cada corrección del usuario.
 > El objetivo es no repetir el mismo error.
 
+### L57 — Alegra debe buscar contactos con y sin DV antes de crear (RESUELTO-019)
+**Problema:** una orden válida no apareció como borrador en Alegra aunque el hook corrió. El log mostró `POST /contacts -> HTTP 400 code 2006`: el contacto ya existía con identificación `53115419` y DV `1`, pero el lookup previo buscaba `53115419-1`; al no encontrarlo intentó crearlo y Alegra lo rechazó como duplicado.
+**Regla:** para NIT colombiano, la idempotencia de contactos no puede depender de una sola representación textual. Antes de crear, buscar por el valor original y por el número sin DV (`_split_nit`). Si no hay evento `alegra_invoiced`, revisar primero el warning de Alegra y el evento `created`: si hay líneas/precio/NIT, el fallo está en API/contacto, no en el perfil.
+
+### L56 — La intención compuesta también llega como “análisis extra”, no solo “agregar” (RESUELTO-018)
+**Problema:** `sí quiero el perfil 152 más un análisis extra` seleccionaba el perfil 152 pero descartaba la intención de agregar algo más, y respondía con la oferta genérica de pago. El detector solo reconocía verbos (`agregar`, `sumar`, `agrégale`), no el sustantivo natural `análisis extra`. Además, cuando la selección venía desde un menú de perfiles, el handler elegía el perfil y no procesaba el resto del mensaje.
+**Regla:** un turno de selección no termina al encontrar el número/código: hay que consumir el mensaje completo. Frases con `análisis/prueba/examen + extra/adicional` son ajuste parcial del perfil base y deben abrir el paso “¿qué análisis quieres agregarle?”, tanto por código directo como por selección desde menú.
+
+### L55 — Nunca armar texto normalizado desde un set; un paso conversacional repetible necesita salida explícita (RESUELTO-017)
+**Problema:** al implementar la oferta "¿agregar otro análisis o seguimos?", `_wants_to_proceed_to_payment` construía el texto normalizado con `" ".join(set(tokens))`. Como el orden de un set no es determinista (depende del hash seed), el match de frases ("asi esta bien") pasaba o fallaba según la corrida → test intermitente y, peor, comportamiento inconsistente en producción.
+**Regla:** para detectar FRASES (substrings de varias palabras), normalizar SIEMPRE con los tokens en su orden original (`" ".join(_tokenize(text))`), nunca desde un set (los sets solo sirven para pertenencia de un token suelto). Además, todo paso conversacional que se REPITE (ofrecer agregar más) debe tener una salida explícita y robusta ("si ya está, seguimos con el pago") y un detector de "seguir" que gane sobre el de "agregar", para no reabrir el bucle histórico. Centralizar el "qué sigue tras el análisis" en una sola función (`_analysis_settled_response`) y que los guards de pago/siguiente-campo respeten el flag de la oferta. Verificar el loop completo contra el modelo real.
+
+### L54 — Las listas de opciones las arma el CÓDIGO desde la BD, no el modelo; los guards disparan con el mensaje del usuario, no solo con exam_type (RESUELTO-016)
+**Problema (reporte del usuario):** al pedir el análisis y responder vago/por área/por síntoma ("no sé", "algo de orina", "dolor de panza"), dejó de mostrarse la lista seleccionable con precios reales. Los guards de área/etiqueta dependían de que el modelo guardara el término en exam_type; el modelo empezó a improvisar la lista en el texto (sin menú detrás, no seleccionable, precios potencialmente inventados).
+**Regla:** cualquier lista de perfiles/análisis con precios la construye el código desde la base de datos y la guarda como menú seleccionable (`_test_menu_options`/`_profile_menu_options`); el modelo SOLO clasifica (etiqueta/área canónica en exam_type, o null) y NUNCA escribe la lista. Los guards de selección deben disparar con el MENSAJE del usuario como respaldo cuando el modelo deja exam_type vacío y el bot acaba de pedir el análisis (`_analysis_help_candidate`), y siempre debe existir un catch-all determinístico (perfiles por especie) para que jamás quede una lista improvisada. Sincronizar prompt + guardrails: si el prompt permite que el modelo liste, lo hará mal. Verificar contra el modelo real (`repro_reco.py`), no solo mocks.
+
+### L53 — Una afirmación pelada significa "cliente nuevo" SOLO si el bot lo preguntó (RESUELTO-015, recurrencia de L46)
+**Problema (reporte del usuario):** al elegir la opción 1 del menú con "Si la uno", el bot escaló a recepción como cliente nuevo. `_confirms_new_client` da True para cualquier afirmación de ≤4 palabras con "sí", y el flujo de identificación la trataba como "soy cliente nuevo" sin contexto. Mismo patrón que L46: clasificar por longitud, no por contexto.
+**Regla:** una afirmación pelada ("sí", "la uno", "dale") solo se interpreta como "soy cliente nuevo" cuando el bot ACABA de preguntar "¿eres cliente nuevo?" (verificar `_asks_if_new_client(_last_bot_message(history))`). La mención EXPLÍCITA de "cliente nuevo" (`_explicitly_says_new_client`) o frases de no-registro cuentan siempre. Antes de escalar a un handoff por una respuesta corta, preguntarse: ¿qué preguntó el bot en el turno anterior? La respuesta corta responde ESA pregunta, no una intención inventada. Auditar otros usos de heurísticas por longitud (`len(tokens) <= N`) con la misma lente.
+
+### L52 — Una pregunta abierta por área durante el ajuste de un perfil debe listar opciones, no caer al resumen (RESUELTO-014)
+**Problema (reporte del usuario):** mientras agregaba un análisis a un perfil, el cliente preguntó "que analisis de orina tienen" y el bot repitió el resumen sin responder. Quedó trabado. La causa: el ajuste solo resolvía nombre/código EXACTO; los helpers que listan por área se auto-desactivan cuando ya hay perfil base/`selected_tests`, así que la pregunta abierta nunca llegaba a `find_tests_by_area`.
+**Regla:** todo punto del flujo donde el cliente puede elegir análisis debe aceptar también la pregunta abierta por ÁREA ("qué análisis de orina/sangre tienen") y responder con la lista, no solo el nombre exacto. Durante el ajuste de un perfil, esas opciones se marcan para AGREGAR al perfil base (`_test_menu_adds_to_profile`), nunca para reemplazarlo. Atender la intención COMPUESTA en un solo mensaje ("el perfil 152 al que le quiero agregar un análisis extra"): fijar el perfil y abrir el ajuste, sin saltar al pago descartando la segunda intención. Verificar contra la base real que el área se resuelve, no solo con mocks.
+
+### L51 — En confirmación, un ajuste parcial gana sobre el cierre (RESUELTO-013)
+**Problema:** `sí, pero agrégale glucosa` cerraba la orden porque el cierre determinístico veía el `sí` antes de procesar el ajuste del análisis.
+**Regla:** en `fase_4_confirmacion`, detectar primero ajustes parciales del análisis (`agregar/quitar`). Si hay ajuste, modificar campos, recalcular resumen y conservar `fase_4_confirmacion`; solo cerrar cuando el mensaje sea confirmación limpia.
+
+### L50 — El resumen debe combinar concepto y precio en una sola línea (RESUELTO-012)
+**Problema:** B10 mostraba un perfil de catálogo dos veces: `Análisis: X` y `Perfil base: X ($Y)`, separando el precio del dato principal.
+**Regla:** si el `exam_type` ya representa el perfil elegido, el precio base va en esa misma línea (`Análisis: X — $Y COP`). Las líneas extra (`Agregados`, `Quitados`, `Valor estimado`) solo explican ajustes reales, no repiten el perfil base.
+
+### L49 — Una confirmación de perfil se resuelve por intención, no por frase exacta (ERR-044)
+**Problema:** después de mostrar el detalle del `Perfil General`, `no asi esta bien` debía confirmar el perfil; pero el guard de catálogo corrió antes y rebuscó `Perfil General`, devolviendo varias coincidencias (`1339` y `151`).
+**Regla:** cuando `_profile_detail_offered` está activo, el siguiente turno pertenece al contexto de ese perfil: confirmar, personalizar o repetir detalle por código. No volver a buscar `exam_type` por nombre/categoría antes de resolver esa respuesta pendiente. La confirmación/personalización se decide por `user_intent_signal` primero; tokens como `agregar` no ganan si la IA entendió `no quiero agregar nada` como `negate`.
+
+### L48 — Los códigos del catálogo ganan sobre etiquetas diagnósticas (ERR-043)
+**Problema:** `perfil 151` fue reinterpretado por el LLM como `Perfil General`; el guard de perfil diagnóstico corrió primero, encontró la etiqueta `GENERAL` y abrió un perfil personalizado, aunque el usuario había dado un código cerrado del catálogo.
+**Regla:** cuando el usuario escribe un código de perfil (`151`, `504`, etc.), resolverlo por código desde el texto real del usuario ANTES de cualquier guard de etiqueta diagnóstica o recomendación genérica. El código es determinístico; la categoría/nombre que infiere el modelo es solo auxiliar.
+Si después el usuario ajusta ese perfil (`agrégale X`, `quítale X`), la personalización gana sobre el paso de pago hasta que diga `cerramos así`.
+
+### L47 — Banderas de estado deben reconciliarse con el avance real, no quedar pegadas (RESUELTO-010)
+**Problema:** el cliente confirmó la dirección con "sisi"; el LLM entendió y avanzó al médico, pero el guardrail determinista `_confirms_address("sisi")` devolvió False (solo reconocía "si"/"sí"/"sip", no la forma pegada). La bandera `_address_confirmation_pending` quedó en True y, como `_missing_route_field` la trata como "falta la dirección" mientras esté encendida, el bot volvió a pedir la dirección turnos después, aunque `pickup_address` ya tenía valor.
+**Regla:**
+- Reconocer confirmaciones coloquiales tolerando variantes pegadas/alargadas ("sisi", "sisisi", "siii", "sí sí"), no solo el token exacto. Mismo espíritu que L46: entender el significado, no exigir la forma canónica.
+- Toda bandera de "pendiente de confirmar" necesita una RED DE SEGURIDAD que la reconcilie con el avance real del flujo: si ya se capturó un campo posterior y el dato existe, darla por confirmada. Evaluar esa red sobre el estado ACTUAL del turno (los `fields` ya actualizados), no solo sobre el snapshot previo, o el desfase de un turno la deja pegada.
+- Cuando el LLM avanza por una confirmación que el código no reconoce, el guardrail y el estado se desincronizan: ese es el patrón a cazar. Ver RESUELTO-010.
+
 ---
+
+## Integración Alegra / precios
+
+### L47 — Resolver perfiles por CÓDIGO, y llevar el NIT a facturación (ERR-041)
+**Problema:** una orden con "Perfil Prequirúrgico I" cerró con precio $0 y no facturó en Alegra. (1) El `exam_type` venía como "152-Perfil Prequirúrgico I" (código+nombre); el backstop resolvía por nombre, que no matchea la cadena combinada y por nombre suelto devolvía un perfil de la misma familia con número distinto ($90k en vez de $24k). (2) Al identificar al cliente por NOMBRE, el NIT del cliente no se copiaba a `fields`, así que la facturación recibía `tax_id=None` y se saltaba en silencio.
+**Regla:**
+- Para resolver un perfil del catálogo, usar el CÓDIGO como fuente determinística (`_profile_codes_from_text` + `db.get_catalog_profiles_by_codes`). El match por nombre es ambiguo entre perfiles de la misma familia (I/II/X) — solo fallback.
+- El precio del perfil debe quedar correcto en las TRES superficies a la vez: resumen al cliente, evento persistido (dashboard) y factura Alegra. El backstop en el resumen las cubre porque muta los `fields` que luego se persisten; verificar el valor en el evento real, no solo en el resumen.
+- Facturar exige NIT: `_store_client_context` debe copiar `client.tax_id` a `fields` (un cliente identificado por nombre igual tiene NIT en la BD). Y un cliente sin `tax_id` en Supabase NO se puede facturar (DIAN) — es dato faltante, no bug.
+- Verificar la integración contra la cuenta de pruebas real (`scripts/alegra_demo_invoice.py`): la factura se crea en BORRADOR (`create_invoice` sin `status`); se ve en Alegra filtrando por borradores, en la cuenta del token (`ALEGRA_EMAIL`), no en la vista de emitidas. Ver ERR-041, ERR-039.
 
 ## Del agente V1 (razón del reinicio)
 
@@ -253,6 +311,14 @@ del contexto, no solo los flags de `captured_fields` (que persisten varios turno
 - Un pedido de recomendación/"no sé" debe interceptarse ANTES de los detectores de corrección (que reaccionan a "no"/"perro") y ANTES de los otros guards de catálogo (que capturan el guess del modelo). Si no, el orden del pipeline gana y el guard real no dispara.
 - Distinguir CAMBIO TOTAL ("otro análisis", "no sé recomiéndame" → limpiar y reofrecer desde cero por especie) de AJUSTE PARCIAL ("el mismo pero sin X", "igual más Y" → MANTENER el perfil base y solo agregar/quitar, preguntando lo que falte). Nunca limpiar todo ante un ajuste parcial: la gente dice "todo igual salvo esto". Nunca registrar un perfil de especie distinta a la del paciente.
 - Validar con el modelo real reproduciendo la conversación del usuario (`diag_perfil_recomendacion.py`), no solo con tests mockeados. Ver ERR-038.
+
+### L46 — Interpretar por contexto/intención, nunca por longitud del mensaje (ERR-040)
+**Problema (corrección directa del usuario):** el cliente eligió una opción de la lista de coincidencias con una respuesta corta de confirmación ("exacto, es la primera" = opción 1) y el bot la tomó como cliente nuevo o como nombre de otra veterinaria. La causa: heurísticas que deciden por CANTIDAD de palabras (`_confirms_new_client` y `_looks_like_bare_client_name` usan "≤4 palabras"). El usuario fue explícito: "esa lógica de cuatro palabras es una mierda… mucha gente te dice cuatro palabras para decir sí; tenés que entender lo que dice, no por cuántas palabras tenga".
+**Regla:**
+- Nunca clasificar la intención por longitud (nº de palabras/letras). Una respuesta corta puede ser confirmación, selección, pregunta o dato — el largo no lo determina.
+- Cuando hay un estado de respuesta pendiente (lista de opciones, pregunta concreta), interpretar el mensaje PRIMERO en ese contexto: si resuelve la pregunta abierta (p. ej. `_select_client_match` mapea "la primera"→opción 1), eso gana sobre reinterpretarlo como identificador/cliente nuevo. La IA interpreta el significado (`user_intent_signal`); el código hace cumplir la selección de forma determinista.
+- Un "exacto/sí/dale" que acompaña una selección confirma esa selección; no es "soy cliente nuevo".
+- Las heurísticas por longitud que quedan (corte de ≤4 palabras) son frágiles y deben migrarse a comprensión por contexto/señal del LLM, no parcharse con más frases. Ver ERR-040 y ERR-011.
 
 ### L43 — Testear con una IA-cliente adversarial, nunca con respuestas del LLM hardcodeadas
 **Problema:** los tests que fijaban la salida del LLM (`_ai_reply(...)` con `confidence: 1.0`) siempre pasaban porque uno mismo escribia la respuesta "correcta"; afirmaban que el agente estaba bien cuando con datos reales se rompia (bucles, no escalar). Daban falsos positivos.
