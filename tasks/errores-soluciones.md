@@ -27,6 +27,143 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### RESUELTO-024 — Tras rechazar la lista de coincidencias, identificaba por match parcial en vez de tratar como cliente nuevo (2026-06-23)
+
+- **Síntoma (reporte del usuario, 2026-06-23):** "Pet colombia" → el bot lista 2 coincidencias
+  parciales (Pet Agro Colombia, Vets&Pets Colombia). El usuario responde "Ninguno de esos" y
+  luego "mi veterinaria se llama Pets Colombia"; el bot igual identificaba "Vets&Pets Traiding
+  Colombia SAS" por match parcial y seguía pidiendo dirección. Entraba en bucle.
+- **Regla de negocio (confirmada por el usuario, flujo definitivo):**
+  1. 1ª búsqueda por nombre = PARCIAL → muestra lista de coincidencias.
+  2. El cliente elige una → identifica.
+  3. El cliente dice que ninguna es la suya ("ninguno de esos", "no es esa") → el bot REPREGUNTA
+     el nombre exacto (o el NIT). No escala todavía.
+  4. Con ese nombre → búsqueda EXACTA: si existe → identifica; si no → "¿Eres cliente nuevo?".
+  5. El cliente confirma que es nuevo → escala a un humano (recepción).
+- **Causa raíz:** (a) una coincidencia parcial ÚNICA se auto-identificaba sin confirmar
+  ("Pets Colombia" → "Vets&Pets Traiding Colombia SAS"); (b) "ninguno de esos" disparaba
+  `says_new_client` y escalaba directo en vez de repreguntar; (c) el reintento usaba búsqueda
+  parcial otra vez.
+- **Solución (`app/agent.py` + `app/services/db.py`):**
+  - Nueva `db.find_client_exact(name)`: match por nombre normalizado estricto (sin acentos/símbolos).
+  - 1ª búsqueda: identifica directo SOLO si hay match exacto; si las coincidencias son parciales
+    (una o varias) se muestran como lista (mensaje de 1 coincidencia ajustado).
+  - Con lista pendiente, "ninguno de esos" ya NO dispara `says_new_client` (`has_pending_matches`):
+    limpia la lista, marca `_awaiting_exact_name` y repregunta el nombre exacto.
+  - Turno siguiente con `_awaiting_exact_name`: SOLO `find_client_exact` (nombre del LLM + palabras
+    significativas del mensaje, filtrando `_EXACT_RETRY_STOPWORDS`). Si no hay exacto → no
+    encontrado → "¿Eres cliente nuevo?"; al confirmar, escala a recepción.
+  - Helpers `_rejects_match_options`, `_EXACT_RETRY_STOPWORDS`.
+- **Verificación:** rechazo→repregunta→no exacto→"¿nuevo?"→escala; rechazo→repregunta→exacto
+  ("Pet Agro Colombia")→identifica; selección por número y primer intento parcial intactos.
+  Suite: 144 passed (3 fallos pre-existentes de dashboard).
+- **Estado:** ✅ CORREGIDO.
+
+### RESUELTO-023 — Paciente sin propietario (callejero/rescatado) no se podía registrar (2026-06-23)
+
+- **Síntoma (QA de flujo, 2026-06-23):** al pedir el propietario, si el cliente respondía
+  "ninguna" / "no tiene dueño" / "es callejero", el bot no lo aceptaba y repetía la pregunta.
+- **Regla de negocio (confirmada por el usuario, 2026-06-23):** se PERMITE registrar sin
+  propietario; se guarda como "Sin propietario" y se avanza.
+- **Solución (`app/agent.py`):** helper `_says_no_owner` (frases/tokens: "sin dueño",
+  "no tiene propietario", "ninguna", "callejero", "rescatado", etc.). En el pipeline, si se está
+  pidiendo el propietario (`_detect_which_field_is_being_asked == "owner_name"`) y el cliente
+  indica que no hay, se setea `owner_name = "Sin propietario"` y el flujo continúa. Acotado a ese
+  paso para que "ninguna" sea inequívoco y no afecte otros campos.
+- **Verificación:** "ninguna" / "es callejero, no tiene dueño" / "no tiene propietario" →
+  `owner_name="Sin Propietario"` y avanza; "Carlos Pérez" → se captura normal. Suite: 144 passed.
+- **Estado:** ✅ CORREGIDO.
+
+### OBSERVADO — Dos puntos de baja severidad que NO requieren acción (2026-06-23)
+
+- **Multi-análisis con término ambiguo** ("hemograma, química y orina"): el bot abre el submenú del
+  área ambigua (química) primero, pero NO pierde los concretos — los mantiene pendientes
+  ("También tengo pendiente el hemograma…") y los resuelve después. Funcionalmente correcto; tocar
+  el orden de resolución del catálogo sería un refactor riesgoso por una preferencia de UX. **No se toca.**
+- **Corrección inline durante la captura** ("el paciente se llama Max no Firulais" mientras se pide
+  la raza): el dato SÍ se corrige (`patient_name` pasa a Max) y se ve corregido en el resumen final;
+  solo falta una confirmación verbal en el momento. Cosmético, sin pérdida de datos. No amerita
+  tocar el flujo de captura aprobado. **No se toca** (documentado por si se prioriza a futuro).
+
+### RESUELTO-022 — Anti-bucle escalaba a humano aunque el cliente diera datos válidos en desorden (2026-06-23)
+
+- **Síntoma (QA de flujo, 2026-06-23):** al pedir el médico solicitante, si el cliente daba datos
+  del paciente en otro orden (especie, raza, análisis…), tras ~3 turnos el bot escalaba a una
+  persona ("Te voy a comunicar con una persona del equipo"). Intermitente (depende de cuántos
+  turnos seguidos marque el LLM como `unclear`).
+- **Causa raíz:** el contador anti-bucle (`_offtrack_count`) sumaba un turno perdido siempre que
+  `signal in (unclear, off_topic)` o se repetía la pregunta, SIN mirar si el turno había
+  capturado un dato nuevo de la orden. Un cliente que colabora dando datos (aunque no en el orden
+  pedido) acumulaba "turnos perdidos" y disparaba el escalado.
+- **Solución (`app/agent.py`):** antes de incrementar `_offtrack_count`, se mide si hubo PROGRESO
+  (más campos de `_ROUTE_REQUIRED_FIELDS` con valor que en el turno anterior). Si hubo progreso, se
+  resetea el contador a 0; el anti-bucle solo incrementa/escala cuando NO hay avance. Así se
+  preserva la protección contra bucles reales (cliente que no aporta nada) sin castigar al que sí
+  colabora.
+- **Verificación:** 5/5 corridas dando datos en desorden → 0 escalados indebidos (antes
+  intermitente). Bucle real sin aportar datos → el bot reencauza/escala como corresponde. Suite:
+  144 passed (3 fallos pre-existentes de dashboard).
+- **Estado:** ✅ CORREGIDO.
+
+### RESUELTO-021 — Multi-orden ignoraba el cambio de análisis pedido en el mismo mensaje (2026-06-23)
+
+- **Síntoma (QA de flujo, 2026-06-23):** al pedir "otra orden con los mismos datos pero cambiale
+  el análisis a glucosa", el bot mantenía el análisis de la orden anterior (hemograma) e ignoraba
+  el cambio. El `exam_type` quedaba pegado al viejo.
+- **Causa raíz:** el trigger de "otra orden" (`_explicitly_wants_another_order`) disparaba
+  `_begin_followup_order`, que heredaba el análisis del snapshot y devolvía la respuesta fija
+  ("Mantengo estos datos…") SIN leer el resto del mensaje. El cambio explícito se perdía.
+  Nota de diseño: mantener datos previos es INTENCIONAL (ver [[project_multiorden_intent]]); el
+  cliente puede querer "otra orden, mismos datos, cambiá solo X".
+- **Solución (`app/agent.py`):** `_begin_followup_order`/`_start_followup_service_order_response`
+  reciben el `user_message`. Nuevo helper `_followup_wants_new_analysis` detecta cuando el cliente
+  pide cambiar el análisis en ese mensaje (nombra análisis/examen/perfil + señal de cambio). En ese
+  caso NO se hereda el análisis viejo: queda vacío y se pide explícitamente, capturándolo por el
+  flujo normal de catálogo (validado contra el catálogo real). **No se adivina el análisis de la
+  frase**: un primer intento de extraer tokens sueltos capturaba basura ("urianálisis" → "ALT (GPT)";
+  "glucosa" → "Perfil de 2 análisis"), así que se descartó por riesgo de registrar uno equivocado.
+- **Verificación:** "otra orden … cambiale el análisis a glucosa" → pide análisis → "glucosa" →
+  `exam_type='Glucosa'`. "otra orden para otro paciente" (sin mencionar análisis) → hereda
+  "Cuadro Hemático Completo" (feature intacta). Suite: 144 passed (3 fallos pre-existentes de dashboard).
+- **Estado:** ✅ CORREGIDO. La captura inline del análisis nuevo en el mismo mensaje (sin turno
+  extra) queda como mejora futura, hecha de forma robusta (no por tokens sueltos).
+
+### RESUELTO-020 — Nombres de clínica con "Colombia"/"Bogotá" no se identificaban (el código decidía por palabras sueltas, no por el mensaje completo) (2026-06-23)
+
+- **Síntoma (reporte del usuario, 2026-06-23):** al pedir el identificador y responder con el
+  nombre de una veterinaria registrada que contiene "Colombia" o "Bogotá" (ej. `Pet Agro Colombia`),
+  el bot contestaba `Estoy bien, gracias. Somos A3 Laboratorio Clínico Veterinario y estamos en
+  Bogotá, Colombia...` y volvía a pedir el NIT, sin buscar el cliente. Entraba en bucle.
+- **Evidencia:** reproducido 5/5 con `process_turn` (flujo `Hola → 1 → Pet Agro Colombia`).
+  Instrumentando se vio que en ese turno **el LLM ni se invocaba**: el reply venía de
+  `_pre_identification_service_info_response`. El LLM aislado entendía `Pet Colombia` perfecto
+  (`user_intent_signal=provides_client_identifier`).
+- **Causa raíz:** `_pre_identification_service_info_response` decidía el sentido del mensaje por
+  tokens sueltos. La rama de ubicación se disparaba con `tokens & {"colombia","bogota","bogotá"}`,
+  es decir, por la MERA aparición de la palabra, aunque el mensaje completo fuera el nombre de una
+  clínica. Cortaba el turno antes del LLM y nunca capturaba ni buscaba. Afectaba a toda clínica con
+  "Colombia"/"Bogotá" en el nombre (`Pet Agro Colombia`, `Vets&Pets Traiding Colombia SAS`, etc.).
+- **Solución (3 cambios mínimos en `app/agent.py`, principio: el LLM lee todo, el código hace cumplir reglas):**
+  1. El atajo de "info de servicio" ya no corre cuando estamos esperando el identificador
+     (`and not _awaiting_client_identifier(history)`): en ese momento el mensaje completo va al LLM.
+  2. La rama de ubicación solo se activa ante una PREGUNTA explícita de dónde estamos
+     (`donde/ubicados/ubican/...`), no por la mención de "Colombia"/"Bogotá".
+  3. `_apply_identification_fallbacks` respeta la lectura del LLM: si el modelo marcó el turno como
+     `side_question` (una pregunta como "¿dónde están?", "¿cuánto cuesta el hemograma?"), el fallback
+     de "nombre pelado" ya NO fabrica un `clinic_name` con la pregunta.
+- **Auditoría de identificación (QA dirigido, 2026-06-23):** se estresó identificación por NIT
+  (con/sin guion, normalización, inexistente, incompleto), por nombre (parcial "San", mal escrito sin
+  tildes, profesional individual "Dr. X", inexistente, "soy de X"), off-topic y seguridad. **Único bug
+  real era el de "Colombia".** Seguridad robusta: no lista la base, no obedece jailbreak, no inventa NIT.
+- **Verificación:** `Pet Agro Colombia` y `Vets&Pets Colombia` ahora se identifican; `¿dónde están
+  ubicados?` responde la ubicación y re-pide el NIT (no lo busca como nombre); NIT/"San"/"Dr. Luis
+  Sandoval"/"soy de Petland" siguen OK. Suite: `python -m pytest -q` -> 144 passed (3 fallos
+  pre-existentes en `test_dashboard.py`, ajenos a este cambio).
+- **Estado:** ✅ CORREGIDO. Pendiente validar en Telegram en vivo.
+- **Riesgo residual:** `_awaiting_client_identifier` aún detecta por presencia de "nit" en el último
+  mensaje del bot; si el LLM cambia esa redacción, el fallback se debilita. Caso menor: pregunta de
+  precio pre-identificación responde "Perfecto, lo anoto..." en vez de mostrar el valor (no rompe flujo).
+
 ### RESUELTO-019 — Orden registrada no aparecía como borrador en Alegra por contacto duplicado con NIT/DV (2026-06-22)
 
 - **Síntoma (reporte del usuario, 2026-06-22):** la conversación cerró y registró la orden de

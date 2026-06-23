@@ -340,6 +340,22 @@ def find_client_matches(name: str | None = None, limit: int = 5) -> list[dict]:
     return [c for _, _, c in scored[:limit]]
 
 
+def find_client_exact(name: str | None = None) -> dict | None:
+    """Coincidencia EXACTA por nombre (normalizado, ignorando acentos/espacios/símbolos).
+    Se usa en el segundo intento de identificación: si el cliente dice que ninguna de las
+    coincidencias parciales es la suya, solo se identifica si el nombre que da coincide
+    exactamente con un cliente registrado; si no, se trata como posible cliente nuevo."""
+    if not name:
+        return None
+    key = _compact_lookup_key(name)
+    if not key:
+        return None
+    for c in _fetch_all_active_clients("id, clinic_name, tax_id, phone, address, zone"):
+        if _compact_lookup_key(c.get("clinic_name")) == key:
+            return c
+    return None
+
+
 def get_client_by_id(client_id: str) -> dict | None:
     result = _client.table("clients").select("*").eq("id", client_id).eq("is_active", True).execute()
     if result.data:
@@ -874,6 +890,94 @@ def update_rows(table: str, filters: dict, payload: dict) -> list[dict]:
         query = query.eq(field, value)
     result = query.execute()
     return result.data or []
+
+
+def list_column_prefs(user_key: str) -> list[dict]:
+    result = (
+        _client.table("dashboard_column_prefs")
+        .select("table_id, prefs")
+        .eq("user_key", user_key)
+        .execute()
+    )
+    return result.data or []
+
+
+def upsert_column_prefs(user_key: str, table_id: str, prefs: dict) -> None:
+    _client.table("dashboard_column_prefs").upsert({
+        "user_key": user_key,
+        "table_id": table_id,
+        "prefs": prefs,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }, on_conflict="user_key,table_id").execute()
+
+
+# --------------------------- Cache de facturas (Alegra) ---------------------------
+
+_INVOICE_ORDER_FIELDS = {
+    "invoice_date", "number", "client_name", "total", "tax", "subtotal", "status", "synced_at",
+}
+
+
+def upsert_invoices_cache(rows: list[dict]) -> int:
+    """Inserta/actualiza filas de facturas en el cache (clave alegra_invoice_id)."""
+    if not rows:
+        return 0
+    _client.table("invoices_cache").upsert(rows, on_conflict="alegra_invoice_id").execute()
+    return len(rows)
+
+
+def list_cached_invoices(
+    filters: dict | None = None,
+    page: int = 1,
+    per_page: int = 50,
+    order_field: str = "invoice_date",
+    order_desc: bool = True,
+) -> tuple[list[dict], int]:
+    """Lista facturas del cache con filtros, orden y paginación del lado servidor.
+    Devuelve (filas, total)."""
+    f = filters or {}
+    query = _client.table("invoices_cache").select("*", count="exact")
+    if f.get("status"):
+        query = query.eq("status", f["status"])
+    if f.get("document_type"):
+        query = query.eq("document_type", f["document_type"])
+    if f.get("client_nit"):
+        query = query.ilike("client_nit", f"%{f['client_nit']}%")
+    if f.get("number"):
+        query = query.ilike("number", f"%{f['number']}%")
+    if f.get("date_from"):
+        query = query.gte("invoice_date", f["date_from"])
+    if f.get("date_to"):
+        query = query.lte("invoice_date", f["date_to"])
+    if f.get("total_min") is not None:
+        query = query.gte("total", f["total_min"])
+    if f.get("total_max") is not None:
+        query = query.lte("total", f["total_max"])
+    if f.get("search"):
+        term = str(f["search"]).replace(",", " ").strip()
+        if term:
+            query = query.or_(
+                f"number.ilike.%{term}%,client_name.ilike.%{term}%,client_nit.ilike.%{term}%"
+            )
+    field = order_field if order_field in _INVOICE_ORDER_FIELDS else "invoice_date"
+    query = query.order(field, desc=order_desc)
+    start = max(page - 1, 0) * per_page
+    query = query.range(start, start + per_page - 1)
+    result = query.execute()
+    return result.data or [], (result.count or 0)
+
+
+def list_all_cached_invoices(columns: str = "*", limit: int = 10000) -> list[dict]:
+    """Lee el cache completo (acotado) para métricas y exportación."""
+    result = _client.table("invoices_cache").select(columns).limit(limit).execute()
+    return result.data or []
+
+
+def get_cached_invoice(invoice_id: str) -> dict | None:
+    """Devuelve una factura del cache por su id de Alegra, o None."""
+    result = _client.table("invoices_cache").select("*").eq("alegra_invoice_id", invoice_id).limit(1).execute()
+    rows = result.data or []
+    return rows[0] if rows else None
 
 
 def list_custom_profiles(client_id: str | None = None, limit: int = 100) -> list[dict]:

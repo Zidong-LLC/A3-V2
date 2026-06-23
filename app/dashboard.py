@@ -1,4 +1,6 @@
+import csv
 import hashlib
+import io
 import json as _json
 import math
 import re
@@ -7,11 +9,16 @@ from collections import Counter
 from datetime import datetime, timezone
 from functools import wraps
 
-from flask import Blueprint, abort, jsonify, redirect, render_template, request, session, url_for
+from flask import Blueprint, Response, abort, jsonify, redirect, render_template, request, session, url_for
 
-from app.config import DASHBOARD_ADMIN_PASSWORD, DASHBOARD_ADMIN_USER
-from app.services import db
-from app import territory
+from app.config import (
+    ALEGRA_ENABLED,
+    ALEGRA_PRODUCTION,
+    DASHBOARD_ADMIN_PASSWORD,
+    DASHBOARD_ADMIN_USER,
+)
+from app.services import db, alegra
+from app import territory, billing
 
 dashboard = Blueprint("dashboard", __name__)
 
@@ -953,17 +960,34 @@ def _build_operation_center(requests_rows: list[dict], samples: list[dict], appr
         {"courier_name": courier_name, "count": len(rows), "routes": rows[:8]}
         for courier_name, rows in sorted(routes_by_courier.items(), key=lambda item: (item[0] != "Sin asignar", item[0]))
     ]
+
+    # KPIs operativos adicionales (estado acumulado)
+    request_status_counter = Counter((row.get("status") or "unknown") for row in requests_rows)
+    received_total = request_status_counter.get("received", 0)
+    assigned_total = request_status_counter.get("assigned", 0)
+    results_emitted = request_status_counter.get("processed", 0) + request_status_counter.get("sent", 0)
+    unassigned_orders = [
+        order for order in (service_orders or [])
+        if (order.get("courier_name") or "Sin asignar") == "Sin asignar"
+        and order.get("status") not in ("cancelled", "sent")
+    ]
+
     return {
         "kpis": {
             "active_routes": len(route_rows),
             "pending_approvals": len(approval_rows),
             "pending_samples": sum(sample_status.get(status, 0) for status in sample_pending_statuses),
             "critical_alerts": len(alerts),
+            "received_total": received_total,
+            "assigned_total": assigned_total,
+            "results_emitted": results_emitted,
+            "total_orders": len(service_orders or []),
         },
         "alerts": alerts[:8],
         "route_rows": route_rows[:12],
         "courier_agenda": courier_agenda,
-        "service_order_rows": (service_orders or [])[:8],
+        "service_order_rows": (service_orders or [])[:200],
+        "unassigned_orders": unassigned_orders[:20],
         "approval_rows": approval_rows[:8],
         "sample_lanes": sample_lanes,
     }
@@ -1040,6 +1064,250 @@ def _suggest_courier_for_location(form, couriers: list[dict]) -> dict:
         "match_type": suggestion.get("match_type"),
         "confidence": suggestion.get("confidence"),
         "matched_value": suggestion.get("neighborhood_name") or suggestion.get("locality_name") or courier_name,
+    }
+
+
+INVOICES_PER_PAGE = 50
+INVOICE_STATUS_OPTIONS = [{"value": key, "label": label} for key, label in {
+    "draft": "Borrador", "open": "Abierta", "closed": "Pagada", "void": "Anulada",
+}.items()]
+
+
+def _invoice_cache_payload(row: dict, raw: dict) -> dict:
+    """Traduce la fila mapeada (billing.invoice_to_row) a las columnas del cache."""
+    return {
+        "alegra_invoice_id": row["invoice_id"],
+        "number": row["number"],
+        "client_nit": row["client_nit"],
+        "client_name": row["client_name"],
+        "document_type": row["document_type"],
+        "number_template": row["number_template"],
+        "status": row["status"],
+        "subtotal": row["subtotal"],
+        "tax": row["tax"],
+        "total": row["total"],
+        "is_stamped": row["is_stamped"],
+        "invoice_date": row["date"] if row["date"] != "-" else None,
+        "due_date": row["due_date"] if row["due_date"] != "-" else None,
+        "request_id": row["request_id"] or None,
+        "origin": row["origin"],
+        "raw": raw,
+        "synced_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _invoice_event_index() -> dict:
+    """Cruza facturas de Alegra con la orden de servicio que las generó, usando el evento
+    `alegra_invoiced` que el agente guarda en request_events (ver guardrails)."""
+    events = _safe_fetch(lambda: db.fetch_rows("request_events", "request_id, event_type, event_payload", 4000), [])
+    index = {}
+    for event in events:
+        if event.get("event_type") != "alegra_invoiced":
+            continue
+        payload = event.get("event_payload") if isinstance(event.get("event_payload"), dict) else {}
+        invoice_id = str(payload.get("invoice_id") or "")
+        if invoice_id:
+            index[invoice_id] = {
+                "request_id": str(event.get("request_id") or ""),
+                "origin": payload.get("updated_by") or payload.get("source") or "Agente",
+            }
+    return index
+
+
+def _sync_invoices_from_alegra(max_pages: int = 60, per_page: int = 30) -> dict:
+    """Lee facturas de Alegra (solo lectura) y refresca el cache. No emite ni envía nada."""
+    event_index = _invoice_event_index()
+    synced = 0
+    errors: list[str] = []
+    for page in range(max_pages):
+        try:
+            batch = alegra.list_invoices(start=page * per_page, limit=per_page)
+        except alegra.AlegraError as exc:
+            errors.append(str(exc))
+            break
+        if not batch:
+            break
+        rows = []
+        for invoice in batch:
+            invoice_id = str(invoice.get("id") or "")
+            if not invoice_id:
+                continue
+            meta = event_index.get(invoice_id, {})
+            mapped = billing.invoice_to_row(invoice, request_id=meta.get("request_id"), origin=meta.get("origin"))
+            rows.append(_invoice_cache_payload(mapped, invoice))
+        if rows:
+            synced += db.upsert_invoices_cache(rows)
+        if len(batch) < per_page:
+            break
+    return {"synced": synced, "errors": errors}
+
+
+def _parse_invoice_filters(args) -> dict:
+    """Normaliza los filtros del módulo Facturación desde request.args."""
+    def _money(value):
+        text = re.sub(r"[^\d]", "", str(value or ""))
+        return int(text) if text else None
+
+    return {
+        "search": _sanitize_text(args.get("search"), 80),
+        "status": _sanitize_text(args.get("status"), 20),
+        "document_type": _sanitize_text(args.get("document_type"), 60),
+        "client_nit": _sanitize_text(args.get("client_nit"), 40),
+        "number": _sanitize_text(args.get("number"), 40),
+        "date_from": _sanitize_text(args.get("date_from"), 10),
+        "date_to": _sanitize_text(args.get("date_to"), 10),
+        "total_min": _money(args.get("total_min")),
+        "total_max": _money(args.get("total_max")),
+    }
+
+
+def _compute_invoice_metrics(rows: list[dict]) -> dict:
+    """Métricas del panel superior calculadas sobre el cache (no emite nada)."""
+    today = datetime.now(timezone.utc).date().isoformat()
+    month_prefix = today[:7]
+    year_prefix = today[:4]
+    count = len(rows)
+    total_all = sum(int(row.get("total") or 0) for row in rows)
+    by_client = Counter()
+    today_count = month_total = year_total = 0
+    for row in rows:
+        invoice_date = str(row.get("invoice_date") or "")
+        total = int(row.get("total") or 0)
+        if invoice_date[:10] == today:
+            today_count += 1
+        if invoice_date[:7] == month_prefix:
+            month_total += total
+        if invoice_date[:4] == year_prefix:
+            year_total += total
+        by_client[row.get("client_name") or "Sin cliente"] += total
+    top_clients = [{"name": name, "total": value} for name, value in by_client.most_common(5)]
+    return {
+        "today_count": today_count,
+        "month_total": month_total,
+        "year_total": year_total,
+        "invoices_count": count,
+        "avg_ticket": round(total_all / count) if count else 0,
+        "top_clients": top_clients,
+    }
+
+
+def _build_invoices_context(page: int = 1, filters: dict | None = None, order_field: str = "invoice_date", order_desc: bool = True) -> dict:
+    rows, total = _safe_fetch(
+        lambda: db.list_cached_invoices(filters, page=page, per_page=INVOICES_PER_PAGE, order_field=order_field, order_desc=order_desc),
+        ([], 0),
+    )
+    metrics_rows = _safe_fetch(lambda: db.list_all_cached_invoices("total, invoice_date, client_name"), [])
+    pages = max((total + INVOICES_PER_PAGE - 1) // INVOICES_PER_PAGE, 1)
+    return {
+        "invoices_rows": rows,
+        "invoices_total": total,
+        "invoices_page": page,
+        "invoices_pages": pages,
+        "invoices_metrics": _compute_invoice_metrics(metrics_rows),
+        "invoice_status_options": INVOICE_STATUS_OPTIONS,
+        "invoices_actions_locked": not ALEGRA_PRODUCTION,
+        "alegra_enabled": ALEGRA_ENABLED,
+    }
+
+
+def _money_fmt(value) -> str:
+    """Formatea un entero como peso colombiano: $ 1.234.567"""
+    return f"$ {int(value or 0):,}".replace(",", ".")
+
+
+def _build_executive_panel(requests_rows: list, request_events: list) -> dict:
+    """Métricas adicionales del Panel Ejecutivo. No hace queries extra."""
+    from datetime import timedelta
+    today_str = datetime.now(timezone.utc).date().isoformat()
+    week_ago_str = (datetime.now(timezone.utc).date() - timedelta(days=7)).isoformat()
+    active_statuses_exec = {
+        "received", "assigned", "on_route", "picked_up", "in_lab", "processed", "error_pending_assignment",
+    }
+
+    # Alertas: activas sin motorizado
+    alerts = []
+    for row in requests_rows:
+        status = row.get("status") or ""
+        if status not in active_statuses_exec:
+            continue
+        courier = row.get("couriers") if isinstance(row.get("couriers"), dict) else {}
+        if not courier.get("name") and not row.get("assigned_courier_id"):
+            client = row.get("clients") if isinstance(row.get("clients"), dict) else {}
+            alerts.append({
+                "clinic_name": client.get("clinic_name") or "-",
+                "order_number": row.get("order_number") or "-",
+                "status": status,
+            })
+
+    # Procesadas esta semana
+    processed_week = sum(
+        1 for r in requests_rows
+        if r.get("status") == "processed"
+        and (r.get("requested_at") or "")[:10] >= week_ago_str
+    )
+
+    # Tasa de cancelación histórica
+    total_req = len(requests_rows)
+    cancelled = sum(1 for r in requests_rows if r.get("status") == "cancelled")
+    cancel_rate = round(cancelled / total_req * 100) if total_req > 0 else 0
+
+    # Carga activa por motorizado
+    courier_load: dict[str, int] = {}
+    for row in requests_rows:
+        if (row.get("status") or "") not in active_statuses_exec:
+            continue
+        courier = row.get("couriers") if isinstance(row.get("couriers"), dict) else {}
+        name = courier.get("name")
+        if name:
+            courier_load[name] = courier_load.get(name, 0) + 1
+    courier_load_rows = sorted(
+        [{"name": k, "count": v} for k, v in courier_load.items()],
+        key=lambda x: -x["count"],
+    )[:6]
+
+    # Top clientes por volumen de solicitudes
+    client_req: dict[str, int] = {}
+    for row in requests_rows:
+        client = row.get("clients") if isinstance(row.get("clients"), dict) else {}
+        name = client.get("clinic_name") or "Desconocido"
+        client_req[name] = client_req.get(name, 0) + 1
+    top_clients_req = sorted(
+        [{"name": k, "count": v} for k, v in client_req.items()],
+        key=lambda x: -x["count"],
+    )[:5]
+
+    # Feed de actividad reciente
+    _ev_labels: dict[str, tuple[str, str]] = {
+        "created":                      ("Solicitud creada",      "file-plus"),
+        "status_updated":               ("Estado actualizado",    "refresh-cw"),
+        "service_order_generated":      ("Orden generada",        "clipboard-list"),
+        "alegra_invoiced":              ("Factura creada",        "receipt"),
+        "client_review_approved":       ("Cliente aprobado",      "user-check"),
+        "client_review_rejected":       ("Cliente rechazado",     "user-x"),
+        "dashboard_request_manual_update": ("Actualización manual", "edit"),
+    }
+    activity = []
+    for ev in sorted(request_events, key=lambda e: e.get("created_at") or "", reverse=True)[:12]:
+        payload = ev.get("event_payload") if isinstance(ev.get("event_payload"), dict) else {}
+        so = payload.get("service_order") if isinstance(payload.get("service_order"), dict) else {}
+        ev_type = ev.get("event_type") or "evento"
+        label, icon = _ev_labels.get(ev_type, ("Evento del sistema", "activity"))
+        activity.append({
+            "event_type": ev_type,
+            "label": label,
+            "icon": icon,
+            "clinic_name": so.get("clinic_name") or payload.get("clinic_name") or "—",
+            "created_at": str(ev.get("created_at") or "")[:16].replace("T", " "),
+        })
+
+    return {
+        "exec_alerts":        alerts[:5],
+        "exec_alerts_count":  len(alerts),
+        "exec_processed_week": processed_week,
+        "exec_cancel_rate":   cancel_rate,
+        "exec_courier_load":  courier_load_rows,
+        "exec_top_clients_req": top_clients_req,
+        "exec_activity":      activity,
     }
 
 
@@ -1157,6 +1425,19 @@ def build_dashboard_context() -> dict:
         "error": None,
     }
     context.update(motorizados_context)
+
+    # Panel Ejecutivo — métricas adicionales
+    exec_data = _build_executive_panel(requests_rows, request_events)
+    context.update(exec_data)
+    _billing_rows = _safe_fetch(lambda: db.list_all_cached_invoices("total, invoice_date, client_name"), [])
+    _raw_billing = _compute_invoice_metrics(_billing_rows)
+    context["exec_billing"] = {
+        **_raw_billing,
+        "month_total_fmt": _money_fmt(_raw_billing.get("month_total", 0)),
+        "year_total_fmt":  _money_fmt(_raw_billing.get("year_total", 0)),
+        "avg_ticket_fmt":  _money_fmt(_raw_billing.get("avg_ticket", 0)),
+    }
+    context["alegra_enabled"] = ALEGRA_ENABLED
     return context
 
 
@@ -1320,6 +1601,95 @@ def motorizados_page():
     return _render_dashboard("motorizados")
 
 
+@dashboard.get("/facturacion")
+@_login_required
+def billing_page():
+    return _render_dashboard("facturacion")
+
+
+@dashboard.get("/api/dashboard/invoices")
+@_login_required
+def api_list_invoices():
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except (TypeError, ValueError):
+        page = 1
+    filters = _parse_invoice_filters(request.args)
+    order_field = request.args.get("order_field") or "invoice_date"
+    order_desc = (request.args.get("order_dir") or "desc").lower() != "asc"
+    rows, total = _safe_fetch(
+        lambda: db.list_cached_invoices(filters, page=page, per_page=INVOICES_PER_PAGE, order_field=order_field, order_desc=order_desc),
+        ([], 0),
+    )
+    pages = max((total + INVOICES_PER_PAGE - 1) // INVOICES_PER_PAGE, 1)
+    return jsonify({"rows": rows, "total": total, "page": page, "pages": pages})
+
+
+@dashboard.get("/api/dashboard/invoices/<invoice_id>")
+@_login_required
+def api_invoice_detail(invoice_id: str):
+    invoice_id = str(invoice_id or "").strip()
+    if not invoice_id:
+        return jsonify({"error": "Missing invoice_id"}), 400
+    # Detalle read-through a Alegra cuando está habilitado; si no, cae al cache local.
+    if ALEGRA_ENABLED:
+        try:
+            invoice = alegra.get_invoice(invoice_id)
+            return jsonify({"source": "alegra", "invoice": invoice, "pdf_url": alegra.get_invoice_pdf_url(invoice)})
+        except alegra.AlegraError as exc:
+            return jsonify({"error": str(exc)}), 502
+    cached = _safe_fetch(lambda: db.get_cached_invoice(invoice_id), None)
+    if not cached:
+        return jsonify({"error": "Invoice not found in cache"}), 404
+    return jsonify({"source": "cache", "invoice": cached.get("raw") or cached})
+
+
+@dashboard.post("/api/dashboard/invoices/sync")
+@_login_required
+def api_sync_invoices():
+    if not ALEGRA_ENABLED:
+        return jsonify({"error": "Alegra deshabilitado (ALEGRA_ENABLED=false)"}), 400
+    try:
+        result = _sync_invoices_from_alegra()
+    except Exception as exc:
+        return jsonify({"error": f"Sync falló: {exc}"}), 503
+    status = 200 if not result["errors"] else 207
+    return jsonify({"ok": not result["errors"], **result}), status
+
+
+@dashboard.get("/api/dashboard/invoices/export")
+@_login_required
+def api_export_invoices():
+    fmt = (request.args.get("format") or "csv").lower()
+    filters = _parse_invoice_filters(request.args)
+    rows, _total = _safe_fetch(
+        lambda: db.list_cached_invoices(filters, page=1, per_page=10000),
+        ([], 0),
+    )
+    columns = [
+        ("number", "Numero"), ("invoice_date", "Fecha"), ("client_name", "Cliente"),
+        ("client_nit", "NIT"), ("document_type", "Tipo documento"), ("subtotal", "Neto"),
+        ("tax", "IVA"), ("total", "Total"), ("status", "Estado"), ("request_id", "Orden"),
+    ]
+    output = io.StringIO()
+    writer = csv.writer(output, delimiter=";" if fmt == "xlsx" else ",")
+    writer.writerow([label for _key, label in columns])
+    for row in rows:
+        writer.writerow([row.get(key, "") for key, _label in columns])
+    payload = output.getvalue()
+    # "Excel": CSV con BOM y separador ';' que Excel-ES abre en columnas sin asistente.
+    if fmt == "xlsx":
+        payload = "﻿" + payload
+        filename, mimetype = "facturas.csv", "application/vnd.ms-excel; charset=utf-8"
+    else:
+        filename, mimetype = "facturas.csv", "text/csv; charset=utf-8"
+    return Response(
+        payload,
+        mimetype=mimetype,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @dashboard.get("/api/dashboard/courier-suggestion")
 @_login_required
 def courier_suggestion():
@@ -1400,6 +1770,43 @@ def update_courier_locality_assignment():
     except Exception:
         return jsonify({"error": "Unable to update locality coverage"}), 503
     return jsonify({"ok": True, "locality_code": locality_code, "locality_name": locality_name, "courier_id": courier_id or None})
+
+
+@dashboard.get("/api/dashboard/column-prefs")
+@_login_required
+def get_column_prefs():
+    user_key = session.get("dashboard_username") or "operator"
+    rows = _safe_fetch(lambda: db.list_column_prefs(user_key), [])
+    prefs = {
+        str(row.get("table_id")): row.get("prefs") or {}
+        for row in rows
+        if row.get("table_id")
+    }
+    return jsonify({"prefs": prefs})
+
+
+@dashboard.post("/api/dashboard/column-prefs")
+@_login_required
+def save_column_prefs():
+    payload = request.get_json(silent=True) or {}
+    table_id = str(payload.get("table_id") or "").strip()
+    prefs = payload.get("prefs")
+    if not table_id or not isinstance(prefs, dict):
+        return jsonify({"error": "Missing table_id or prefs"}), 400
+    visible = prefs.get("visible")
+    order = prefs.get("order")
+    if not isinstance(visible, list) or not isinstance(order, list):
+        return jsonify({"error": "Invalid prefs"}), 400
+    clean = {
+        "visible": [str(slug)[:60] for slug in visible[:80]],
+        "order": [str(slug)[:60] for slug in order[:80]],
+    }
+    user_key = session.get("dashboard_username") or "operator"
+    try:
+        db.upsert_column_prefs(user_key, table_id[:60], clean)
+    except Exception:
+        return jsonify({"error": "Unable to save column preferences"}), 503
+    return jsonify({"ok": True, "table_id": table_id})
 
 
 @dashboard.post("/api/dashboard/client-assignment")
@@ -1922,6 +2329,24 @@ def _render_dashboard(active_tab: str):
         context["demo_mode"] = True
         context["sample_process_lanes"] = demo_lanes
         context["sample_demo_total"] = sum(lane["count"] for lane in demo_lanes)
+    if active_tab == "clientes":
+        all_rows = context.get("clients_rows") or []
+        per_page = 50
+        page = max(1, min(int(request.args.get("page", 1)), max(1, (len(all_rows) + per_page - 1) // per_page) or 1))
+        context["clients_total"] = len(all_rows)
+        context["clients_page"] = page
+        context["clients_per_page"] = per_page
+        context["clients_pages"] = max(1, (len(all_rows) + per_page - 1) // per_page)
+        context["clients_rows"] = all_rows[(page - 1) * per_page : page * per_page]
+    if active_tab == "facturacion":
+        try:
+            page = max(1, int(request.args.get("page", 1)))
+        except (TypeError, ValueError):
+            page = 1
+        filters = _parse_invoice_filters(request.args)
+        order_field = request.args.get("order_field") or "invoice_date"
+        order_desc = (request.args.get("order_dir") or "desc").lower() != "asc"
+        context.update(_build_invoices_context(page, filters, order_field, order_desc))
     return render_template(
         "dashboard.html",
         active_tab=active_tab,

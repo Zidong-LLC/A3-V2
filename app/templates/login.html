@@ -17,6 +17,7 @@
     </div>
 
     <form method="post" action="{{ url_for('dashboard.login') }}" class="login-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <label>Usuario
         <input name="username" type="text" autocomplete="username" required>
       </label>

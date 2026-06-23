@@ -149,6 +149,58 @@ def get_or_create_item(reference: str, name: str, price: int) -> dict:
     return created if isinstance(created, dict) else {}
 
 
+def list_invoices(
+    start: int = 0,
+    limit: int = 30,
+    order_field: str = "date",
+    order_direction: str = "DESC",
+    filters: dict | None = None,
+) -> list[dict]:
+    """Lista facturas de venta (solo lectura) con paginación y orden.
+
+    `filters` admite las claves que soporta la API de Alegra: `date` (YYYY-MM-DD),
+    `dueDate`, `client` (id de contacto), `status`. Devuelve la lista de facturas crudas;
+    el mapeo a fila de dashboard vive en `app/billing.py`. No emite ni modifica nada."""
+    params = {
+        "start": start,
+        "limit": limit,
+        "order_field": order_field,
+        "order_direction": order_direction,
+    }
+    for key, value in (filters or {}).items():
+        if value not in (None, ""):
+            params[key] = value
+    query = urllib.parse.urlencode(params)
+    result = _request("GET", f"/invoices?{query}")
+    return result if isinstance(result, list) else result.get("data", [])
+
+
+def get_invoice(invoice_id: int | str) -> dict:
+    """Trae el detalle completo de una factura por id (solo lectura)."""
+    result = _request("GET", f"/invoices/{urllib.parse.quote(str(invoice_id))}")
+    return result if isinstance(result, dict) else {}
+
+
+def get_invoice_pdf_url(invoice: dict) -> str | None:
+    """Resuelve la URL del PDF desde el objeto factura de Alegra, si está disponible.
+
+    Alegra expone el PDF en distintos lugares según el plan/estado; se prueban las claves
+    conocidas en orden. Devuelve None si la factura (p. ej. un borrador) aún no tiene PDF."""
+    if not isinstance(invoice, dict):
+        return None
+    candidates = [
+        invoice.get("pdf"),
+        (invoice.get("files") or {}).get("pdf") if isinstance(invoice.get("files"), dict) else None,
+    ]
+    printed = invoice.get("printedTemplate") or invoice.get("printTemplate")
+    if isinstance(printed, dict):
+        candidates.append(printed.get("url"))
+    for value in candidates:
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
 def create_invoice(
     client_id: int | str,
     items: list[dict],

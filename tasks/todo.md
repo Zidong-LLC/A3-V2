@@ -2,6 +2,76 @@
 
 ---
 
+## Módulo "Facturación" (Alegra) — Completado (falta aplicar migración 014)
+
+**Objetivo:** centro de consulta de facturas de Alegra dentro del dashboard (Fase 4 de la
+decisión 009, read-only), adaptado a Colombia/DIAN. Plan en
+`C:\Users\Artel\.claude\plans\hidden-leaping-eclipse.md`.
+
+**Decisiones del usuario:** sin roles (login admin actual) · arquitectura híbrida (tabla
+cache + lectura directa para el detalle) · consulta + acciones con bloqueo de envío/emisión
+en pruebas.
+
+**Cambios realizados:**
+- [x] `app/services/alegra.py`: `list_invoices`, `get_invoice`, `get_invoice_pdf_url` (solo lectura).
+- [x] `app/billing.py`: `invoice_to_row()` (mapeo puro Alegra→fila) + tests en `tests/test_alegra_billing.py`.
+- [x] Migración `db/migrations/014_invoices_cache.sql` (tabla `invoices_cache`, no toca esquema existente).
+- [x] `app/services/db.py`: `upsert_invoices_cache`, `list_cached_invoices`, `list_all_cached_invoices`, `get_cached_invoice`.
+- [x] `app/config.py` + `.env.example`: flag `ALEGRA_PRODUCTION` (false=pruebas → acciones de envío bloqueadas).
+- [x] `app/dashboard.py`: ruta `/facturacion`, contexto (KPIs/métricas/paginación/filtros), endpoints
+      `GET /api/dashboard/invoices`, `GET .../invoices/<id>` (read-through), `POST .../invoices/sync`,
+      `GET .../invoices/export` (CSV/Excel).
+- [x] UI: ítem en sidebar, pestaña con KPIs, filtros, buscador, orden por columna, paginación,
+      tabla con **columnas configurables** (reusa `columns-config.js`), modal de detalle.
+- [x] `app/static/invoices.js` (sync, export, orden, paginación, copiar, detalle) + estilos en `app.css`.
+
+**Pendiente:**
+- [ ] Aplicar `014_invoices_cache.sql` en Supabase. Sin esto, el módulo carga vacío con gracia
+      ("No hay facturas en cache") — nada se rompe.
+- [ ] Validar `alegra.list_invoices/get_invoice` contra la cuenta de pruebas con un smoke (solo lectura).
+
+**Verificación hecha:** `pytest` (147 pasan) · render `/facturacion` 200 con test client (estado
+vacío correcto) · rutas registradas · `node --check` y parseo Jinja OK.
+
+**Guardrails respetados:** solo lectura; ninguna emisión/envío; IDs Alegra↔orden vía evento
+`alegra_invoiced` en `request_events`; acciones de reenvío/XML deshabilitadas en pruebas.
+
+---
+
+## Personalización de columnas en tablas del CRM — Completado (falta aplicar migración)
+
+**Objetivo:** que cada usuario elija qué columnas ver/ocultar y su orden, en todas las tablas
+del dashboard, de forma reutilizable y persistente entre sesiones y dispositivos.
+
+**Estado de partida:** la funcionalidad ya existía casi completa (sin commitear) en
+`app/static/columns-config.js`, con atributos `data-column`/`data-mandatory` en los `<th>` y
+botones "Columnas" en 6 tablas. Persistía solo en `localStorage` (por navegador).
+
+**Decisión del usuario:** persistencia **híbrida** (localStorage instantáneo + servidor para
+sincronizar entre dispositivos).
+
+**Cambios realizados:**
+- [x] Fix bug HTML: fragmento basura en el `<thead>` de la tabla de clientes
+      (`app/templates/dashboard.html`) que rompía el encabezado.
+- [x] Migración `db/migrations/013_dashboard_column_prefs.sql` (tabla `dashboard_column_prefs`,
+      PK `user_key,table_id`, `prefs jsonb`).
+- [x] `db.list_column_prefs()` y `db.upsert_column_prefs()` en `app/services/db.py`.
+- [x] Endpoints GET/POST `/api/dashboard/column-prefs` en `app/dashboard.py` (mismo patrón
+      JSON que el resto; exentos de CSRF por no usar `request.form`).
+- [x] `columns-config.js`: sincronización híbrida (debounce POST al guardar, GET al cargar que
+      sobrescribe lo local) + arreglo del cierre del panel al hacer clic afuera. Cache `?v=3`.
+
+**Pendiente para que funcione el lado servidor:**
+- [ ] Aplicar la migración `013` en el SQL Editor de Supabase (sin esto, el GET/POST devuelven
+      error y el sistema cae con gracia a solo-localStorage; nada se rompe).
+
+**Verificación:** levantar el dashboard, abrir cada tabla → botón "Columnas" abre panel lateral;
+marcar/desmarcar actualiza al instante; buscador filtra; mostrar/ocultar/restablecer funcionan;
+drag & drop reordena; recargar conserva la config. Tras aplicar la migración, cambiar de equipo
+debe traer la misma configuración.
+
+---
+
 ## Bug: agregar otro análisis/perfil se traba (chat 4 real) — En curso
 
 Reportado por el usuario y reproducido en el historial real (`external_chat_id=4`):

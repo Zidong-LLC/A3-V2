@@ -46,7 +46,7 @@ CHATWOOT_TEAM_OPERACIONES = os.environ.get("CHATWOOT_TEAM_OPERACIONES", "")
 
 PLATFORM_API_TOKEN = os.environ.get("PLATFORM_API_TOKEN", "")
 DASHBOARD_ADMIN_USER = os.environ.get("DASHBOARD_ADMIN_USER", "admin")
-DASHBOARD_ADMIN_PASSWORD = os.environ.get("DASHBOARD_ADMIN_PASSWORD", "admin123")
+DASHBOARD_ADMIN_PASSWORD = os.environ["DASHBOARD_ADMIN_PASSWORD"]
 
 # Alegra — facturación electrónica DIAN (integración por fases, ver decisión 009).
 # Con ALEGRA_ENABLED desactivado el agente se comporta igual que hoy: el flag protege
@@ -56,3 +56,8 @@ ALEGRA_ENABLED = os.environ.get("ALEGRA_ENABLED", "false").lower() in ("1", "tru
 ALEGRA_EMAIL = os.environ.get("ALEGRA_EMAIL", "")
 ALEGRA_API_TOKEN = os.environ.get("ALEGRA_API_TOKEN", "")
 ALEGRA_BASE_URL = os.environ.get("ALEGRA_BASE_URL", "https://api.alegra.com/api/v1").rstrip("/")
+# Mientras sea false (default) estamos en cuenta de PRUEBAS: el módulo de Facturación
+# del dashboard deshabilita acciones que emiten/envían (reenviar correo, descargar XML).
+# Solo se pone true al migrar a la cuenta real del cliente y autorizar emisión. Ver
+# docs/guardrails-entorno-y-datos.md.
+ALEGRA_PRODUCTION = os.environ.get("ALEGRA_PRODUCTION", "false").lower() in ("1", "true", "yes")

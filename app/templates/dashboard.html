@@ -9,10 +9,10 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
-  <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=7">
+  <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.1/dist/apexcharts.min.js" defer></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js" defer></script>
 </head>
 <body class="crm-theme" data-sidebar="expanded">
   <div class="crm-app">
@@ -20,7 +20,7 @@
       <div class="brand-row">
         <div class="brand-mark">A3</div>
         <div class="brand-copy"><strong>CRM Operativo</strong><span>Centro de control</span></div>
-        <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-label="Colapsar menu"><i data-lucide="panel-left-close"></i></button>
+        <button type="button" class="sidebar-toggle" id="sidebar-toggle" aria-label="Colapsar menu"><span></span><span></span><span></span></button>
       </div>
 
       <div class="menu-block">
@@ -29,6 +29,7 @@
           <a href="{{ url_for('dashboard.dashboard_home') }}" class="menu-link {{ 'active' if active_tab == 'dashboard' else '' }}"><i data-lucide="layout-dashboard"></i><span>Panel</span></a>
           <a href="{{ url_for('dashboard.operation_page') }}" class="menu-link {{ 'active' if active_tab == 'operacion' else '' }}"><i data-lucide="radio-tower"></i><span>Operacion</span></a>
           <a href="{{ url_for('dashboard.clients_page') }}" class="menu-link {{ 'active' if active_tab == 'clientes' else '' }}"><i data-lucide="users"></i><span>Clientes</span></a>
+          <a href="{{ url_for('dashboard.billing_page') }}" class="menu-link {{ 'active' if active_tab == 'facturacion' else '' }}"><i data-lucide="receipt"></i><span>Facturacion</span></a>
           <a href="{{ url_for('dashboard.motorizados_page') }}" class="menu-link {{ 'active' if active_tab == 'motorizados' else '' }}"><i data-lucide="bike"></i><span>Motorizados</span></a>
           <a href="{{ url_for('dashboard.samples_page') }}" class="menu-link {{ 'active' if active_tab == 'muestras' else '' }}"><i data-lucide="test-tube-2"></i><span>Muestras</span></a>
           <a href="{{ url_for('dashboard.analysis_page') }}" class="menu-link {{ 'active' if active_tab == 'analisis' else '' }}"><i data-lucide="activity"></i><span>Analisis</span></a>
@@ -46,11 +47,8 @@
     <main class="crm-main">
       <header class="top-header">
         <div><p class="hello-label">Bienvenido de nuevo, {{ username }}</p><h1>{{ 'Panel Ejecutivo' if active_tab == 'dashboard' else 'Centro Operativo Diario' if active_tab == 'operacion' else active_tab|capitalize }}</h1></div>
-        <div class="header-actions"><a class="ghost-btn" href="{{ url_for('dashboard.dashboard_overview') }}"><i data-lucide="braces"></i>JSON</a>{% if active_tab == 'clientes' %}<a class="primary-btn" href="{{ url_for('dashboard.new_client_page') }}"><i data-lucide="user-plus"></i>Nuevo Cliente</a>{% endif %}</div>
+        {% if active_tab == 'clientes' %}<div class="header-actions"><a class="primary-btn" href="{{ url_for('dashboard.new_client_page') }}"><i data-lucide="user-plus"></i>Nuevo Cliente</a></div>{% endif %}
       </header>
-
-      {% set last_updated = (context.requests[0].requested_at if context.requests and context.requests[0].requested_at else '-') %}
-      <section class="update-row"><div class="update-pill"><i data-lucide="clock-3"></i><span>Ultima actualizacion: {{ last_updated[:16] if last_updated != '-' else '-' }}</span></div><div class="avatar-stack"><span>AR</span><span>NV</span><span>CM</span></div></section>
 
       {% if context.error %}<section class="approval-notice error">No fue posible cargar todos los datos: {{ context.error }}</section>{% endif %}
 
@@ -70,19 +68,239 @@
       {%- endmacro %}
 
       {% if active_tab == 'dashboard' %}
-      <section class="kpi-grid four">
-        <article class="kpi-card"><div class="kpi-head"><span>Solicitudes activas</span><i data-lucide="file-check-2"></i></div><strong>{{ context.summary.active_requests }}</strong><p class="delta">Recibidas, asignadas o en ruta</p></article>
-        <article class="kpi-card"><div class="kpi-head"><span>Muestras pendientes</span><i data-lucide="test-tube-2"></i></div><strong>{{ context.summary.pending_pickup }}</strong><p class="delta">A retirar por motorizado</p></article>
-        <article class="kpi-card"><div class="kpi-head"><span>Total muestras</span><i data-lucide="flask-conical"></i></div><strong>{{ context.summary.total_samples }}</strong><p class="delta">En registro</p></article>
-        <article class="kpi-card"><div class="kpi-head"><span>Solicitudes canceladas</span><i data-lucide="file-x-2"></i></div><strong>{{ context.request_status.get('cancelled', 0) }}</strong><p class="delta">Canceladas</p></article>
-      </section>
+      <div class="exec-panel">
 
-      <section class="dashboard-grid">
-        <article class="card"><div class="card-head"><div><h3>Solicitudes por estado</h3><p>Distribucion actual del pipeline de solicitudes</p></div></div><div id="chart-requests-status" class="chart-slot"></div></article>
-        <article class="card"><div class="card-head simple"><h3>Muestras por estado</h3></div><div class="lead-bars" id="sample-bars"></div></article>
-        <article class="card"><div class="card-head"><h3>Solicitudes recientes</h3><div class="table-controls"><input id="project-search" type="search" aria-label="Buscar solicitud" placeholder="Buscar solicitud…"><select id="project-filter" aria-label="Filtrar solicitudes por estado"><option value="all">Todos</option><option value="received">Recibida</option><option value="assigned">Asignada</option><option value="on_route">En ruta</option><option value="in_lab">En laboratorio</option><option value="processed">Procesada</option></select></div></div><div class="table-wrap slim"><table id="projects-table"><thead><tr><th>Solicitud</th><th>Motorizado</th><th>Fecha programada</th></tr></thead><tbody></tbody></table></div></article>
-        <article class="card"><div class="card-head"><div><h3>Muestras en proceso</h3><p class="metric-total" id="process-total">0</p></div></div><div id="chart-samples-process" class="chart-slot"></div></article>
-      </section>
+        {# ── KPI Operación ── #}
+        <div data-widget="kpi_ops" class="exec-widget">
+          <section class="kpi-grid four">
+            <article class="kpi-card">
+              <div class="kpi-head"><span>Solicitudes activas</span><i data-lucide="radio-tower"></i></div>
+              <strong>{{ context.summary.active_requests }}</strong>
+              <p class="delta">En pipeline operativo</p>
+            </article>
+            <article class="kpi-card">
+              <div class="kpi-head"><span>Sin recoger</span><i data-lucide="test-tube-2"></i></div>
+              <strong>{{ context.summary.pending_pickup }}</strong>
+              <p class="delta">Muestras a retirar</p>
+            </article>
+            <article class="kpi-card">
+              <div class="kpi-head"><span>Procesadas (7 dias)</span><i data-lucide="check-circle-2"></i></div>
+              <strong>{{ context.exec_processed_week }}</strong>
+              <p class="delta">Solicitudes completadas</p>
+            </article>
+            <article class="kpi-card{% if context.exec_alerts_count > 0 %} kpi-alert{% endif %}">
+              <div class="kpi-head"><span>Sin motorizado</span><i data-lucide="triangle-alert"></i></div>
+              <strong>{{ context.exec_alerts_count }}</strong>
+              <p class="delta">Activas sin asignar</p>
+            </article>
+          </section>
+        </div>
+
+        {# ── KPI Negocio ── #}
+        <div data-widget="kpi_biz" class="exec-widget">
+          <section class="kpi-grid four">
+            <article class="kpi-card">
+              <div class="kpi-head"><span>Clientes activos</span><i data-lucide="users"></i></div>
+              <strong>{{ context.summary.total_clients }}</strong>
+              <p class="delta">Registrados en la plataforma</p>
+            </article>
+            <article class="kpi-card">
+              <div class="kpi-head"><span>Facturacion del mes</span><i data-lucide="receipt"></i></div>
+              <strong class="kpi-money">{{ context.exec_billing.month_total_fmt }}</strong>
+              <p class="delta">Desde cache Alegra</p>
+            </article>
+            <article class="kpi-card">
+              <div class="kpi-head"><span>Ticket promedio</span><i data-lucide="trending-up"></i></div>
+              <strong class="kpi-money">{{ context.exec_billing.avg_ticket_fmt }}</strong>
+              <p class="delta">Por factura del mes</p>
+            </article>
+            <article class="kpi-card">
+              <div class="kpi-head"><span>Tasa cancelacion</span><i data-lucide="x-circle"></i></div>
+              <strong>{{ context.exec_cancel_rate }}%</strong>
+              <p class="delta">Del total de solicitudes</p>
+            </article>
+          </section>
+        </div>
+
+        {# ── Banner alertas ── #}
+        <div data-widget="alerts" class="exec-widget">
+          {% if context.exec_alerts %}
+          <div class="exec-alert-banner">
+            <i data-lucide="triangle-alert"></i>
+            <strong>{{ context.exec_alerts_count }} sin motorizado</strong>
+            <span class="exec-alert-list">{% for a in context.exec_alerts %}{{ a.clinic_name }}{% if not loop.last %} · {% endif %}{% endfor %}</span>
+            <a class="ghost-btn small" href="{{ url_for('dashboard.operation_page') }}">Ver operacion</a>
+          </div>
+          {% endif %}
+        </div>
+
+        {# ── Grid principal 3 columnas ── #}
+        <div class="exec-main-grid">
+
+          {# Columna izquierda: Pipeline + Solicitudes recientes #}
+          <div class="exec-col-main">
+            <div data-widget="pipeline" class="exec-widget">
+              <article class="card">
+                <div class="card-head simple"><h3>Pipeline de solicitudes</h3><span class="table-counter">{{ context.requests | length }} total</span></div>
+                {% set pipeline_items = [('received','Recibida','#a3a3a3'),('assigned','Asignada','#0ea5e9'),('on_route','En ruta','#f97316'),('in_lab','En laboratorio','#a855f7'),('processed','Procesada','#22c55e'),('cancelled','Cancelada','#ef4444')] %}
+                {% set total_req = context.requests | length if context.requests else 1 %}
+                <div class="exec-pipeline">
+                  {% for key, label, color in pipeline_items %}
+                  {% set cnt = context.request_status.get(key, 0) %}
+                  {% set pct = ((cnt / total_req * 100) | round | int) if total_req > 0 else 0 %}
+                  <div class="exec-pipe-row">
+                    <span class="exec-pipe-label">{{ label }}</span>
+                    <div class="exec-pipe-track"><div class="exec-pipe-fill" style="width:{{ pct }}%;background:{{ color }}"></div></div>
+                    <strong class="exec-pipe-count">{{ cnt }}</strong>
+                  </div>
+                  {% endfor %}
+                </div>
+              </article>
+            </div>
+
+            <div data-widget="requests_recent" class="exec-widget">
+              <article class="card">
+                <div class="card-head simple"><h3>Solicitudes recientes</h3><a class="ghost-btn small" href="{{ url_for('dashboard.operation_page') }}">Ver todas</a></div>
+                {% set sl = {'received':'Recibida','assigned':'Asignada','on_route':'En ruta','picked_up':'En ruta','in_lab':'En lab','processed':'Procesada','sent':'Enviada','cancelled':'Cancelada','error_pending_assignment':'Sin motorizado'} %}
+                <div class="table-wrap slim">
+                  <table>
+                    <thead><tr><th>Cliente</th><th>Estado</th><th>Motorizado</th><th>Fecha</th></tr></thead>
+                    <tbody>
+                    {% for row in context.requests[:10] %}
+                    <tr>
+                      <td><strong>{{ row.clients.clinic_name if row.clients else '-' }}</strong></td>
+                      <td><span class="status-badge status-{{ row.status }}">{{ sl.get(row.status, row.status) }}</span></td>
+                      <td class="muted-text">{{ row.couriers.name if row.couriers else '—' }}</td>
+                      <td class="muted-text">{{ row.requested_at[:10] if row.requested_at else '-' }}</td>
+                    </tr>
+                    {% else %}<tr><td colspan="4">Sin solicitudes.</td></tr>
+                    {% endfor %}
+                    </tbody>
+                  </table>
+                </div>
+              </article>
+            </div>
+          </div>
+
+          {# Columna central: Muestras + Carga motorizados #}
+          <div class="exec-col-side">
+            <div data-widget="samples_state" class="exec-widget">
+              <article class="card">
+                <div class="card-head simple"><h3>Muestras</h3><span class="table-counter">{{ context.summary.total_samples }} total</span></div>
+                {% set sample_items = [('pending_pickup','A retirar'),('picked_up','Recogida'),('in_lab','En lab'),('processed','Procesada'),('sent','Enviada')] %}
+                {% set s_vals = context.sample_status.values() | list %}
+                {% set max_s = (s_vals | max) if s_vals else 1 %}
+                {% if max_s < 1 %}{% set max_s = 1 %}{% endif %}
+                <div class="lead-bars">
+                  {% for key, label in sample_items %}
+                  {% set cnt = context.sample_status.get(key, 0) %}
+                  <div class="lead-row">
+                    <span>{{ label }}</span>
+                    <div class="lead-track"><b style="width:{{ ((cnt / max_s * 100) | round | int) if max_s > 0 else 0 }}%"></b></div>
+                    <strong>{{ cnt }}</strong>
+                  </div>
+                  {% endfor %}
+                </div>
+              </article>
+            </div>
+
+            <div data-widget="courier_load" class="exec-widget">
+              <article class="card">
+                <div class="card-head simple"><h3>Carga por motorizado</h3></div>
+                {% if context.exec_courier_load %}
+                {% set max_c = context.exec_courier_load[0].count if context.exec_courier_load[0].count > 0 else 1 %}
+                <div class="lead-bars">
+                  {% for row in context.exec_courier_load %}
+                  <div class="lead-row">
+                    <span>{{ row.name.split(' ')[0] }}</span>
+                    <div class="lead-track"><b class="exec-courier-bar" style="width:{{ ((row.count / max_c * 100) | round | int) }}%"></b></div>
+                    <strong>{{ row.count }}</strong>
+                  </div>
+                  {% endfor %}
+                </div>
+                {% else %}<p class="muted-text">Sin solicitudes activas.</p>{% endif %}
+              </article>
+            </div>
+          </div>
+
+          {# Columna derecha: Facturación + Top clientes #}
+          <div class="exec-col-side">
+            <div data-widget="billing_mini" class="exec-widget">
+              <article class="card">
+                <div class="card-head simple"><h3>Facturacion</h3>{% if not context.alegra_enabled %}<span class="exec-tag-dim">Sin sync</span>{% endif %}</div>
+                <div class="exec-billing-stack">
+                  <div class="exec-billing-row"><span>Este mes</span><strong>{{ context.exec_billing.month_total_fmt }}</strong></div>
+                  <div class="exec-billing-row"><span>Este año</span><strong>{{ context.exec_billing.year_total_fmt }}</strong></div>
+                  <div class="exec-billing-row"><span>Ticket promedio</span><strong>{{ context.exec_billing.avg_ticket_fmt }}</strong></div>
+                  <div class="exec-billing-row"><span>Facturas hoy</span><strong>{{ context.exec_billing.today_count }}</strong></div>
+                </div>
+                <a class="ghost-btn small" href="{{ url_for('dashboard.billing_page') }}" style="margin-top:10px;display:inline-flex">Ver facturacion</a>
+              </article>
+            </div>
+
+            <div data-widget="top_clients" class="exec-widget">
+              <article class="card">
+                <div class="card-head simple"><h3>Top clientes</h3><span class="table-counter">por solicitudes</span></div>
+                <div class="exec-top-list">
+                  {% for client in context.exec_top_clients_req %}
+                  <div class="exec-top-row">
+                    <span class="exec-rank">{{ loop.index }}</span>
+                    <span class="exec-top-name">{{ client.name[:30] }}{% if client.name | length > 30 %}…{% endif %}</span>
+                    <strong>{{ client.count }}</strong>
+                  </div>
+                  {% endfor %}
+                  {% if not context.exec_top_clients_req %}<p class="muted-text">Sin datos.</p>{% endif %}
+                </div>
+              </article>
+            </div>
+          </div>
+
+        </div>{# /exec-main-grid #}
+
+        {# ── Actividad reciente ── #}
+        <div data-widget="activity" class="exec-widget">
+          <article class="card">
+            <div class="card-head simple">
+              <h3>Actividad reciente</h3>
+              <button type="button" class="ghost-btn small" id="exec-customize-btn"><i data-lucide="sliders-horizontal"></i>Personalizar</button>
+            </div>
+            <div class="exec-activity-feed">
+              {% for ev in context.exec_activity %}
+              <div class="exec-activity-item">
+                <div class="exec-activity-icon"><i data-lucide="{{ ev.icon }}"></i></div>
+                <div class="exec-activity-body">
+                  <span>{{ ev.label }}</span>
+                  <small>{{ ev.clinic_name }} · {{ ev.created_at }}</small>
+                </div>
+              </div>
+              {% endfor %}
+              {% if not context.exec_activity %}<p class="muted-text">Sin actividad reciente.</p>{% endif %}
+            </div>
+          </article>
+        </div>
+
+      </div>{# /exec-panel #}
+
+      {# Panel lateral configuración de widgets #}
+      <div class="cols-panel" id="exec-widget-panel">
+        <div class="cols-panel-head"><strong>Personalizar panel</strong><button class="cols-close" id="exec-widget-close">&times;</button></div>
+        <div class="cols-actions">
+          <button class="cols-action" id="exec-widgets-show-all">Mostrar todo</button>
+          <button class="cols-action" id="exec-widgets-reset">Restablecer</button>
+        </div>
+        <ul class="cols-list" id="exec-widget-list">
+          <li class="cols-item" data-wid="kpi_ops"><label><input type="checkbox"><span>KPIs Operacion</span></label></li>
+          <li class="cols-item" data-wid="kpi_biz"><label><input type="checkbox"><span>KPIs Negocio</span></label></li>
+          <li class="cols-item" data-wid="alerts"><label><input type="checkbox"><span>Alertas criticas</span></label></li>
+          <li class="cols-item" data-wid="pipeline"><label><input type="checkbox"><span>Pipeline solicitudes</span></label></li>
+          <li class="cols-item" data-wid="requests_recent"><label><input type="checkbox"><span>Solicitudes recientes</span></label></li>
+          <li class="cols-item" data-wid="samples_state"><label><input type="checkbox"><span>Muestras por estado</span></label></li>
+          <li class="cols-item" data-wid="courier_load"><label><input type="checkbox"><span>Carga motorizados</span></label></li>
+          <li class="cols-item" data-wid="billing_mini"><label><input type="checkbox"><span>Facturacion</span></label></li>
+          <li class="cols-item" data-wid="top_clients"><label><input type="checkbox"><span>Top clientes</span></label></li>
+          <li class="cols-item" data-wid="activity"><label><input type="checkbox"><span>Actividad reciente</span></label></li>
+        </ul>
+      </div>
       {% endif %}
 
       {% if active_tab != 'dashboard' %}
@@ -90,15 +308,107 @@
       <section class="card static-view">
         {% if active_tab == 'operacion' %}
         {% set op = context.operation_center %}
-        <div class="card-head simple"><h3>Centro Operativo Diario</h3></div>
-        <section class="kpi-grid four"><article class="kpi-card"><div class="kpi-head"><span>Rutas activas</span><i data-lucide="route"></i></div><strong>{{ op.kpis.active_routes }}</strong><p class="delta">Recibidas, asignadas o en ruta</p></article><article class="kpi-card"><div class="kpi-head"><span>Aprobaciones</span><i data-lucide="user-check"></i></div><strong>{{ op.kpis.pending_approvals }}</strong><p class="delta">Clientes nuevos pendientes</p></article><article class="kpi-card"><div class="kpi-head"><span>Muestras abiertas</span><i data-lucide="test-tube-2"></i></div><strong>{{ op.kpis.pending_samples }}</strong><p class="delta">Antes de resultado enviado</p></article><article class="kpi-card"><div class="kpi-head"><span>Alertas</span><i data-lucide="triangle-alert"></i></div><strong>{{ op.kpis.critical_alerts }}</strong><p class="delta">Requieren revision operativa</p></article></section>
-        <section class="card"><div class="card-head simple"><h3>Ordenes del dia</h3></div><div class="service-order-grid compact">{% for order in op.service_order_rows %}{{ service_order_sheet(order) }}{% else %}<div class="flow-empty">No hay ordenes de servicio agendadas hoy.</div>{% endfor %}</div></section>
-        <section class="card"><div class="card-head simple"><h3>Agenda por motorizado</h3></div><div class="courier-agenda-board">{% for column in op.courier_agenda %}<article class="courier-agenda-column"><header><strong>{{ column.courier_name }}</strong><span>{{ column.count }}</span></header>{% for route in column.routes %}<div class="courier-route-card"><strong>{{ route.clinic_name }}</strong><span>{{ route.status_label }}</span><small>{{ route.address }}</small><small>{{ route.order_summary }}</small></div>{% else %}<div class="flow-empty">Sin rutas</div>{% endfor %}</article>{% else %}<div class="flow-empty">No hay rutas activas para distribuir.</div>{% endfor %}</div></section>
-        <div class="dashboard-grid operation-grid"><article class="card"><div class="card-head simple"><h3>Rutas para gestionar</h3></div><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Orden</th><th>Direccion</th><th>Estado</th><th>Motorizado</th><th>Fecha</th></tr></thead><tbody>{% for row in op.route_rows %}<tr><td><strong>{{ row.clinic_name }}</strong></td><td>{{ row.order_summary }}</td><td>{{ row.address }}</td><td><span class="status-badge">{{ row.status_label }}</span></td><td>{{ row.courier_name }}</td><td>{{ row.scheduled_pickup_date[:10] if row.scheduled_pickup_date and row.scheduled_pickup_date != '-' else '-' }}</td></tr>{% else %}<tr><td colspan="6">No hay rutas activas.</td></tr>{% endfor %}</tbody></table></div></article><article class="card"><div class="card-head simple"><h3>Alertas criticas</h3></div>{% for alert in op.alerts %}<p class="approval-notice {{ 'error' if alert.level == 'error' else 'ok' }}"><strong>{{ alert.title }}:</strong> {{ alert.detail }}</p>{% else %}<div class="flow-empty">Sin alertas operativas.</div>{% endfor %}</article><article class="card"><div class="card-head simple"><h3>Clientes nuevos</h3></div><div class="table-wrap slim"><table><thead><tr><th>Cliente</th><th>Telefono</th><th>Zona</th></tr></thead><tbody>{% for row in op.approval_rows %}<tr><td><strong>{{ row.clinic_name }}</strong></td><td>{{ row.contact_phone }}</td><td>{{ row.zone or '-' }}</td></tr>{% else %}<tr><td colspan="3">Sin aprobaciones pendientes.</td></tr>{% endfor %}</tbody></table></div></article><article class="card"><div class="card-head simple"><h3>Muestras abiertas</h3></div><div class="lead-bars">{% for lane in op.sample_lanes %}<div class="lead-row"><span>{{ lane.label }}</span><strong>{{ lane.count }}</strong></div>{% endfor %}</div></article></div>
+        {% set sl = {'received':'Recibida','assigned':'Asignada','on_route':'En ruta','picked_up':'En ruta','in_lab':'En lab','processed':'Procesada','sent':'Enviada','cancelled':'Cancelada','error_pending_assignment':'Sin motorizado'} %}
+
+        {# ── 1. KPIs operativos ── #}
+        <section class="op-kpi-grid">
+          <article class="op-kpi"><div class="op-kpi-ico"><i data-lucide="inbox"></i></div><div><strong>{{ op.kpis.received_total }}</strong><span>Recibidas</span></div></article>
+          <article class="op-kpi"><div class="op-kpi-ico"><i data-lucide="user-check"></i></div><div><strong>{{ op.kpis.assigned_total }}</strong><span>Asignadas</span></div></article>
+          <article class="op-kpi"><div class="op-kpi-ico"><i data-lucide="test-tube-2"></i></div><div><strong>{{ op.kpis.pending_samples }}</strong><span>Muestras pend.</span></div></article>
+          <article class="op-kpi"><div class="op-kpi-ico"><i data-lucide="check-circle-2"></i></div><div><strong>{{ op.kpis.results_emitted }}</strong><span>Resultados</span></div></article>
+          <article class="op-kpi"><div class="op-kpi-ico"><i data-lucide="users"></i></div><div><strong>{{ op.kpis.pending_approvals }}</strong><span>Clientes nuevos</span></div></article>
+          <article class="op-kpi"><div class="op-kpi-ico"><i data-lucide="receipt"></i></div><div><strong>{{ context.exec_billing.today_count }}</strong><span>Facturas hoy</span></div></article>
+          <article class="op-kpi{% if op.kpis.critical_alerts > 0 %} op-kpi-alert{% endif %}"><div class="op-kpi-ico"><i data-lucide="triangle-alert"></i></div><div><strong>{{ op.kpis.critical_alerts }}</strong><span>Alertas</span></div></article>
+        </section>
+
+        {# ── 2. Alertas/Excepciones + Actividad del día ── #}
+        <div class="op-split-grid">
+          <article class="card op-alerts-card">
+            <div class="card-head simple"><h3>Alertas y excepciones</h3>{% if op.unassigned_orders %}<span class="op-badge-count">{{ op.unassigned_orders | length }}</span>{% endif %}</div>
+            <div class="op-alerts-body">
+              {% for order in op.unassigned_orders %}
+              <div class="op-exception-row" data-op-order='{{ order | tojson | forceescape }}'>
+                <i data-lucide="alert-circle"></i>
+                <div class="op-exception-text"><strong>{{ order.clinic_name }}</strong><small>Orden {{ order.order_number }} sin motorizado</small></div>
+                <button type="button" class="ghost-btn small op-view-order">Ver</button>
+              </div>
+              {% endfor %}
+              {% for alert in op.alerts %}
+              <p class="approval-notice {{ 'error' if alert.level == 'error' else 'ok' }}"><strong>{{ alert.title }}:</strong> {{ alert.detail }}</p>
+              {% endfor %}
+              {% if not op.unassigned_orders and not op.alerts %}<div class="flow-empty">Sin alertas operativas. Todo en orden.</div>{% endif %}
+            </div>
+          </article>
+
+          <article class="card op-activity-card">
+            <div class="card-head simple"><h3>Actividad del dia</h3></div>
+            <div class="exec-activity-feed">
+              {% for ev in context.exec_activity %}
+              <div class="exec-activity-item">
+                <div class="exec-activity-icon"><i data-lucide="{{ ev.icon }}"></i></div>
+                <div class="exec-activity-body"><span>{{ ev.label }}</span><small>{{ ev.clinic_name }} · {{ ev.created_at }}</small></div>
+              </div>
+              {% endfor %}
+              {% if not context.exec_activity %}<p class="muted-text">Sin actividad reciente.</p>{% endif %}
+            </div>
+          </article>
+        </div>
+
+        {# ── 3. Órdenes del día (tabla compacta) ── #}
+        <section class="card">
+          <div class="card-head simple"><h3>Ordenes del dia</h3><span class="table-counter">{{ op.kpis.total_orders }} ordenes</span></div>
+          <div class="filter-bar"><input class="cell-input" id="op-orders-search" type="search" placeholder="Buscar orden, cliente o paciente…" style="min-width:260px"></div>
+          <div class="table-wrap">
+            <table class="op-orders-table">
+              <thead><tr><th>N° orden</th><th>Cliente</th><th>Paciente</th><th>Estudio principal</th><th>Fecha</th><th>Estado</th><th></th></tr></thead>
+              <tbody>
+              {% for order in op.service_order_rows %}
+              <tr class="op-order-row" data-op-order='{{ order | tojson | forceescape }}' data-search="{{ (order.order_number ~ ' ' ~ order.clinic_name ~ ' ' ~ order.patient_name ~ ' ' ~ order.exam_type) | lower }}">
+                <td><strong>{{ order.order_number }}</strong></td>
+                <td>{{ order.clinic_name }}</td>
+                <td>{{ order.patient_name }}</td>
+                <td class="muted-text">{{ order.exam_type }}</td>
+                <td class="muted-text">{{ order.service_order_date[:10] if order.service_order_date and order.service_order_date != '-' else '-' }}</td>
+                <td><span class="status-badge status-{{ order.status }}">{{ sl.get(order.status, order.status_label) }}</span></td>
+                <td><button type="button" class="ghost-btn small op-view-order">Ver</button></td>
+              </tr>
+              {% else %}<tr><td colspan="7">No hay ordenes de servicio agendadas.</td></tr>
+              {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        {# ── 4. Agenda operativa ── #}
+        <section class="card">
+          <div class="card-head simple"><h3>Agenda operativa</h3><span class="table-counter">{{ op.kpis.active_routes }} rutas activas</span></div>
+          <div class="courier-agenda-board">
+            {% for column in op.courier_agenda %}
+            <article class="courier-agenda-column">
+              <header><strong>{{ column.courier_name }}</strong><span>{{ column.count }}</span></header>
+              {% for route in column.routes %}
+              <div class="courier-route-card"><strong>{{ route.clinic_name }}</strong><span>{{ route.status_label }}</span><small>{{ route.address }}</small><small>{{ route.order_summary }}</small></div>
+              {% else %}<div class="flow-empty">Sin rutas</div>{% endfor %}
+            </article>
+            {% else %}<div class="flow-empty">No hay rutas activas para distribuir.</div>{% endfor %}
+          </div>
+        </section>
+
+        {# Panel lateral de detalle de orden #}
+        <div class="op-detail-panel" id="op-detail-panel">
+          <div class="op-detail-head">
+            <div><strong id="op-detail-title">Orden</strong><small id="op-detail-status"></small></div>
+            <button class="cols-close" id="op-detail-close">&times;</button>
+          </div>
+          <div class="op-detail-body" id="op-detail-body"></div>
+          <div class="op-detail-foot" id="op-detail-foot"></div>
+        </div>
+        <div class="op-detail-overlay" id="op-detail-overlay"></div>
         {% elif active_tab == 'clientes' %}
-        <div class="card-head simple"><h3>Clientes</h3></div><div class="filter-bar"><input class="cell-input" data-clients-search-input type="search" aria-label="Buscar cliente" placeholder="Buscar clinica, NIT, telefono o correo…"><select class="cell-select" data-clients-type-filter><option value="all">Tipo: todos</option><option value="">Tipo: sin dato</option>{% for option_value, option_label in context.client_type_options.items() %}<option value="{{ option_value }}">{{ option_label }}</option>{% endfor %}</select><select class="cell-select" data-clients-status-filter><option value="all">Estado: todos</option><option value="activo">Activos</option><option value="inactivo">Inactivos</option></select><select class="cell-select" data-clients-assignment-filter><option value="all">Motorizado: todos</option><option value="yes">Con motorizado</option><option value="no">Sin motorizado</option></select><select class="cell-select" data-clients-fe-filter><option value="all">Fact. electronica: todos</option><option value="si">Si</option><option value="no">No</option><option value="sin_dato">Sin dato</option></select><button type="button" class="primary-btn" id="suggest-btn" data-suggest-couriers>Sugerir motorizados</button><button type="button" class="primary-btn" id="confirm-suggestions-btn" style="display:none">Confirmar sugerencias</button><small class="save-flag" id="suggest-flag"></small><span class="table-counter" data-clients-count-pill>0 visibles</span></div><div class="table-wrap"><table class="table-clients"><thead><tr><th>Nombre comercial / Veterinaria</th><th>Codigo cliente</th><th>Tipo</th><th>NIT</th><th>Telefono</th><th>Direccion</th><th>Zona</th><th>Correo contacto</th><th>Correo facturacion</th><th>Regimen IVA</th><th>Facturacion electronica</th><th>Adjuntar RUT FE</th><th>Marca temporal</th><th>Fecha</th><th>Hora</th><th>Observaciones</th><th>Ingresado</th><th>Motorizado asignado</th><th>Estado Cliente</th><th>Solicitudes</th><th>Muestras</th><th>Estado Solicitud</th><th>Estado Muestra</th></tr></thead><tbody>{% for row in context.clients_rows %}<tr class="client-table-row" data-client-id="{{ row.client_id }}" data-clinic-key="{{ row.clinic_key }}" data-clinic-name="{{ row.clinic_name }}" data-client-type="{{ row.client_type or '' }}" data-client-status="{{ row.client_status|lower }}" data-client-fe="{{ row.electronic_invoicing_option }}" data-client-has-courier="{{ 'yes' if row.assigned_courier_id else 'no' }}" data-search="{{ (row.display_name ~ ' ' ~ row.secondary_name ~ ' ' ~ row.clinic_name ~ ' ' ~ row.client_code ~ ' ' ~ row.tax_id ~ ' ' ~ row.phone ~ ' ' ~ row.email ~ ' ' ~ row.billing_email ~ ' ' ~ row.address ~ ' ' ~ row.zone ~ ' ' ~ row.courier_name)|lower }}"><td style="min-width:280px"><input class="cell-input client-edit-input" data-kind="client" data-field="clinic_name" value="{{ row.clinic_name }}" placeholder="Editar nombre" style="width:100%;min-width:260px"><small class="save-flag"></small></td><td><input class="cell-input client-edit-input" data-kind="profile" data-field="client_code" value="{{ '' if row.client_code == '-' else row.client_code }}" placeholder="Codigo"></td><td><select class="cell-select client-edit-select" data-kind="profile" data-field="client_type"><option value="">Sin dato</option>{% for option_value, option_label in context.client_type_options.items() %}<option value="{{ option_value }}" {{ 'selected' if row.client_type == option_value else '' }}>{{ option_label }}</option>{% endfor %}</select></td><td><input class="cell-input client-edit-input" data-kind="profile" data-field="tax_id" value="{{ row.tax_id }}" placeholder="NIT"><small class="save-flag"></small></td><td><input class="cell-input client-edit-input" data-kind="profile" data-field="phone" type="tel" inputmode="tel" value="{{ row.phone }}" placeholder="Telefono"><small class="save-flag"></small></td><td><input class="cell-input client-edit-input" data-kind="profile" data-field="address" value="{{ row.address }}" placeholder="Direccion"><small class="save-flag"></small></td><td>{{ row.zone }}</td><td><input class="cell-input client-edit-input" data-kind="profile" data-field="email" type="email" inputmode="email" spellcheck="false" value="{{ row.email }}" placeholder="Correo"><small class="save-flag"></small></td><td><input class="cell-input client-edit-input" data-kind="profile" data-field="billing_email" type="email" inputmode="email" spellcheck="false" value="{{ '' if row.billing_email == '-' else row.billing_email }}" placeholder="correo@facturas.com"></td><td><select class="cell-select client-edit-select" data-kind="profile" data-field="vat_regime"><option value="">Sin dato</option>{% for option_value, option_label in context.vat_regime_options.items() %}<option value="{{ option_value }}" {{ 'selected' if row.vat_regime == option_value else '' }}>{{ option_label }}</option>{% endfor %}</select></td><td><select class="cell-select client-edit-select" data-kind="profile" data-field="electronic_invoicing"><option value="">Sin dato</option><option value="si" {{ 'selected' if row.electronic_invoicing_option == 'si' else '' }}>Si</option><option value="no" {{ 'selected' if row.electronic_invoicing_option == 'no' else '' }}>No</option></select></td><td><input class="cell-input client-edit-input" data-kind="profile" data-field="invoicing_rut_url" value="{{ '' if row.invoicing_rut_url == '-' else row.invoicing_rut_url }}" placeholder="URL o referencia RUT"></td><td>{{ row.registration_timestamp[:16] if row.registration_timestamp and row.registration_timestamp != '-' else '-' }}</td><td>{{ row.registration_date }}</td><td>{{ row.registration_time[:5] if row.registration_time and row.registration_time != '-' else '-' }}</td><td><input class="cell-input client-edit-input" data-kind="profile" data-field="observations" value="{{ '' if row.observations == '-' else row.observations }}" placeholder="Observaciones"></td><td><select class="cell-select client-edit-select" data-kind="profile" data-field="entered_flag"><option value="">Sin dato</option><option value="si" {{ 'selected' if row.entered_flag_option == 'si' else '' }}>Si</option><option value="no" {{ 'selected' if row.entered_flag_option == 'no' else '' }}>No</option></select></td><td><select class="cell-select client-edit-select" data-kind="assignment" data-field="assigned_courier_id"><option value="">Sin asignar</option>{% for courier in context.couriers_options %}<option value="{{ courier.id }}" {{ 'selected' if row.assigned_courier_id == courier.id else '' }}>{{ courier.name }}</option>{% endfor %}</select></td><td><select class="cell-select client-edit-select" data-kind="profile" data-field="is_active"><option value="true" {{ 'selected' if row.client_status == 'Activo' else '' }}>Activo</option><option value="false" {{ 'selected' if row.client_status == 'Inactivo' else '' }}>Inactivo</option></select><small class="save-flag"></small></td><td>{{ row.requests_count }}</td><td>{{ row.samples_count }}</td><td><span class="status-badge">{{ status_labels.get(row.latest_request_status, row.latest_request_status) }}</span></td><td><span class="status-badge">{{ status_labels.get(row.latest_sample_status, row.latest_sample_status) }}</span></td></tr>{% else %}<tr><td colspan="23">Sin clientes.</td></tr>{% endfor %}</tbody></table></div>
+        <div class="card-head simple"><h3>Clientes</h3></div><div class="filter-bar"><input class="cell-input" data-clients-search-input type="search" aria-label="Buscar cliente" placeholder="Buscar clinica, NIT, telefono o correo…"><select class="cell-select" data-clients-type-filter><option value="all">Tipo: todos</option><option value="">Tipo: sin dato</option>{% for option_value, option_label in context.client_type_options.items() %}<option value="{{ option_value }}">{{ option_label }}</option>{% endfor %}</select><select class="cell-select" data-clients-status-filter><option value="all">Estado: todos</option><option value="activo">Activos</option><option value="inactivo">Inactivos</option></select><select class="cell-select" data-clients-assignment-filter><option value="all">Motorizado: todos</option><option value="yes">Con motorizado</option><option value="no">Sin motorizado</option></select><select class="cell-select" data-clients-fe-filter><option value="all">Fact. electronica: todos</option><option value="si">Si</option><option value="no">No</option><option value="sin_dato">Sin dato</option></select><button type="button" class="primary-btn" id="suggest-btn" data-suggest-couriers>Sugerir motorizados</button><button type="button" class="primary-btn" id="confirm-suggestions-btn" style="display:none">Confirmar sugerencias</button><small class="save-flag" id="suggest-flag"></small><span class="table-counter" data-clients-count-pill>0 visibles</span><button type="button" class="cols-btn" data-columns-btn="clientes"><i data-lucide="columns-3"></i>Columnas</button></div><div class="table-wrap"><table class="table-clients" data-columns-table="clientes"><thead><tr><th data-column="nombre" data-mandatory="true" data-col-size="lg">Nombre comercial / Veterinaria</th><th data-column="codigo" data-col-size="sm">Codigo cliente</th><th data-column="tipo" data-col-size="sm">Tipo</th><th data-column="nit" data-col-size="sm">NIT</th><th data-column="telefono" data-col-size="sm">Telefono</th><th data-column="direccion" data-col-size="lg">Direccion</th><th data-column="zona" data-col-size="sm">Zona</th><th data-column="correo" data-col-size="lg">Correo contacto</th><th data-column="correo_fac" data-col-size="lg">Correo facturacion</th><th data-column="regimen" data-col-size="md">Regimen IVA</th><th data-column="fe" data-col-size="sm">Facturacion electronica</th><th data-column="rut" data-col-size="md">Adjuntar RUT FE</th><th data-column="marca" data-col-size="sm">Marca temporal</th><th data-column="fecha" data-col-size="sm">Fecha</th><th data-column="hora" data-col-size="xs">Hora</th><th data-column="observaciones" data-col-size="xl">Observaciones</th><th data-column="ingresado" data-col-size="xs">Ingresado</th><th data-column="motorizado" data-mandatory="true" data-col-size="md">Motorizado asignado</th><th data-column="estado" data-mandatory="true" data-col-size="sm">Estado Cliente</th><th data-column="solicitudes" data-col-size="xs">Solicitudes</th><th data-column="muestras" data-col-size="xs">Muestras</th><th data-column="est_sol" data-col-size="md">Estado Solicitud</th><th data-column="est_mues" data-col-size="md">Estado Muestra</th></tr></thead><tbody>{% for row in context.clients_rows %}<tr class="client-table-row" data-client-id="{{ row.client_id }}" data-clinic-key="{{ row.clinic_key }}" data-clinic-name="{{ row.clinic_name }}" data-client-type="{{ row.client_type or '' }}" data-client-status="{{ row.client_status|lower }}" data-client-fe="{{ row.electronic_invoicing_option }}" data-client-has-courier="{{ 'yes' if row.assigned_courier_id else 'no' }}" data-search="{{ (row.display_name ~ ' ' ~ row.secondary_name ~ ' ' ~ row.clinic_name ~ ' ' ~ row.client_code ~ ' ' ~ row.tax_id ~ ' ' ~ row.phone ~ ' ' ~ row.email ~ ' ' ~ row.billing_email ~ ' ' ~ row.address ~ ' ' ~ row.zone ~ ' ' ~ row.courier_name)|lower }}"><td><input class="cell-input client-edit-input" data-kind="client" data-field="clinic_name" value="{{ row.clinic_name }}" placeholder="Editar nombre"><small class="save-flag"></small></td><td><input class="cell-input client-edit-input" data-kind="profile" data-field="client_code" value="{{ '' if row.client_code == '-' else row.client_code }}" placeholder="Codigo"></td><td><select class="cell-select client-edit-select" data-kind="profile" data-field="client_type"><option value="">Sin dato</option>{% for option_value, option_label in context.client_type_options.items() %}<option value="{{ option_value }}" {{ 'selected' if row.client_type == option_value else '' }}>{{ option_label }}</option>{% endfor %}</select></td><td><input class="cell-input client-edit-input" data-kind="profile" data-field="tax_id" value="{{ row.tax_id }}" placeholder="NIT"><small class="save-flag"></small></td><td><input class="cell-input client-edit-input" data-kind="profile" data-field="phone" type="tel" inputmode="tel" value="{{ row.phone }}" placeholder="Telefono"><small class="save-flag"></small></td><td><input class="cell-input client-edit-input" data-kind="profile" data-field="address" value="{{ row.address }}" placeholder="Direccion"><small class="save-flag"></small></td><td>{{ row.zone }}</td><td><input class="cell-input client-edit-input" data-kind="profile" data-field="email" type="email" inputmode="email" spellcheck="false" value="{{ row.email }}" placeholder="Correo"><small class="save-flag"></small></td><td><input class="cell-input client-edit-input" data-kind="profile" data-field="billing_email" type="email" inputmode="email" spellcheck="false" value="{{ '' if row.billing_email == '-' else row.billing_email }}" placeholder="correo@facturas.com"></td><td><select class="cell-select client-edit-select" data-kind="profile" data-field="vat_regime"><option value="">Sin dato</option>{% for option_value, option_label in context.vat_regime_options.items() %}<option value="{{ option_value }}" {{ 'selected' if row.vat_regime == option_value else '' }}>{{ option_label }}</option>{% endfor %}</select></td><td><select class="cell-select client-edit-select" data-kind="profile" data-field="electronic_invoicing"><option value="">Sin dato</option><option value="si" {{ 'selected' if row.electronic_invoicing_option == 'si' else '' }}>Si</option><option value="no" {{ 'selected' if row.electronic_invoicing_option == 'no' else '' }}>No</option></select></td><td><input class="cell-input client-edit-input" data-kind="profile" data-field="invoicing_rut_url" value="{{ '' if row.invoicing_rut_url == '-' else row.invoicing_rut_url }}" placeholder="URL o referencia RUT"></td><td>{{ row.registration_timestamp[:16] if row.registration_timestamp and row.registration_timestamp != '-' else '-' }}</td><td>{{ row.registration_date }}</td><td>{{ row.registration_time[:5] if row.registration_time and row.registration_time != '-' else '-' }}</td><td><input class="cell-input client-edit-input" data-kind="profile" data-field="observations" value="{{ '' if row.observations == '-' else row.observations }}" placeholder="Observaciones"></td><td><select class="cell-select client-edit-select" data-kind="profile" data-field="entered_flag"><option value="">Sin dato</option><option value="si" {{ 'selected' if row.entered_flag_option == 'si' else '' }}>Si</option><option value="no" {{ 'selected' if row.entered_flag_option == 'no' else '' }}>No</option></select></td><td><select class="cell-select client-edit-select" data-kind="assignment" data-field="assigned_courier_id"><option value="">Sin asignar</option>{% for courier in context.couriers_options %}<option value="{{ courier.id }}" {{ 'selected' if row.assigned_courier_id == courier.id else '' }}>{{ courier.name }}</option>{% endfor %}</select></td><td><select class="cell-select client-edit-select" data-kind="profile" data-field="is_active"><option value="true" {{ 'selected' if row.client_status == 'Activo' else '' }}>Activo</option><option value="false" {{ 'selected' if row.client_status == 'Inactivo' else '' }}>Inactivo</option></select><small class="save-flag"></small></td><td>{{ row.requests_count }}</td><td>{{ row.samples_count }}</td><td><span class="status-badge">{{ status_labels.get(row.latest_request_status, row.latest_request_status) }}</span></td><td><span class="status-badge">{{ status_labels.get(row.latest_sample_status, row.latest_sample_status) }}</span></td></tr>{% else %}<tr><td colspan="23">Sin clientes.</td></tr>{% endfor %}</tbody></table></div>
+        {% if context.clients_pages and context.clients_pages > 1 %}<div class="filter-bar"><span class="table-counter">Pagina {{ context.clients_page }} de {{ context.clients_pages }} · {{ context.clients_total }} clientes totales</span>{% if context.clients_page > 1 %}<a class="ghost-btn" href="{{ url_for('dashboard.clients_page', page=context.clients_page-1) }}">Anterior</a>{% endif %}{% if context.clients_page < context.clients_pages %}<a class="ghost-btn" href="{{ url_for('dashboard.clients_page', page=context.clients_page+1) }}">Siguiente</a>{% endif %}</div>{% endif %}
         {% elif active_tab == 'solicitudes' %}
-        <div class="card-head simple"><h3>Solicitudes</h3></div><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Direccion</th><th>Cant. muestras</th><th>Tipo de muestra</th><th>Prioridad</th><th>Mensajero</th><th>Estado solicitud</th><th>Fecha programada</th></tr></thead><tbody>{% for row in context.requests %}<tr><td>{{ row.requested_at[:16] if row.requested_at else '-' }}</td><td>{{ row.clients.clinic_name if row.clients else '-' }}</td><td><input class="cell-input request-address-input" data-request-id="{{ row.id }}" value="{{ row.pickup_address or '' }}" placeholder="Direccion de recogida"><small class="save-flag"></small></td><td><input class="cell-input request-sample-count-input" data-request-id="{{ row.id }}" type="number" min="0" max="999" value="{{ row.sample_count or 0 }}"></td><td><input class="cell-input request-sample-types-input" data-request-id="{{ row.id }}" value="{{ row.exam_type or '' }}" placeholder="Sangre, orina"></td><td><select class="cell-select request-priority-select" data-request-id="{{ row.id }}">{% for option in context.request_priority_options %}<option value="{{ option.value }}" {{ 'selected' if row.priority == option.value else '' }}>{{ option.label }}</option>{% endfor %}</select></td><td><select class="cell-select request-courier-select" data-request-id="{{ row.id }}"><option value="">Sin asignar</option>{% for courier in context.couriers_options %}<option value="{{ courier.id }}" {{ 'selected' if row.assigned_courier_id == courier.id else '' }}>{{ courier.name }}</option>{% endfor %}</select><small class="save-flag"></small></td><td><select class="cell-select request-status-select" data-request-id="{{ row.id }}">{% for option in context.request_status_options %}<option value="{{ option.value }}" {{ 'selected' if row.status == option.value else '' }}>{{ option.label }}</option>{% endfor %}</select><small class="save-flag"></small></td><td><input class="cell-input request-date-input" data-request-id="{{ row.id }}" type="date" value="{{ row.scheduled_pickup_date[:10] if row.scheduled_pickup_date else '' }}"><small class="save-flag"></small></td></tr>{% else %}<tr><td colspan="9">No hay solicitudes.</td></tr>{% endfor %}</tbody></table></div>
+        <div class="card-head simple"><h3>Solicitudes</h3><button type="button" class="cols-btn" data-columns-btn="solicitudes"><i data-lucide="columns-3"></i>Columnas</button></div><div class="table-wrap"><table data-columns-table="solicitudes"><thead><tr><th data-column="fecha" data-mandatory="true">Fecha</th><th data-column="cliente" data-mandatory="true">Cliente</th><th data-column="direccion">Direccion</th><th data-column="muestras">Cant. muestras</th><th data-column="tipo">Tipo de muestra</th><th data-column="prioridad">Prioridad</th><th data-column="mensajero">Mensajero</th><th data-column="estado" data-mandatory="true">Estado solicitud</th><th data-column="prog">Fecha programada</th></tr></thead><tbody>{% for row in context.requests %}<tr><td>{{ row.requested_at[:16] if row.requested_at else '-' }}</td><td>{{ row.clients.clinic_name if row.clients else '-' }}</td><td><input class="cell-input request-address-input" data-request-id="{{ row.id }}" value="{{ row.pickup_address or '' }}" placeholder="Direccion de recogida"><small class="save-flag"></small></td><td><input class="cell-input request-sample-count-input" data-request-id="{{ row.id }}" type="number" min="0" max="999" value="{{ row.sample_count or 0 }}"></td><td><input class="cell-input request-sample-types-input" data-request-id="{{ row.id }}" value="{{ row.exam_type or '' }}" placeholder="Sangre, orina"></td><td><select class="cell-select request-priority-select" data-request-id="{{ row.id }}">{% for option in context.request_priority_options %}<option value="{{ option.value }}" {{ 'selected' if row.priority == option.value else '' }}>{{ option.label }}</option>{% endfor %}</select></td><td><select class="cell-select request-courier-select" data-request-id="{{ row.id }}"><option value="">Sin asignar</option>{% for courier in context.couriers_options %}<option value="{{ courier.id }}" {{ 'selected' if row.assigned_courier_id == courier.id else '' }}>{{ courier.name }}</option>{% endfor %}</select><small class="save-flag"></small></td><td><select class="cell-select request-status-select" data-request-id="{{ row.id }}">{% for option in context.request_status_options %}<option value="{{ option.value }}" {{ 'selected' if row.status == option.value else '' }}>{{ option.label }}</option>{% endfor %}</select><small class="save-flag"></small></td><td><input class="cell-input request-date-input" data-request-id="{{ row.id }}" type="date" value="{{ row.scheduled_pickup_date[:10] if row.scheduled_pickup_date else '' }}"><small class="save-flag"></small></td></tr>{% else %}<tr><td colspan="9">No hay solicitudes.</td></tr>{% endfor %}</tbody></table></div>
         {% elif active_tab == 'motorizados' %}
         <div class="card-head simple"><h3>Motorizados</h3></div>
         <section class="kpi-grid four motorizados-kpis">
@@ -109,7 +419,7 @@
         </section>
         {% for alert in context.motorizados_alerts %}<p class="approval-notice {{ 'error' if alert.level == 'error' else 'ok' }}"><strong>{{ alert.title }}:</strong> {{ alert.detail }}</p>{% endfor %}
         <div class="dashboard-grid motorizados-grid-simple">
-          <article class="card"><div class="card-head simple"><h3>Equipo de motorizados</h3></div><div class="table-wrap"><table><thead><tr><th>Motorizado</th><th>Telefono</th><th>Disponibilidad</th><th>Color</th><th>Clientes cobertura</th><th>Localidades</th></tr></thead><tbody>{% for row in context.couriers_rows %}<tr><td><strong>{{ row.name }}</strong><br><span class="muted-text">{{ row.coverage_count }} localidades</span></td><td><input class="cell-input courier-phone-input" value="{{ row.phone }}" data-courier-id="{{ row.id }}" placeholder="Telefono"><small class="save-flag"></small></td><td><select class="cell-select courier-availability-select" data-courier-id="{{ row.id }}"><option value="available" {{ 'selected' if row.availability == 'available' else '' }}>Disponible</option><option value="unavailable" {{ 'selected' if row.availability == 'unavailable' else '' }}>No disponible</option><option value="on_route" {{ 'selected' if row.availability == 'on_route' else '' }}>En ruta</option><option value="territorial" {{ 'selected' if row.availability == 'territorial' else '' }}>Territorial</option></select><small class="save-flag"></small></td><td><input type="color" class="courier-color-picker" value="{{ row.color }}" data-courier-id="{{ row.id }}"><span class="courier-color-dot" style="background: {{ row.color }}"></span></td><td>{{ row.clients_count_from_coverage }}</td><td>{{ row.localities_text }}</td></tr>{% else %}<tr><td colspan="6">No hay motorizados activos.</td></tr>{% endfor %}</tbody></table></div></article>
+          <article class="card"><div class="card-head simple"><h3>Equipo de motorizados</h3><button type="button" class="cols-btn" data-columns-btn="motorizados"><i data-lucide="columns-3"></i>Columnas</button></div><div class="table-wrap"><table data-columns-table="motorizados"><thead><tr><th data-column="nombre" data-mandatory="true">Motorizado</th><th data-column="telefono">Telefono</th><th data-column="disp">Disponibilidad</th><th data-column="color">Color</th><th data-column="cobertura">Clientes cobertura</th><th data-column="localidades">Localidades</th></tr></thead><tbody>{% for row in context.couriers_rows %}<tr><td><strong>{{ row.name }}</strong><br><span class="muted-text">{{ row.coverage_count }} localidades</span></td><td><input class="cell-input courier-phone-input" value="{{ row.phone }}" data-courier-id="{{ row.id }}" placeholder="Telefono"><small class="save-flag"></small></td><td><select class="cell-select courier-availability-select" data-courier-id="{{ row.id }}"><option value="available" {{ 'selected' if row.availability == 'available' else '' }}>Disponible</option><option value="unavailable" {{ 'selected' if row.availability == 'unavailable' else '' }}>No disponible</option><option value="on_route" {{ 'selected' if row.availability == 'on_route' else '' }}>En ruta</option><option value="territorial" {{ 'selected' if row.availability == 'territorial' else '' }}>Territorial</option></select><small class="save-flag"></small></td><td><input type="color" class="courier-color-picker" value="{{ row.color }}" data-courier-id="{{ row.id }}"><span class="courier-color-dot" style="background: {{ row.color }}"></span></td><td>{{ row.clients_count_from_coverage }}</td><td>{{ row.localities_text }}</td></tr>{% else %}<tr><td colspan="6">No hay motorizados activos.</td></tr>{% endfor %}</tbody></table></div></article>
           <article class="card"><div class="card-head simple"><h3>Cobertura por localidad</h3></div><div class="table-wrap"><table><thead><tr><th>Localidad</th><th>Clientes</th><th>Motorizado</th></tr></thead><tbody>{% for row in context.localities_rows %}<tr><td><strong>{{ row.locality_name }}</strong><br><span class="muted-text">{{ row.coverage_state }}</span></td><td>{{ row.clients_count }}</td><td><select class="cell-select locality-assignment-select" data-locality-code="{{ row.locality_code }}"><option value="">Sin asignar</option>{% for courier in context.couriers_options %}<option value="{{ courier.id }}" {{ 'selected' if row.assigned_courier_id == courier.id else '' }}>{{ courier.name }}</option>{% endfor %}</select><small class="save-flag"></small></td></tr>{% endfor %}</tbody></table></div></article>
         </div>
         <section class="card"><div class="card-head simple"><h3>Zonas territoriales A3</h3></div><div class="table-wrap"><table><thead><tr><th>Zona</th><th>Motorizado</th><th>Telefono</th><th>Barrios</th><th>UPZ</th><th>Localidades</th></tr></thead><tbody>{% for row in context.territorial_zone_rows %}<tr><td><strong>Zona {{ row.zone_number }}</strong></td><td>{{ row.courier_name }}</td><td>{{ row.courier_phone or 'Pendiente' }}</td><td>{{ row.total_barrios }}</td><td>{{ row.total_upz }}</td><td>{{ row.localities_text }}</td></tr>{% else %}<tr><td colspan="6">Sin zonas territoriales cargadas.</td></tr>{% endfor %}</tbody></table></div></section>
@@ -122,266 +432,90 @@
         <section class="kpi-grid four sample-lab-kpis"><article class="kpi-card"><div class="kpi-head"><span>Perfiles</span><i data-lucide="layers-3"></i></div><strong>{{ context.profile_catalog_rows|length }}</strong><p class="delta">Disponibles para cotizar</p></article><article class="kpi-card"><div class="kpi-head"><span>Analisis</span><i data-lucide="microscope"></i></div><strong>{{ context.profile_analysis_rows|length }}</strong><p class="delta">Pruebas individuales</p></article><article class="kpi-card"><div class="kpi-head"><span>Muestras</span><i data-lucide="vial"></i></div><strong>{{ context.sample_requirements|length }}</strong><p class="delta">Tipos requeridos</p></article><article class="kpi-card"><div class="kpi-head"><span>Builder</span><i data-lucide="wand-sparkles"></i></div><strong>Activo</strong><p class="delta">Sin tocar la base</p></article></section>
         <div class="lab-workbench"><article class="catalog-panel"><div class="catalog-toolbar"><input class="cell-input" data-builder-search placeholder="Buscar perfil, analisis o codigo"><select class="cell-select" data-builder-type-filter><option value="all">Todo</option><option value="profile">Perfiles</option><option value="analysis">Analisis</option></select><select class="cell-select" data-builder-species-filter><option value="all">Especie: todas</option>{% for species in context.profile_species %}<option value="{{ species }}">{{ species }}</option>{% endfor %}</select><select class="cell-select" data-builder-category-filter><option value="all">Categoria: todas</option>{% for category in context.profile_categories %}<option value="{{ category }}">{{ category }}</option>{% endfor %}</select></div><div class="lab-card-grid" data-builder-catalog>{% for item in context.profile_builder_items %}<article class="lab-catalog-card" data-builder-card data-type="{{ item.item_type }}" data-code="{{ item.code }}" data-name="{{ item.name|lower }}" data-category="{{ item.category }}" data-species="{{ item.species }}"><div class="lab-card-top"><span class="status-badge">{{ 'Perfil' if item.item_type == 'profile' else 'Analisis' }}</span><strong>{{ item.code }}</strong></div><h4>{{ item.name }}</h4><p>{{ item.description or item.category }}</p>{% if item.item_type == 'profile' and item.composed_tests %}<details class="profile-composition"><summary>{{ item.composed_tests|length }} analisis incluidos</summary><ul>{% for test in item.composed_tests %}<li>{{ test.code }} - {{ test.name }}</li>{% endfor %}</ul></details>{% endif %}<div class="lab-card-meta"><span>{{ item.species }}</span><span>{{ item.sample }}</span></div><footer><strong>{% if item.price %}$ {{ "{:,}".format(item.price).replace(",", ".") }}{% else %}Sin precio{% endif %}</strong><button type="button" class="primary-btn" data-builder-add data-type="{{ item.item_type }}" data-code="{{ item.code }}">Agregar</button></footer></article>{% else %}<div class="flow-empty">No hay catalogo cargado.</div>{% endfor %}</div></article><aside class="profile-builder-panel"><div class="builder-sticky"><p class="hello-label">Constructor personalizado</p><h3>Perfil a medida</h3><label>Cliente<select class="cell-select" data-builder-client><option value="">Seleccionar cliente</option>{% for row in context.clients_rows %}<option value="{{ row.client_id }}">{{ row.display_name or row.clinic_name }}</option>{% endfor %}</select></label><div class="builder-selection" data-builder-selection><div class="flow-empty">Agrega perfiles o analisis del catalogo.</div></div><div class="builder-samples"><strong>Muestras requeridas</strong><div data-builder-samples><span class="muted-text">Sin items seleccionados</span></div></div><div class="builder-total"><span>Total estimado</span><strong data-builder-total>$ 0</strong></div><label>Resumen para cliente<textarea class="cell-input" data-builder-summary rows="7" readonly></textarea></label><button type="button" class="ghost-btn" data-builder-copy>Copiar resumen</button></div></aside></div>
         <section class="custom-profiles-section"><div class="card-head sample-lab-head"><div><h3>Perfiles personalizados guardados</h3><p>Perfiles creados y guardados para clientes.</p></div><span class="status-badge">{{ context.custom_profiles|length }} perfiles</span></div><div class="custom-profiles-grid">{% for profile in context.custom_profiles %}<article class="custom-profile-card" data-custom-profile-id="{{ profile.id }}"><header><strong>{{ profile.name }}</strong><small>{{ profile.created_at[:16] if profile.created_at else '-' }}</small></header><div class="custom-profile-client">{{ profile.client_name or 'Cliente' }}</div><ul class="custom-profile-items">{% for item in profile.items_json %}<li>{{ item.code if item.code else '' }} - {{ item.name if item.name else 'Analisis' }}</li>{% else %}<li>Sin items</li>{% endfor %}</ul><div class="custom-profile-actions"><button type="button" class="primary-btn" data-load-profile="{{ profile.id }}">Cargar en builder</button><button type="button" class="reject-btn" data-delete-profile="{{ profile.id }}">Eliminar</button></div></article>{% else %}<div class="flow-empty">Todavia no hay perfiles personalizados guardados. Crea uno desde el builder.</div>{% endfor %}</div></section>
-        <div class="card-head simple"><h3>Muestras</h3></div><div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Tipo Muestra</th><th>Analisis</th><th>Prioridad</th><th>Estado</th><th>Actualizar estado</th><th>Mensajero</th></tr></thead><tbody>{% for sample in context.samples %}<tr><td>{{ sample.created_at[:16] if sample.created_at else '-' }}</td><td>{{ sample.clients.clinic_name if sample.clients else '-' }}</td><td>{{ sample.sample_type or '-' }}</td><td>{{ sample.test_name or sample.test_code or '-' }}</td><td>{{ sample.priority or '-' }}</td><td><span class="status-badge">{{ status_labels.get(sample.status, sample.status) }}</span></td><td><select class="cell-select sample-status-select" data-sample-id="{{ sample.id or '' }}">{% for option in context.sample_status_options %}<option value="{{ option.value }}" {{ 'selected' if sample.dropdown_status == option.value else '' }}>{{ option.label }}</option>{% endfor %}</select><small class="save-flag"></small></td><td>{{ sample.couriers.name if sample.couriers else '-' }}</td></tr>{% else %}<tr><td colspan="8">Sin muestras registradas.</td></tr>{% endfor %}</tbody></table></div>
+        <div class="card-head simple"><h3>Muestras</h3><button type="button" class="cols-btn" data-columns-btn="muestras"><i data-lucide="columns-3"></i>Columnas</button></div><div class="table-wrap"><table data-columns-table="muestras"><thead><tr><th data-column="fecha" data-mandatory="true">Fecha</th><th data-column="cliente" data-mandatory="true">Cliente</th><th data-column="tipo">Tipo Muestra</th><th data-column="analisis">Analisis</th><th data-column="prioridad">Prioridad</th><th data-column="estado" data-mandatory="true">Estado</th><th data-column="actualizar">Actualizar estado</th><th data-column="mensajero">Mensajero</th></tr></thead><tbody>{% for sample in context.samples %}<tr><td>{{ sample.created_at[:16] if sample.created_at else '-' }}</td><td>{{ sample.clients.clinic_name if sample.clients else '-' }}</td><td>{{ sample.sample_type or '-' }}</td><td>{{ sample.test_name or sample.test_code or '-' }}</td><td>{{ sample.priority or '-' }}</td><td><span class="status-badge">{{ status_labels.get(sample.status, sample.status) }}</span></td><td><select class="cell-select sample-status-select" data-sample-id="{{ sample.id or '' }}">{% for option in context.sample_status_options %}<option value="{{ option.value }}" {{ 'selected' if sample.dropdown_status == option.value else '' }}>{{ option.label }}</option>{% endfor %}</select><small class="save-flag"></small></td><td>{{ sample.couriers.name if sample.couriers else '-' }}</td></tr>{% else %}<tr><td colspan="8">Sin muestras registradas.</td></tr>{% endfor %}</tbody></table></div>
         {% elif active_tab == 'analisis' %}
-        <div class="card-head simple"><h3>Analisis</h3></div><div class="table-wrap"><table><thead><tr><th>Codigo</th><th>Tipo de Prueba</th><th>Prueba</th><th>Tipo de muestra</th><th>Valor</th></tr></thead><tbody>{% for row in context.catalog_rows %}<tr><td>{{ row.analysis_code }}</td><td>{{ row.test_type }}</td><td>{{ row.test_name }}</td><td>{{ row.turnaround }}</td><td>{% if row.price_cop %}$ {{ "{:,}".format(row.price_cop).replace(",", ".") }}{% else %}-{% endif %}</td></tr>{% else %}<tr><td colspan="5">Sin catalogo cargado.</td></tr>{% endfor %}</tbody></table></div>
+        <div class="card-head simple"><h3>Analisis</h3><button type="button" class="cols-btn" data-columns-btn="analisis"><i data-lucide="columns-3"></i>Columnas</button></div><div class="table-wrap"><table data-columns-table="analisis"><thead><tr><th data-column="codigo" data-mandatory="true">Codigo</th><th data-column="tipo">Tipo de Prueba</th><th data-column="prueba" data-mandatory="true">Prueba</th><th data-column="muestra">Tipo de muestra</th><th data-column="valor">Valor</th></tr></thead><tbody>{% for row in context.catalog_rows %}<tr><td>{{ row.analysis_code }}</td><td>{{ row.test_type }}</td><td>{{ row.test_name }}</td><td>{{ row.turnaround }}</td><td>{% if row.price_cop %}$ {{ "{:,}".format(row.price_cop).replace(",", ".") }}{% else %}-{% endif %}</td></tr>{% else %}<tr><td colspan="5">Sin catalogo cargado.</td></tr>{% endfor %}</tbody></table></div>
         {% elif active_tab == 'flujo' %}
         <div class="card-head simple"><h3>Flujo Conversacional</h3></div><div class="flow-board" style="--lane-count: {{ context.flow_kanban_lanes|length }};">{% for lane in context.flow_kanban_lanes %}<article class="flow-lane"><header><h4>{{ lane.label }}</h4><span>{{ lane.count }}</span></header><small>{{ lane.stage_key }}</small>{% if lane.cards %}{% for card in lane.cards %}<div class="flow-card"><strong>{{ card.clinic_name }}</strong><span>{{ card.phone if card.phone and card.phone != '-' else ('Chat ' ~ card.external_chat_id) }}</span></div>{% endfor %}{% else %}<div class="flow-empty">Sin sesiones</div>{% endif %}</article>{% endfor %}</div>
         {% elif active_tab == 'aprobaciones' %}
-        <div class="card-head simple"><h3>Aprobaciones de clientes nuevos</h3></div>{% if notice %}<p class="approval-notice {{ 'ok' if notice_type == 'ok' else 'error' }}">{{ notice }}</p>{% endif %}<div class="table-wrap"><table><thead><tr><th>Razon social / nombre</th><th>Tipo</th><th>Documento</th><th>Telefono</th><th>Documentos</th><th>Actualizado</th><th>Accion</th></tr></thead><tbody>{% for row in context.approval_rows %}{% set docs = row.documents or {} %}<tr><td><strong>{{ row.clinic_name }}</strong><br><span class="muted-text">{{ row.address or '' }} {{ row.zone or '' }}</span></td><td>{{ row.profile_label }}</td><td>{{ row.document_type }} - {{ row.document_number }}</td><td>{{ row.contact_phone }}<br><span class="muted-text">{{ row.email or '' }}</span></td><td><span class="status-badge">RUT: {{ 'Si' if docs.rut_received else 'No' }}</span> <span class="status-badge">Camara: {{ 'Si' if docs.chamber_received else 'No' }}</span></td><td>{{ row.updated_at[:16] if row.updated_at and row.updated_at != '-' else '-' }}</td><td>{% if row.request_id %}<div class="approval-actions"><form method="post" action="{{ url_for('dashboard.approval_decision') }}"><input type="hidden" name="request_id" value="{{ row.request_id }}"><input type="hidden" name="decision" value="approve"><button type="submit" class="approve-btn">Aprobar</button></form><form method="post" action="{{ url_for('dashboard.approval_decision') }}"><input type="hidden" name="request_id" value="{{ row.request_id }}"><input type="hidden" name="decision" value="reject"><input class="reject-reason" name="reason" placeholder="Motivo" required><button type="submit" class="reject-btn">Rechazar</button></form></div>{% else %}-{% endif %}</td></tr>{% else %}<tr><td colspan="7">No hay clientes pendientes de aprobacion.</td></tr>{% endfor %}</tbody></table></div>
+        <div class="card-head simple"><h3>Aprobaciones de clientes nuevos</h3><button type="button" class="cols-btn" data-columns-btn="aprobaciones"><i data-lucide="columns-3"></i>Columnas</button></div>{% if notice %}<p class="approval-notice {{ 'ok' if notice_type == 'ok' else 'error' }}">{{ notice }}</p>{% endif %}<div class="table-wrap"><table data-columns-table="aprobaciones"><thead><tr><th data-column="nombre" data-mandatory="true">Razon social / nombre</th><th data-column="tipo">Tipo</th><th data-column="doc">Documento</th><th data-column="tel">Telefono</th><th data-column="docs">Documentos</th><th data-column="act">Actualizado</th><th data-column="accion" data-mandatory="true">Accion</th></tr></thead><tbody>{% for row in context.approval_rows %}{% set docs = row.documents or {} %}<tr><td><strong>{{ row.clinic_name }}</strong><br><span class="muted-text">{{ row.address or '' }} {{ row.zone or '' }}</span></td><td>{{ row.profile_label }}</td><td>{{ row.document_type }} - {{ row.document_number }}</td><td>{{ row.contact_phone }}<br><span class="muted-text">{{ row.email or '' }}</span></td><td><span class="status-badge">RUT: {{ 'Si' if docs.rut_received else 'No' }}</span> <span class="status-badge">Camara: {{ 'Si' if docs.chamber_received else 'No' }}</span></td><td>{{ row.updated_at[:16] if row.updated_at and row.updated_at != '-' else '-' }}</td><td>{% if row.request_id %}<div class="approval-actions"><form method="post" action="{{ url_for('dashboard.approval_decision') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="request_id" value="{{ row.request_id }}"><input type="hidden" name="decision" value="approve"><button type="submit" class="approve-btn">Aprobar</button></form><form method="post" action="{{ url_for('dashboard.approval_decision') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="request_id" value="{{ row.request_id }}"><input type="hidden" name="decision" value="reject"><input class="reject-reason" name="reason" placeholder="Motivo" required><button type="submit" class="reject-btn">Rechazar</button></form></div>{% else %}-{% endif %}</td></tr>{% else %}<tr><td colspan="7">No hay clientes pendientes de aprobacion.</td></tr>{% endfor %}</tbody></table></div>
+        {% elif active_tab == 'facturacion' %}
+        {% set inv = context %}
+        {% set invoice_status_labels = {'draft':'Borrador','open':'Abierta','closed':'Pagada','paid':'Pagada','void':'Anulada','cancelled':'Anulada'} %}
+        <div class="card-head simple"><h3>Facturacion</h3><div class="header-actions"><button type="button" class="primary-btn" data-invoices-sync {{ 'disabled' if not inv.alegra_enabled else '' }}><i data-lucide="refresh-cw"></i>Sincronizar con Alegra</button><small class="save-flag" data-invoices-sync-flag></small></div></div>
+        {% if not inv.alegra_enabled %}<p class="approval-notice">Alegra esta deshabilitado (ALEGRA_ENABLED=false). Se muestra el cache local; la sincronizacion esta apagada.</p>{% endif %}
+        {% if inv.invoices_actions_locked %}<p class="approval-notice">Entorno de pruebas: las acciones de reenvio por correo y descarga de XML/comprobante estan bloqueadas hasta produccion.</p>{% endif %}
+        <section class="kpi-grid four">
+          <article class="kpi-card"><div class="kpi-head"><span>Facturas hoy</span><i data-lucide="calendar-check"></i></div><strong>{{ inv.invoices_metrics.today_count }}</strong><p class="delta">Emitidas hoy</p></article>
+          <article class="kpi-card"><div class="kpi-head"><span>Facturacion del mes</span><i data-lucide="trending-up"></i></div><strong>$ {{ "{:,}".format(inv.invoices_metrics.month_total).replace(",", ".") }}</strong><p class="delta">Total del mes</p></article>
+          <article class="kpi-card"><div class="kpi-head"><span>Facturacion del ano</span><i data-lucide="calendar"></i></div><strong>$ {{ "{:,}".format(inv.invoices_metrics.year_total).replace(",", ".") }}</strong><p class="delta">Total del ano</p></article>
+          <article class="kpi-card"><div class="kpi-head"><span>Ticket promedio</span><i data-lucide="receipt"></i></div><strong>$ {{ "{:,}".format(inv.invoices_metrics.avg_ticket).replace(",", ".") }}</strong><p class="delta">{{ inv.invoices_metrics.invoices_count }} facturas en cache</p></article>
+        </section>
+        <form class="filter-bar" data-invoices-filters method="get" action="{{ url_for('dashboard.billing_page') }}">
+          <input class="cell-input" type="search" name="search" value="{{ request.args.get('search','') }}" placeholder="Buscar numero, cliente o NIT…" aria-label="Buscar factura">
+          <select class="cell-select" name="status" aria-label="Estado"><option value="">Estado: todos</option>{% for opt in inv.invoice_status_options %}<option value="{{ opt.value }}" {{ 'selected' if request.args.get('status') == opt.value else '' }}>{{ opt.label }}</option>{% endfor %}</select>
+          <input class="cell-input" type="date" name="date_from" value="{{ request.args.get('date_from','') }}" aria-label="Desde">
+          <input class="cell-input" type="date" name="date_to" value="{{ request.args.get('date_to','') }}" aria-label="Hasta">
+          <input class="cell-input" type="text" name="client_nit" value="{{ request.args.get('client_nit','') }}" placeholder="NIT" aria-label="NIT">
+          <input class="cell-input" type="number" name="total_min" value="{{ request.args.get('total_min','') }}" placeholder="Total min" aria-label="Total minimo">
+          <input class="cell-input" type="number" name="total_max" value="{{ request.args.get('total_max','') }}" placeholder="Total max" aria-label="Total maximo">
+          <button type="submit" class="primary-btn">Filtrar</button>
+          <a class="ghost-btn" href="{{ url_for('dashboard.billing_page') }}">Limpiar</a>
+          <a class="ghost-btn" data-invoices-export="csv" href="#">Exportar CSV</a>
+          <a class="ghost-btn" data-invoices-export="xlsx" href="#">Exportar Excel</a>
+          <span class="table-counter">{{ inv.invoices_total }} facturas</span>
+          <button type="button" class="cols-btn" data-columns-btn="facturacion"><i data-lucide="columns-3"></i>Columnas</button>
+        </form>
+        <div class="table-wrap"><table data-columns-table="facturacion"><thead><tr>
+          <th data-column="numero" data-mandatory="true" data-sort="number">Numero</th>
+          <th data-column="fecha" data-sort="invoice_date">Fecha</th>
+          <th data-column="cliente" data-mandatory="true" data-sort="client_name">Cliente</th>
+          <th data-column="nit">NIT</th>
+          <th data-column="tipo">Tipo documento</th>
+          <th data-column="plantilla">Plantilla/Resolucion</th>
+          <th data-column="neto" data-sort="subtotal">Neto</th>
+          <th data-column="iva" data-sort="tax">IVA</th>
+          <th data-column="total" data-mandatory="true" data-sort="total">Total</th>
+          <th data-column="estado" data-mandatory="true" data-sort="status">Estado</th>
+          <th data-column="orden">Orden de servicio</th>
+          <th data-column="origen">Origen</th>
+          <th data-column="acciones" data-mandatory="true">Acciones</th>
+        </tr></thead><tbody>
+        {% for row in inv.invoices_rows %}
+          <tr data-invoice-id="{{ row.alegra_invoice_id }}" data-invoice-number="{{ row.number }}">
+            <td><strong>{{ row.number or '-' }}</strong></td>
+            <td>{{ row.invoice_date or '-' }}</td>
+            <td>{{ row.client_name or '-' }}</td>
+            <td>{{ row.client_nit or '-' }}</td>
+            <td>{{ row.document_type or '-' }}</td>
+            <td>{{ row.number_template or '-' }}</td>
+            <td>$ {{ "{:,}".format(row.subtotal or 0).replace(",", ".") }}</td>
+            <td>$ {{ "{:,}".format(row.tax or 0).replace(",", ".") }}</td>
+            <td><strong>$ {{ "{:,}".format(row.total or 0).replace(",", ".") }}</strong></td>
+            <td><span class="status-badge">{{ invoice_status_labels.get(row.status, row.status or '-') }}</span></td>
+            <td>{{ row.request_id[:8] if row.request_id else '-' }}</td>
+            <td>{{ row.origin or '-' }}</td>
+            <td><div class="invoice-actions"><button type="button" class="ghost-btn" data-invoice-view="{{ row.alegra_invoice_id }}">Ver</button><a class="ghost-btn" href="https://app.alegra.com/invoice/view/id/{{ row.alegra_invoice_id }}" target="_blank" rel="noopener">Alegra</a><button type="button" class="ghost-btn" data-invoice-copy="{{ row.number }}">Copiar</button></div></td>
+          </tr>
+        {% else %}
+          <tr><td colspan="13">No hay facturas en cache. Usa "Sincronizar con Alegra" para traerlas.</td></tr>
+        {% endfor %}
+        </tbody></table></div>
+        {% if inv.invoices_pages and inv.invoices_pages > 1 %}<div class="filter-bar"><span class="table-counter">Pagina {{ inv.invoices_page }} de {{ inv.invoices_pages }}</span>{% if inv.invoices_page > 1 %}<a class="ghost-btn" data-invoices-page="{{ inv.invoices_page - 1 }}" href="#">Anterior</a>{% endif %}{% if inv.invoices_page < inv.invoices_pages %}<a class="ghost-btn" data-invoices-page="{{ inv.invoices_page + 1 }}" href="#">Siguiente</a>{% endif %}</div>{% endif %}
+        <div class="invoice-modal" data-invoice-modal hidden><div class="invoice-modal-card"><div class="invoice-modal-head"><strong data-invoice-modal-title>Factura</strong><button type="button" class="cols-close" data-invoice-modal-close aria-label="Cerrar">&times;</button></div><div class="invoice-modal-body" data-invoice-modal-body></div></div></div>
         {% endif %}
       </section>
       {% endif %}
     </main>
   </div>
 
-  <script type="application/json" id="legacy-dashboard-script-disabled">
-    if (window.lucide) lucide.createIcons();
-    const requestRows = {{ context.requests | tojson }};
-    const sampleRows = {{ context.samples | tojson }};
-    const requestStatus = {{ context.request_status | tojson }};
-    const sampleStatus = {{ context.sample_status | tojson }};
-    const coverageMapPoints = {{ context.coverage_map_points | tojson }};
-    const builderItems = {{ context.profile_builder_items | tojson }};
-    const serviceAreaLabels = {route_scheduling:'Programacion de rutas',results:'Resultados',accounting:'Contabilidad',new_client:'Alta de cliente',unknown:'Sin clasificar'};
-    const requestStatusLabels = {received:'Recibida',assigned:'Asignada',on_route:'En ruta',picked_up:'Retirada',in_lab:'En laboratorio',processed:'Procesada',sent:'Enviada',cancelled:'Cancelada',error_pending_assignment:'Sin motorizado'};
-    const sampleStatusLabels = {pending_pickup:'A retirar',picked_up:'Recogida',on_route:'En camino',received_lab:'Recibida lab',in_lab:'En analisis',processed:'Analizada',ready_results:'Lista resultados',sent:'Enviada'};
-    function parseDate(value){ if(!value) return null; const dt = new Date(value); return Number.isNaN(dt.getTime()) ? null : dt; }
-    function mountSampleBars(){ const holder = document.querySelector('#sample-bars'); if(!holder) return; const data = [{label:'A retirar',value:sampleStatus.pending_pickup||0},{label:'Recogidas',value:sampleStatus.picked_up||0},{label:'En camino',value:sampleStatus.on_route||0},{label:'En laboratorio',value:(sampleStatus.received_lab||0)+(sampleStatus.in_lab||0)},{label:'Procesadas',value:(sampleStatus.processed||0)+(sampleStatus.ready_results||0)},{label:'Enviadas',value:sampleStatus.sent||0}]; const max = Math.max(...data.map((i)=>i.value),1); holder.innerHTML = data.map((item)=>`<div class="lead-row"><span>${item.label}</span><div class="lead-track"><b style="width:${Math.max(4, Math.round((item.value/max)*100))}%"></b></div><strong>${item.value}</strong></div>`).join(''); }
-    function mountProjectsTable(){ const tbody = document.querySelector('#projects-table tbody'); if(!tbody) return; const rows = requestRows.slice(0,80).map((item, idx)=>{ const clinic = (item.clients && item.clients.clinic_name) || 'Cliente sin nombre'; const assignee = (item.couriers && item.couriers.name) || 'Sin asignar'; return {project:`${clinic} - ${serviceAreaLabels[item.service_area] || 'General'}`, assignee, dueDate:String(item.scheduled_pickup_date || item.requested_at || '-').slice(0,10), status:item.status || 'desconocido', id:item.id || idx}; }); tbody.innerHTML = rows.map((row)=>`<tr><td>${row.project}</td><td>${row.assignee}</td><td>${row.dueDate}</td></tr>`).join(''); }
-    function mountRequestsStatusChart(){ const el = document.querySelector('#chart-requests-status'); if(!el || !window.ApexCharts) return; const statuses = ['received','assigned','on_route','picked_up','in_lab','processed','sent','cancelled']; const labels = statuses.map(s=>requestStatusLabels[s]||s); const values = statuses.map(s=>requestStatus[s]||0); new ApexCharts(el,{chart:{type:'bar',background:'transparent',toolbar:{show:false},height:300},series:[{name:'Solicitudes',data:values}],xaxis:{categories:labels,labels:{style:{colors:'#9ca3af'},rotate:-45,rotateAlways:true}},yaxis:{labels:{style:{colors:'#9ca3af'}}},dataLabels:{enabled:false},grid:{borderColor:'rgba(255,255,255,.06)'},colors:['#f97316'],plotOptions:{bar:{borderRadius:4}}}).render(); }
-    function mountSamplesProcessChart(){ const el = document.querySelector('#chart-samples-process'); if(!el || !window.ApexCharts) return; const statuses = ['pending_pickup','picked_up','on_route','received_lab','in_lab','processed','ready_results','sent']; const labels = statuses.map(s=>sampleStatusLabels[s]||s); const values = statuses.map(s=>sampleStatus[s]||0); const total = values.reduce((a,b)=>a+b,0); const totalEl = document.querySelector('#process-total'); if(totalEl) totalEl.textContent = total + ' muestras'; new ApexCharts(el,{chart:{type:'bar',background:'transparent',toolbar:{show:false},height:300},series:[{name:'Muestras',data:values}],xaxis:{categories:labels,labels:{style:{colors:'#9ca3af'},rotate:-45,rotateAlways:true}},yaxis:{labels:{style:{colors:'#9ca3af'}}},dataLabels:{enabled:false},grid:{borderColor:'rgba(255,255,255,.06)'},colors:['#22c55e'],plotOptions:{bar:{borderRadius:4}}}).render(); }
-    async function postJson(url, payload){ const res = await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}); if(!res.ok) throw new Error((await res.json()).error || 'Error'); return res.json(); }
-    document.querySelectorAll('.client-edit-input,.client-edit-select').forEach((control)=>{ control.addEventListener('change', async ()=>{ const row = control.closest('.client-table-row'); const flag = control.parentElement.querySelector('.save-flag') || (row && row.querySelector('.save-flag')); if(!row) return; try{ if(control.dataset.kind === 'assignment'){ await postJson('/api/dashboard/client-assignment',{client_id:row.dataset.clientId, courier_id:control.value}); } else if(control.dataset.kind === 'client'){ await postJson('/api/dashboard/client-profile',{client_id:row.dataset.clientId, clinic_key:row.dataset.clinicKey, clinic_name:control.value, field:control.dataset.field, value:control.value}); } else { await postJson('/api/dashboard/client-profile',{client_id:row.dataset.clientId, clinic_key:row.dataset.clinicKey, clinic_name:row.dataset.clinicName, field:control.dataset.field, value:control.value}); } if(flag) flag.textContent='Guardado'; }catch(err){ if(flag) flag.textContent=err.message; } }); });
-    function mountClientDeleteActions(){ const table=document.querySelector('.table-clients'); if(!table) return; const header=table.querySelector('thead tr'); if(header&&!header.querySelector('[data-client-delete-head]')) header.insertAdjacentHTML('beforeend','<th data-client-delete-head>Acciones</th>'); table.querySelectorAll('.client-table-row').forEach((row)=>{ if(row.querySelector('[data-client-delete-btn]')) return; const cell=document.createElement('td'); cell.innerHTML='<button type="button" class="reject-btn" data-client-delete-btn>Eliminar</button><small class="save-flag"></small>'; row.appendChild(cell); }); table.querySelectorAll('[data-client-delete-btn]').forEach((button)=>{ if(button.dataset.bound) return; button.dataset.bound='1'; button.addEventListener('click', async ()=>{ const row=button.closest('.client-table-row'); const flag=button.parentElement.querySelector('.save-flag'); if(!row||!row.dataset.clientId) return; const name=row.dataset.clinicName||'este cliente'; if(!window.confirm(`Eliminar definitivamente ${name}? Esta accion no se puede deshacer.`)) return; button.disabled=true; try{ await postJson('/api/dashboard/client-delete',{client_id:row.dataset.clientId, clinic_key:row.dataset.clinicKey}); row.remove(); }catch(err){ button.disabled=false; if(flag) flag.textContent=err.message; } }); }); }
-    function mountProfileBuilder(){ const catalog=document.querySelector('[data-builder-catalog]'); if(!catalog) return; const selected=[]; const money=(value)=>`$ ${Number(value||0).toLocaleString('es-CO')}`; const esc=(value)=>String(value||'').replace(/[&<>"']/g,(c)=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); const selection=document.querySelector('[data-builder-selection]'); const samples=document.querySelector('[data-builder-samples]'); const total=document.querySelector('[data-builder-total]'); const summary=document.querySelector('[data-builder-summary]'); const client=document.querySelector('[data-builder-client]'); function addProfileTests(profileItem){ if(profileItem.composed_tests&&profileItem.composed_tests.length>0){ profileItem.composed_tests.forEach((test)=>{ const testItem=builderItems.find((bi)=>bi.code===test.code&&bi.item_type==='analysis'); if(testItem&&!selected.some((s)=>s.code===testItem.code&&s.item_type===testItem.item_type)){ selected.push(testItem); } }); } } function render(){ const sampleSet=[...new Set(selected.map((item)=>item.sample).filter(Boolean))]; const totalValue=selected.reduce((sum,item)=>sum+Number(item.price||0),0); if(selection) selection.innerHTML=selected.length?selected.map((item,index)=>`<div class="builder-selected-item" data-code="${esc(item.code)}" data-type="${esc(item.item_type)}"><span><strong>${esc(item.name)}</strong><small>${esc(item.code)} · ${esc(item.item_type==='profile'?'Perfil':'Analisis')}</small></span><button type="button" data-builder-remove="${index}">Quitar</button></div>`).join(''):'<div class="flow-empty">Agrega perfiles o analisis del catalogo.</div>'; if(samples) samples.innerHTML=sampleSet.length?sampleSet.map((sample)=>`<span class="status-badge">${esc(sample)}</span>`).join(' '):'<span class="muted-text">Sin items seleccionados</span>'; if(total) total.textContent=money(totalValue); if(summary){ const clientName=client&&client.value?client.options[client.selectedIndex].text:'Cliente por definir'; summary.value=`Cliente: ${clientName}\nItems:\n${selected.map((item)=>`- ${item.code} ${item.name} (${item.item_type==='profile'?'Perfil':'Analisis'})`).join('\n') || '- Sin items'}\nMuestras requeridas: ${sampleSet.join(', ') || 'Sin definir'}\nTotal estimado: ${money(totalValue)}`; } } catalog.addEventListener('click',(event)=>{ const button=event.target.closest('[data-builder-add]'); if(!button) return; const item=builderItems.find((row)=>String(row.code)===String(button.dataset.code)&&String(row.item_type)===String(button.dataset.type)); if(!item) return; if(selected.some((s)=>s.code===item.code&&s.item_type===item.item_type)) return; selected.push(item); if(item.item_type==='profile') addProfileTests(item); render(); }); if(selection) selection.addEventListener('click',(event)=>{ const button=event.target.closest('[data-builder-remove]'); if(!button) return; selected.splice(Number(button.dataset.builderRemove),1); render(); }); document.querySelectorAll('[data-builder-search],[data-builder-type-filter],[data-builder-species-filter],[data-builder-category-filter]').forEach((el)=>{ if(el) el.addEventListener('input',applyCatalogFilters), el.addEventListener('change',applyCatalogFilters); }); function applyCatalogFilters(){const search=document.querySelector('[data-builder-search]');const type=document.querySelector('[data-builder-type-filter]');const species=document.querySelector('[data-builder-species-filter]');const category=document.querySelector('[data-builder-category-filter]');const q=String(search&&search.value||'').toLowerCase().trim();const t=String(type&&type.value||'all');const sp=String(species&&species.value||'all');const cat=String(category&&category.value||'all');catalog.querySelectorAll('[data-builder-card]').forEach((card)=>{const ok=(t==='all'||card.dataset.type===t)&&(sp==='all'||card.dataset.species===sp)&&(cat==='all'||card.dataset.category===cat)&&(!q||card.dataset.name.includes(q));card.style.display=ok?'':'none';});} render(); }
-    function mountProfileAssignment(){ const panel=document.querySelector('.builder-sticky'); const client=document.querySelector('[data-builder-client]'); const summary=document.querySelector('[data-builder-summary]'); if(!panel||!client) return; if(!panel.querySelector('[data-builder-accept]')) panel.insertAdjacentHTML('beforeend','<button type="button" class="primary-btn" data-builder-accept>Aceptar y registrar muestras</button><small class="save-flag" data-builder-save-flag></small>'); const button=panel.querySelector('[data-builder-accept]'); const flag=panel.querySelector('[data-builder-save-flag]'); button.addEventListener('click',async()=>{ const items=Array.from(document.querySelectorAll('.builder-selected-item')).map((el)=>({code:el.dataset.code, item_type:el.dataset.type})).filter((item)=>item.code); if(!client.value){ if(flag) flag.textContent='Selecciona un cliente'; return; } if(!items.length){ if(flag) flag.textContent='Agrega al menos un perfil o analisis'; return; } button.disabled=true; if(flag) flag.textContent='Registrando...'; try{ const result=await postJson('/api/dashboard/profile-assignment',{client_id:client.value, items, priority:'normal', notes:summary?summary.value:''}); if(flag) flag.textContent=`Registradas ${result.created_count} muestra(s)`; setTimeout(()=>location.reload(),1500); }catch(err){ button.disabled=false; if(flag) flag.textContent=err.message; } }); } button=event.target.closest('[data-builder-add]'); if(!button) return; const card=button.closest('[data-builder-card]'); if(!card) return; const item=builderItems.find((row)=>String(row.code)===String(button.dataset.code)&&String(row.item_type)===String(button.dataset.type)); if(!item) return; if(selected.some((s)=>s.code===item.code&&s.item_type===item.item_type)) return; selected.push(item); render(); }); selection.addEventListener('click',(event)=>{ const button=event.target.closest('[data-builder-remove]'); if(!button) return; const index=parseInt(button.dataset.builderRemove,10); selected.splice(index,1); render(); }); const applyCatalogFilters=()=>{const search=document.querySelector('[data-builder-search]');const type=document.querySelector('[data-builder-type-filter]');const species=document.querySelector('[data-builder-species-filter]');const category=document.querySelector('[data-builder-category-filter]');const q=String(search&&search.value||'').toLowerCase().trim();const t=String(type&&type.value||'all');const sp=String(species&&species.value||'all');const cat=String(category&&category.value||'all');catalog.querySelectorAll('[data-builder-card]').forEach((card)=>{const ok=(t==='all'||card.dataset.type===t)&&(sp==='all'||card.dataset.species===sp)&&(cat==='all'||card.dataset.category===cat)&&(!q||card.dataset.name.includes(q));card.style.display=ok?'':'none';});};[document.querySelector('[data-builder-search]'),document.querySelector('[data-builder-type-filter]'),document.querySelector('[data-builder-species-filter]'),document.querySelector('[data-builder-category-filter]')].forEach((el)=>{if(el) el.addEventListener('input',applyCatalogFilters), el.addEventListener('change',applyCatalogFilters);}); render(); }
-    function mountProfileAssignment(){ const panel=document.querySelector('.builder-sticky'); const client=document.querySelector('[data-builder-client]'); const summary=document.querySelector('[data-builder-summary]'); if(!panel||!client) return; if(!panel.querySelector('[data-builder-accept]')) panel.insertAdjacentHTML('beforeend','<button type="button" class="primary-btn" data-builder-accept>Aceptar y registrar muestras</button><small class="save-flag" data-builder-save-flag></small>'); const button=panel.querySelector('[data-builder-accept]'); const flag=panel.querySelector('[data-builder-save-flag]'); button.addEventListener('click',async()=>{ const items=Array.from(document.querySelectorAll('.builder-selected-item')).map((el)=>({code:el.dataset.code, item_type:el.dataset.type})).filter((item)=>item.code); if(!client.value){ if(flag) flag.textContent='Selecciona un cliente'; return; } if(!items.length){ if(flag) flag.textContent='Agrega al menos un perfil o analisis'; return; } button.disabled=true; if(flag) flag.textContent='Registrando...'; try{ const result=await postJson('/api/dashboard/profile-assignment',{client_id:client.value, items, priority:'normal', notes:summary?summary.value:''}); if(flag) flag.textContent=`Registradas ${result.created_count} muestra(s)`; setTimeout(()=>location.reload(),1500); }catch(err){ button.disabled=false; if(flag) flag.textContent=err.message; } }); }
-    function mountClientFiltersrEach((control)=>{ control.addEventListener('input',applyCatalogFilters); control.addEventListener('change',applyCatalogFilters); }); function applyCatalogFilters(){ const q=String((document.querySelector('[data-builder-search]')||{}).value||'').toLowerCase().trim(); const type=String((document.querySelector('[data-builder-type-filter]')||{}).value||'all'); const species=String((document.querySelector('[data-builder-species-filter]')||{}).value||'all'); const category=String((document.querySelector('[data-builder-category-filter]')||{}).value||'all'); document.querySelectorAll('[data-builder-card]').forEach((card)=>{ const ok=(!q||`${card.dataset.name} ${card.dataset.code}`.toLowerCase().includes(q))&&(type==='all'||card.dataset.type===type)&&(species==='all'||card.dataset.species===species)&&(category==='all'||card.dataset.category===category); card.style.display=ok?'':'none'; }); } const copy=document.querySelector('[data-builder-copy]'); if(copy) copy.addEventListener('click',async()=>{ if(summary&&navigator.clipboard) await navigator.clipboard.writeText(summary.value); copy.textContent='Copiado'; setTimeout(()=>copy.textContent='Copiar resumen',1200); }); if(client) client.addEventListener('change',render); render(); applyCatalogFilters(); }
-    function mountClientFilters(){ const rows=Array.from(document.querySelectorAll('.client-table-row')); if(!rows.length) return; const search=document.querySelector('[data-clients-search-input]'); const type=document.querySelector('[data-clients-type-filter]'); const status=document.querySelector('[data-clients-status-filter]'); const assignment=document.querySelector('[data-clients-assignment-filter]'); const fe=document.querySelector('[data-clients-fe-filter]'); const count=document.querySelector('[data-clients-count-pill]'); function apply(){ const q=String(search&&search.value||'').toLowerCase().trim(); const t=String(type&&type.value||'all'); const s=String(status&&status.value||'all'); const a=String(assignment&&assignment.value||'all'); const f=String(fe&&fe.value||'all'); let visible=0; rows.forEach((row)=>{ const ok=(!q||String(row.dataset.search||'').includes(q))&&(t==='all'||String(row.dataset.clientType||'')===t)&&(s==='all'||String(row.dataset.clientStatus||'')===s)&&(a==='all'||String(row.dataset.clientHasCourier||'')===a)&&(f==='all'||String(row.dataset.clientFe||'sin_dato')===f); row.style.display=ok?'':'none'; if(ok) visible++; }); if(count) count.textContent=`${visible} visibles`; } [search,type,status,assignment,fe].forEach((el)=>{ if(el) el.addEventListener('input',apply), el.addEventListener('change',apply); }); apply(); }
-    document.querySelectorAll('.request-priority-select').forEach((select)=>{ select.addEventListener('change', async ()=>{ const flag = select.parentElement.querySelector('.save-flag'); try{ await postJson('/api/dashboard/request-operation',{request_id:select.dataset.requestId, priority:select.value}); if(flag) flag.textContent='Guardado'; }catch(err){ if(flag) flag.textContent=err.message; } }); });
-    document.querySelectorAll('.request-sample-count-input').forEach((input)=>{ input.addEventListener('change', async ()=>{ try{ await postJson('/api/dashboard/request-operation',{request_id:input.dataset.requestId, sample_count:input.value}); }catch(err){} }); });
-    document.querySelectorAll('.request-sample-types-input').forEach((input)=>{ input.addEventListener('change', async ()=>{ try{ await postJson('/api/dashboard/request-operation',{request_id:input.dataset.requestId, sample_types:input.value}); }catch(err){} }); });
-    document.querySelectorAll('.request-address-input').forEach((input)=>{ input.addEventListener('change', async ()=>{ const flag = input.parentElement.querySelector('.save-flag'); try{ await postJson('/api/dashboard/request-operation',{request_id:input.dataset.requestId, pickup_address:input.value}); if(flag) flag.textContent='Guardado'; }catch(err){ if(flag) flag.textContent=err.message; } }); });
-    document.querySelectorAll('.request-courier-select').forEach((select)=>{ select.addEventListener('change', async ()=>{ const flag = select.parentElement.querySelector('.save-flag'); try{ await postJson('/api/dashboard/request-operation',{request_id:select.dataset.requestId, assigned_courier_id:select.value}); if(flag) flag.textContent='Guardado'; }catch(err){ if(flag) flag.textContent=err.message; } }); });
-    document.querySelectorAll('.request-date-input').forEach((input)=>{ input.addEventListener('change', async ()=>{ const flag = input.parentElement.querySelector('.save-flag'); try{ await postJson('/api/dashboard/request-operation',{request_id:input.dataset.requestId, scheduled_pickup_date:input.value}); if(flag) flag.textContent='Guardado'; }catch(err){ if(flag) flag.textContent=err.message; } }); });
-    document.querySelectorAll('.request-status-select').forEach((select)=>{ select.addEventListener('change', async ()=>{ const flag = select.parentElement.querySelector('.save-flag'); try{ await postJson('/api/dashboard/request-status',{request_id:select.dataset.requestId, status:select.value}); if(flag) flag.textContent='Guardado'; }catch(err){ if(flag) flag.textContent=err.message; } }); });
-    document.querySelectorAll('.sample-status-select').forEach((select)=>{ select.dataset.originalValue=select.value; select.addEventListener('change', async ()=>{ const flag = select.parentElement.querySelector('.save-flag'); const newLabel=select.options[select.selectedIndex].text; if(!window.confirm('Cambiar estado a "'+newLabel+'"?')){ select.value=select.dataset.originalValue; return; } try{ const result = await postJson('/api/dashboard/sample-status',{sample_id:select.dataset.sampleId, status:select.value}); if(flag) flag.textContent='Guardado'; select.dataset.originalValue=select.value; const card=select.closest('.sample-process-card'); if(card){ var newStatus=select.value; if(newStatus==='on_route') newStatus='picked_up'; if(newStatus==='ready_results') newStatus='processed'; const targetLane=document.querySelector('[data-sample-status="'+newStatus+'"]'); if(targetLane){ const srcLane=card.closest('[data-sample-status]'); if(srcLane){ const srcCount=srcLane.querySelector('header strong'); if(srcCount) srcCount.textContent=Math.max(0,parseInt(srcCount.textContent||'0')-1); } card.remove(); targetLane.appendChild(card); const dstCount=targetLane.querySelector('header strong'); if(dstCount) dstCount.textContent=parseInt(dstCount.textContent||'0')+1; } else { location.reload(); } } }catch(err){ if(flag) flag.textContent=err.message; console.error('sample-status error:', err); } }); });
-
-    document.querySelectorAll('.courier-phone-input').forEach((input)=>{ input.addEventListener('change', async ()=>{ const flag = input.parentElement.querySelector('.save-flag'); try{ await postJson('/api/dashboard/courier-phone',{courier_id:input.dataset.courierId, phone:input.value}); if(flag) flag.textContent='Guardado'; }catch(err){ if(flag) flag.textContent=err.message; } }); });
-    document.querySelectorAll('.courier-color-picker').forEach((picker)=>{ const dot=picker.parentElement.querySelector('.courier-color-dot'); picker.addEventListener('input',()=>{ if(dot) dot.style.background=picker.value; }); });
-    document.querySelectorAll('.courier-availability-select').forEach((select)=>{ select.addEventListener('change', async ()=>{ const flag = select.parentElement.querySelector('.save-flag'); try{ await postJson('/api/dashboard/courier-availability',{courier_id:select.dataset.courierId, availability:select.value}); if(flag) flag.textContent='Guardado'; }catch(err){ if(flag) flag.textContent=err.message; } }); });
-    document.querySelectorAll('.locality-assignment-select').forEach((select)=>{ select.addEventListener('change', async ()=>{ const flag = select.parentElement.querySelector('.save-flag'); try{ await postJson('/api/dashboard/courier-locality-assignment',{locality_code:select.dataset.localityCode, courier_id:select.value}); if(flag) flag.textContent='Guardado'; }catch(err){ if(flag) flag.textContent=err.message; } }); });
-    mountSampleBars(); mountProjectsTable(); mountRequestsStatusChart(); mountSamplesProcessChart();
-    mountClientDeleteActions();
-    mountProfileBuilder();
-    mountProfileAssignment();
-    mountClientFilters();
-    mountCoverageMap();
-    (function(){const suggestBtn=document.getElementById('suggest-btn');const confirmBtn=document.getElementById('confirm-suggestions-btn');const flag=document.getElementById('suggest-flag');if(!suggestBtn)return;let pendingSuggestions=[];const METHOD_LABELS={zona:'Zona',knowledge:'Knowledge',localidad:'Localidad',knowledge_fuzzy:'Knowledge (aprox)',geocode:'Geocodificacion'};suggestBtn.addEventListener('click',async()=>{if(!window.confirm('Calcular sugerencias de motorizados por zona, knowledge y geocodificacion? Esto puede tardar varios minutos.'))return;suggestBtn.disabled=true;confirmBtn.style.display='none';if(flag)flag.textContent='Calculando sugerencias (puede tardar varios minutos)...';try{const res=await fetch('/api/dashboard/suggest-couriers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});if(!res.ok)throw new Error((await res.json()).error||'Error');const data=await res.json();pendingSuggestions=data.suggestions||[];let applied=0;const rows=document.querySelectorAll('.client-table-row');const index={};rows.forEach(r=>{index[r.dataset.clientId]=r});pendingSuggestions.forEach(s=>{const row=index[s.client_id];if(!row)return;const select=row.querySelector('select[data-kind="assignment"]');if(select){select.value=s.courier_id;row.classList.add('suggested-row');const badge=document.createElement('span');badge.className='suggest-badge';badge.textContent=METHOD_LABELS[s.method]||s.method;badge.title='Metodo: '+s.method;select.parentElement.appendChild(badge);applied++;}});if(flag)flag.textContent=applied+' sugerencias aplicadas de '+pendingSuggestions.length+' ('+data.no_match+' sin coincidencia, '+data.skipped+' ya asignados)';if(applied>0)confirmBtn.style.display='';}catch(err){if(flag)flag.textContent='Error: '+err.message;}finally{suggestBtn.disabled=false;}});confirmBtn.addEventListener('click',async()=>{if(!window.confirm('Confirmar las sugerencias seleccionadas? Se guardaran en la base de datos.'))return;confirmBtn.disabled=true;if(flag)flag.textContent='Guardando...';const assignments=[];const rows=document.querySelectorAll('.client-table-row.suggested-row');rows.forEach(row=>{const select=row.querySelector('select[data-kind="assignment"]');if(select&&select.value){assignments.push({client_id:row.dataset.clientId,courier_id:select.value});}});try{const res=await fetch('/api/dashboard/confirm-suggested-assignments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({assignments})});if(!res.ok)throw new Error((await res.json()).error||'Error');const data=await res.json();if(flag)flag.textContent=data.confirmed+' asignaciones confirmadas, '+data.errors+' errores';setTimeout(()=>location.reload(),2000);}catch(err){confirmBtn.disabled=false;if(flag)flag.textContent='Error: '+err.message;}});})();
-    const toggle = document.querySelector('#sidebar-toggle'); if(toggle) toggle.addEventListener('click',()=>document.body.setAttribute('data-sidebar', document.body.getAttribute('data-sidebar') === 'collapsed' ? 'expanded' : 'collapsed'));
-  </script>
   <script>
-    (() => {
-      if (window.lucide) lucide.createIcons({ attrs: { 'aria-hidden': 'true', focusable: 'false' } });
-      const sidebarToggle = document.querySelector('#sidebar-toggle');
-      if (sidebarToggle) sidebarToggle.addEventListener('click', () => document.body.setAttribute('data-sidebar', document.body.getAttribute('data-sidebar') === 'collapsed' ? 'expanded' : 'collapsed'));
-      const builderItemsSafe = {{ context.profile_builder_items | tojson }};
-      const customProfilesSafe = {{ context.custom_profiles | tojson }};
-      const postJsonSafe = async (url, payload) => {
-        const res = await fetch(url, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || 'Error');
-        return data;
-      };
-      const esc = (value) => String(value || '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-      const money = (value) => `$ ${Number(value || 0).toLocaleString('es-CO')}`;
-
-      document.querySelectorAll('.client-edit-input,.client-edit-select').forEach((control) => {
-        if (control.dataset.safeBound) return;
-        control.dataset.safeBound = '1';
-        control.addEventListener('change', async () => {
-          const row = control.closest('.client-table-row');
-          const flag = control.parentElement.querySelector('.save-flag') || (row && row.querySelector('.save-flag'));
-          if (!row) return;
-          try {
-            if (control.dataset.kind === 'assignment') {
-              await postJsonSafe('/api/dashboard/client-assignment', {client_id: row.dataset.clientId, courier_id: control.value});
-            } else if (control.dataset.kind === 'client') {
-              await postJsonSafe('/api/dashboard/client-profile', {client_id: row.dataset.clientId, clinic_key: row.dataset.clinicKey, clinic_name: control.value, field: control.dataset.field, value: control.value});
-            } else {
-              await postJsonSafe('/api/dashboard/client-profile', {client_id: row.dataset.clientId, clinic_key: row.dataset.clinicKey, clinic_name: row.dataset.clinicName, field: control.dataset.field, value: control.value});
-            }
-            if (flag) flag.textContent = 'Guardado';
-          } catch (err) {
-            if (flag) flag.textContent = err.message;
-          }
-        });
-      });
-
-      function moveSampleCard(select) {
-        const card = select.closest('.sample-process-card');
-        if (!card) return;
-        let status = select.value;
-        if (status === 'on_route') status = 'picked_up';
-        if (status === 'ready_results') status = 'processed';
-        const targetLane = document.querySelector(`[data-sample-status="${status}"]`);
-        if (!targetLane) return;
-        const sourceLane = card.closest('[data-sample-status]');
-        if (sourceLane && sourceLane !== targetLane) {
-          const sourceCount = sourceLane.querySelector('header strong');
-          if (sourceCount) sourceCount.textContent = Math.max(0, Number(sourceCount.textContent || 0) - 1);
-          const targetCount = targetLane.querySelector('header strong');
-          if (targetCount) targetCount.textContent = Number(targetCount.textContent || 0) + 1;
-        }
-        targetLane.appendChild(card);
-        const badge = card.querySelector('.sample-card-top .status-badge');
-        const selected = select.options[select.selectedIndex];
-        if (badge && selected) badge.textContent = selected.textContent;
-      }
-
-      document.querySelectorAll('.sample-status-select').forEach((select) => {
-        if (select.dataset.safeBound) return;
-        select.dataset.safeBound = '1';
-        select.dataset.originalValue = select.value;
-        select.addEventListener('change', async () => {
-          const flag = select.parentElement.querySelector('.save-flag');
-          const label = select.options[select.selectedIndex]?.textContent || select.value;
-          if (!window.confirm(`Cambiar estado a "${label}"?`)) {
-            select.value = select.dataset.originalValue;
-            return;
-          }
-          try {
-            await postJsonSafe('/api/dashboard/sample-status', { sample_id: select.dataset.sampleId, status: select.value });
-            select.dataset.originalValue = select.value;
-            if (flag) flag.textContent = 'Guardado';
-            moveSampleCard(select);
-          } catch (err) {
-            select.value = select.dataset.originalValue;
-            if (flag) flag.textContent = err.message;
-          }
-        });
-      });
-
-      const catalog = document.querySelector('[data-builder-catalog]');
-      const selection = document.querySelector('[data-builder-selection]');
-      const samples = document.querySelector('[data-builder-samples]');
-      const total = document.querySelector('[data-builder-total]');
-      const summary = document.querySelector('[data-builder-summary]');
-      const client = document.querySelector('[data-builder-client]');
-      const panel = document.querySelector('.builder-sticky');
-      if (!catalog || !selection || !panel) return;
-      catalog.querySelectorAll('[data-builder-add]').forEach((button) => { button.textContent = button.dataset.type === 'profile' ? 'Usar perfil' : 'Agregar analisis'; });
-
-      const selectedItems = [];
-      function applyBuilderCatalogFilters() {
-        const search = document.querySelector('[data-builder-search]');
-        const typeFilter = document.querySelector('[data-builder-type-filter]');
-        const speciesFilter = document.querySelector('[data-builder-species-filter]');
-        const categoryFilter = document.querySelector('[data-builder-category-filter]');
-        const query = String(search?.value || '').toLowerCase().trim();
-        const type = String(typeFilter?.value || 'all');
-        const species = String(speciesFilter?.value || 'all');
-        const category = String(categoryFilter?.value || 'all');
-        catalog.querySelectorAll('[data-builder-card]').forEach((card) => {
-          const text = `${card.dataset.name || ''} ${card.dataset.code || ''}`.toLowerCase();
-          const matches = (!query || text.includes(query))
-            && (type === 'all' || card.dataset.type === type)
-            && (species === 'all' || card.dataset.species === species)
-            && (category === 'all' || card.dataset.category === category);
-          card.style.display = matches ? '' : 'none';
-        });
-      }
-      document.querySelectorAll('[data-builder-search],[data-builder-type-filter],[data-builder-species-filter],[data-builder-category-filter]').forEach((control) => {
-        control.addEventListener('input', applyBuilderCatalogFilters);
-        control.addEventListener('change', applyBuilderCatalogFilters);
-      });
-      function addItem(item, source = 'manual_extra', baseProfileCode = '') {
-        if (!item || selectedItems.some((s) => s.code === item.code && s.item_type === item.item_type)) return;
-        selectedItems.push({...item, selection_source: item.item_type === 'profile' ? 'base_profile' : source, included_from_profile_code: baseProfileCode});
-        if (item.item_type === 'profile' && Array.isArray(item.composed_tests)) {
-          item.composed_tests.forEach((test) => addItem(builderItemsSafe.find((candidate) => candidate.item_type === 'analysis' && candidate.code === test.code), 'profile_included', item.code));
-        }
-      }
-      function renderBuilder() {
-        const sampleSet = [...new Set(selectedItems.map((item) => item.sample).filter(Boolean))];
-        const totalValue = selectedItems.reduce((sum, item) => sum + (item.selection_source === 'profile_included' ? 0 : Number(item.price || 0)), 0);
-        selection.innerHTML = selectedItems.length ? selectedItems.map((item, index) => { const label = item.selection_source === 'base_profile' ? 'Perfil base · precio bonificado' : item.selection_source === 'profile_included' ? `Incluido en perfil ${esc(item.included_from_profile_code)} · sin costo extra` : 'Analisis adicional · suma al total'; return `<div class="builder-selected-item" data-code="${esc(item.code)}" data-type="${esc(item.item_type)}" data-source="${esc(item.selection_source)}" data-included-from="${esc(item.included_from_profile_code)}"><span><strong>${esc(item.name)}</strong><small>${esc(item.code)} · ${label}</small></span><button type="button" data-builder-remove="${index}">Quitar</button></div>`; }).join('') : '<div class="flow-empty">Agrega perfiles o analisis del catalogo.</div>';
-        if (samples) samples.innerHTML = sampleSet.length ? sampleSet.map((sample) => `<span class="status-badge">${esc(sample)}</span>`).join(' ') : '<span class="muted-text">Sin items seleccionados</span>';
-        if (total) total.textContent = money(totalValue);
-        if (summary) {
-          const clientName = client && client.value ? client.options[client.selectedIndex].textContent : 'Cliente por definir';
-          summary.value = `Cliente: ${clientName}\nItems:\n${selectedItems.map((item) => `- ${item.code} ${item.name} (${item.selection_source === 'base_profile' ? 'Perfil base bonificado' : item.selection_source === 'profile_included' ? 'Incluido sin costo extra' : 'Analisis adicional'})`).join('\n') || '- Sin items'}\nMuestras requeridas: ${sampleSet.join(', ') || 'Sin definir'}\nTotal estimado: ${money(totalValue)}`;
-        }
-      }
-      catalog.addEventListener('click', (event) => {
-        const button = event.target.closest('[data-builder-add]');
-        if (!button) return;
-        addItem(builderItemsSafe.find((item) => item.code === button.dataset.code && item.item_type === button.dataset.type));
-        renderBuilder();
-      });
-      selection.addEventListener('click', (event) => {
-        const button = event.target.closest('[data-builder-remove]');
-        if (!button) return;
-        const removed = selectedItems.splice(Number(button.dataset.builderRemove), 1)[0];
-        if (removed && removed.selection_source === 'base_profile') {
-          for (let i = selectedItems.length - 1; i >= 0; i--) {
-            if (selectedItems[i].selection_source === 'profile_included' && selectedItems[i].included_from_profile_code === removed.code) selectedItems.splice(i, 1);
-          }
-        }
-        renderBuilder();
-      });
-
-      if (!panel.querySelector('[data-builder-profile-name]')) {
-        panel.insertAdjacentHTML('afterbegin', '<label>Nombre del perfil personalizado<input class="cell-input" data-builder-profile-name placeholder="Ej. Perfil renal Max"></label>');
-      }
-      if (!panel.querySelector('[data-builder-add-analysis]')) panel.insertAdjacentHTML('beforeend', '<button type="button" class="ghost-btn" data-builder-add-analysis>Agregar analisis extra</button>');
-      if (!panel.querySelector('[data-builder-clear]')) panel.insertAdjacentHTML('beforeend', '<button type="button" class="ghost-btn" data-builder-clear>Limpiar seleccion</button>');
-      if (!panel.querySelector('[data-builder-save-profile]')) panel.insertAdjacentHTML('beforeend', '<button type="button" class="ghost-btn" data-builder-save-profile>Guardar perfil personalizado</button>');
-      if (!panel.querySelector('[data-builder-accept]')) panel.insertAdjacentHTML('beforeend', '<button type="button" class="primary-btn" data-builder-accept>Aceptar y registrar muestras</button><small class="save-flag" data-builder-save-flag></small>');
-
-      panel.querySelector('[data-builder-clear]')?.addEventListener('click', () => { selectedItems.splice(0); renderBuilder(); });
-      panel.querySelector('[data-builder-add-analysis]')?.addEventListener('click', () => { const typeFilter = document.querySelector('[data-builder-type-filter]'); const search = document.querySelector('[data-builder-search]'); if (typeFilter) typeFilter.value = 'analysis'; applyBuilderCatalogFilters(); catalog.scrollIntoView({behavior:'smooth', block:'start'}); if (search) search.focus(); });
-      panel.querySelector('[data-builder-save-profile]')?.addEventListener('click', async () => {
-        const flag = panel.querySelector('[data-builder-save-flag]');
-        const name = panel.querySelector('[data-builder-profile-name]')?.value || 'Perfil personalizado';
-        if (!client?.value) { if (flag) flag.textContent = 'Selecciona un cliente'; return; }
-        if (!selectedItems.length) { if (flag) flag.textContent = 'Agrega analisis al perfil'; return; }
-        try {
-          await postJsonSafe('/api/dashboard/save-custom-profile', { client_id: client.value, name, items: selectedItems.map((item) => ({ code: item.code, item_type: item.item_type, name: item.name, source: item.selection_source, included_from_profile_code: item.included_from_profile_code, price: item.selection_source === 'profile_included' ? 0 : Number(item.price || 0) })) });
-          if (flag) flag.textContent = 'Perfil guardado';
-          setTimeout(() => location.reload(), 1000);
-        } catch (err) { if (flag) flag.textContent = err.message; }
-      });
-      panel.querySelector('[data-builder-accept]')?.addEventListener('click', async () => {
-        const flag = panel.querySelector('[data-builder-save-flag]');
-        if (!client?.value) { if (flag) flag.textContent = 'Selecciona un cliente'; return; }
-        if (!selectedItems.length) { if (flag) flag.textContent = 'Agrega al menos un analisis'; return; }
-        try {
-          const result = await postJsonSafe('/api/dashboard/profile-assignment', { client_id: client.value, items: selectedItems.map((item) => ({ code: item.code, item_type: item.item_type, source: item.selection_source, included_from_profile_code: item.included_from_profile_code })), notes: summary?.value || '' });
-          if (flag) flag.textContent = `Registradas ${result.created_count} muestra(s)`;
-          setTimeout(() => location.reload(), 1200);
-        } catch (err) { if (flag) flag.textContent = err.message; }
-      });
-      document.querySelectorAll('[data-load-profile]').forEach((button) => button.addEventListener('click', () => {
-        const profile = customProfilesSafe.find((item) => item.id === button.dataset.loadProfile);
-        if (!profile) return;
-        selectedItems.splice(0);
-        (profile.items_json || []).forEach((saved) => addItem(builderItemsSafe.find((item) => item.code === saved.code && item.item_type === saved.item_type)));
-        if (client && profile.client_id) client.value = profile.client_id;
-        const nameInput = panel.querySelector('[data-builder-profile-name]');
-        if (nameInput) nameInput.value = profile.name || '';
-        renderBuilder();
-      }));
-      document.querySelectorAll('[data-delete-profile]').forEach((button) => button.addEventListener('click', async () => {
-        if (!window.confirm('Eliminar este perfil personalizado?')) return;
-        await postJsonSafe('/api/dashboard/delete-custom-profile', { profile_id: button.dataset.deleteProfile });
-        button.closest('.custom-profile-card')?.remove();
-      }));
-      client?.addEventListener('change', renderBuilder);
-      renderBuilder();
-      applyBuilderCatalogFilters();
-    })();
+    window.__BUILDER_ITEMS__ = {{ context.profile_builder_items | tojson }};
+    window.__CUSTOM_PROFILES__ = {{ context.custom_profiles | tojson }};
+    window.__INVOICES_LOCKED__ = {{ 'true' if context.invoices_actions_locked else 'false' }};
   </script>
+  <script src="{{ url_for('static', filename='columns-config.js') }}?v=4" defer></script>
+  <script src="{{ url_for('static', filename='dashboard.js') }}?v=5" defer></script>
+  <script src="{{ url_for('static', filename='invoices.js') }}?v=1" defer></script>
 </body>
 </html>

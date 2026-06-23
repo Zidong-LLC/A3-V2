@@ -1,6 +1,7 @@
+import secrets
 import time
-from flask import Flask, request, jsonify, abort
-from app.config import TELEGRAM_WEBHOOK_SECRET, FLASK_SECRET_KEY
+from flask import Flask, request, jsonify, abort, session
+from app.config import TELEGRAM_WEBHOOK_SECRET, FLASK_SECRET_KEY, APP_ENV
 from app.agent import process_turn
 from app.services import telegram, chatwoot
 from app.services.db import get_or_create_session
@@ -11,6 +12,40 @@ app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
 app.register_blueprint(platform_api)
 app.register_blueprint(dashboard)
+
+
+@app.before_request
+def _csrf_protect():
+    if app.config.get("TESTING"):
+        return
+    if request.method != "POST":
+        return
+    if request.path.startswith(("/webhooks/", "/chatwoot/")):
+        return
+    if not request.form:
+        return
+    token = request.form.get("csrf_token", "")
+    if not token or token != session.get("csrf_token"):
+        abort(400, "Token CSRF invalido")
+
+
+@app.context_processor
+def _inject_csrf():
+    def csrf_token():
+        if "csrf_token" not in session:
+            session["csrf_token"] = secrets.token_hex(32)
+        return session["csrf_token"]
+    return {"csrf_token": csrf_token}
+
+
+@app.after_request
+def _security_headers(resp):
+    resp.headers["X-Content-Type-Options"] = "nosniff"
+    resp.headers["X-Frame-Options"] = "DENY"
+    resp.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if APP_ENV == "development" and request.path.startswith("/static/"):
+        resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return resp
 
 # Pausa tras el mensaje de progreso para que se sienta humano (segundos)
 PROGRESS_PAUSE_SECONDS = 1.5
@@ -118,4 +153,4 @@ def health():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=(APP_ENV == "development"), port=5000)

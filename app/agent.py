@@ -1607,14 +1607,21 @@ def _client_match_options_reply(query: str | None, matches: list[dict], has_more
         return "\n".join(lines)
 
     label = query or "ese nombre"
+    if len(shown) == 1:
+        match = shown[0]
+        name = match.get("clinic_name") or "Sin nombre"
+        address = match.get("address") or "sin dirección registrada"
+        return (
+            f"Lo más parecido que encuentro a '{label}' es:\n"
+            f"1) {name} - {address}\n"
+            "¿Es esta? Responde con el número 1, o dime si no es ninguna."
+        )
     lines = [f"Encontré varios clientes registrados con '{label}'. ¿Cuál es el correcto?"]
     for idx, match in enumerate(shown, start=1):
         name = match.get("clinic_name") or "Sin nombre"
         address = match.get("address") or "sin dirección registrada"
         lines.append(f"{idx}) {name} - {address}")
-    lines.append("Responde con el número o el nombre exacto.")
-    if has_more:
-        lines.append("Si ninguna es la tuya, compárteme el NIT o un nombre más exacto.")
+    lines.append("Responde con el número, o dime si ninguna es la tuya.")
     return "\n".join(lines)
 
 
@@ -1635,6 +1642,27 @@ def _store_client_match_options(fields: dict, query: str, matches: list[dict]) -
 def _clear_client_match_options(fields: dict) -> None:
     fields.pop("_client_match_query", None)
     fields.pop("_client_match_options", None)
+
+
+_REJECT_ALL_MATCH_TOKENS = frozenset({
+    "ninguno", "ninguna", "ningun", "ningún", "ningunos", "ningunas", "tampoco",
+})
+
+# Palabras comunes que NO deben tratarse como un nombre de cliente en la búsqueda exacta de
+# refuerzo (segundo intento). Evita falsos positivos al probar palabras sueltas del mensaje.
+_EXACT_RETRY_STOPWORDS = frozenset({
+    "ninguno", "ninguna", "ningun", "ningunos", "ningunas", "tampoco", "esos", "esas",
+    "veterinaria", "clinica", "consultorio", "hospital", "laboratorio", "centro",
+    "llama", "llamo", "nombre", "mejor", "busca", "buscar", "tengo", "quiero", "registrada",
+    "registrado", "registrados", "cliente", "nueva", "nuevo", "somos", "soy",
+    "pero", "entonces", "creo", "entiendo", "perdon", "perdón",
+})
+
+
+def _rejects_match_options(text: str) -> bool:
+    """El cliente indica que NINGUNA de las coincidencias listadas es la suya
+    ('ninguno de esos', 'no es ninguna', 'tampoco')."""
+    return bool(set(_tokenize(text)) & _REJECT_ALL_MATCH_TOKENS)
 
 
 def _select_client_match(text: str, fields: dict) -> dict | None:
@@ -1828,11 +1856,12 @@ def _pre_identification_service_info_response(text: str, fields: dict) -> dict |
             "Sí, recogemos muestras con motorizado asignado para clientes registrados en Bogotá. "
             "Si quieres programar una recogida, ahí sí te pido el NIT o el nombre de la veterinaria."
         )
-    elif tokens & {"colombia", "bogota", "bogotá"} or (
-        tokens & {"donde", "dónde"} and tokens & {"son", "estan", "están", "ubicados", "ubicacion", "ubicación"}
-    ):
+    elif tokens & {"donde", "dónde", "ubicados", "ubicado", "ubicacion", "ubicación", "ubican", "ubica"}:
+        # Solo una PREGUNTA explícita de ubicación dispara esta respuesta. La mera mención de
+        # "Colombia"/"Bogotá" (ej. en el nombre de una clínica) ya NO la activa: eso desviaba
+        # nombres como "Pet Agro Colombia" a una respuesta de cortesía sin buscar el cliente.
         reply = (
-            "Estoy bien, gracias. Somos A3 Laboratorio Clínico Veterinario y estamos en Bogotá, Colombia. "
+            "Somos A3 Laboratorio Clínico Veterinario y estamos en Bogotá, Colombia. "
             "Atendemos clínicas y profesionales veterinarios registrados."
         )
     elif (tokens & {"metodologia", "metodología", "funciona"}) or (
@@ -1957,14 +1986,35 @@ def _restart_identification_for_new_client(chat_id: str, session: dict, fields: 
     )
 
 
-def _start_followup_service_order_response(fields: dict) -> dict:
+def _followup_wants_new_analysis(text: str) -> bool:
+    """En el mismo mensaje de 'otra orden', ¿el cliente pidió CAMBIAR el análisis?
+    Ej.: 'otra orden con los mismos datos pero cambiale el análisis a glucosa'. Exige
+    nombrar el análisis/examen/perfil junto a una señal de cambio para no confundir con
+    'otra orden para otro paciente' (que mantiene el análisis anterior)."""
+    tokens = set(_tokenize(text))
+    if not (tokens & _ANALYSIS_TOKENS):
+        return False
+    if re.search(r"(?i)\bcambi", text or ""):
+        return True
+    return bool(tokens & {"otro", "otra", "nuevo", "nueva", "distinto", "distinta", "diferente"})
+
+
+def _start_followup_service_order_response(fields: dict, user_message: str = "") -> dict:
     _carry_over_stable_fields(fields)
 
     # Reofrecer también el análisis/perfil de la orden anterior: el cliente lo confirma o
     # pide otro. Se copia del snapshot; si luego dice "cambiar análisis", se limpia y se
     # vuelve a pedir. Los datos del PACIENTE no se heredan (se piden de cero en cada orden).
     snap = fields.get("_prev_order_snapshot") or {}
-    if not fields.get("exam_type") and snap.get("exam_type"):
+
+    # Si el cliente, al pedir otra orden, YA indicó cambiar el análisis en el mismo mensaje
+    # ('...pero cambiale el análisis a glucosa'), NO se hereda el viejo: queda vacío para
+    # pedírselo y capturarlo por el flujo normal de catálogo (que valida contra el catálogo
+    # real). No se adivina el análisis de la frase: extraer tokens sueltos arriesga registrar
+    # uno equivocado (ej. 'urianálisis' -> 'ALT'). Lee la intención, no fragmentos.
+    if user_message and _followup_wants_new_analysis(user_message):
+        pass  # no heredar el análisis anterior; se pedirá el nuevo
+    elif not fields.get("exam_type") and snap.get("exam_type"):
         for k in ("exam_type", "selected_tests", "removed_tests", "_selected_profile_code",
                   "_selected_profile_name", "_selected_profile_price", "_selected_profile_description"):
             if snap.get(k):
@@ -2003,7 +2053,7 @@ def _start_followup_service_order_response(fields: dict) -> dict:
     return _base_route_response("\n".join(lines), fields)
 
 
-def _begin_followup_order(fields: dict) -> dict:
+def _begin_followup_order(fields: dict, user_message: str = "") -> dict:
     """Inicia una orden de seguimiento: guarda el snapshot de la orden anterior, reinicia
     los datos de la orden (paciente/análisis) conservando el cliente, y arranca el
     reofrecimiento de estables. Centraliza el inicio para que funcione tanto desde la fase
@@ -2016,7 +2066,7 @@ def _begin_followup_order(fields: dict) -> dict:
     snapshot = {k: v for k, v in fields.items() if k in _snap_keys and v}
     _reset_order_fields(fields)
     fields["_prev_order_snapshot"] = snapshot
-    ai_response = _start_followup_service_order_response(fields)
+    ai_response = _start_followup_service_order_response(fields, user_message)
     ai_response["captured_fields"]["_pending_intents"] = []
     return ai_response
 
@@ -2598,17 +2648,30 @@ def _looks_like_bare_client_name(text: str) -> bool:
     return not (set(tokens) & _NON_IDENTIFIER_TOKENS)
 
 
-def _apply_identification_fallbacks(fields: dict, user_message: str, history: list[dict], signal: str | None = None) -> None:
+def _apply_identification_fallbacks(
+    fields: dict, user_message: str, history: list[dict],
+    signal: str | None = None, message_mode: str | None = None,
+) -> None:
     waiting_identifier = _awaiting_client_identifier(history)
     if not fields.get("tax_id"):
         tax_id = _extract_tax_id_candidate(user_message, allow_unlabeled=waiting_identifier)
         if tax_id:
             fields["tax_id"] = tax_id
-    # Extraer el nombre si el bot está pidiendo el identificador, o si el mensaje
-    # trae un marcador claro de cliente (ej. "...soy de adryvete" en el primer mensaje).
+    # El fallback "nombre pelado" (capturar un texto corto como nombre del cliente porque
+    # estábamos pidiendo el identificador) es una RED DE SEGURIDAD para cuando el LLM no
+    # interpretó el turno. Si el LLM ya leyó el mensaje COMPLETO y entendió que es una
+    # pregunta lateral ("¿dónde están?", "¿cuánto cuesta el hemograma?"), se respeta esa
+    # lectura: no se fabrica un nombre con la pregunta. Las señales POSITIVAS de
+    # identificador (el LLM marcó provides_client_identifier, o hay un marcador "soy de X")
+    # sí capturan siempre.
+    bare_name_fallback = (
+        waiting_identifier
+        and message_mode != "side_question"
+        and _looks_like_bare_client_name(user_message)
+    )
     if (
         (signal == "provides_client_identifier" or _has_client_marker(user_message)
-         or (waiting_identifier and _looks_like_bare_client_name(user_message)))
+         or bare_name_fallback)
         and not fields.get("tax_id")
     ):
         clinic_name = _extract_clinic_name_candidate(user_message)
@@ -2626,6 +2689,26 @@ def _apply_common_order_fallbacks(fields: dict, user_message: str) -> None:
             fields["exam_type"] = "hemograma"
         elif {"analisis", "análisis", "examen", "prueba"} & tokens and "sangre" in tokens:
             fields["exam_type"] = "análisis de sangre"
+
+
+_NO_OWNER_TOKENS = frozenset({
+    "ninguno", "ninguna", "callejero", "callejera", "callejeros", "callejeras",
+    "rescatado", "rescatada", "rescate",
+})
+_NO_OWNER_PHRASES = (
+    "sin dueño", "sin dueno", "sin propietario", "sin amo",
+    "no tiene dueño", "no tiene dueno", "no tiene propietario", "no tiene amo",
+    "no hay dueño", "no hay dueno", "no aplica", "no sabemos",
+)
+
+
+def _says_no_owner(text: str) -> bool:
+    """El cliente indica que el paciente NO tiene propietario (callejero, rescatado, etc.).
+    Solo se usa cuando se está pidiendo el propietario, así 'ninguna' es inequívoco ahí."""
+    low = (text or "").lower()
+    if any(p in low for p in _NO_OWNER_PHRASES):
+        return True
+    return bool(set(_tokenize(text)) & _NO_OWNER_TOKENS)
 
 
 def _merge_existing_route_fields(prev_fields: dict, fields: dict) -> None:
@@ -3987,6 +4070,10 @@ def process_turn(
         not session.get("client_id")
         and not any(prev_captured.get(k) for k in ("clinic_name", "tax_id", "_client_match_options"))
         and not (_has_client_marker(user_message) or _extract_tax_id_candidate(user_message, allow_unlabeled=True))
+        # Si ya pedimos el NIT/nombre, lo que diga el usuario es su identificación: que el
+        # LLM lea el mensaje COMPLETO (no que un token suelto como "Colombia" lo desvíe a
+        # una respuesta de cortesía). El atajo de servicio solo aplica al contacto inicial.
+        and not _awaiting_client_identifier(history)
     ):
         info_response = _pre_identification_service_info_response(user_message, dict(prev_captured))
         if info_response:
@@ -4219,7 +4306,7 @@ def process_turn(
                     chat_id, user_message,
                     _restart_identification_for_new_client(chat_id, session, prev_captured),
                 )
-            return _persist_turn(chat_id, user_message, _begin_followup_order(prev_captured))
+            return _persist_turn(chat_id, user_message, _begin_followup_order(prev_captured, user_message))
         if _is_negative_text(user_message):
             db.save_message(chat_id, user_message, "user")
             db.save_message(chat_id, FAREWELL_REPLY, "bot")
@@ -4240,7 +4327,7 @@ def process_turn(
                 chat_id, user_message,
                 _restart_identification_for_new_client(chat_id, session, prev_captured),
             )
-        return _persist_turn(chat_id, user_message, _begin_followup_order(prev_captured))
+        return _persist_turn(chat_id, user_message, _begin_followup_order(prev_captured, user_message))
 
     if session.get("client_id") and prev_captured.get("_client_not_found"):
         db.clear_client_from_session(chat_id)
@@ -4373,6 +4460,12 @@ def process_turn(
     _merge_existing_route_fields(prev_captured, fields)
     _apply_common_order_fallbacks(fields, user_message)
 
+    # Paciente sin dueño (callejero/rescatado): si se está pidiendo el propietario y el cliente
+    # indica que no hay, se registra como "Sin propietario" y se avanza, en vez de repreguntar
+    # en bucle (regla de negocio confirmada 2026-06-23).
+    if _says_no_owner(user_message) and _detect_which_field_is_being_asked(history) == "owner_name":
+        fields["owner_name"] = "Sin propietario"
+
     signal = ai_response.get("user_intent_signal")
 
     # Recién cerramos una orden y el usuario hace una consulta que no encaja en los 4
@@ -4405,15 +4498,24 @@ def process_turn(
     # seguidos, derivar a una persona en vez de seguir dando vueltas (rompe el bucle
     # pase lo que pase). Cualquier turno que SÍ encaja reinicia el contador.
     elif signal in ("unclear", "off_topic") or _repeats_last_bot_question(ai_response, history, fields):
-        offtrack = (prev_captured.get("_offtrack_count") or 0) + 1
-        if offtrack >= 3:
-            fields.pop("_offtrack_count", None)
-            ai_response = _unknown_handoff_response(fields)
-            ai_response = _finalize_request(
-                chat_id, session, ai_response, started_from_escalation, session.get("phase_current", ""),
-            )
-            return _persist_turn(chat_id, user_message, ai_response)
-        fields["_offtrack_count"] = offtrack
+        # Si en este turno se capturó algún dato NUEVO de la orden, hubo progreso real
+        # (el cliente está dando datos del paciente aunque sea en otro orden del que pedimos):
+        # NO cuenta como turno perdido. El anti-bucle solo debe disparar cuando NO hay avance,
+        # para no escalar a un humano a alguien que sí está colaborando con la orden.
+        progressed = sum(1 for k in _ROUTE_REQUIRED_FIELDS if fields.get(k)) > \
+            sum(1 for k in _ROUTE_REQUIRED_FIELDS if prev_captured.get(k))
+        if progressed:
+            fields["_offtrack_count"] = 0
+        else:
+            offtrack = (prev_captured.get("_offtrack_count") or 0) + 1
+            if offtrack >= 3:
+                fields.pop("_offtrack_count", None)
+                ai_response = _unknown_handoff_response(fields)
+                ai_response = _finalize_request(
+                    chat_id, session, ai_response, started_from_escalation, session.get("phase_current", ""),
+                )
+                return _persist_turn(chat_id, user_message, ai_response)
+            fields["_offtrack_count"] = offtrack
     elif prev_captured.get("_offtrack_count"):
         fields["_offtrack_count"] = 0
 
@@ -4486,8 +4588,13 @@ def process_turn(
         # ("la uno" = programar) escalaba por error a recepción (L46: entender por contexto,
         # no por longitud). La mención explícita de "cliente nuevo" sí cuenta siempre.
         bot_asked_new = _asks_if_new_client(_last_bot_message(history))
+        # Con una lista de coincidencias pendiente, "ninguno de esos" / "no es ninguna" significa
+        # "ninguna de la lista", NO "soy cliente nuevo": no se escala todavía, se repregunta el
+        # nombre exacto (abajo) y solo si no existe se ofrece el alta de cliente nuevo.
+        has_pending_matches = bool(fields.get("_client_match_options"))
         says_new_client = (
             not picks_from_match_list
+            and not has_pending_matches
             and (
                 signal == "new_or_unregistered_client"
                 or _claims_unregistered_client(user_message)
@@ -4531,7 +4638,9 @@ def process_turn(
         # nombre/NIT nuevo: los fallbacks borrarían la lista y tomarían el ordinal como
         # nombre. La selección se resuelve intacta en el bloque _client_match_options.
         if not picks_from_match_list:
-            _apply_identification_fallbacks(fields, user_message, history, signal)
+            _apply_identification_fallbacks(
+                fields, user_message, history, signal, ai_response.get("message_mode")
+            )
         _apply_identification_retry(fields, prev_captured, user_message, history)
 
         if _is_final_user_text(user_message):
@@ -4570,11 +4679,16 @@ def process_turn(
                         fields["clinic_name"] = client.get("clinic_name") or fields.get("clinic_name")
                         fields["tax_id"] = client.get("tax_id") or fields.get("tax_id")
                         _clear_client_match_options(fields)
-                    elif current_query and not _same_text(current_query, previous_query):
-                        _clear_client_match_options(fields)
                     else:
+                        # No eligió ninguna de la lista parcial. Se pide DE NUEVO el nombre exacto
+                        # (o el NIT); en el próximo turno se busca por coincidencia EXACTA y, si no
+                        # existe, se pregunta si es cliente nuevo (para escalar a recepción).
+                        _clear_client_match_options(fields)
+                        fields["clinic_name"] = None
+                        fields["_awaiting_exact_name"] = True
                         ai_response = _base_route_response(
-                            _client_match_options_reply(previous_query, fields.get("_client_match_options") or []),
+                            "Entiendo. ¿Me confirmas el nombre exacto de la veterinaria o médico "
+                            "veterinario (o el NIT) para verificarlo en el registro?",
                             fields,
                         )
                         skip_client_lookup = True
@@ -4630,20 +4744,39 @@ def process_turn(
                 client = tax_matches[0]
 
         if not client and not skip_client_lookup and fields.get("clinic_name"):
-            matches = db.find_client_matches(fields.get("clinic_name"), limit=MAX_CLIENT_MATCH_OPTIONS + 1)
-            if len(matches) > 1:
-                # Aunque haya muchas, mostrar siempre un listado (las primeras) y,
-                # si hay más, invitar a afinar con NIT o nombre más exacto.
-                has_more = len(matches) > MAX_CLIENT_MATCH_OPTIONS
-                shown = matches[:MAX_CLIENT_MATCH_OPTIONS]
-                _store_client_match_options(fields, fields.get("clinic_name"), shown)
-                ai_response = _base_route_response(
-                    _client_match_options_reply(fields.get("clinic_name"), shown, has_more=has_more),
-                    fields,
-                )
-                skip_client_lookup = True
-            elif len(matches) == 1:
-                client = matches[0]
+            if prev_captured.get("_awaiting_exact_name"):
+                # SEGUNDO intento (el cliente rechazó la lista y le repreguntamos el nombre):
+                # SOLO match EXACTO. Si el nombre coincide exacto con un registrado, se identifica;
+                # si no, queda como no encontrado y abajo se pregunta si es cliente nuevo. Se prueba
+                # el nombre que leyó el LLM y, de refuerzo (a veces lo captura con ruido), las
+                # palabras significativas del mensaje. NUNCA match parcial aquí.
+                fields.pop("_awaiting_exact_name", None)
+                for cand in [fields.get("clinic_name")] + [
+                    t for t in _tokenize(user_message)
+                    if len(t) >= 4 and t not in _EXACT_RETRY_STOPWORDS
+                ]:
+                    client = db.find_client_exact(cand)
+                    if client:
+                        break
+            else:
+                # PRIMER intento. Se identifica directo SOLO si hay match EXACTO. Si las
+                # coincidencias son PARCIALES (una o varias), se muestran para que el cliente
+                # elija o diga que ninguna es la suya (→ posible cliente nuevo). Una coincidencia
+                # parcial ÚNICA no se asume como correcta (ej. "Pets Colombia" ≠ "Vets&Pets ...").
+                exact = db.find_client_exact(fields.get("clinic_name"))
+                if exact:
+                    client = exact
+                else:
+                    matches = db.find_client_matches(fields.get("clinic_name"), limit=MAX_CLIENT_MATCH_OPTIONS + 1)
+                    if matches:
+                        has_more = len(matches) > MAX_CLIENT_MATCH_OPTIONS
+                        shown = matches[:MAX_CLIENT_MATCH_OPTIONS]
+                        _store_client_match_options(fields, fields.get("clinic_name"), shown)
+                        ai_response = _base_route_response(
+                            _client_match_options_reply(fields.get("clinic_name"), shown, has_more=has_more),
+                            fields,
+                        )
+                        skip_client_lookup = True
 
         if not skip_client_lookup:
             if client:
