@@ -986,7 +986,7 @@ def _build_operation_center(requests_rows: list[dict], samples: list[dict], appr
         "alerts": alerts[:8],
         "route_rows": route_rows[:12],
         "courier_agenda": courier_agenda,
-        "service_order_rows": (service_orders or [])[:200],
+        "service_order_rows": (service_orders or [])[:15],
         "unassigned_orders": unassigned_orders[:20],
         "approval_rows": approval_rows[:8],
         "sample_lanes": sample_lanes,
@@ -1067,7 +1067,7 @@ def _suggest_courier_for_location(form, couriers: list[dict]) -> dict:
     }
 
 
-INVOICES_PER_PAGE = 50
+INVOICES_PER_PAGE = 15
 INVOICE_STATUS_OPTIONS = [{"value": key, "label": label} for key, label in {
     "draft": "Borrador", "open": "Abierta", "closed": "Pagada", "void": "Anulada",
 }.items()]
@@ -2331,7 +2331,7 @@ def _render_dashboard(active_tab: str):
         context["sample_demo_total"] = sum(lane["count"] for lane in demo_lanes)
     if active_tab == "clientes":
         all_rows = context.get("clients_rows") or []
-        per_page = 50
+        per_page = 15
         page = max(1, min(int(request.args.get("page", 1)), max(1, (len(all_rows) + per_page - 1) // per_page) or 1))
         context["clients_total"] = len(all_rows)
         context["clients_page"] = page

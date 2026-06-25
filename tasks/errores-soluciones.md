@@ -27,6 +27,15 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### RESUELTO-025 — Sesión con cliente identificado saltaba al médico solicitante sin pedir NIT (2026-06-24)
+
+- **Síntoma:** Cliente dice "necesito analizar unas muestras". El bot responde "¿Cuál es el médico solicitante?" sin haber preguntado NIT ni confirmado datos del cliente.
+- **Causa raíz:** La condición de multiorden (línea 4321 en `agent.py`) exigía `intent_current == "route_scheduling"`. Cuando la sesión tenía `client_id` pero `intent_current` era otro valor (ej. estado inconsistente entre pruebas), la condición fallaba. El pipeline normal del AI tomaba el turno: el AI veía al cliente identificado + dirección confirmada + `requesting_doctor` vacío → preguntaba el médico directamente sin mostrar el resumen de datos previos.
+- **Contexto:** Confirmado en conversación del 2026-06-24 con chat_id "4". La sesión tenía `client_id=a88408fe...`, `pickup_address="DG 51A SUR 61B-03"`, `_order_registered=True`, pero `intent_current` en estado parcial.
+- **Solución:** Ampliar el trigger de multiorden para que se active también cuando `session.get("client_id")` está establecido (no solo cuando `intent_current == "route_scheduling"`). Se añade además la guarda `not prev_captured.get("_stable_confirm_pending")` para no re-disparar durante el paso de confirmación de datos estables. Ver `app/agent.py` línea ~4324.
+- **Tests:** Verificar con sesión que tenga `client_id` + `_order_registered=True` + `intent_current != "route_scheduling"`: el bot debe mostrar el resumen de la orden anterior, no preguntar el médico directamente.
+- **Estado:** RESUELTO 2026-06-24
+
 ### RESUELTO-024 — Tras rechazar la lista de coincidencias, identificaba por match parcial en vez de tratar como cliente nuevo (2026-06-23)
 
 - **Síntoma (reporte del usuario, 2026-06-23):** "Pet colombia" → el bot lista 2 coincidencias

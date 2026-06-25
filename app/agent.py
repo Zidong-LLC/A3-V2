@@ -4318,10 +4318,16 @@ def process_turn(
     # Nueva orden tras una YA registrada, aunque la conversación haya seguido con turnos
     # intermedios (charla, agradecimiento) que sacaron la sesión de la fase terminal. Sin
     # esto, el pedido de "otra orden" no reiniciaba y arrastraba los datos de la orden previa.
-    if (session.get("intent_current") == "route_scheduling"
-            and prev_captured.get("_order_registered")
-            and session.get("phase_current") not in TERMINAL_PHASES
-            and _explicitly_wants_another_order(user_message)):
+    # Se dispara también cuando el cliente vuelve con la sesión identificada (client_id) pero
+    # el intent_current no es exactamente "route_scheduling" (ej. sesión parcialmente reiniciada),
+    # evitando que el AI salte directo a "¿Cuál es el médico solicitante?" sin contexto.
+    if (
+        prev_captured.get("_order_registered")
+        and session.get("phase_current") not in TERMINAL_PHASES
+        and not prev_captured.get("_stable_confirm_pending")
+        and (session.get("intent_current") == "route_scheduling" or session.get("client_id"))
+        and _explicitly_wants_another_order(user_message)
+    ):
         if _wants_to_change_client(user_message):
             return _persist_turn(
                 chat_id, user_message,
