@@ -3,6 +3,10 @@
 > Actualizar después de cada corrección del usuario.
 > El objetivo es no repetir el mismo error.
 
+### L58 — Identificación de cliente también viene como "X es la clínica", no solo "clínica es X" (RESUELTO-026)
+**Problema:** `animal Pet es la clínica con la que trabajo` se guardó como `Con La Que Trabajo`; la BD sí tenía `Animal Pets` activo, pero el extractor asumía que el nombre siempre venía después de la palabra clínica/veterinaria.
+**Regla:** los extractores de cliente deben cubrir ambos órdenes naturales: `la clínica es X` y `X es la clínica...`. Si el nombre limpio (`Animal Pet`) matchea y la frase completa no, el bug es extracción, no Supabase.
+
 ### L57 — Alegra debe buscar contactos con y sin DV antes de crear (RESUELTO-019)
 **Problema:** una orden válida no apareció como borrador en Alegra aunque el hook corrió. El log mostró `POST /contacts -> HTTP 400 code 2006`: el contacto ya existía con identificación `53115419` y DV `1`, pero el lookup previo buscaba `53115419-1`; al no encontrarlo intentó crearlo y Alegra lo rechazó como duplicado.
 **Regla:** para NIT colombiano, la idempotencia de contactos no puede depender de una sola representación textual. Antes de crear, buscar por el valor original y por el número sin DV (`_split_nit`). Si no hay evento `alegra_invoiced`, revisar primero el warning de Alegra y el evento `created`: si hay líneas/precio/NIT, el fallo está en API/contacto, no en el perfil.
@@ -323,3 +327,18 @@ del contexto, no solo los flags de `captured_fields` (que persisten varios turno
 ### L43 — Testear con una IA-cliente adversarial, nunca con respuestas del LLM hardcodeadas
 **Problema:** los tests que fijaban la salida del LLM (`_ai_reply(...)` con `confidence: 1.0`) siempre pasaban porque uno mismo escribia la respuesta "correcta"; afirmaban que el agente estaba bien cuando con datos reales se rompia (bucles, no escalar). Daban falsos positivos.
 **Regla:** el agente conversacional se valida con modelo real respondiendo a inputs imperfectos. `tools/scripts/sim_cliente.py` pone una IA a actuar de cliente humano caotico (typos, datos en desorden, evasivo, impaciente, no registrado, particular) contra `process_turn` real, con un juez-IA que lee la transcripcion. Lo perfecto/mockeado del agente se elimino (ERR-037). Conservar solo tests de logica pura/infra (rules, db helpers, webhooks, dashboard).
+
+### L47 — Una pregunta pendiente se re-pregunta al final del turno; nunca se asume por progreso del mismo turno (ERR-046)
+**Problema (corrección directa del usuario):** con la confirmación de dirección pendiente ("¿Es correcta?"), el cliente respondió otra cosa ("quiero un análisis de orina") y el bot dio la dirección por confirmada en silencio y saltó a la siguiente pregunta. El usuario fue explícito: si el cliente no confirma y salta a otra cosa, hay que responderle a lo que dijo (sin perder el dato) pero SIEMPRE volver a la pregunta pendiente hasta obtenerla.
+**Regla:**
+- "El flujo ya avanzó" solo cuenta con datos de TURNOS ANTERIORES (`prev_captured`); lo capturado en el turno actual no da por respondida la pregunta que el bot acaba de hacer.
+- Ante una respuesta esquiva: conservar todo lo que el cliente adelantó, dejar que el pipeline le responda (menú, dato, precio), y cerrar el turno re-preguntando lo pendiente. La inyección va DESPUÉS de la cadena de guardrails para que un menú/sugerencia no la pise (una respuesta puesta antes de la cadena puede ser sobrescrita).
+- Mismo patrón que la identificación (lista de coincidencias): lo pendiente se resuelve explícito (confirmar / rechazar / corregir con un dato nuevo), no por inferencia.
+
+### L48 — Los datos con plata viven en UNA estructura; el texto libre del modelo nunca es fuente de verdad (ERR-050)
+**Problema (prueba real del usuario, chat 4, 2026-07-04):** el cliente agregó un análisis a un perfil ya elegido y el resumen final cobró solo el perfil base ($24.000 en vez de $40.000). El agregado existía únicamente como texto en `exam_type` ("Perfil X + Parcial de Orina $16k") escrito por el modelo; `selected_tests` (la estructura que alimenta el total y el payload) quedó vacío. Además, los fixes previos por detección de frase (RESUELTO-014) no cubrían las variantes nuevas ("agregarle un análisis más", "agregale un análisis de orina" en afirmativo) — cada frase nueva rompía por otro costado.
+**Regla:**
+- Todo dato que afecta dinero (análisis, precios, agregados/quitados) debe vivir en UNA estructura (`selected_tests` + `_selected_profile_*`) y el resumen/total se calcula SIEMPRE de ahí. Si el modelo lo anota como texto libre, un guardrail lo resuelve a la estructura o lo descarta — nunca queda "flotando" en un string (`_enforce_profile_exam_type_integrity`).
+- Los fixes por detección de frase no cierran esta clase de bug; solo el invariante estructural lo cierra. Al arreglar un ruteo, preguntarse: "si el ruteo vuelve a fallar con otra frase, ¿el dinero sigue correcto?" — si la respuesta es no, falta el invariante.
+- La mención de un ÁREA del catálogo ("orina", "sangre") en un pedido de agregar va SIEMPRE al menú del área; nunca se resuelve por parecido de nombre a un test suelto ("orina" → Cortisol en Orina = cobrarle $33k no pedidos).
+- En los lookups difusos, el mensaje completo va primero; los términos sueltos son solo fallback. Y una selección de menú con palabras alrededor ("el parcial de orina está bien") debe matchear la opción antes de que otra heurística ("está bien" = seguir al pago) se la trague.

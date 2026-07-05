@@ -59,6 +59,11 @@ CATALOG_PROFILES = [
      "description": "Glucosa, BUN/UREA, Creatinina", "price": 30000},
     {"code": "501", "name": "Perfil Renal I", "category": "Perfiles Renales", "species": "ambos",
      "description": "Cuadro Hemático, Parcial de Orina, BUN/UREA, Creatinina", "price": 34000},
+    # Categoría con perfiles ARMADOS pedida por nombre (ERR-045: 'pre quirúrgico').
+    {"code": "701", "name": "Perfil Prequirúrgico I", "category": "Prequirúrgico", "species": "ambos",
+     "description": "Cuadro Hemático, ALT, Creatinina", "price": 24000},
+    {"code": "702", "name": "Perfil Prequirúrgico II", "category": "Prequirúrgico", "species": "ambos",
+     "description": "Cuadro Hemático, ALT, Creatinina, Glucosa", "price": 36000},
 ]
 
 
@@ -86,6 +91,15 @@ def _find_one_profile(value, species=None):
         if _norm(p["code"]) in key or _norm(p["name"]) in key or key in _norm(p["name"]):
             return p
     return None
+
+def _profiles_matching_category(text, species=None, limit=12):
+    """list_catalog_profiles_matching_category: usa el filtro puro REAL sobre el mock."""
+    from app.services.db import filter_profiles_by_category_mention
+    key = (species or "").strip().lower()
+    rows = [p for p in CATALOG_PROFILES
+            if key not in ("canino", "felino") or p["species"] in (key, "ambos")]
+    return filter_profiles_by_category_mention(rows, text)[:limit]
+
 
 _state = {}
 
@@ -168,6 +182,7 @@ _PATCHES = {
     "find_catalog_profile": dict(side_effect=_find_one_profile),
     "get_catalog_profiles_by_codes": dict(side_effect=_profiles_by_codes),
     "list_catalog_profiles_for_species": dict(side_effect=_profiles_for_species),
+    "list_catalog_profiles_matching_category": dict(side_effect=_profiles_matching_category),
     "find_tests_by_area": dict(side_effect=_area_tests),
     "get_tests_by_codes_or_names": dict(side_effect=_tests_by_names),
     "get_tests_by_codes": dict(side_effect=_tests_by_names),
@@ -362,7 +377,7 @@ def main():
         #     análisis REAL del catálogo, no el texto genérico "orina".
         def checks_h(replies):
             out = []
-            menu = replies[4] or ""
+            menu = replies[5] or ""
             if "1" not in menu or "uroanálisis" not in menu.lower().replace("analisis", "análisis"):
                 out.append(f"no se desplegó el menú de Uroanálisis: '{menu[:90]}'")
             f = _state["session"]["captured_fields"]
@@ -382,7 +397,7 @@ def main():
         results.append(_run_conversation(
             "H. 'El primero' de lista por área (orina)", "val-h",
             ["Hola", "1", "Somos la Veterinaria San Roque", "sí, esa está bien",
-             "quiero un análisis de orina", "el primero"],
+             "sí, esa dirección está bien", "quiero un análisis de orina", "el primero"],
             checks_h,
         ))
 
@@ -584,6 +599,140 @@ def main():
              "para ver los motivos de su muerte",
              "estoy registrado te paso mis datos para programar la recogida de meustras"],
             checks_t,
+        ))
+        # U — ERR-045: pedir un perfil por CATEGORÍA ('pre quirúrgico') ofrece los
+        #     perfiles ARMADOS de esa categoría (no la lista genérica por especie) y la
+        #     orden cierra con el perfil elegido, su código y su precio real.
+        def checks_u(replies):
+            out = []
+            menu = (replies[12] or "")
+            menu_norm = _norm(menu)
+            # _norm elimina caracteres acentuados ('prequirúrgico' -> 'prequirrgico').
+            if "701" not in menu or "prequir" not in menu_norm:
+                out.append(f"no ofreció los perfiles prequirúrgicos armados: '{menu[:90]}'")
+            if "401" in menu or "402" in menu:
+                out.append(f"cayó a la lista genérica por especie: '{menu[:90]}'")
+            if len(_state["requests"]) != 1:
+                out.append(f"esperaba 1 orden creada, hay {len(_state['requests'])}")
+                return out
+            f = _state["requests"][-1].get("captured_fields") or {}
+            if str(f.get("_selected_profile_code")) != "701":
+                out.append(f"el perfil elegido no quedó con código: {f.get('_selected_profile_code')!r}")
+            if int(f.get("_selected_profile_price") or 0) != 24000:
+                out.append(f"el perfil cerró sin precio real: {f.get('_selected_profile_price')!r}")
+            return out
+
+        results.append(_run_conversation(
+            "U. Perfil por categoría (prequirúrgico) → perfiles armados", "val-u",
+            ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
+             "Dra. Laura Méndez", "Anahí", "canino", "pitbull", "hembra",
+             "2 años", "Luciano", "sin observaciones",
+             "cuál me recomiendas pre quirúrgico? qué perfil tienen?",
+             "el 1", "no, seguimos con el pago", "contraentrega", "sí, confirmo"],
+            checks_u,
+        ))
+        # V — ERR-046: con la confirmación de dirección PENDIENTE, el cliente responde
+        #     otra cosa ("quiero un análisis de orina"). El dato se conserva pero la
+        #     dirección se RE-PREGUNTA (no se asume); al confirmarla, el flujo retoma
+        #     el menú del área y la selección funciona.
+        def checks_v(replies):
+            out = []
+            reask = replies[4] or ""
+            if "45" not in reask or "direcci" not in reask.lower():
+                out.append(f"no re-preguntó la dirección pendiente: '{reask[:90]}'")
+            if "médico" in reask.lower():
+                out.append(f"avanzó al médico sin confirmar la dirección: '{reask[:90]}'")
+            # El pedido del cliente no se pierde: la misma respuesta atiende el análisis
+            # (menú de área, sugerencia o registro) antes de re-preguntar la dirección.
+            if not any(k in _norm(reask) for k in ("orina", "uroanalisis", "renal", "prueba", "analisis")):
+                out.append(f"la re-pregunta ignoró el pedido del cliente: '{reask[:90]}'")
+            f = _state["session"]["captured_fields"]
+            if not f.get("_address_confirmed"):
+                out.append("la dirección no quedó confirmada tras el sí explícito")
+            return out
+
+        results.append(_run_conversation(
+            "V. Dirección pendiente + respuesta esquiva → re-pregunta", "val-v",
+            ["Hola", "1", "Somos la Veterinaria San Roque", "sí, esa está bien",
+             "quiero un análisis de orina", "sí, esa dirección está bien"],
+            checks_v,
+        ))
+        # W — ERR-048: la frase real de la prueba fallida ("Tienes perfiles pre
+        #     quirúrgico?", categoría con ESPACIO que la etiqueta diagnóstica no matchea)
+        #     debe ofrecer los perfiles armados de la categoría, sin caer al menú
+        #     genérico por especie ni ser pisada por la plantilla del dato faltante.
+        def checks_w(replies):
+            out = []
+            menu = replies[12] or ""
+            if "701" not in menu or "prequir" not in _norm(menu):
+                out.append(f"no ofreció los perfiles prequirúrgicos: '{menu[:90]}'")
+            if "lo anoto" in menu.lower():
+                out.append(f"la plantilla del dato faltante pisó el menú: '{menu[:90]}'")
+            if len(_state["requests"]) != 1:
+                out.append(f"esperaba 1 orden creada, hay {len(_state['requests'])}")
+                return out
+            f = _state["requests"][-1].get("captured_fields") or {}
+            if str(f.get("_selected_profile_code")) != "701":
+                out.append(f"el perfil elegido no quedó con código: {f.get('_selected_profile_code')!r}")
+            return out
+
+        results.append(_run_conversation(
+            "W. 'Tienes perfiles pre quirúrgico?' → perfiles armados", "val-w",
+            ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
+             "Dra. Laura Méndez", "Pepe", "canino", "pitbull", "macho",
+             "2 años", "Gaston", "sin observaciones",
+             "Tienes perfiles pre quirúrgico?",
+             "el 1", "no, seguimos con el pago", "contraentrega", "sí, confirmo"],
+            checks_w,
+        ))
+        # X — ERR-050 (chat 4 real, 2026-07-04): agregar un análisis a un perfil ya
+        #     elegido. "agregarle un análisis más" NO ofrece perfiles nuevos; "un análisis
+        #     de orina" muestra el menú del ÁREA (no fuzzy-match a un test suelto); la
+        #     selección suma ESTRUCTURADA a selected_tests y el resumen trae el total
+        #     ajustado ($24.000 + $52.000 = $76.000), no solo el perfil base.
+        def checks_x(replies):
+            out = []
+            ask_which = replies[14] or ""
+            if "recomendar" in ask_which.lower() or "401" in ask_which or "402" in ask_which:
+                out.append(f"'agregarle un análisis más' ofreció perfiles nuevos: '{ask_which[:90]}'")
+            if "agregar" not in ask_which.lower():
+                out.append(f"no preguntó cuál análisis agregar: '{ask_which[:90]}'")
+            area_menu = replies[15] or ""
+            if "1603" not in area_menu and "urocultivo" not in _norm(area_menu):
+                out.append(f"'un análisis de orina' no desplegó el menú del área: '{area_menu[:90]}'")
+            added = replies[16] or ""
+            if "1603" not in added and "urocultivo" not in _norm(added):
+                out.append(f"la selección del menú no agregó el urocultivo: '{added[:90]}'")
+            summary = replies[17] or ""
+            if "$76,000 COP" not in summary:
+                out.append(f"el resumen no trae el total ajustado ($76,000): '{summary[:120]}'")
+            if "urocultivo" not in _norm(summary):
+                out.append(f"el resumen no lista el agregado: '{summary[:120]}'")
+            if len(_state["requests"]) != 1:
+                out.append(f"esperaba 1 orden creada, hay {len(_state['requests'])}")
+                return out
+            f = _state["requests"][-1].get("captured_fields") or {}
+            if str(f.get("_selected_profile_code")) != "701":
+                out.append(f"perfil base perdido: {f.get('_selected_profile_code')!r}")
+            sel = [str(t) for t in (f.get("selected_tests") or [])]
+            if "1603" not in "".join(sel):
+                out.append(f"el agregado no quedó ESTRUCTURADO en selected_tests: {sel}")
+            if f.get("exam_type") != "Perfil Prequirúrgico I":
+                out.append(f"exam_type no es el nombre limpio del perfil: {f.get('exam_type')!r}")
+            return out
+
+        results.append(_run_conversation(
+            "X. Perfil elegido + agregar análisis (ERR-050)", "val-x",
+            ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
+             "Dra. Laura Méndez", "Anahi", "canino", "pitbull", "hembra",
+             "7 años", "Gaston", "sin observaciones",
+             "Tienes perfiles pre quirúrgico?",
+             "el 1",
+             "quiero agregarle un analisis mas a este perfil",
+             "quiero agregarle un analisis de orina al perfil",
+             "el urocultivo está bien",
+             "contraentrega", "sí, confirmo"],
+            checks_x,
         ))
     finally:
         for p in patchers:

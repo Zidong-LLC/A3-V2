@@ -49,8 +49,9 @@ def _full_ai_response(captured_fields, signal):
     }
 
 
-def _run(user_message, ai_signal, ai_captured):
+def _run(user_message, ai_signal, ai_captured, options=None):
     """Ejecuta un turno de process_turn con BD en memoria y un LLM mockeado."""
+    listed = options if options is not None else [OPTION_1, OPTION_2]
     session = {
         "chat_id": "chat-1",
         "channel": "telegram",
@@ -60,8 +61,8 @@ def _run(user_message, ai_signal, ai_captured):
         "captured_fields": {
             "_client_match_query": "los",
             "_client_match_options": [
-                {k: OPTION_1.get(k) for k in ("id", "clinic_name", "tax_id", "phone", "address")},
-                {k: OPTION_2.get(k) for k in ("id", "clinic_name", "tax_id", "phone", "address")},
+                {k: o.get(k) for k in ("id", "clinic_name", "tax_id", "phone", "address")}
+                for o in listed
             ],
         },
     }
@@ -84,6 +85,11 @@ def _run(user_message, ai_signal, ai_captured):
         "get_individual_tests_context": dict(return_value=""),
         "find_client_matches": dict(return_value=[]),
         "find_clients_by_tax_id": dict(return_value=[]),
+        # Rutas SIN selección (re-pedir nombre exacto / escalar a cliente nuevo):
+        "find_client_exact": dict(return_value=None),
+        "create_request": dict(return_value={"request_id": "req-1", "order_number": "A3-2026-001"}),
+        "create_pending_client_review": dict(return_value=None),
+        "clear_client_from_session": dict(side_effect=lambda c: session.update(client_id=None)),
     }
 
     from app import agent
@@ -133,3 +139,55 @@ def test_number_selection_still_works():
         ai_captured={},
     )
     assert session["client_id"] == OPTION_1["id"]
+
+
+# ── ABIERTO-004: afirmación con coincidencia ÚNICA ────────────────────────────
+# Ante "Lo más parecido que encuentro es: 1) X ... ¿Es esta?", el "sí, esa está
+# bien" debe seleccionar la única opción de forma determinista (antes quedaba a
+# merced del modelo: re-pedía el nombre exacto y descarrilaba la identificación).
+
+
+def test_affirmation_with_single_match_selects_it():
+    """'sí, esa está bien' con UNA sola coincidencia la selecciona (fallback tokens)."""
+    reply, session = _run(
+        "sí, esa está bien",
+        ai_signal="provides_requested_data",
+        ai_captured={},
+        options=[OPTION_1],
+    )
+    assert session["client_id"] == OPTION_1["id"]
+    assert "nombre exacto" not in (reply or "").lower()
+
+
+def test_affirm_signal_selects_single_match_without_exact_tokens():
+    """La lectura semántica de la IA (affirm) selecciona aunque la frase no tenga
+    los tokens afirmativos exactos ('esa misma que te digo')."""
+    reply, session = _run(
+        "esa misma que te digo",
+        ai_signal="affirm",
+        ai_captured={},
+        options=[OPTION_1],
+    )
+    assert session["client_id"] == OPTION_1["id"]
+
+
+def test_affirmation_with_two_matches_does_not_select():
+    """Con DOS coincidencias, un 'sí' pelado es ambiguo: NO selecciona; se re-pide
+    la precisión (número/nombre exacto) como antes."""
+    reply, session = _run(
+        "sí, esa está bien",
+        ai_signal="affirm",
+        ai_captured={},
+    )
+    assert session["client_id"] is None
+
+
+def test_new_client_claim_with_single_match_is_not_selected():
+    """'sí, somos un cliente nuevo' NO se toma como selección de la coincidencia."""
+    reply, session = _run(
+        "sí, somos un cliente nuevo",
+        ai_signal="new_or_unregistered_client",
+        ai_captured={},
+        options=[OPTION_1],
+    )
+    assert session["client_id"] is None

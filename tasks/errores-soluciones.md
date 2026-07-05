@@ -27,6 +27,16 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### RESUELTO-026 — "Animal Pet es la clínica..." se extraía como "Con La Que Trabajo" (2026-07-03)
+
+- **Síntoma:** En Chatwoot `chat=1`, el usuario respondió `animal Pet es la clínica con la que trabajo` y el bot contestó `No encuentro ningún cliente registrado con ese dato. ¿Eres cliente nuevo?`.
+- **Reproducción mínima:** `_extract_clinic_name_candidate("animal Pet es la clinica con la que trabajo")` devolvía el tramo descriptivo en vez de `animal Pet`.
+- **Causa raíz:** `_extract_clinic_name_candidate` cubría frases del tipo `clínica ... es X`, pero no el orden inverso `X es la clínica...`. En la sesión quedó persistido `clinic_name="Con La Que Trabajo"`; la búsqueda falló correctamente porque ese cliente no existe. La BD sí tiene `Animal Pets` activo y `Animal Pet` singular está inactivo.
+- **Solución (`app/agent.py`):** agregar extracción para el patrón inverso `X es la clínica/veterinaria...` antes de los marcadores existentes, con filtro para no aceptar pronombres como nombre.
+- **Tests:** `tests/test_db_identification.py::test_extract_clinic_name_from_reverse_marker_phrase`.
+- **Validación manual:** `db.identify_client(name="animal Pet")` encuentra `Animal Pets` activo; `check_supabase_state.py` OK.
+- **Estado:** ✅ CORREGIDO.
+
 ### RESUELTO-025 — Sesión con cliente identificado saltaba al médico solicitante sin pedir NIT (2026-06-24)
 
 - **Síntoma:** Cliente dice "necesito analizar unas muestras". El bot responde "¿Cuál es el médico solicitante?" sin haber preguntado NIT ni confirmado datos del cliente.
@@ -469,6 +479,79 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 ---
 
 ## Correcciones aplicadas
+
+### ERR-050 — Agregar un análisis a un perfil ya elegido: ruteo roto y el agregado se perdía del total
+- Severidad: crítico (el resumen y el total de la orden perdían plata en silencio: $24.000 en vez de $40.000)
+- Flujo: perfil / personalización (agregar análisis a un perfil base)
+- Síntoma observado (prueba real del usuario, chat 4, 2026-07-04 12:25–12:31, con perfil 152 elegido):
+  1. "quiero agregarle un analisis mas a este perfil" → menú de perfiles recomendados por especie (Perfiles Cachorros para una perra de 7 años) en vez de preguntar cuál agregar.
+  2. "quiero el perfil 152 y agregarle un analisis mas a este si ?" → el MISMO menú, textual.
+  3. "quiero agregarle un analisis de orina al perfil" → "Listo, agrego 1507-Cortisol en Orina $33k": fuzzy-match de "orina" a un test suelto, sin confirmar.
+  4. "que analisis de orina hacen?" → muestrario mixto de todas las áreas que además BORRABA selected_tests y exam_type (el Cortisol desapareció en silencio).
+  5. "el parcial de orina esta bien!" se leyó como "está bien, sigamos" (frase de proceder al pago) y el análisis nunca se agregó; el modelo lo anotó después como TEXTO en exam_type ("Perfil Prequirúrgico I + Parcial de Orina $16k") pero selected_tests quedó vacío → resumen final "Perfil Prequirúrgico I — $24,000 / Valor estimado: $24,000". Además, tras capturar el pago re-preguntó el perfil (paso atrás) porque exam_type había quedado en None con el perfil base activo.
+- Causa raíz (dos capas):
+  1. RUTEO: los guardrails de recomendación tenían precedencia sobre la intención de AGREGAR — en `_handle_extra_analysis_answer`, la condición `"perfil" + "mas"` disparaba la lista por especie; la mención de un área en afirmativo no llegaba a `_area_options_for_profile_addition` (gate de pregunta) y caía al fuzzy de `get_tests_by_codes_or_names` ("orina" ⊂ "Cortisol en Orina"); `_is_catalog_overview_question` corría antes que todo y `_test_options_response` limpiaba la orden en curso.
+  2. ESTADO: el agregado no tenía fuente única — podía vivir como texto en exam_type (LLM), en selected_tests (estructura) o solo implícito en `_selected_profile_*`; el resumen y el payload (db.py:1120 arma added_tests desde selected_tests) solo leen la estructura, así que todo lo anotado como texto se perdía. Los fixes por detección de frase (RESUELTO-014) no cubrían estas variantes.
+- Solución aplicada (invariante + ruteo, no parches por frase):
+  - INVARIANTE `_enforce_profile_exam_type_integrity` (pipeline post-AI): con perfil base, exam_type es EXACTAMENTE el nombre del perfil; los agregados anotados como texto se resuelven contra el catálogo y se suman a selected_tests; exam_type vacío con perfil activo se restaura (mata el paso atrás post-pago). Resumen/total salen SIEMPRE de la estructura.
+  - RUTEO con perfil elegido: (a) intención de agregar → `_selected_profile_addition_response` (nunca el menú de recomendación; nuevo paso 2b en `_handle_extra_analysis_answer`, respeta un código de perfil nombrado y excluye los pedidos de QUITAR); (b) mención de área en afirmativo → menú del área marcado para AGREGAR (`_area_options_for_profile_addition(require_question=False)`, también en `_confirmation_analysis_adjustment`); (c) pregunta de catálogo con análisis en curso → menú del área (o muestrario) marcado para AGREGAR, sin tocar la orden; (d) lookup por nombre: mensaje completo primero, términos sueltos solo como fallback; (e) selección de menú tolera palabras alrededor (matching del nombre sin paréntesis, mínimo 5 caracteres) — "el parcial de orina esta bien!" selecciona en vez de leerse como "proceder al pago"; (f) `_capture_test_menu_selection` (reemplazo total) limpia el perfil base viejo.
+  - Menor: concordancia de género en "el mismo" (`_FIELD_GRAMMAR`: "la dirección de retiro es la misma", "¿Cuál es el médico solicitante?") + R19 alineada en el prompt.
+- Archivos afectados: `app/agent.py` (9 cambios), `app/prompt.py` (R19), `tests/test_profile_addition_invariant.py` (11 tests nuevos), caso X en `tools/scripts/validate_flows.py`.
+- Tests: suite 172 passed (los 4 fallos de test_dashboard/exec_alerts_count son preexistentes). Modelo real (`ALEGRA_ENABLED=false`): caso X OK end-to-end — "agregarle un análisis más" pregunta cuál, "análisis de orina" da el menú del área, la selección suma estructurada y el resumen cierra con "Agregados: 1603-Urocultivo $52k / Valor estimado: $76,000 COP". Vecinos A/G/H/Q/R/U/W OK.
+- Nota: el caso V (ERR-046) es flaky por no-determinismo del modelo (misma corrida alterna OK/PROBLEMAS con código idéntico; depende de si el modelo captura el análisis en el turno esquivo). No es regresión de este fix.
+- Estado: corregido (pendiente re-prueba del usuario por Telegram).
+
+### ERR-048 — "Tienes perfiles pre quirúrgico?" (con espacio) respondía "Perfecto, lo anoto" y re-preguntaba el análisis
+- Severidad: alto (mismo síntoma reportado en ERR-045; el fix de ERR-045 no cubría esta variante)
+- Flujo: catálogo / pregunta por perfiles de una categoría
+- Síntoma observado (prueba real del usuario, chat 4, 2026-07-03 18:02, tras el reset): el bot preguntó el análisis y el cliente respondió "Tienes perfiles pre quirúrgico?"; el bot contestó "Perfecto, lo anoto. Por último, ¿qué análisis o perfil desean?" — no mostró nada y repitió la pregunta.
+- Causa raíz (dos fallas encadenadas):
+  1. `db.find_diagnostic_label` no matchea "pre quirúrgico" SEPARADO (solo "prequirurgico" junto), y la frase no trae tokens de recomendación ni "armados": ninguna entrada al menú por categoría de ERR-045 se disparó. El flujo cayó a `_enforce_analysis_help_fallback`, que armó el menú genérico por especie (Cachorros).
+  2. `_enforce_first_missing_after_progress` pisó esa respuesta con la plantilla "Perfecto, lo anoto. + dato faltante": protege `_test_menu_options` pero NO `_profile_menu_options`. (Este guard es también el culpable del turno "Pre quirúrgicos te pedí" → "lo anoto" del reporte original de ERR-045.)
+- Solución aplicada:
+  1. En `_enforce_diagnostic_label_help`, el intento de perfiles armados por categoría corre con `label or candidate`: si la etiqueta no resuelve, el matcher de categoría (normaliza tildes Y espacios) igual reconoce "pre quirúrgico" en el texto crudo.
+  2. `_enforce_first_missing_after_progress` ya no pisa una respuesta con `_profile_menu_options` recién ofrecido (el menú ES la pregunta del análisis).
+- Archivos afectados: `app/agent.py` (2 cambios puntuales), `tests/test_category_profile_menu.py` (2 tests nuevos), caso W en `tools/scripts/validate_flows.py`.
+- Tests: suite 124 passed. Modelo real: caso W (la frase exacta de la prueba fallida, "Tienes perfiles pre quirúrgico?") → OK end-to-end: menú de armados, "el 1" registra 701 con precio, orden cerrada.
+- Nota operativa: el Flask local corría el código previo al fix; se reinició (y se relevantó ngrok, que estaba caído) para que la prueba real use esta versión.
+- Estado: corregido (pendiente re-prueba del usuario).
+
+### ERR-046 — Respuesta esquiva daba por confirmada la dirección pendiente en silencio
+- Severidad: alto (una confirmación de negocio se asumía sin que el cliente la diera)
+- Flujo: confirmación de dirección de retiro
+- Síntoma observado (validate_flows con modelo real, flujo H, 2026-07-03; señalado por el usuario): con "¿Es correcta la dirección?" pendiente, el cliente respondió "quiero un análisis de orina" y el bot dio la dirección por confirmada en silencio y siguió con "¿Cuál es el médico solicitante?"; la confirmación se perdía.
+- Causa raíz: el guardrail de progreso (`agent.py`, bloque `_address_confirmation_pending`) contaba los datos capturados en ESE MISMO turno como "el flujo ya avanzó" y bajaba el flag. La regla existía para sesiones legacy con el flag pegado, pero tragaba la pregunta recién hecha.
+- Solución aplicada (criterio del usuario: responder a lo que dijo, conservar el dato, pero SIEMPRE re-preguntar lo pendiente):
+  1. "Ya avanzó" solo cuenta datos de turnos ANTERIORES (`prev_captured`), no del turno actual.
+  2. Si en el mensaje da OTRA dirección, esa vale como corrección confirmada.
+  3. Si responde otra cosa: lo capturado se conserva, el pipeline responde al mensaje (menú/dato/precio) y AL FINAL del turno se re-pregunta la dirección (inyección después de la cadena de guardrails, para que un menú no la pise; una versión previa inyectada antes de la cadena era sobrescrita por `_enforce_diagnostic_label_help`).
+- Archivos afectados: `app/agent.py` (bloque de dirección pendiente + inyección final), `tests/test_address_pending_reask.py` (nuevo), caso V en `tools/scripts/validate_flows.py`.
+- Tests: 4 nuevos (re-pregunta conservando el dato, confirmación normal, dirección nueva como corrección, auto-confirmación legacy multi-turno intacta); suite 122 passed. Modelo real: caso V OK (menú de uroanálisis + re-pregunta de dirección en el mismo mensaje, dirección confirmada después) y A/G/H/Q/R/U OK.
+- Estado: corregido.
+
+### ERR-047 — "sí, esa está bien" no seleccionaba la coincidencia única de cliente (ex ABIERTO-004)
+- Severidad: medio (la identificación se descarrilaba y terminaba escalando a un cliente registrado)
+- Flujo: identificación de cliente (selección de coincidencias)
+- Síntoma observado (validate_flows con modelo real, flujos G/H, 2026-07-03): ante la lista de coincidencia ÚNICA ("¿Es esta? Responde con el número 1, o dime si no es ninguna."), "sí, esa está bien" no seleccionaba; el bot re-pedía el nombre exacto y terminaba en cliente nuevo/escalado. Flaky (Q/R con turnos idénticos sí identificaban): dependía de la interpretación del modelo. Preexistente — verificado con git stash.
+- Causa raíz: `_select_client_match` solo resolvía número, ordinal o nombre; la afirmación simple con UNA opción no tenía camino determinista.
+- Solución aplicada: con exactamente 1 opción listada, una afirmación selecciona esa opción. Fuente primaria: la lectura semántica de la IA (`user_intent_signal == "affirm"`); fallback: tokens afirmativos. No aplica si el mensaje dice ser cliente nuevo/no registrado (eso mantiene el camino de escalado).
+- Archivos afectados: `app/agent.py` (`_select_client_match` + señal en los 2 call sites), `tests/test_client_match_selection.py` (4 tests nuevos + parches de db para las rutas sin selección).
+- Tests: afirmación con 1 opción selecciona (tokens y señal semántica sin tokens exactos), con 2 opciones NO selecciona (ambiguo), "somos cliente nuevo" no se toma como selección. Modelo real: G y H pasaron a identificar correctamente.
+- Estado: corregido.
+
+### ERR-045 — Pedir un perfil por categoría (prequirúrgico) ignoraba los perfiles armados del catálogo
+- Severidad: alto (la orden llegó al resumen con un análisis inexistente en el catálogo, sin análisis concretos ni valor)
+- Flujo: catálogo / recomendación de perfiles / etiqueta diagnóstica
+- Síntoma observado (chat 4 Chatwoot, 2026-07-03 16:18–16:43, Pet Agro Colombia): (1) ante "¿Cuál me recomiendas pre quirúrgico, qué perfil tienen?" el bot recomendó la lista genérica por especie (Panel Inflamación + 5 perfiles de Cachorros, para una perra de 2 años), aunque el catálogo tiene 11 perfiles Prequirúrgicos armados (152–162); (2) "Pre quirúrgicos te pedí" → "Perfecto, lo anoto. Por último, ¿qué análisis o perfil desean?" (bucle); (3) con la etiqueta PREQUIRURGICO activa, "¿No tienes perfiles armados?" re-preguntó la especie ya capturada (respondió el modelo, sin guardrail); (4) "Ya te dije q especie es" terminó con `exam_type="PREQUIRURGICO CANINO"` (no existe en el catálogo) y salto directo a la pregunta de pago; el resumen final salió sin análisis incluidos y sin valor estimado.
+- Causa raíz: ninguna vía de recomendación consideraba la CATEGORÍA que el cliente nombró. La rama determinista pre-AI y `_enforce_profile_recommendation_help` listaban solo `list_catalog_profiles_for_species` (genérico); `_enforce_diagnostic_label_help` saltaba directo a pruebas sueltas a medida aunque la categoría tuviera perfiles armados; y con `_diagnostic_label` activo no había respuesta determinista para "perfiles armados", así que el modelo improvisaba (re-preguntar especie, inventar un exam_type sin respaldo de catálogo ni precio).
+- Solución aplicada:
+  1. `db.list_catalog_profiles_matching_category(text, species)`: perfiles activos cuya categoría normalizada (sin tildes/espacios: "pre quirúrgico" → "prequirurgico") aparece en el texto; lógica de filtrado en `filter_profiles_by_category_mention` (pura, testeable).
+  2. `agent._category_profiles_menu_response`: menú seleccionable (`_profile_menu_options`) con los perfiles armados de la categoría (códigos y precios reales), limpiando análisis previo y `_diagnostic_label`; menciona que también se puede armar a medida.
+  3. Conectado categoría-primero en: rama pre-AI de recomendación, `_enforce_profile_recommendation_help`, `_enforce_diagnostic_label_help` (perfiles armados antes que pruebas sueltas) y `_diagnostic_label_profile_turn` (nuevo detector `_asks_for_armed_profiles` para "¿no tienes perfiles armados?").
+- Archivos afectados: `app/services/db.py`, `app/agent.py`, `tests/test_category_profile_menu.py` (nuevo), `tests/test_analysis_options_restore.py` (patch de la nueva función).
+- Tests: 7 nuevos en `tests/test_category_profile_menu.py`; suite 151 passed (los 4 fallos de `test_dashboard.py` por `exec_alerts_count` son preexistentes, verificado con git stash). Verificado además contra el catálogo real: el mensaje exacto de la prueba devuelve los 11 perfiles 152–162 con precios, y "¿No tienes perfiles armados?" con la etiqueta activa responde el menú sin re-preguntar la especie.
+- Validación con modelo REAL (2026-07-03): nuevo caso U en `tools/scripts/validate_flows.py` (réplica de la conversación fallida; perfiles Prequirúrgicos en el catálogo mock y `list_catalog_profiles_matching_category` parcheada con el filtro puro real) → OK end-to-end: "¿cuál me recomiendas pre quirúrgico?" ofrece el menú de armados, "el 1" registra 701 con $24.000, el resumen muestra análisis y valor estimado, y la orden cierra. Flujos Q y R (etiqueta + personalización) siguen OK. Durante esta validación apareció ABIERTO-004 (identificación, preexistente).
+- Estado: corregido (pendiente prueba conversacional real del usuario).
 
 ### ERR-044 — Confirmar el detalle de un perfil reabría opciones de Perfil General
 - Severidad: medio (respuesta confusa tras mostrar detalle de perfil)
@@ -1018,6 +1101,19 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 > Bloque generado con `python tools/scripts/refresh_error_report.py`.
 
 ### Lecciones registradas
+- L58 — Identificación de cliente también viene como "X es la clínica", no solo "clínica es X" (RESUELTO-026)
+- L57 — Alegra debe buscar contactos con y sin DV antes de crear (RESUELTO-019)
+- L56 — La intención compuesta también llega como “análisis extra”, no solo “agregar” (RESUELTO-018)
+- L55 — Nunca armar texto normalizado desde un set; un paso conversacional repetible necesita salida explícita (RESUELTO-017)
+- L54 — Las listas de opciones las arma el CÓDIGO desde la BD, no el modelo; los guards disparan con el mensaje del usuario, no solo con exam_type (RESUELTO-016)
+- L53 — Una afirmación pelada significa "cliente nuevo" SOLO si el bot lo preguntó (RESUELTO-015, recurrencia de L46)
+- L52 — Una pregunta abierta por área durante el ajuste de un perfil debe listar opciones, no caer al resumen (RESUELTO-014)
+- L51 — En confirmación, un ajuste parcial gana sobre el cierre (RESUELTO-013)
+- L50 — El resumen debe combinar concepto y precio en una sola línea (RESUELTO-012)
+- L49 — Una confirmación de perfil se resuelve por intención, no por frase exacta (ERR-044)
+- L48 — Los códigos del catálogo ganan sobre etiquetas diagnósticas (ERR-043)
+- L47 — Banderas de estado deben reconciliarse con el avance real, no quedar pegadas (RESUELTO-010)
+- L47 — Resolver perfiles por CÓDIGO, y llevar el NIT a facturación (ERR-041)
 - L1 — Schema excesivo rompe el modelo
 - L2 — Fases rígidas como puertas rompen el flujo
 - L3 — Lógica fragmentada es imposible de depurar
@@ -1060,8 +1156,22 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 - L39 — Los guardrails de avance no deben pisar respuestas de lookup
 - L40 — Toda frase real se procesa como paquete: datos + preguntas + BD
 - L41 — Catalogo generico no es analisis cerrado
+- L42 — Una respuesta operativa fija solo aplica a PREGUNTAS, no a ordenes impacientes
+- L45 — Agregar análisis a un perfil del catálogo no debe perder el precio base (ERR-039)
+- L44 — "No sé qué pedir" necesita guard determinista; y distinguir cambio TOTAL vs PARCIAL del análisis (ERR-038)
+- L46 — Interpretar por contexto/intención, nunca por longitud del mensaje (ERR-040)
+- L43 — Testear con una IA-cliente adversarial, nunca con respuestas del LLM hardcodeadas
+- L47 — Una pregunta pendiente se re-pregunta al final del turno; nunca se asume por progreso del mismo turno (ERR-046)
+- L48 — Los datos con plata viven en UNA estructura; el texto libre del modelo nunca es fuente de verdad (ERR-050)
 
 ### Tareas registradas
+- Fix: ERR-050 — agregar análisis a un perfil elegido (prueba real 2026-07-04, chat 4) — COMPLETADO
+- Fix: ERR-046 + ERR-047 (confirmación pendiente y selección de coincidencia) — COMPLETADO
+- Fix: perfiles armados por categoría ignorados (prueba 2026-07-03, chat 4) — COMPLETADO
+- Módulo "Facturación" (Alegra) — Completado (falta aplicar migración 014)
+- Personalización de columnas en tablas del CRM — Completado (falta aplicar migración)
+- Bug: agregar otro análisis/perfil se traba (chat 4 real) — En curso
+- Integración de Alegra (facturación electrónica DIAN) — Por fases — En curso
 - Bucle de especie/typos + fallback robótico (caso Luciano) ✅ COMPLETA
 - Capa de coherencia en el flujo de datos del paciente ✅ COMPLETA
 - Forma de pago dentro de ruta activa ✅ COMPLETA

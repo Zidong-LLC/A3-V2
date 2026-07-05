@@ -2,6 +2,100 @@
 
 ---
 
+## Fix: ERR-050 — agregar análisis a un perfil elegido (prueba real 2026-07-04, chat 4) — COMPLETADO
+
+**Problema (5 síntomas en la conversación real):** con el perfil 152 elegido, (1) "agregarle
+un análisis más" mostraba perfiles Cachorros; (2) la insistencia repetía el mismo menú;
+(3) "un análisis de orina" agregaba Cortisol ($33k) por fuzzy-match sin confirmar;
+(4) "¿qué análisis de orina hacen?" daba un muestrario mixto que BORRABA la orden en curso;
+(5) el agregado final quedó como texto en exam_type y el resumen cobró $24.000 en vez de $40.000.
+
+**Solución (invariante + ruteo, aprobada por el usuario vía prompt):**
+- [x] Invariante `_enforce_profile_exam_type_integrity`: agregados SIEMPRE en selected_tests;
+      exam_type = nombre exacto del perfil; texto libre se resuelve a estructura o se descarta;
+      exam_type vacío con perfil activo se restaura (mata el paso atrás post-pago).
+- [x] Ruteo: agregar → ajuste del perfil (nunca menú de recomendación); área en afirmativo →
+      menú del área (`require_question=False`, también en confirmación); pregunta de catálogo
+      con análisis en curso no pisa la orden; lookup mensaje-completo primero; selección de
+      menú tolera palabras alrededor (nombre sin paréntesis, mín. 5 chars); reemplazo total
+      limpia el perfil base viejo.
+- [x] Menor: concordancia de género (`_FIELD_GRAMMAR`) en "el mismo" + R19 del prompt.
+- [x] Tests: `tests/test_profile_addition_invariant.py` (11 nuevos); suite 172 passed
+      (4 fallos de test_dashboard preexistentes).
+- [x] Modelo real (`ALEGRA_ENABLED=false`): caso X nuevo OK end-to-end (resumen con
+      "Agregados: 1603-Urocultivo $52k / Valor estimado: $76,000 COP"); vecinos
+      A/G/H/Q/R/U/W OK. El caso V es flaky por no-determinismo del modelo (preexistente,
+      alterna OK/PROBLEMAS con código idéntico).
+- [x] Docs: ERR-050 en errores-soluciones.md, B9/B11 del contrato, lección L48.
+
+**Pendiente:** re-prueba conversacional del usuario por Telegram (Flask hay que reiniciarlo
+para cargar este código).
+
+---
+
+## Fix: ERR-046 + ERR-047 (confirmación pendiente y selección de coincidencia) — COMPLETADO
+
+**ERR-047 (ex ABIERTO-004):** "sí, esa está bien" ante la lista de coincidencia única no
+seleccionaba al cliente y la identificación se descarrilaba. Fix: con 1 sola opción, una
+afirmación la selecciona — `user_intent_signal == "affirm"` como fuente primaria, tokens
+como fallback; no aplica si dice ser cliente nuevo. 4 tests nuevos en
+`tests/test_client_match_selection.py`.
+
+**ERR-046 (señalado por el usuario):** con la confirmación de dirección pendiente, una
+respuesta esquiva ("quiero un análisis de orina") la daba por confirmada en silencio.
+Fix (criterio del usuario: responder a lo que dijo, conservar el dato, re-preguntar lo
+pendiente): el progreso solo cuenta turnos anteriores; otra dirección en el mensaje vale
+como corrección; en cualquier otro caso el pipeline responde al mensaje y AL FINAL del
+turno se re-pregunta la dirección (inyección post-guardrails para que un menú no la pise).
+4 tests nuevos en `tests/test_address_pending_reask.py` + caso V en validate_flows.
+
+**Verificación:** suite unitaria 122 passed; modelo real `validate_flows.py` con
+`ALEGRA_ENABLED=false`: A, G, H, Q, R, U y V todos OK. Lección L47 en `tasks/lessons.md`.
+
+---
+
+## Fix: perfiles armados por categoría ignorados (prueba 2026-07-03, chat 4) — COMPLETADO
+
+**Problema (prueba real de hoy):** cliente pidió "perfil prequirúrgico" y el bot:
+(1) recomendó perfiles genéricos por especie (Cachorros para una perra de 2 años) aunque
+el catálogo tiene 11 perfiles Prequirúrgicos armados (152–162); (2) con la etiqueta
+PREQUIRURGICO activa, ante "¿No tienes perfiles armados?" re-preguntó la especie ya
+capturada; (3) "Ya te dije q especie es" terminó saltando al pago con
+`exam_type="PREQUIRURGICO CANINO"` (inexistente en catálogo, sin análisis ni valor).
+
+**Plan:**
+- [x] 1. `db.py`: nueva `list_catalog_profiles_matching_category(text, species, limit)` —
+      matching por categoría normalizada (sin tildes/espacios), defensiva, con la
+      lógica de filtrado en función pura testeable (`filter_profiles_by_category_mention`).
+- [x] 2. `agent.py`: helper `_category_profiles_menu_response(fields, text)` que arma el
+      menú seleccionable (`_profile_menu_options`) con los perfiles de la categoría
+      nombrada, limpiando análisis previo y `_diagnostic_label`.
+- [x] 3. Conectarlo (categoría primero, especie como fallback) en: rama pre-AI de
+      recomendación, `_enforce_profile_recommendation_help`, `_enforce_diagnostic_label_help`
+      (perfiles armados antes que pruebas sueltas) y `_diagnostic_label_profile_turn`
+      (etiqueta activa + pide perfiles armados, detector `_asks_for_armed_profiles`).
+      NOTA: NO se tocó `_handle_extra_analysis_answer` (paso 3) para limitar el radio
+      del cambio; ahí sigue el menú por especie.
+- [x] 4. Tests de regresión: `tests/test_category_profile_menu.py` (7 nuevos) + patch de
+      la nueva función en `tests/test_analysis_options_restore.py`.
+- [x] 5. Suite completa: 151 passed. Los 4 fallos de `test_dashboard.py`
+      (`exec_alerts_count`) son preexistentes — verificado con git stash.
+- [x] 6. ERR-045 registrado en `tasks/errores-soluciones.md`.
+
+**Resultados:** verificado contra el catálogo real (solo lectura): el mensaje exacto de la
+prueba fallida ("Cual me recomiendas pre quirúrgico q perfil tienen?") ahora devuelve el
+menú con los 11 perfiles Prequirúrgicos (152–162) con precios reales, y "¿No tienes
+perfiles armados?" con la etiqueta activa responde el menú sin re-preguntar la especie.
+Validación con modelo REAL (caso U nuevo en `tools/scripts/validate_flows.py`, con
+`ALEGRA_ENABLED=false` para no tocar Alegra): OK end-to-end — menú de armados, "el 1"
+registra 701 con $24.000, resumen con valor estimado y orden cerrada. Q y R siguen OK.
+Hallazgo colateral PREEXISTENTE (reproducido con git stash, no causado por este fix):
+"sí, esa está bien" no selecciona la coincidencia única de cliente → registrado como
+ABIERTO-004, fix propuesto pendiente de OK (toca el paso de identificación).
+Pendiente: prueba conversacional real del usuario end-to-end.
+
+---
+
 ## Módulo "Facturación" (Alegra) — Completado (falta aplicar migración 014)
 
 **Objetivo:** centro de consulta de facturas de Alegra dentro del dashboard (Fase 4 de la

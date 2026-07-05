@@ -317,6 +317,16 @@ _FIELD_LABELS = {
     "payment_method": "forma de pago",
 }
 
+# Concordancia de género para armar frases con los labels ("la dirección de retiro es
+# la misma", no "el dirección... es el mismo"). Default: masculino.
+_FIELD_GRAMMAR = {
+    "pickup_address": ("la", "la misma"),
+    "payment_method": ("la", "la misma"),
+    "species": ("la", "la misma"),
+    "breed": ("la", "la misma"),
+    "patient_age": ("la", "la misma"),
+}
+
 _CORRECTION_FIELD_KEYWORDS = (
     (("direccion", "dirección", "domicilio", "retiro"), "pickup_address"),
     (("medico", "médico", "solicitante", "doctor", "doctora"), "requesting_doctor"),
@@ -662,6 +672,19 @@ def _wants_profile_recommendation(text: str) -> bool:
     return bool(set(_tokenize(text)) & _RECOMMENDATION_TOKENS)
 
 
+_ARMED_PROFILE_TOKENS = frozenset({
+    "armado", "armados", "armadas", "prearmado", "prearmados", "prearmadas",
+    "predefinido", "predefinidos", "predefinida", "predefinidas", "hechos", "listos",
+})
+
+
+def _asks_for_armed_profiles(text: str) -> bool:
+    """¿El cliente pregunta por perfiles ya armados/prearmados del catálogo?
+    Ej.: '¿no tienes perfiles armados?'."""
+    tokens = set(_tokenize(text))
+    return bool(tokens & {"perfil", "perfiles"}) and bool(tokens & _ARMED_PROFILE_TOKENS)
+
+
 def _wants_partial_analysis_change(text: str) -> bool:
     """¿El cliente quiere MANTENER el análisis/perfil anterior y solo ajustarlo
     (agregar o quitar pruebas), no empezar de cero? Ej.: 'el mismo pero sin coproscópico',
@@ -702,16 +725,53 @@ def _wants_to_change_analysis(text: str) -> bool:
     return bool(tokens & _ANALYSIS_NOUN_TOKENS) and bool(tokens & _ANALYSIS_CHANGE_SIGNAL_TOKENS)
 
 
-def _format_profile_recommendation(species: str, profiles: list[dict]) -> str:
-    """Lista de perfiles recomendados para la especie en formato legible: una línea por
-    perfil con código, análisis incluidos y precio. Seleccionable por número o nombre."""
-    lines = [f"Para {species.lower()} te puedo recomendar estos perfiles:"]
+def _profile_menu_option_lines(profiles: list[dict]) -> list[str]:
+    lines = []
     for idx, p in enumerate(profiles, start=1):
         desc = p.get("description")
         detail = f": {desc}" if desc else ""
         lines.append(f"{idx}. {p.get('code')} {p.get('name')}{detail} — {_money(p.get('price'))}")
+    return lines
+
+
+def _format_profile_recommendation(species: str, profiles: list[dict]) -> str:
+    """Lista de perfiles recomendados para la especie en formato legible: una línea por
+    perfil con código, análisis incluidos y precio. Seleccionable por número o nombre."""
+    lines = [f"Para {species.lower()} te puedo recomendar estos perfiles:"]
+    lines.extend(_profile_menu_option_lines(profiles))
     lines.append("Decime el número o el nombre del que prefieras y lo registro.")
     return "\n".join(lines)
+
+
+def _format_category_profile_menu(category: str, profiles: list[dict]) -> str:
+    """Menú de perfiles ARMADOS de una categoría del catálogo (ej. Prequirúrgico),
+    seleccionable por número, código o nombre, con precios reales."""
+    lines = [f"Para {category.lower()} tenemos estos perfiles armados:"]
+    lines.extend(_profile_menu_option_lines(profiles))
+    lines.append(
+        "Decime el número o el nombre del que prefieras y lo registro. "
+        "Si prefieres, también lo armamos a medida con pruebas sueltas."
+    )
+    return "\n".join(lines)
+
+
+def _category_profiles_menu_response(fields: dict, category_text: str) -> dict | None:
+    """Si el cliente nombró una categoría de perfiles armados del catálogo (ej.
+    'prequirúrgico'), ofrecerlos en un menú seleccionable con códigos y precios reales,
+    en vez de la lista genérica por especie o de pruebas sueltas (ERR-045). None si el
+    texto no menciona ninguna categoría con perfiles."""
+    profiles = db.list_catalog_profiles_matching_category(category_text, fields.get("species"))
+    if not profiles:
+        return None
+    _clear_field_for_correction(fields, "exam_type")
+    fields.pop("_diagnostic_label", None)
+    fields.pop("_correction_pending", None)
+    fields["_profile_menu_options"] = [
+        {"code": p.get("code"), "name": p.get("name"), "price": int(p.get("price") or 0)}
+        for p in profiles if p.get("code")
+    ]
+    category = profiles[0].get("category") or "ese perfil"
+    return _base_route_response(_format_category_profile_menu(category, profiles), fields)
 
 
 def _select_profile_from_menu(text: str, options: list[dict]) -> dict | None:
@@ -723,18 +783,21 @@ def _select_profile_from_menu(text: str, options: list[dict]) -> dict | None:
 
 def _selected_profile_addition_response(session: dict, fields: dict, user_message: str, intro: str) -> dict:
     fields["_profile_customizing"] = True
-    area_response = _area_options_for_profile_addition(fields, user_message)
+    # Área mencionada (pregunta O pedido afirmativo): menú de esa área para elegir con
+    # código y precio reales, antes que cualquier match difuso por nombre.
+    area_response = _area_options_for_profile_addition(fields, user_message, require_question=False)
     if area_response:
         area_response["reply"] = f"{intro}\n{area_response['reply']}"
         return area_response
-    extra = db.get_tests_by_codes_or_names(_named_analysis_terms(user_message))
+    # Nombre/código concreto: el mensaje completo primero (match más específico); los
+    # términos sueltos solo como fallback, para no sumar tests espurios por una palabra.
+    extra = (db.get_tests_by_codes_or_names([user_message])
+             or db.get_tests_by_codes_or_names(_named_analysis_terms(user_message)))
     if extra:
         _add_tests_to_order(fields, extra, "add")
-        missing = _missing_route_field(session, fields)
-        reply = f"{intro} Agrego {_format_test_items(extra)}."
-        if missing and missing != "exam_type":
-            reply += f" {_missing_route_field_question(missing)}"
-        return _base_route_response(reply, fields)
+        fields["_profile_customizing"] = False
+        # Respuesta centralizada (RESUELTO-017): re-ofrece agregar más o avanza.
+        return _analysis_settled_response(session, fields, f"{intro} Agrego {_format_test_items(extra)}.")
     fields["_awaiting_additional_test"] = "add"
     return _base_route_response(f"{intro} ¿Qué análisis quieres agregarle?", fields)
 
@@ -815,6 +878,14 @@ def _diagnostic_label_profile_turn(session: dict, fields: dict, user_message: st
         if missing and missing != "exam_type":
             reply += f" {_missing_route_field_question(missing)}"
         return _base_route_response(reply, fields)
+
+    # Pide perfiles ARMADOS (o una recomendación) mientras armaba a medida por etiqueta:
+    # ofrecer los perfiles del catálogo de esa categoría, sin re-preguntar datos ya
+    # capturados (ERR-045: re-preguntó la especie y después saltó al pago).
+    if _asks_for_armed_profiles(user_message) or _wants_profile_recommendation(user_message):
+        menu_response = _category_profiles_menu_response(fields, label)
+        if menu_response:
+            return menu_response
 
     if not _is_profile_customization_request(user_message):
         return None
@@ -968,7 +1039,17 @@ def _select_tests_from_menu(text: str, options: list[dict]) -> list[dict]:
             _catalog_item_key(o.get("name")) in text_key or text_key in _catalog_item_key(o.get("name"))
         )
     ]
-    return partial if len(partial) == 1 else []
+    if len(partial) == 1:
+        return partial
+    # Nombre sin el paréntesis aclaratorio: 'el parcial de orina está bien' debe matchear
+    # 'Parcial de Orina (14 parámetros)' aunque la frase traiga palabras alrededor (chat 4).
+    # Mínimo 5 caracteres para no matchear nombres cortos ('PT') dentro de otras palabras.
+    base_hits = []
+    for o in options:
+        base_key = _catalog_item_key(re.sub(r"\([^)]*\)", "", str(o.get("name") or "")))
+        if len(base_key) >= 5 and base_key in text_key:
+            base_hits.append(o)
+    return base_hits if len(base_hits) == 1 else []
 
 
 def _capture_test_menu_selection(session: dict, fields: dict, selected: list[dict]) -> dict:
@@ -982,6 +1063,11 @@ def _capture_test_menu_selection(session: dict, fields: dict, selected: list[dic
         fields["exam_type"] = f"Perfil personalizado ({len(selected)} análisis)"
     fields.pop("_test_menu_options", None)
     fields.pop("_test_menu_adds_to_profile", None)
+    # Reemplazo total: el perfil base anterior (si lo había) deja de aplicar; sin esto,
+    # el resumen/total seguiría saliendo del perfil viejo y no de lo elegido acá.
+    for key in ("_selected_profile_code", "_selected_profile_name", "_selected_profile_price",
+                "_selected_profile_description", "_profile_detail_offered", "_profile_detail_confirmed"):
+        fields.pop(key, None)
 
     # Mostrar el precio al lado de cada análisis (y el total si son varios), no solo el nombre.
     intro = f"Listo, registro {_format_test_items(selected)}."
@@ -1038,11 +1124,14 @@ def _asks_for_area_options(text: str) -> bool:
     return bool(tokens & _AREA_OPTION_QUESTION_TOKENS) or "?" in (text or "")
 
 
-def _area_options_for_profile_addition(fields: dict, user_message: str) -> dict | None:
-    """Si el cliente, mientras ajusta un perfil, pregunta por análisis de un ÁREA
+def _area_options_for_profile_addition(fields: dict, user_message: str,
+                                        require_question: bool = True) -> dict | None:
+    """Si el cliente, mientras ajusta un perfil, pide análisis de un ÁREA
     ('qué análisis de orina tienen'), devuelve el menú de esa área marcado para AGREGAR
-    al perfil base (no reemplazarlo). None si el mensaje no es una pregunta por área."""
-    if not _asks_for_area_options(user_message):
+    al perfil base (no reemplazarlo). Con require_question=False también cubre el pedido
+    afirmativo ('quiero agregarle un análisis de orina'): la mención de un área NUNCA se
+    resuelve a un test suelto por parecido de nombre ('orina' → Cortisol en Orina; chat 4)."""
+    if require_question and not _asks_for_area_options(user_message):
         return None
     area, tests = db.find_tests_by_area(user_message, fields.get("species"), limit=10)
     if not area or not tests:
@@ -1135,6 +1224,27 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
     if area_resp:
         return area_resp
 
+    # 2b) Quiere AGREGAR sobre el análisis ya elegido ('agregale un análisis más a este
+    #     perfil'): abrir el ajuste del perfil base — NUNCA ofrecer perfiles nuevos (esto
+    #     mostraba Perfiles Cachorros ante "agregarle un análisis más"; chat 4). Si nombra
+    #     otro código de perfil en el mismo mensaje ('el 152 y agregarle...'), se respeta.
+    if ((fields.get("_selected_profile_code") or _as_text_items(fields.get("selected_tests")))
+            and _wants_partial_analysis_change(user_message)
+            and not (tokens & _REMOVE_TOKENS)):
+        codes = [c for c in _profile_codes_from_text(user_message)
+                 if c != str(fields.get("_selected_profile_code") or "")]
+        if codes:
+            try:
+                profiles = db.get_catalog_profiles_by_codes(codes[:1], fields.get("species"))
+            except Exception:
+                profiles = []
+            if len(profiles) == 1:
+                _store_selected_profile_fields(fields, profiles[0])
+        name = fields.get("_selected_profile_name")
+        intro = (f"Claro, seguimos con {name} ({_money(fields.get('_selected_profile_price'))})."
+                 if name else "Claro, seguimos con tu perfil.")
+        return _selected_profile_addition_response(session, fields, user_message, intro)
+
     # 3) Pide recomendación / no sabe / 'otro perfil' -> lista de perfiles por especie.
     species = fields.get("species")
     if species and (_wants_profile_recommendation(user_message) or _doesnt_know_what_to_ask(user_message)
@@ -1147,8 +1257,10 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
             ]
             return _base_route_response(_format_profile_recommendation(species, profiles), fields)
 
-    # 4) Nombró análisis concreto(s) para agregar o quitar.
-    rows = db.get_tests_by_codes_or_names([user_message] + _named_analysis_terms(user_message))
+    # 4) Nombró análisis concreto(s) para agregar o quitar. El mensaje completo primero
+    #    (match más específico); términos sueltos solo como fallback.
+    rows = (db.get_tests_by_codes_or_names([user_message])
+            or db.get_tests_by_codes_or_names(_named_analysis_terms(user_message)))
     if rows:
         action = "remove" if (tokens & _REMOVE_TOKENS) else "add"
         _add_tests_to_order(fields, rows, action)
@@ -1386,6 +1498,14 @@ def _enforce_diagnostic_label_help(session: dict, ai_response: dict, user_messag
     if _looks_like_specific_profile_query(candidate):
         return ai_response
     label = db.find_diagnostic_label(candidate, species=fields.get("species"))
+    # Si el catálogo tiene perfiles ARMADOS de esa categoría (ej. Prequirúrgico),
+    # ofrecerlos primero; el armado a medida con pruebas sueltas queda como
+    # alternativa que el propio menú menciona (ERR-045). Se intenta con la etiqueta
+    # y también con el texto crudo: la etiqueta no matchea variantes con espacios
+    # ('pre quirúrgico'), el matcher de categoría sí (ERR-048).
+    menu_response = _category_profiles_menu_response(fields, label or candidate)
+    if menu_response:
+        return menu_response
     if not label:
         return ai_response
     tests = db.get_tests_for_label(label)
@@ -1486,6 +1606,11 @@ def _enforce_profile_recommendation_help(session: dict, ai_response: dict, user_
     no_exam = not fields.get("exam_type") and not fields.get("_selected_profile_code")
     if not (wants_reco or (no_exam and asked_exam and _doesnt_know_what_to_ask(user_message))):
         return ai_response
+
+    # Categoría nombrada (ej. 'prequirúrgico') -> perfiles armados de esa categoría (ERR-045).
+    category_response = _category_profiles_menu_response(fields, user_message)
+    if category_response:
+        return category_response
 
     profiles = db.list_catalog_profiles_for_species(species, limit=6)
     if not profiles:
@@ -1665,7 +1790,7 @@ def _rejects_match_options(text: str) -> bool:
     return bool(set(_tokenize(text)) & _REJECT_ALL_MATCH_TOKENS)
 
 
-def _select_client_match(text: str, fields: dict) -> dict | None:
+def _select_client_match(text: str, fields: dict, signal: str | None = None) -> dict | None:
     options = fields.get("_client_match_options") or []
     if not options:
         return None
@@ -1679,6 +1804,17 @@ def _select_client_match(text: str, fields: dict) -> dict | None:
             index = _ORDINAL_SELECTIONS[token]
             if 1 <= index <= len(options):
                 return options[index - 1]
+
+    # UNA sola coincidencia listada ("¿Es esta?") y el cliente AFIRMA ("sí, esa está
+    # bien", "exacto"): es una selección. Fuente primaria: la lectura semántica de la
+    # IA (user_intent_signal=affirm); fallback: tokens afirmativos (ABIERTO-004: sin
+    # esto la afirmación quedaba a merced del modelo y descarrilaba la identificación).
+    # No aplica si en el mismo mensaje dice ser cliente nuevo/no registrado.
+    if (len(options) == 1
+            and (signal == "affirm" or _is_affirmative_text(text))
+            and not _claims_unregistered_client(text)
+            and not _explicitly_says_new_client(text)):
+        return options[0]
 
     text_key = _catalog_item_key(text)
     query_key = _catalog_item_key(fields.get("_client_match_query"))
@@ -2192,13 +2328,14 @@ def _resolve_same_as_previous(fields: dict, user_message: str, history: list[dic
                 next_missing = f
                 break
 
-    assigned_text = ", ".join(
-        f"el {_FIELD_LABELS.get(assigned_field, assigned_field)} es el mismo: {value}"
-        for assigned_field, value in assigned
-    )
-    reply = f"Entiendo que {assigned_text}. Lo confirmo para registrar."
+    parts = []
+    for assigned_field, value in assigned:
+        article, same = _FIELD_GRAMMAR.get(assigned_field, ("el", "el mismo"))
+        parts.append(f"{article} {_FIELD_LABELS.get(assigned_field, assigned_field)} es {same}: {value}")
+    reply = f"Entiendo que {', '.join(parts)}. Lo confirmo para registrar."
     if next_missing and next_missing in _FIELD_LABELS:
-        reply += f" ¿Cuál es {_FIELD_LABELS[next_missing]}?"
+        article = _FIELD_GRAMMAR.get(next_missing, ("el", ""))[0]
+        reply += f" ¿Cuál es {article} {_FIELD_LABELS[next_missing]}?"
 
     return {
         "reply": reply,
@@ -2582,10 +2719,23 @@ def _extract_clinic_name_candidate(text: str) -> str | None:
         cand = cand.strip(" .,:;-")
         cand = re.sub(r"(?i)^(?:m[ií]a|m[ií]o|mi|nuestra|nuestro)\s+(?:es|se llama)\s+", "", cand).strip(" .,:;-")
         cand = re.sub(r"(?i)^(?:es|se llama)\s+", "", cand).strip(" .,:;-")
-        if cand and any(ch.isalpha() for ch in cand) and len(_tokenize(cand)) <= 4 \
-                and not (set(_tokenize(cand)) & _NON_IDENTIFIER_TOKENS):
+        tokens = _tokenize(cand)
+        if cand and any(ch.isalpha() for ch in cand) and len(tokens) <= 4 \
+                and not (set(tokens) & _NON_IDENTIFIER_TOKENS) \
+                and not set(tokens) <= {"ese", "esa", "eso", "este", "esta", "aquel", "aquella"}:
             return cand
         return None
+
+    reverse = re.search(
+        r"(?i)^\s*([a-záéíóúñü0-9][a-záéíóúñü0-9'&.\- ]{1,40}?)\s+"
+        r"(?:es|son)\s+(?:mi|mis|la|las|el|los|nuestra|nuestro)?\s*"
+        r"(?:veterinaria|cl[ií]nica)\b",
+        text.strip(),
+    )
+    if reverse:
+        cand = _clean_candidate(reverse.group(1))
+        if cand:
+            return cand
 
     # Nombre tras un marcador claro al final del mensaje ("...soy de adryvete",
     # "somos la veterinaria X"), aunque el resto del mensaje traiga datos del pedido.
@@ -2959,7 +3109,11 @@ def _enforce_first_missing_after_progress(session: dict, ai_response: dict, prev
     # Oferta de agregar otro análisis activa (Parte B): no pisarla con la pregunta de pago.
     if fields.get("_offering_extra_analysis"):
         return ai_response
-    if fields.get("_test_menu_options") or (fields.get("selected_tests") is not None and not fields.get("exam_type")):
+    # Un menú recién ofrecido (análisis o perfiles) ES la pregunta del análisis: no
+    # pisarlo con la plantilla del dato faltante (ERR-048: "Perfecto, lo anoto. ¿qué
+    # análisis o perfil desean?" tapaba el menú de perfiles por categoría).
+    if (fields.get("_test_menu_options") or fields.get("_profile_menu_options")
+            or (fields.get("selected_tests") is not None and not fields.get("exam_type"))):
         return ai_response
     progressed = any(fields.get(f) and fields.get(f) != prev_fields.get(f) for f in _ROUTE_REQUIRED_FIELDS)
     if not progressed:
@@ -3501,6 +3655,44 @@ def _enforce_profile_customization_changes(ai_response: dict, prev_fields: dict,
     )
 
 
+def _enforce_profile_exam_type_integrity(ai_response: dict) -> dict:
+    """Invariante estructural (chat 4): con un perfil base elegido, exam_type es EXACTAMENTE
+    el nombre del perfil y todo análisis agregado vive en selected_tests (código y precio
+    reales del catálogo). Si el modelo anota un agregado como texto libre en exam_type
+    ('Perfil Prequirúrgico I + Parcial de Orina $16k'), se resuelve contra el catálogo y
+    se suma a la estructura; lo que no se resuelve se descarta del texto. Si exam_type
+    quedó vacío por un menú lateral, se restaura desde el perfil. Así el resumen y el
+    valor estimado salen SIEMPRE de la estructura y no pueden perder un agregado."""
+    if ai_response.get("intent") != "route_scheduling":
+        return ai_response
+    fields = ai_response.get("captured_fields", {})
+    code = fields.get("_selected_profile_code")
+    name = fields.get("_selected_profile_name")
+    if not code or not name:
+        return ai_response
+    exam = fields.get("exam_type")
+    if not exam:
+        if not fields.get("_correction_pending"):
+            fields["exam_type"] = name
+        return ai_response
+    if exam == name:
+        return ai_response
+    extra = exam.replace(name, " ").replace(str(code), " ")
+    extra = re.sub(r"\$\s*[\d.,]+\s*k?\b", " ", extra, flags=re.IGNORECASE)
+    items = [item for item in _split_multiple_exam_items(extra) if len(_catalog_item_key(item)) >= 4]
+    if items:
+        try:
+            rows = db.get_tests_by_codes_or_names(items)
+        except Exception:
+            rows = []
+        already = set(_as_text_items(fields.get("selected_tests")))
+        new_rows = [r for r in rows if str(r.get("code")) not in already]
+        if new_rows:
+            _add_tests_to_order(fields, new_rows, "add")
+    fields["exam_type"] = name
+    return ai_response
+
+
 def _resolve_profile_base_if_missing(fields: dict) -> None:
     """Si el exam_type es un perfil del catálogo pero no quedó registrado el código/precio
     del perfil base (p. ej. el cliente lo eligió por texto vía el LLM y luego AGREGÓ análisis
@@ -3728,7 +3920,16 @@ def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message:
     if tokens & {"quitar", "quita", "quitale", "quítale", "sacar", "saca", "sin", "menos", "retirar", "remover"}:
         action = "remove"
 
-    rows = db.get_tests_by_codes_or_names([user_message] + _named_analysis_terms(user_message))
+    # Al AGREGAR, la mención de un ÁREA ('agregale un análisis de orina') va al menú de
+    # esa área ANTES que cualquier match difuso por nombre ('orina' → Cortisol; chat 4).
+    if action == "add":
+        area_response = _area_options_for_profile_addition(fields, user_message, require_question=False)
+        if area_response:
+            area_response["phase"] = CONFIRMATION_PHASE
+            return area_response
+
+    rows = (db.get_tests_by_codes_or_names([user_message])
+            or db.get_tests_by_codes_or_names(_named_analysis_terms(user_message)))
     if not rows:
         if signal == "negate" or tokens & {"nada", "ninguno", "ninguna"}:
             return None
@@ -4098,7 +4299,38 @@ def process_turn(
             response = _resume_route_after_lateral_turn(session, response)
             return _persist_turn(chat_id, user_message, response)
         if _is_catalog_overview_question(user_message):
-            return _persist_turn(chat_id, user_message, _catalog_overview_response(dict(prev_captured)))
+            fields = dict(prev_captured)
+            analysis_in_progress = bool(
+                fields.get("_selected_profile_code") or _as_text_items(fields.get("selected_tests"))
+            )
+            # Con un análisis/perfil en curso, una pregunta de catálogo NUNCA pisa la
+            # orden: el menú queda marcado para AGREGAR (chat 4: el muestrario general
+            # borraba selected_tests y el agregado se perdía del total).
+            if analysis_in_progress:
+                area_resp = _area_options_for_profile_addition(fields, user_message)
+                if area_resp:
+                    return _persist_turn(chat_id, user_message, area_resp)
+                choices = _catalog_overview_choices(db.list_catalog_tests(limit=500))
+                if choices:
+                    _store_test_menu_options(fields, choices)
+                    fields["_test_menu_adds_to_profile"] = True
+                    return _persist_turn(
+                        chat_id, user_message,
+                        _base_route_response(_test_catalog_overview_reply(choices), fields),
+                    )
+                return _persist_turn(
+                    chat_id, user_message,
+                    _base_route_response(_test_catalog_overview_reply([]), fields),
+                )
+            # Área específica nombrada ('¿qué análisis de orina hacen?') → opciones de
+            # ESA área, no el muestrario general de todas las áreas.
+            area, area_tests = db.find_tests_by_area(user_message, fields.get("species"), limit=10)
+            if area and area_tests:
+                return _persist_turn(
+                    chat_id, user_message,
+                    _test_options_response(fields, area_tests, _test_area_suggestion_reply(area, area_tests)),
+                )
+            return _persist_turn(chat_id, user_message, _catalog_overview_response(fields))
 
     # Selección de un perfil de la lista recomendada ('no sé / qué me recomiendas'): el
     # cliente elige por número, ordinal, código o nombre. Se captura el perfil REAL con su
@@ -4155,6 +4387,11 @@ def process_turn(
             and (_wants_profile_recommendation(user_message)
                  or (_doesnt_know_what_to_ask(user_message)
                      and _detect_which_field_is_being_asked(history) == "exam_type"))):
+        # Si nombró una categoría del catálogo (ej. 'recomiéndame un prequirúrgico'),
+        # ofrecer los perfiles armados de ESA categoría, no la lista genérica (ERR-045).
+        category_response = _category_profiles_menu_response(prev_captured, user_message)
+        if category_response:
+            return _persist_turn(chat_id, user_message, category_response)
         rec_profiles = db.list_catalog_profiles_for_species(prev_captured.get("species"), limit=6)
         if rec_profiles:
             _clear_field_for_correction(prev_captured, "exam_type")
@@ -4587,7 +4824,7 @@ def process_turn(
         # primera"). La selección en sí se resuelve más abajo con la lista aún intacta.
         picks_from_match_list = bool(
             fields.get("_client_match_options")
-            and _select_client_match(user_message, fields)
+            and _select_client_match(user_message, fields, signal)
         )
         # Una afirmación pelada ("sí", "Si la uno") NO es "soy cliente nuevo" salvo que el
         # bot acabe de preguntarlo. Sin este contexto, una selección del menú de bienvenida
@@ -4678,7 +4915,7 @@ def process_turn(
                 if tax_id_now and _compact_identifier(tax_id_now) != _compact_identifier(previous_query):
                     _clear_client_match_options(fields)
                 else:
-                    selected_client = _select_client_match(user_message, fields)
+                    selected_client = _select_client_match(user_message, fields, signal)
                     current_query = fields.get("clinic_name")
                     if selected_client:
                         client = selected_client
@@ -4703,14 +4940,18 @@ def process_turn(
                 ai_response = _enforce_client_identification_gate(session, ai_response, history)
                 fields = ai_response.get("captured_fields", fields)
 
+    address_reask_needed = None
     if not skip_client_lookup and prev_captured.get("_address_confirmation_pending"):
-        # Si el flujo ya avanzó más allá de la dirección, esta quedó confirmada de
-        # hecho: bajamos el flag para no reinterpretar un "no" posterior (p. ej. de
-        # observaciones) como rechazo de la dirección.
+        # Si el flujo ya avanzó más allá de la dirección EN TURNOS ANTERIORES, quedó
+        # confirmada de hecho: bajamos el flag para no reinterpretar un "no" posterior
+        # (p. ej. de observaciones) como rechazo de la dirección. Solo cuenta lo previo:
+        # lo capturado en ESTE turno no da por respondida una pregunta que el bot acaba
+        # de hacer (ERR-046: "quiero un análisis de orina" confirmaba la dirección sola).
         progressed = any(
-            fields.get(f) or prev_captured.get(f)
+            prev_captured.get(f)
             for f in ("requesting_doctor", "patient_name", "species", "exam_type")
         )
+        registered_address = prev_captured.get("pickup_address") or prev_captured.get("_client_address")
         if progressed and (fields.get("pickup_address") or prev_captured.get("pickup_address")):
             fields["_address_confirmation_pending"] = False
             fields["_address_confirmed"] = True
@@ -4723,9 +4964,23 @@ def process_turn(
                 fields,
             )
         elif _confirms_address(user_message):
-            fields["pickup_address"] = prev_captured.get("pickup_address") or prev_captured.get("_client_address")
+            fields["pickup_address"] = registered_address
             fields["_address_confirmation_pending"] = False
             fields["_address_confirmed"] = True
+        elif fields.get("pickup_address") and registered_address and \
+                fields.get("pickup_address") != registered_address:
+            # Dio OTRA dirección en el mismo mensaje: esa es la corrección y vale
+            # como confirmada.
+            fields["_address_confirmation_pending"] = False
+            fields["_address_confirmed"] = True
+        elif registered_address:
+            # Respondió otra cosa (adelantó un dato, preguntó algo): lo capturado se
+            # CONSERVA y el pipeline responde a lo que dijo, pero al FINAL del turno la
+            # pregunta vuelve a ser la dirección pendiente — se re-pregunta, no se asume
+            # (ERR-046). La inyección ocurre tras los guardrails de análisis para que un
+            # menú/sugerencia no la pise.
+            fields["_address_confirmation_pending"] = True
+            address_reask_needed = registered_address
 
     # Buscar cliente cuando el AI capturó nombre o NIT por primera vez
     client_status_changed = False
@@ -4904,6 +5159,8 @@ def process_turn(
     ai_response = _enforce_payment_step(session, ai_response, fields)
     ai_response = _enforce_profile_customization_changes(ai_response, prev_captured, user_message)
     fields = ai_response.get("captured_fields", fields)
+    ai_response = _enforce_profile_exam_type_integrity(ai_response)
+    fields = ai_response.get("captured_fields", fields)
     _normalize_name_fields(fields)
     ai_response["captured_fields"] = fields
     ai_response = _recover_enumerated_answer(ai_response, prev_captured, user_message, history)
@@ -4925,6 +5182,23 @@ def process_turn(
     ai_response = _enforce_first_missing_after_progress(session, ai_response, prev_captured)
     ai_response = _resume_route_after_lateral_turn(session, ai_response)
     fields = ai_response.get("captured_fields", fields)
+
+    # ERR-046: la confirmación de dirección quedó pendiente y este turno no la resolvió.
+    # Se respeta lo que el pipeline respondió al mensaje (menú, dato capturado, etc.),
+    # pero la pregunta final del turno vuelve a ser la dirección: lo pendiente se
+    # re-pregunta, no se asume.
+    if (address_reask_needed and fields.get("_address_confirmation_pending")
+            and ai_response.get("intent") == "route_scheduling"
+            and not ai_response.get("requires_handoff")):
+        reply = ai_response.get("reply") or ""
+        if not ({"direccion", "dirección", "domicilio"} & set(_tokenize(reply))):
+            last_question = reply.rfind("¿")
+            if last_question != -1:
+                reply = reply[:last_question].strip()
+            ai_response["reply"] = (
+                f"{reply} Antes de seguir, ¿me confirmas la dirección de retiro: "
+                f"{address_reask_needed}? Si no es esa, dime la correcta."
+            ).strip()
 
     previous_phase = session.get("phase_current", "")
     ai_response = _enforce_confirmation_step(session, ai_response, fields, previous_phase, user_message)

@@ -1,5 +1,6 @@
 import re
 import difflib
+import unicodedata
 from datetime import datetime, timezone
 from supabase import create_client, Client
 from app.config import SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
@@ -861,6 +862,47 @@ def list_catalog_profiles_for_species(species: str | None = None, limit: int = 6
         return []
     rows.sort(key=lambda r: 0 if (r.get("species") or "").strip().lower() == (species or "").strip().lower() else 1)
     return rows[:limit]
+
+
+def _normalize_for_category_match(text: str) -> str:
+    decomposed = unicodedata.normalize("NFD", (text or "").lower())
+    return "".join(c for c in decomposed if c.isalnum())
+
+
+def filter_profiles_by_category_mention(rows: list[dict], text: str) -> list[dict]:
+    """Perfiles cuya categoría aparece nombrada en el texto (sin tildes ni espacios:
+    'pre quirúrgico' matchea la categoría 'Prequirúrgico'). Pura, sin I/O."""
+    normalized_text = _normalize_for_category_match(text)
+    if not normalized_text:
+        return []
+    matched = []
+    for row in rows:
+        category = _normalize_for_category_match(row.get("category") or "")
+        # Categorías muy cortas quedan fuera: riesgo de matchear dentro de otra palabra.
+        if len(category) >= 5 and category in normalized_text:
+            matched.append(row)
+    matched.sort(key=lambda r: (len(str(r.get("code") or "")), str(r.get("code") or "")))
+    return matched
+
+
+def list_catalog_profiles_matching_category(text: str, species: str | None = None,
+                                            limit: int = 12) -> list[dict]:
+    """Perfiles armados del catálogo cuya CATEGORÍA está nombrada en el texto del
+    cliente (ej. 'prequirúrgico' -> perfiles 152-162). Defensivo: [] si falla."""
+    try:
+        query = (
+            _client.table("catalog_profiles")
+            .select("code, name, category, species, description, price")
+            .eq("is_active", True)
+            .limit(5000)
+        )
+        species_key = (species or "").strip().lower()
+        if species_key in ("canino", "felino"):
+            query = query.in_("species", [species_key, "ambos"])
+        rows = query.execute().data or []
+    except Exception:
+        return []
+    return filter_profiles_by_category_mention(rows, text)[:limit]
 
 
 def list_conversation_messages(limit: int = 500) -> list[dict]:

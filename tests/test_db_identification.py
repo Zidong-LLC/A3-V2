@@ -60,6 +60,12 @@ def test_name_matches_normalized_user_phrases():
     assert not _name_matches("No tengo ese dato", "Adryvete")
 
 
+def test_extract_clinic_name_from_reverse_marker_phrase():
+    from app.agent import _extract_clinic_name_candidate
+
+    assert _extract_clinic_name_candidate("animal Pet es la clinica con la que trabajo") == "animal Pet"
+
+
 def test_identify_client_falls_back_to_name_when_tax_id_is_wrong(monkeypatch):
     from app.services import db
 

@@ -99,9 +99,20 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
   ("qué análisis de orina tienen"), lista esas opciones y las suma al perfil base al elegir.
 - **Dónde:** `_enforce_profile_detail_step`, `_enforce_profile_customization_changes`,
   `_profile_customizing`, `calculate_profile_adjusted_total`, `_area_options_for_profile_addition`,
-  `_capture_menu_addition_to_profile`, `_add_tests_to_order`.
+  `_capture_menu_addition_to_profile`, `_add_tests_to_order`, `_enforce_profile_exam_type_integrity`.
 - **Estado:** ✅ APROBADO (usuario, 2026-06-22). Extensión 2026-06-22 (RESUELTO-014): pregunta
   por área durante el ajuste ya no se traba — pendiente re-prueba conversacional del usuario.
+- **Extensión 2026-07-04 (ERR-050), garantías nuevas con perfil elegido:**
+  1. Intención de AGREGAR ("agregale un análisis más") nunca lleva al menú de recomendación
+     de perfiles; abre el ajuste del perfil base y pregunta cuál.
+  2. Mención de un ÁREA en el pedido (pregunta O afirmación: "agregale un análisis de orina")
+     → menú de esa área marcado para AGREGAR; jamás se resuelve el área a un test suelto por
+     parecido de nombre.
+  3. INVARIANTE: todo agregado vive en `selected_tests` (código y precio reales); con perfil
+     base, `exam_type` es exactamente el nombre del perfil (lo anotado como texto libre se
+     resuelve a la estructura o se descarta). El resumen y el total salen SIEMPRE de la
+     estructura — un agregado no puede perderse del valor estimado.
+  4. Una pregunta de catálogo con análisis en curso no pisa la orden (menú marcado AGREGAR).
 
 ### B9.5 · Oferta de agregar otro análisis antes del resumen
 - **Qué hace:** una vez fijado el análisis y cuando solo falta el pago, ofrece "¿agregar otro
@@ -137,6 +148,8 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
   visual del usuario. El guard corre antes del cierre determinístico y mantiene
   `fase_4_confirmacion`. Extensión RESUELTO-014: si en vez de nombrar el análisis el usuario
   pregunta por un área ("qué análisis de orina tienen"), se listan las opciones para agregar.
+  Extensión ERR-050 (2026-07-04): la mención de área también aplica en AFIRMATIVO ("agregale
+  un análisis de orina") — va al menú del área antes que cualquier match difuso por nombre.
 
 ### B12 · Corrección de datos en la confirmación
 - **Qué hace:** si el usuario pide cambiar un dato ("cambiá el médico"), limpia ese campo,

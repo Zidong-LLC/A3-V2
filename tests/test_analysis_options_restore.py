@@ -43,6 +43,7 @@ def test_diagnostic_label_fires_from_user_message_when_exam_type_empty():
     """'función renal' con exam_type vacío arranca el perfil por etiqueta diagnóstica."""
     ai = _route_resp(BASE)
     with patch.object(agent.db, "find_diagnostic_label", return_value="RENAL"), \
+         patch.object(agent.db, "list_catalog_profiles_matching_category", return_value=[]), \
          patch.object(agent.db, "get_tests_for_label", return_value=URO), \
          patch.object(agent.db, "find_tests_by_area", return_value=(None, [])):
         out = agent._enforce_diagnostic_label_help(
