@@ -2,6 +2,48 @@
 
 ---
 
+## Fix: ERR-051 — QA adversarial contra BD real (2026-07-05) — EN VERIFICACIÓN
+
+**Metodología nueva:** batería de 10 personas-IA adversariales contra `process_turn` +
+Supabase REAL (clientes/NITs/catálogo verdaderos), juez-IA + lectura manual de cada
+transcripción, `ALEGRA_ENABLED=false`, spies para capturar/limpiar lo creado, y
+`create_pending_client_review` bloqueada. Runner en scratchpad de la sesión.
+
+**Hallazgos (7):** precio inventado en orden registrada (Coprológico $23k vs $12.000);
+payloads de análisis suelto con code null/price 0; perfil de $130.000 capturado sin que
+el cliente lo nombrara; "parcial de orina" cotizado como PTT+Cortisol; elección + precio
+en el mismo mensaje perdía la elección; confirmación de dirección + datos en bloque +
+pago pisada por el atajo de pago fuera de turno; edad sin unidad asumida como años.
+
+**Fixes (app/agent.py):**
+- [x] A. `_enforce_loose_exam_catalog_resolution` + `_strip_price_text`: análisis suelto
+      SIEMPRE estructurado contra catálogo; cifras del modelo descartadas; categoría de
+      perfiles → menú de armados (nunca al resumen sin precio).
+- [x] B. `_enforce_exam_type_grounding`: exam_type nuevo sin anclaje en lo dicho por el
+      cliente se descarta y se re-pregunta.
+- [x] C. `_catalog_price_answer`: mensaje completo → área (opciones reales con precios,
+      menú marcado AGREGAR si hay orden en curso) → términos como último fallback.
+- [x] D. `_expresses_order_request`: pedido + precio en un mensaje captura la elección.
+- [x] E. Atajo de pago fuera de turno: resuelve la dirección pendiente del mismo mensaje
+      y no pisa turnos con datos en bloque.
+- [x] F. `_enforce_age_unit_grounding`: unidad de edad no dicha por el cliente (mensaje
+      o historial) → se guarda solo el número y se re-pregunta.
+- [x] Ajustes post-re-test: descripción del perfil no se duplica como agregados
+      ($23k→$50k); categoría al menú; tokens "confirmame"; edad por historial.
+- [x] Tests: `tests/test_qa_realista_guardrails.py` (18) — suite 190 passed
+      (4 dashboard preexistentes).
+- [x] Verificación adversarial final: caotico_typos BIEN ($12.000 real estructurado),
+      precios BIEN, perfil_agregado con dinero perfecto (155 · $36.000 · parcial de orina
+      incluido; FAIL del juez solo por comunicación). Limpieza verificada (0 residuos).
+- [x] Ajustes finales: "buen día" no cuenta como unidad de edad; multi-análisis en texto
+      se estructura 1:1. Suite 192 passed.
+- [x] Docs: ERR-051 en bitácora, lección L49.
+
+**Pendiente:** re-prueba del usuario por Telegram (reiniciar Flask local) y residuo menor
+de comunicación (explicitar qué incluye el perfil elegido) anotado como ABIERTO en ERR-051.
+
+---
+
 ## Fix: ERR-050 — agregar análisis a un perfil elegido (prueba real 2026-07-04, chat 4) — COMPLETADO
 
 **Problema (5 síntomas en la conversación real):** con el perfil 152 elegido, (1) "agregarle

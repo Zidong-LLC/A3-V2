@@ -456,6 +456,16 @@ def _money(value: int | None) -> str:
     return f"${int(value or 0):,} COP"
 
 
+def _estimated_total_text(totals: dict) -> str:
+    """Texto del valor estimado. Si hay descuento por volumen, SIEMPRE se desglosa
+    (subtotal → descuento → total): sin el desglose, el total parece un error de
+    cálculo ('$14k + $8k = $19,360?' — reporte del usuario, 2026-07-06)."""
+    if totals.get("discount"):
+        return (f"Subtotal {_money(totals['subtotal'])}, descuento por volumen "
+                f"-{_money(totals['discount'])} → valor estimado {_money(totals['total'])}.")
+    return f"Valor estimado: {_money(totals['total'])}."
+
+
 def _format_test_items(rows: list[dict]) -> str:
     if not rows:
         return "ninguno"
@@ -1069,11 +1079,11 @@ def _capture_test_menu_selection(session: dict, fields: dict, selected: list[dic
                 "_selected_profile_description", "_profile_detail_offered", "_profile_detail_confirmed"):
         fields.pop(key, None)
 
-    # Mostrar el precio al lado de cada análisis (y el total si son varios), no solo el nombre.
+    # Mostrar el precio al lado de cada análisis (y el total si son varios), no solo el
+    # nombre. Con descuento por volumen, el desglose completo.
     intro = f"Listo, registro {_format_test_items(selected)}."
     if len(selected) >= 2:
-        total = calculate_custom_profile_total(selected)["total"]
-        intro += f" Valor estimado: {_money(total)}."
+        intro += f" {_estimated_total_text(calculate_custom_profile_total(selected))}"
     return _analysis_settled_response(session, fields, intro)
 
 
@@ -1352,7 +1362,7 @@ def _enforce_multiple_tests_capture(session: dict, ai_response: dict, prev_field
 
     intro = (
         f"Listo, registro estos {len(rows)} análisis: {_format_test_items(rows)}. "
-        f"Valor estimado: {_money(totals['total'])}."
+        f"{_estimated_total_text(totals)}"
     )
     return _analysis_settled_response(session, fields, intro)
 
@@ -3655,6 +3665,173 @@ def _enforce_profile_customization_changes(ai_response: dict, prev_fields: dict,
     )
 
 
+# Sin "dia/día/semana" en singular: aparecen en charla común ("buen día") y hacían
+# creer que el cliente dio la unidad. La edad en días/semanas se dice en plural.
+_AGE_UNIT_TOKENS = frozenset({
+    "año", "años", "anio", "anios", "ano", "anos", "mes", "meses",
+    "dias", "días", "semanas",
+})
+
+
+def _enforce_age_unit_grounding(ai_response: dict, prev_fields: dict, user_message: str,
+                                history: list[dict] | None = None) -> dict:
+    """QA-3 (2026-07-05): el cliente dio la edad SIN unidad ('hembra, 2') y el modelo
+    registró '2 años' inventando la unidad. Si la unidad no vino del cliente (ni en este
+    mensaje ni en sus turnos recientes), se guarda solo el número y la regla existente
+    (#10) la re-pregunta con ejemplos."""
+    if ai_response.get("intent") != "route_scheduling":
+        return ai_response
+    fields = ai_response.get("captured_fields", {})
+    age = fields.get("patient_age")
+    if not age or age == (prev_fields or {}).get("patient_age"):
+        return ai_response
+    match = re.match(r"^\s*(\d{1,3})\s*(años?|anios?|meses?|d[ií]as?|semanas?)\s*$",
+                     str(age), re.IGNORECASE)
+    if not match:
+        return ai_response
+    user_texts = [user_message] + [
+        m.get("content", "") for m in (history or []) if m.get("role") == "user"
+    ]
+    tokens = set()
+    for text in user_texts:
+        tokens |= set(_tokenize(text))
+    if tokens & _AGE_UNIT_TOKENS:
+        return ai_response
+    if match.group(1) not in tokens:
+        return ai_response  # el número no vino del cliente: no tocar
+    fields["patient_age"] = match.group(1)
+    return ai_response
+
+
+_EXAM_GROUNDING_STOPWORDS = frozenset({
+    "perfil", "perfiles", "analisis", "análisis", "examen", "prueba", "pruebas",
+    "canino", "canina", "felino", "felina", "completo", "completa", "test", "panel",
+})
+
+
+def _enforce_exam_type_grounding(ai_response: dict, prev_fields: dict,
+                                 user_message: str, history: list[dict]) -> dict:
+    """QA-5 (2026-07-05): el modelo capturó un perfil que el cliente NUNCA nombró
+    ('Perfil Senior Canino V' — $130.000 — ante un 'sin observaciones') y la orden se
+    confirmó así. Un exam_type NUEVO debe estar anclado a lo que el cliente dijo (este
+    mensaje o sus turnos recientes): si ningún token significativo del análisis aparece
+    en el texto del cliente, se descarta y se pregunta el análisis en vez de inventarlo."""
+    if ai_response.get("intent") != "route_scheduling":
+        return ai_response
+    fields = ai_response.get("captured_fields", {})
+    exam = fields.get("exam_type")
+    prev = prev_fields or {}
+    if (not exam or exam == prev.get("exam_type")
+            or fields.get("_diagnostic_label")
+            or prev.get("_test_menu_options") or prev.get("_profile_menu_options")
+            or prev.get("_selected_profile_code")
+            or prev.get("selected_tests") is not None
+            or prev.get("_profile_customizing")
+            or _is_same_as_previous(user_message)):
+        return ai_response
+    snapshot = prev.get("_prev_order_snapshot") or {}
+    if exam == snapshot.get("exam_type"):
+        return ai_response
+    user_text = " ".join(
+        [user_message] + [m.get("content", "") for m in history if m.get("role") == "user"]
+    )
+    user_key = _catalog_item_key(user_text)
+    tokens = [
+        t for t in _catalog_item_key(_strip_price_text(str(exam))).split("_")
+        if len(t) >= 4 and t not in _EXAM_GROUNDING_STOPWORDS
+    ]
+    if not tokens or any(t in user_key for t in tokens):
+        return ai_response
+    fields["exam_type"] = None
+    fields["selected_tests"] = None
+    fields["removed_tests"] = None
+    reply = ai_response.get("reply") or ""
+    if "análisis" not in reply.lower() and "perfil" not in reply.lower():
+        ai_response["reply"] = _missing_route_field_question("exam_type")
+    return ai_response
+
+
+def _strip_price_text(text: str) -> str:
+    """Quita cifras de precio escritas dentro de un texto de análisis ('Coprológico $23k',
+    'Cuadro Hemático $14.000'): el precio NUNCA viene del texto del modelo, sale del
+    catálogo. No toca números que son parte del nombre ('Parcial de Orina (14 parámetros)')."""
+    out = re.sub(r"\$\s*[\d.,]+\s*(?:k\b|cop\b)?", " ", text or "", flags=re.IGNORECASE)
+    out = re.sub(r"\b\d+\s*k\b", " ", out, flags=re.IGNORECASE)
+    out = re.sub(r"\b\d{1,3}(?:[.,]\d{3})+(?:\s*cop)?\b", " ", out, flags=re.IGNORECASE)
+    return re.sub(r"\s{2,}", " ", out).strip(" -–—.,:;")
+
+
+def _enforce_loose_exam_catalog_resolution(ai_response: dict, prev_fields: dict) -> dict:
+    """QA-1/QA-7 (2026-07-05): un análisis suelto capturado como TEXTO ('Coprológico $23k')
+    se resuelve SIEMPRE contra el catálogo — selected_tests estructurado con código y
+    precio reales, exam_type = 'código nombre'. Así el resumen, el valor estimado y el
+    payload de la orden salen del catálogo y el modelo no puede inventar precios (la
+    orden real quedó con $23k para un análisis de $12.000 y payload con precio 0).
+    Solo actúa sobre exam_type NUEVO en el turno, sin perfil base ni estructura previa."""
+    if ai_response.get("intent") != "route_scheduling":
+        return ai_response
+    fields = ai_response.get("captured_fields", {})
+    exam = fields.get("exam_type")
+    if (not exam or fields.get("_selected_profile_code")
+            or _as_text_items(fields.get("selected_tests"))
+            or fields.get("_diagnostic_label")
+            or exam == (prev_fields or {}).get("exam_type")):
+        return ai_response
+    clean = _strip_price_text(str(exam))
+    if not clean or "personalizado" in clean.lower():
+        if clean and clean != exam:
+            fields["exam_type"] = clean
+        return ai_response
+    # Un perfil del catálogo se resuelve por su propio camino (_resolve_profile_base_if_missing).
+    if _looks_like_catalog_profile(clean):
+        if clean != exam:
+            fields["exam_type"] = clean
+        return ai_response
+    try:
+        rows = db.get_tests_by_codes_or_names([clean])
+    except Exception:
+        rows = []
+    row = rows[0] if len(rows) == 1 else None
+    if row and _catalog_row_matches_item(clean, row):
+        fields["selected_tests"] = [str(row.get("code"))]
+        fields["removed_tests"] = []
+        fields["exam_type"] = f"{row.get('code')} {row.get('name')}"
+        return ai_response
+    # Varios análisis en un solo texto ('Cuadro Hemático Completo, Creatinina'): si CADA
+    # ítem resuelve 1:1 contra el catálogo, se estructuran todos (el payload quedaba en
+    # $0 con el texto combinado — QA run 3).
+    items = _split_multiple_exam_items(clean)
+    if len(items) >= 2:
+        multi_rows = []
+        for item in items:
+            try:
+                matches = db.get_tests_by_codes_or_names([item])
+            except Exception:
+                matches = []
+            if len(matches) != 1 or not _catalog_row_matches_item(item, matches[0]):
+                multi_rows = []
+                break
+            multi_rows.append(matches[0])
+        codes = [str(r.get("code")) for r in multi_rows]
+        if multi_rows and len(set(codes)) == len(codes):
+            fields["selected_tests"] = codes
+            fields["removed_tests"] = []
+            fields["exam_type"] = f"Perfil personalizado ({len(multi_rows)} análisis)"
+            return ai_response
+    # Una CATEGORÍA de perfiles armados ('PREQUIRURGICO') nunca pasa al resumen como
+    # análisis sin precio: se ofrecen los perfiles reales de esa categoría para elegir
+    # (QA re-test: la orden cerró con 'PREQUIRURGICO' pelado y payload en $0).
+    try:
+        menu_response = _category_profiles_menu_response(fields, clean)
+    except Exception:
+        menu_response = None
+    if menu_response:
+        return menu_response
+    if clean != exam:
+        fields["exam_type"] = clean  # sin match único: al menos sin precio inventado
+    return ai_response
+
+
 def _enforce_profile_exam_type_integrity(ai_response: dict) -> dict:
     """Invariante estructural (chat 4): con un perfil base elegido, exam_type es EXACTAMENTE
     el nombre del perfil y todo análisis agregado vive en selected_tests (código y precio
@@ -3679,14 +3856,27 @@ def _enforce_profile_exam_type_integrity(ai_response: dict) -> dict:
         return ai_response
     extra = exam.replace(name, " ").replace(str(code), " ")
     extra = re.sub(r"\$\s*[\d.,]+\s*k?\b", " ", extra, flags=re.IGNORECASE)
-    items = [item for item in _split_multiple_exam_items(extra) if len(_catalog_item_key(item)) >= 4]
+    # Los análisis que el perfil YA INCLUYE (su descripción) no son agregados: si el
+    # modelo escribe el nombre con descripción ("Perfil Parasitológico II: Coprológico
+    # y Coproscópico"), esos ítems se descartan — sumarlos duplicaba lo incluido y el
+    # total saltaba de $23.000 a $50.000 entre la confirmación y el cierre (QA re-test).
+    desc_key = _catalog_item_key(fields.get("_selected_profile_description") or "")
+    items = [
+        item for item in _split_multiple_exam_items(extra)
+        if len(_catalog_item_key(item)) >= 4
+        and not (desc_key and _catalog_item_key(item) in desc_key)
+    ]
     if items:
         try:
             rows = db.get_tests_by_codes_or_names(items)
         except Exception:
             rows = []
         already = set(_as_text_items(fields.get("selected_tests")))
-        new_rows = [r for r in rows if str(r.get("code")) not in already]
+        new_rows = [
+            r for r in rows
+            if str(r.get("code")) not in already
+            and not (desc_key and _catalog_item_key(r.get("name")) in desc_key)
+        ]
         if new_rows:
             _add_tests_to_order(fields, new_rows, "add")
     fields["exam_type"] = name
@@ -3777,6 +3967,11 @@ def _order_summary_lines(fields: dict, header: str) -> list[str] | None:
         totals = calculate_custom_profile_total(rows)
         if rows:
             lines.append(f"- Análisis incluidos: {_format_test_items(rows)}")
+        # Con descuento por volumen, el desglose SIEMPRE visible: sin él, el total
+        # parece un error de cálculo (reporte del usuario, 2026-07-06).
+        if totals["discount"]:
+            lines.append(f"- Subtotal: {_money(totals['subtotal'])}")
+            lines.append(f"- Descuento por volumen: -{_money(totals['discount'])}")
         lines.append(f"- Valor estimado: {_money(totals['total'])}")
 
     return lines
@@ -3883,10 +4078,26 @@ def _catalog_price_answer(fields: dict, user_message: str) -> str | None:
         if rows:
             return _format_tests_total(rows)
 
-    # 2) Análisis nombrado(s) en la propia pregunta. Resolver por catálogo o por el menú
-    #    que se acabe de mostrar ('¿cuánto el primero?').
-    terms = _named_analysis_terms(user_message)
-    rows = db.get_tests_by_codes_or_names(terms) if terms else []
+    # 2) Análisis nombrado(s) en la propia pregunta. El mensaje completo primero (match
+    #    específico); si nombra un ÁREA ('el parcial de orina', 'algo de orina'), responder
+    #    con las opciones reales de esa área — NUNCA armar la cotización con tests sueltos
+    #    matcheados palabra por palabra ('parcial'→PTT + 'orina'→Cortisol; QA-5b).
+    rows = db.get_tests_by_codes_or_names([user_message])
+    if not rows:
+        area, area_tests = db.find_tests_by_area(user_message, fields.get("species"))
+        if area and area_tests:
+            lines = [f"Para {area.lower()} tenemos estas opciones:"]
+            for t in area_tests[:8]:
+                lines.append(f"- {t.get('code')} {t.get('name')}: {_money(t.get('price'))}")
+            lines.append("Dime cuál necesitas (número, nombre o código).")
+            # Con un análisis/perfil en curso, la selección posterior SUMA a la orden.
+            _store_test_menu_options(fields, area_tests[:8])
+            if fields.get("_selected_profile_code") or _as_text_items(fields.get("selected_tests")):
+                fields["_test_menu_adds_to_profile"] = True
+            return "\n".join(lines)
+    if not rows:
+        terms = _named_analysis_terms(user_message)
+        rows = db.get_tests_by_codes_or_names(terms) if terms else []
     if not rows:
         menu = fields.get("_test_menu_options") or []
         rows = _select_tests_from_menu(user_message, menu) if menu else []
@@ -3902,6 +4113,30 @@ def _catalog_price_answer(fields: dict, user_message: str) -> str | None:
     if price and name:
         return f"El valor de {name} es {_money(int(price))}."
     return None
+
+
+_ORDER_REQUEST_TOKENS = frozenset({
+    "quiero", "necesito", "deseo", "dame", "hazme", "registra", "registrame",
+    "regístrame", "anota", "anótalo", "apunta", "agenda", "agendame", "agéndame",
+    "confirmo", "solicito", "pedimos", "programa", "programame", "prográmame",
+    "confirmame", "confírmame", "confirmas", "confirmás", "confirma",
+})
+
+
+def _expresses_order_request(text: str) -> bool:
+    """¿El mensaje PIDE/ordena análisis (no solo consulta el precio)? 'quiero cuadro
+    hemático y creatinina, ¿cuánto sale?' es un pedido con consulta — la elección debe
+    capturarse, no solo responderse el valor. 'quiero saber cuánto sale' NO es pedido."""
+    normalized = " ".join(_tokenize(text))
+    if re.search(r"\b(quiero|necesito|deseo|quisiera)\s+(saber|preguntar|consultar|cotizar|conocer)\b", normalized):
+        return False
+    tokens = set(_tokenize(text))
+    hits = tokens & _ORDER_REQUEST_TOKENS
+    # "¿me confirmas el precio/valor?" es consulta pura, no un pedido de registrar.
+    if hits <= {"confirma", "confirmas", "confirmás", "confirmame", "confírmame"} and \
+            re.search(r"\bconfirm\w*\s+(el\s+|la\s+)?(precio|valor|costo|cuanto|cuánto)\b", normalized):
+        return False
+    return bool(hits)
 
 
 def _price_answer_for_order(fields: dict, user_message: str) -> str | None:
@@ -4286,9 +4521,14 @@ def process_turn(
         # Precio REAL del catálogo primero: un análisis puntual, el total de los elegidos o
         # el perfil ya seleccionado. Va antes de la respuesta genérica ("depende del análisis")
         # para que "¿cuánto sale el hemograma?" o "¿cuánto serían todos?" se respondan con valor.
-        price_answer = _catalog_price_answer(dict(prev_captured), user_message)
-        if price_answer and not _payment_method_from_text(user_message):
-            response = _base_route_response(price_answer, dict(prev_captured))
+        # Si el mensaje ADEMÁS pide/ordena los análisis ("quiero X y Y, ¿cuánto el total?"),
+        # NO es solo una consulta: el pipeline captura la selección y el total sale del
+        # cálculo estructurado (QA-6: la respuesta de precio se tragaba la elección).
+        price_fields = dict(prev_captured)
+        price_answer = _catalog_price_answer(price_fields, user_message)
+        if (price_answer and not _payment_method_from_text(user_message)
+                and not _expresses_order_request(user_message)):
+            response = _base_route_response(price_answer, price_fields)
             response["message_mode"] = "side_question"
             response = _resume_route_after_lateral_turn(session, response)
             return _persist_turn(chat_id, user_message, response)
@@ -4780,8 +5020,24 @@ def process_turn(
         and payment_answer
         and asked_field != "payment_method"
     ):
+        # El mismo mensaje puede resolver la confirmación de dirección pendiente
+        # ("si, correcta. ... y contraentrega"): resolverla ANTES de decidir qué falta,
+        # para no re-preguntar una dirección que el cliente acaba de confirmar (QA-2).
+        if fields.get("_address_confirmation_pending") and _confirms_address(user_message):
+            fields["_address_confirmation_pending"] = False
+            fields["_address_confirmed"] = True
+            fields["pickup_address"] = (fields.get("pickup_address")
+                                        or prev_captured.get("pickup_address")
+                                        or prev_captured.get("_client_address"))
+        # Este atajo es para una forma de pago SUELTA fuera de turno. Si el mensaje además
+        # trae datos nuevos de la orden (datos en bloque), NO pisar la respuesta del
+        # modelo: el pipeline los captura y pregunta lo que falte (QA-2).
+        new_route_fields = [
+            k for k in _ROUTE_REQUIRED_FIELDS
+            if k != "payment_method" and fields.get(k) and not prev_captured.get(k)
+        ]
         missing = _missing_route_field(session, fields)
-        if missing and missing != "payment_method":
+        if missing and missing != "payment_method" and not new_route_fields:
             fields["payment_method"] = prev_captured.get("payment_method")
             return _persist_turn(
                 chat_id,
@@ -5136,6 +5392,10 @@ def process_turn(
     # _enforce_diagnostic_label_help y bloqueaba la recomendación real por especie.
     ai_response = _enforce_profile_recommendation_help(session, ai_response, user_message, history)
     fields = ai_response.get("captured_fields", fields)
+    # Un exam_type nuevo tiene que estar anclado a lo que el cliente dijo (QA-5): corre
+    # ANTES de las ayudas de catálogo para que no trabajen sobre un análisis inventado.
+    ai_response = _enforce_exam_type_grounding(ai_response, prev_captured, user_message, history)
+    fields = ai_response.get("captured_fields", fields)
     ai_response = _enforce_multiple_tests_capture(session, ai_response, prev_captured)
     fields = ai_response.get("captured_fields", fields)
     ai_response = _enforce_catalog_profile_code_selection(session, ai_response, user_message)
@@ -5160,6 +5420,10 @@ def process_turn(
     ai_response = _enforce_profile_customization_changes(ai_response, prev_captured, user_message)
     fields = ai_response.get("captured_fields", fields)
     ai_response = _enforce_profile_exam_type_integrity(ai_response)
+    fields = ai_response.get("captured_fields", fields)
+    ai_response = _enforce_loose_exam_catalog_resolution(ai_response, prev_captured)
+    fields = ai_response.get("captured_fields", fields)
+    ai_response = _enforce_age_unit_grounding(ai_response, prev_captured, user_message, history)
     fields = ai_response.get("captured_fields", fields)
     _normalize_name_fields(fields)
     ai_response["captured_fields"] = fields

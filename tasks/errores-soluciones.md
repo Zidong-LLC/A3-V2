@@ -480,6 +480,49 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Correcciones aplicadas
 
+### ERR-052 — El descuento por volumen no se mostraba: el total parecía un cálculo mal hecho
+- Severidad: medio (confianza: el cliente cree que el bot calcula mal; el número era correcto)
+- Flujo: resumen de la orden / registro de análisis del menú
+- Síntoma observado (prueba real del usuario, chat 1, 2026-07-06): eligió 2 análisis ($14.000 + $8.000) y el bot mostró "Valor estimado: $19,360 COP" sin explicación. $22.000 − 12% de descuento por volumen (DISCOUNT_TIERS de config.py, 2 análisis → 12%…15+ → 27%) = $19.360 — matemática correcta, pero ni el mensaje de registro ni el resumen mencionaban el descuento. El usuario pensó que el cálculo estaba mal (se repitió en cada orden con 2+ análisis sueltos; las respuestas de PRECIO sí desglosaban vía `_format_tests_total`).
+- Causa raíz: tres puntos mostraban solo el total (`_capture_test_menu_selection`, `_enforce_multiple_tests_capture`, `_order_summary_lines` rama selected_tests) sin el desglose que la respuesta de precios ya tenía.
+- Solución aplicada: helper único `_estimated_total_text(totals)` — con descuento, SIEMPRE "Subtotal $X, descuento por volumen -$Y → valor estimado $Z"; el resumen agrega las líneas "- Subtotal:" y "- Descuento por volumen:" antes del valor estimado. Sin descuento, el texto queda simple.
+- Archivos afectados: `app/agent.py` (4 cambios), `tests/test_qa_realista_guardrails.py` (3 tests nuevos).
+- Tests: suite 195 passed (4 fallos preexistentes de test_dashboard).
+- Nota: `calculate_profile_adjusted_total` (perfil base + agregados) NO aplica descuento — esa rama no necesita desglose. Verificar con el negocio que los tramos de `DISCOUNT_TIERS` (12%–27%, comentario "Sección 5 del spec") sean los vigentes del cliente.
+- Estado: corregido (pendiente re-prueba del usuario).
+
+### ERR-051 — QA adversarial contra BD real: precios inventados, análisis no pedidos y capturas de texto libre sin catálogo
+- Severidad: crítico (dinero: órdenes reales con precio inventado, perfil no pedido de $130.000 y payloads con precio 0)
+- Flujo: captura de análisis / precios / confirmación de dirección / edad
+- Síntoma observado (batería QA adversarial 2026-07-05: 10 personas-IA contra `process_turn` + Supabase REAL, doble revisión juez-IA + manual):
+  1. QA-1: "un coprologico" → orden registrada con "Coprológico **$23k**" (precio real: $12.000, código 1701). El modelo escribió el precio en exam_type y nada lo validó.
+  2. QA-7: TODOS los payloads de análisis suelto quedaron `code: null, price: 0, total_estimated: 0` — dashboard y facturación leerían $0.
+  3. QA-5: el bot nunca preguntó el análisis, saltó al pago y registró "**Perfil Senior Canino V — $130.000**" que el cliente jamás nombró (pidió "prequirúrgico con parcial de orina"); el cliente confirmó sin notarlo.
+  4. QA-5b: "¿cuánto queda el total con el parcial de orina incluido?" → cotizó "PTT (Tiempo **parcial** de Tromboplastina) + Cortisol en **Orina**" (fuzzy multi-término en `_catalog_price_answer`, ruta no cubierta por ERR-050).
+  5. QA-6: "quiero cuadro hemático y creatinina juntos, ¿cuánto sale el total?" → respondió el precio correcto pero PERDIÓ la elección y re-preguntó qué análisis desean.
+  6. QA-2: "si, correcta. necesito coprologico para luna... y contraentrega" (confirmación + datos en bloque) → "¿Cuál es la dirección de retiro?" pisando TODO el turno. Causa real (reproducida determinísticamente): el atajo de "forma de pago fuera de turno" intercepta ANTES del bloque de confirmación de dirección; con `_address_confirmation_pending=True` la dirección cuenta como faltante y el atajo la re-pregunta descartando la captura y el pago.
+  7. QA-3: edad "2" sin unidad → el modelo registró "2 años" inventando la unidad (regla #10 pide repreguntar).
+- Causa raíz (la misma clase que ERR-050, en rutas no cubiertas): el análisis suelto capturado como TEXTO LIBRE nunca se resolvía contra el catálogo; los precios podían salir del texto del modelo; y dos atajos deterministas (price answer, pago fuera de turno) interceptaban turnos compuestos pisando lo capturado.
+- Solución aplicada (6 fixes, mismo principio: catálogo/estructura como única fuente):
+  - A. `_enforce_loose_exam_catalog_resolution` + `_strip_price_text`: exam_type suelto NUEVO se resuelve contra el catálogo (selected_tests con código; exam_type = "código nombre"); cualquier cifra escrita por el modelo se descarta; sin match único queda el texto limpio sin precio.
+  - B. `_enforce_exam_type_grounding`: un exam_type NUEVO debe tener anclaje textual en lo que el cliente dijo (mensaje actual o turnos recientes); si no, se descarta y se pregunta el análisis. Excluye menús mostrados, snapshot multiorden, "el mismo", etiquetas y perfiles/estructura previa.
+  - C. `_catalog_price_answer`: mensaje completo primero; mención de ÁREA → lista las opciones reales de esa área con precios (y guarda el menú marcado para AGREGAR si hay orden en curso); términos sueltos solo como último fallback.
+  - D. `_expresses_order_request`: pedido + consulta de precio en el mismo mensaje NO se responde como side-question; el pipeline captura la selección ("quiero saber cuánto…" sigue siendo consulta).
+  - E. Atajo de pago fuera de turno: resuelve la confirmación de dirección del mismo mensaje ANTES de decidir qué falta, y NO pisa la respuesta si el turno trajo datos nuevos en bloque.
+  - F. `_enforce_age_unit_grounding`: si la unidad de la edad no vino del cliente, se guarda solo el número y la regla existente re-pregunta con ejemplos.
+- Ajustes tras el PRIMER re-test adversarial (mismo día):
+  - El invariante de ERR-050 duplicaba los análisis INCLUIDOS del perfil como agregados cuando el modelo re-escribía exam_type con la descripción ("Perfil Parasitológico II: Coprológico y Coproscópico" → $23.000 pasó a $50.000 entre confirmación y cierre). Fix: los ítems presentes en `_selected_profile_description` nunca se suman.
+  - exam_type = CATEGORÍA de perfiles ("PREQUIRURGICO", capturado del historial) llegaba al resumen sin precio (payload $0). Fix: la resolución de análisis suelto ofrece el menú de perfiles armados de la categoría (`_category_profiles_menu_response`) — una categoría nunca pasa al resumen como análisis.
+  - "los dos juntos, confírmame el total" no se detectaba como pedido → tokens `confirmame/confirmás/confirma` agregados (con exclusión de "¿me confirmas el precio?").
+  - La edad sin unidad capturada del HISTORIAL también se detecta (el grounding revisa los turnos recientes del usuario, no solo el mensaje actual).
+- Ajustes tras el SEGUNDO re-test: "buen día" contaba como unidad de edad ("dia" quitado del set; la edad en días se dice en plural); exam_type con VARIOS análisis como texto ("Cuadro Hemático Completo, Creatinina" → payload $0) ahora se estructura si cada ítem resuelve 1:1.
+- Archivos afectados: `app/agent.py` (11 cambios), `tests/test_qa_realista_guardrails.py` (20 tests nuevos, incluye el turno QA-2 completo end-to-end), runner QA adversarial en scratchpad (BD real, spies de create_request, Alegra off, limpieza selectiva).
+- Tests: suite 192 passed (4 fallos preexistentes de test_dashboard).
+- Verificación adversarial final (BD real, modelo real): caotico_typos BIEN (resumen y cierre "1701 Coprológico / $12,000 COP" reales y consistentes; payload total 12000); perfil_agregado registró el Perfil Prequirúrgico IV $36.000 REAL que sí incluye Parcial de Orina (payload perfecto) — el FAIL del juez es de COMUNICACIÓN (no explicitó que el parcial venía incluido), no de dinero; precios BIEN (cotiza, captura y cierra).
+- Residuo conocido (ABIERTO menor, comunicación/pulido): ante un pedido complejo ("el más completo que incluya parcial de orina"), el menú intermedio puede salir de un área equivocada y el bot no explicita qué incluye el perfil elegido. Sin impacto en dinero ni en datos.
+- Datos del QA: todo lo generado se limpió en cada corrida (requests + eventos, sesiones, mensajes; verificado 0 residuos); `create_pending_client_review` bloqueada durante el QA (0 intentos de insertar clientes reales).
+- Estado: corregido (pendiente re-prueba del usuario por Telegram).
+
 ### ERR-050 — Agregar un análisis a un perfil ya elegido: ruteo roto y el agregado se perdía del total
 - Severidad: crítico (el resumen y el total de la orden perdían plata en silencio: $24.000 en vez de $40.000)
 - Flujo: perfil / personalización (agregar análisis a un perfil base)
