@@ -7,11 +7,15 @@ from app.services import telegram, chatwoot
 from app.services.db import get_or_create_session
 from app.platform_api import platform_api
 from app.dashboard import dashboard
+from app.dashboard_results import dashboard_results
+from app.portal import portal_bp
 
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
 app.register_blueprint(platform_api)
 app.register_blueprint(dashboard)
+app.register_blueprint(dashboard_results)
+app.register_blueprint(portal_bp)
 
 
 @app.before_request

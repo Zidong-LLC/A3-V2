@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1a1a1a">
+  <title>{% block title %}A3 Portal{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=7">
+  <link rel="stylesheet" href="{{ url_for('static', filename='portal.css') }}?v=1">
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js" defer></script>
+</head>
+<body class="crm-theme" data-sidebar="expanded">
+  <div class="crm-app">
+    <aside class="crm-sidebar">
+      <div class="brand-row">
+        <div class="brand-mark">A3</div>
+        <div class="brand-copy"><strong>Portal A3</strong><span>Clientes</span></div>
+      </div>
+
+      <div class="menu-block">
+        <span class="menu-caption">Menu</span>
+        <nav class="menu-list">
+          <a href="{{ url_for('portal.client_requests_page') }}" class="menu-link {{ 'active' if active_tab == 'solicitudes' else '' }}"><i data-lucide="bike"></i><span>Solicitudes</span></a>
+          <a href="{{ url_for('portal.client_results_page') }}" class="menu-link {{ 'active' if active_tab == 'resultados' else '' }}"><i data-lucide="flask-conical"></i><span>Resultados</span></a>
+          <a href="{{ url_for('portal.client_notifications_page') }}" class="menu-link {{ 'active' if active_tab == 'notificaciones' else '' }}"><i data-lucide="bell"></i><span>Notificaciones</span>{% if notif_unread %}<b class="notif-badge">{{ notif_unread }}</b>{% endif %}</a>
+          <a href="{{ url_for('portal.client_profile_page') }}" class="menu-link {{ 'active' if active_tab == 'perfil' else '' }}"><i data-lucide="building-2"></i><span>Mi perfil</span></a>
+        </nav>
+      </div>
+
+      <div class="menu-block menu-foot">
+        <span class="menu-caption">{{ session.portal_email or '' }}</span>
+        <a href="{{ url_for('portal.logout') }}" class="menu-link"><i data-lucide="log-out"></i><span>Cerrar sesión</span></a>
+      </div>
+    </aside>
+
+    <main class="crm-main">
+      <header class="top-header">
+        <div><p class="hello-label">{% block subtitle %}Portal A3 Laboratorio{% endblock %}</p><h1>{% block heading %}{% endblock %}</h1></div>
+        <div class="header-actions">{% block header_actions %}{% endblock %}</div>
+      </header>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+          <section class="approval-notice {{ 'error' if category == 'error' else 'ok' }}">{{ message }}</section>
+        {% endfor %}
+      {% endwith %}
+
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  <script>window.addEventListener('DOMContentLoaded', function () { if (window.lucide) lucide.createIcons(); });</script>
+</body>
+</html>

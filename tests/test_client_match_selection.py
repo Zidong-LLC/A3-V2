@@ -191,3 +191,54 @@ def test_new_client_claim_with_single_match_is_not_selected():
         options=[OPTION_1],
     )
     assert session["client_id"] is None
+
+
+# ── QA modelo real: selección por palabra distintiva con relleno ──────────────
+# 'la de quinta paredes' no elegía la sede porque el substring del texto COMPLETO
+# ('la_de_quinta_paredes') no estaba contenido en el nombre. Ahora se puntúa por
+# palabras significativas compartidas.
+
+
+def test_selection_by_distinctive_word_with_filler():
+    """'la de los andes' elige la sede correcta pese a las palabras de relleno."""
+    reply, session = _run(
+        "la de los andes",
+        ai_signal="provides_client_identifier",
+        ai_captured={"clinic_name": "la de los andes"},
+    )
+    assert session["client_id"] == OPTION_1["id"]
+
+
+def test_selection_by_shared_word_common_to_both_stays_ambiguous():
+    """Una palabra común a AMBAS sedes ('veterinaria') no alcanza para elegir."""
+    reply, session = _run(
+        "la veterinaria esa",
+        ai_signal="provides_client_identifier",
+        ai_captured={"clinic_name": "la veterinaria esa"},
+    )
+    assert session["client_id"] is None
+
+
+# ── Cambio de SEDE mantiene el paciente y el análisis (QA extremo) ────────────
+
+def test_branch_switch_keeps_patient_and_analysis():
+    """'esta orden es para la otra sede' descarta solo la identificación/dirección pero
+    conserva el paciente, el análisis, el médico y el pago (no reinicia la orden entera)."""
+    from app import agent as ag
+    session = {"chat_id": "c1", "client_id": "client-A"}
+    fields = {
+        "clinic_name": "Puppy Export Centro Mayor", "tax_id": "901780420",
+        "pickup_address": "Calle 38", "_client_found": True, "_address_confirmed": True,
+        "patient_name": "Nayara", "species": "Felino", "sex": "Hembra", "patient_age": "4 años",
+        "requesting_doctor": "Ramirez", "owner_name": "Pedro",
+        "selected_tests": ["1316"], "payment_method": "contraentrega",
+    }
+    with patch("app.services.db.clear_client_from_session"):
+        out = ag._switch_branch_keep_order("c1", session, dict(fields))
+    f = out["captured_fields"]
+    # Identificación y dirección: descartadas.
+    assert not f.get("clinic_name") and not f.get("tax_id") and not f.get("pickup_address")
+    # Datos de la orden: se mantienen.
+    assert f.get("patient_name") == "Nayara" and f.get("species") == "Felino"
+    assert ag._as_text_items(f.get("selected_tests")) == ["1316"]
+    assert f.get("requesting_doctor") == "Ramirez" and f.get("payment_method") == "contraentrega"

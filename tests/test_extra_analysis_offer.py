@@ -69,6 +69,29 @@ def test_answer_named_test_adds_and_reoffers():
     assert "seguimos con el pago" in out["reply"]
 
 
+def test_generic_area_term_does_not_autoadd():
+    """ERR-053 (residual, reportado en vivo): 'Análisis sanguíneos' NUNCA debe agregar
+    'Gases sanguíneos Plus' ($90k) a ciegas. Un término de área vaga no resuelve a un test:
+    no agrega nada y pregunta/ofrece cuál."""
+    from tests.test_catalog_resolution import CATALOG
+    fields = dict(COMPLETE, _offering_extra_analysis=True)
+    with patch.object(agent.db, "list_catalog_tests", return_value=CATALOG):
+        out = agent._handle_extra_analysis_answer(SESSION, fields, "Análisis sanguíneos")
+    assert not agent._as_text_items(fields.get("selected_tests"))   # no autoagrega nada
+    assert "1408" not in (out.get("reply") or "")                   # no sugiere el test caro
+    assert "?" in (out.get("reply") or "")                          # pide precisión
+
+
+def test_named_exact_test_still_adds_via_resolver():
+    """El camino feliz sigue: un análisis nombrado inequívocamente se agrega directo."""
+    from tests.test_catalog_resolution import CATALOG
+    fields = dict(COMPLETE, _offering_extra_analysis=True)
+    with patch.object(agent.db, "list_catalog_tests", return_value=CATALOG):
+        out = agent._handle_extra_analysis_answer(SESSION, fields, "un coprológico")
+    assert agent._as_text_items(fields.get("selected_tests")) == ["1701"]
+    assert "agrego" in out["reply"].lower()
+
+
 def test_answer_bare_yes_asks_which():
     fields = dict(COMPLETE, _offering_extra_analysis=True)
     with patch.object(agent.db, "get_tests_by_codes_or_names", return_value=[]), \

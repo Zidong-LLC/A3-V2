@@ -290,7 +290,7 @@ def test_dashboard_keeps_legacy_sections_connected(monkeypatch):
         "request_status": {"received": 1, "cancelled": 0},
         "requests": [{"id": "r-1", "created_at": "2026-05-09T10:00:00", "status": "received"}],
         "messages": [{"id": "m-1", "created_at": "2026-05-09T10:00:00"}],
-        "clients_rows": [{"clinic_name": "Clinica Norte", "phone": "300", "address": "Calle 1", "zone": "Norte", "courier_name": "Luis", "requests_count": 1, "samples_count": 1, "latest_request_status": "received", "latest_sample_status": "pending_pickup"}],
+        "clients_rows": [{"clinic_name": "Clinica Norte", "phone": "300", "address": "Calle 1", "zone": "Norte", "courier_name": "Luis", "requests_count": 1, "samples_count": 1, "latest_request_status": "received", "latest_sample_status": "pending_pickup", "pending_request_id": "req-approval-1"}],
         "couriers_options": [{"id": "courier-1", "name": "Luis Moto", "color": "#f97316"}],
         "couriers_rows": [{"id": "courier-1", "name": "Luis Moto", "phone": "3001234567", "availability": "available", "color": "#f97316", "coverage_count": 1, "clients_count_from_coverage": 3, "localities_text": "Kennedy"}],
         "localities_rows": [{"locality_code": "kennedy", "locality_name": "Kennedy", "clients_count": 3, "coverage_state": "assigned", "assigned_courier_id": "courier-1", "assigned_courier_name": "Luis Moto", "is_assigned": True}],
@@ -310,15 +310,20 @@ def test_dashboard_keeps_legacy_sections_connected(monkeypatch):
         pages = {
             "/clientes": "Clinica Norte",
             "/muestras": "Hemograma",
-            "/analisis": "H001",
-            "/flujo": "Recogida de datos",
-            "/aprobaciones": "Nueva Vet",
             "/motorizados": "Luis Moto",
         }
         for path, expected in pages.items():
             response = client.get(path)
             assert response.status_code == 200
             assert expected in response.get_data(as_text=True)
+
+        clients_body = client.get("/clientes").get_data(as_text=True)
+        assert "Aprobar" in clients_body
+        assert "Rechazar" in clients_body
+        assert 'value="req-approval-1"' in clients_body
+
+        for removed_path in ("/analisis", "/flujo", "/aprobaciones"):
+            assert client.get(removed_path).status_code == 404
 
 
 def test_clients_page_renders_total_delete_action(monkeypatch):
@@ -358,7 +363,7 @@ def test_new_client_button_only_renders_on_clients_page(monkeypatch):
         client = _get_test_client()
         client.post("/login", data={"username": "admin", "password": "secret"})
         clients_response = client.get("/clientes")
-        other_responses = [client.get(path) for path in ("/dashboard", "/muestras", "/motorizados", "/aprobaciones")]
+        other_responses = [client.get(path) for path in ("/dashboard", "/muestras", "/motorizados")]
 
     assert clients_response.status_code == 200
     assert 'href="/clientes/nuevo"' in clients_response.get_data(as_text=True)
@@ -561,7 +566,7 @@ def test_new_client_form_creates_pending_review(monkeypatch):
         response = client.post("/clientes/nuevo", data=payload)
 
     assert response.status_code == 302
-    assert response.headers["Location"].endswith("/aprobaciones?notice=Cliente+enviado+a+revision&notice_type=ok")
+    assert response.headers["Location"].endswith("/clientes?notice=Cliente+enviado+a+revision&notice_type=ok")
     create_review.assert_called_once()
     review_payload = create_review.call_args.kwargs["client_payload"]
     assert review_payload["clinic_name"] == "Clinica Revision"

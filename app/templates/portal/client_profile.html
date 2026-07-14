@@ -1,0 +1,19 @@
+{% extends "portal/base.html" %}
+{% block title %}A3 Portal - Mi perfil{% endblock %}
+{% block subtitle %}Mi cuenta{% endblock %}
+{% block heading %}Mi perfil{% endblock %}
+
+{% block content %}
+<section class="card">
+  <div class="card-head"><h3>Datos de la cuenta</h3><p>Información registrada en el laboratorio</p></div>
+  <div class="portal-detail-grid">
+    <div><span>Veterinaria / clínica</span><strong>{{ (client or {}).clinic_name or '—' }}</strong></div>
+    <div><span>NIT</span><strong>{{ (client or {}).tax_id or '—' }}</strong></div>
+    <div><span>Teléfono</span><strong>{{ (client or {}).phone or '—' }}</strong></div>
+    <div><span>Dirección</span><strong>{{ (client or {}).address or '—' }}</strong></div>
+    <div><span>Ciudad</span><strong>{{ (client or {}).city or '—' }}</strong></div>
+    <div><span>Correo de acceso</span><strong>{{ session.portal_email or '—' }}</strong></div>
+  </div>
+  <p class="muted-text portal-profile-note">Para actualizar estos datos, contacte al laboratorio: la dirección y el teléfono definen la asignación de su motorizado y la identificación de su cuenta.</p>
+</section>
+{% endblock %}

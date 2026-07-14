@@ -27,6 +27,127 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### ERR-059 — Dos LÓGICAS de fallo (no frases): el flujo no sabía retroceder y corregir un dato reiniciaba todo (2026-07-11)
+
+- **Origen:** corrección directa del usuario (→ L50 en lessons.md): "resolvé la lógica del fallo, no la palabra — ningún cliente repite el fraseo exacto". Análisis de los 2 chats que rompieron al agente.
+- **LÓGICA 1 — retroceso de paso:** el flujo solo sabía avanzar; el "empuje" del paso actual (p. ej. re-preguntar el pago) pisaba cualquier pedido de volver atrás. **Fix:** `_enforce_payment_step` CEDE ante `user_intent_signal="correction"` (fuente primaria — cualquier fraseo que el modelo entienda como cambio/retroceso); el detector de tokens queda de red. Prompt reforzado: la definición de `correction` incluye "volver a un paso anterior mientras se pregunta otra cosa".
+- **LÓGICA 2 — corrección puntual ≠ reinicio:** "cambiar el cliente" reiniciaba TODA la orden (re-preguntaba médico, paciente, especie... — el cliente repetía todo; ahí nació "el que ya te dije"). **Fix:** `_restart_identification_for_new_client` distingue por estado — orden EN CURSO → `_switch_client_keep_order` (motor unificado con el cambio de sede: conserva médico/paciente/análisis/pago/observaciones; re-verifica solo identidad y dirección); orden YA REGISTRADA (terminal) → reset como antes (pedido nuevo).
+- **Sub-fallo detectado en el re-QA:** al re-identificar el cliente nuevo, el modelo re-capturaba del historial la dirección del cliente ANTERIOR (el resumen viejo está en el contexto) y el flujo la aceptaba sin confirmar → orden con dirección equivocada (logística real). **Fix de lógica:** `_address_written_by_user` — una dirección solo vale como "dada por el usuario" si la escribió en su mensaje (≥60% de sus tokens); si no coincide con la del cliente nuevo y no la escribió, se descarta y se confirma la registrada del nuevo.
+- **Tests:** `test_qa_realista_guardrails` (+3: el empuje cede ante correction; cambiar cliente en curso conserva la orden; tras registrar sí resetea). Suite: **234 passed, 1 xfailed**. QA con modelo real usando FRASEOS NUEVOS (distintos a los chats) para validar que es la lógica y no la palabra.
+- **Estado:** ✅ CORREGIDO (validación con fraseos nuevos en curso).
+
+
+### ERR-058 — Prueba en vivo del usuario (chat 4, 2026-07-08): 3 fallos del "20% restante" (2026-07-08)
+
+- **Severidad:** alto (uno de dinero/orden). Prueba en vivo real del usuario tras la Fase 3; el 80% funcionó (cabra→Caprino+Hembra, typo "potacio" resuelto, menú de orina ofrecido, cambio de cliente y corrección de dirección OK). Tres fallos concretos:
+- **BUG-B (dinero) — menú de PERFILES pegado:** pidió "prueba de orina" (menú de análisis nuevo) → dijo "1" → registró **"152 Perfil Prequirúrgico I"** del menú de perfiles VIEJO (mostrado antes de "armar a medida"), pisando el perfil personalizado armado. Variante de perfiles del menú pegado (el de análisis se arregló en ERR-055). **Fix de raíz:** menús mutuamente excluyentes — `_store_test_menu_options` descarta `_profile_menu_options` y el nuevo helper `_store_profile_menu_options` (reemplaza 5 asignaciones directas dispersas) descarta el menú de análisis.
+- **BUG-A — "antes de cerrar quiero agregar otro análisis" pisado por la pregunta de pago:** (mismo fallo del historial del "toro", seguía abierto). `_enforce_payment_step` re-preguntaba el pago ignorando la intención. **Fix:** si el mensaje pide agregar (`_wants_partial_analysis_change`) y aún no hay pago, se reabre el paso de agregado (`_awaiting_additional_test="add"` + `_offering_extra_analysis`) en vez de re-preguntar el pago.
+- **BUG-C — "el que ya te dije" capturado LITERAL como médico** (`requesting_doctor="El Que Ya Te Dije"`; mismo patrón que ERR-030 con clinic_name). **Fix:** guard post-LLM `_reject_reference_phrases_as_names` — un valor NUEVO de campo de nombre (médico/paciente/dueño/clínica) que sea frase-referencia ("...dije", "el mismo", "el de siempre") se descarta y el pipeline re-pregunta; los nombres reales ("Sr Juan") pasan limpios.
+- **Refinamiento adicional del resolvedor (detectado en el re-QA):** "necesito una PRUEBA de orina" ofrecía un menú absurdo (Prueba de Coombs...) porque "prueba" matcheaba nombres tipo "Prueba Cruzada de Coombs". Fix en `catalog.py`: el matching por nombre usa solo tokens de CONTENIDO (`_content_only`: sin fillers, sin sustantivos genéricos, sin palabras de área, sin verbos de pedido `_REQUEST_WORDS`) en AMBOS lados; y multi-pick con desempate real ("cuadro hematico sodio" → ambos tests; "una glucosa" → ambiguo entre las 3 glucosas). En el handler, resolve=NONE con mención de área → `_area_options_for_profile_addition(require_question=False)` ofrece el menú del área real.
+- **Tests:** `test_qa_realista_guardrails` (+3: menús excluyentes en ambas direcciones, agregar-vs-pago, frases-referencia). Suite: **231 passed, 1 xfailed**.
+- **Validación (modelo real, flujo EXACTO del usuario):** **4/4 OK** — "antes de cerrar quiero agregar" reabre el agregado; "prueba de orina" ofrece el menú de uroanálisis completo; el "1" elige 1507 del menú nuevo manteniendo intacto el perfil personalizado (1101/1404/1405); "el que ya te dije" no queda literal.
+- **Estado:** ✅ CORREGIDO y validado con modelo real.
+
+
+### FASE-3.4 (arranque) — Descomponer el monolito: patrón demostrado (2026-07-08)
+
+- **Tipo:** refactor puro (mover código, no cambiar lógica). `agent.py` tiene ~5.600 líneas; se parte gradualmente en módulos cohesivos, con la suite (228) como oráculo en cada extracción.
+- **Extraído:** `app/text.py` (utilidades de texto puras: `tokenize`, `money`, `catalog_item_key`, `strip_price_text`, `ACCENT_TRANSLATION`) y `app/species.py` (modelo de dominio de animales: `ANIMAL_DOMAIN` + `apply_implied_animal_fields`). `agent.py` las re-exporta con los nombres `_*`, así las cientos de referencias existentes no se tocan (cero cambio de comportamiento).
+- **Patrón establecido:** capa base (`text`) → módulos de dominio (`species`, y ya antes `catalog`, `state`) que importan de la base. Sin dependencias circulares.
+- **Verificación:** `import app.agent` OK; suite **228 passed, 1 xfailed** tras cada extracción.
+- **Pendiente (gradual):** extraer los grupos grandes restantes (detectores de intención, enforcers, formateo de respuestas) módulo por módulo, cada uno con la suite verde. No urge y no bloquea; baja el riesgo del reorden del pipeline (3.3 completo) cuando se encare.
+- **Estado:** ✅ patrón demostrado (text.py, species.py). Resto = trabajo incremental.
+
+### FASE-3.3 (piloto) — Invertir el orden de decisión: confirmación de dirección por señal del LLM (2026-07-08)
+
+- **Tipo:** primer paso del 3.3 (el que reduce la variabilidad de raíz). A diferencia de 3.1/3.2 (que solo formalizaron), aquí SÍ cambia CÓMO se decide — pero solo un detector, para validar el patrón con evidencia antes de extenderlo.
+- **Qué:** la confirmación/rechazo de dirección deja de decidirse solo por listas de tokens. Nuevos `_confirms_address_now(ai_response, msg)` y `_rejects_address_now(...)` con `user_intent_signal` como FUENTE PRIMARIA (affirm→confirma; negate/correction/change_client→no) y los detectores de tokens (`_confirms_address`/`_rejects_address`) como FALLBACK. Molde idéntico a `_confirms_order_now` (cierre, ya probado). Migrados los 3 usos post-LLM en `process_turn`.
+- **Valor:** una confirmación coloquial fuera de lista ("no hay drama, esa dirección está bien" — que los tokens RECHAZAN por el "no") ahora confirma; y un "sí" incidental NO confirma si la IA leyó negación/corrección. La señal manda; los tokens son red.
+- **Seguridad:** si el modelo no llena la señal (o es `unclear`), cae al comportamiento por tokens de hoy → sin regresión. `tests/test_address_pending_reask.py` (+3, incl. señal vs tokens engañosos). Suite: **228 passed, 1 xfailed**. QA de flujos (cierre con confirmación) sin regresión.
+- **Estado:** ✅ HECHO (piloto). Con esto validado, el patrón se puede extender detector por detector (otra orden, cambio de análisis, "el mismo", etc.) — cada uno reduce un poco más la variabilidad tokens-vs-LLM.
+
+### FASE-3.2 — FSM explícita: fases tipadas y transiciones documentadas (2026-07-08)
+
+- **Tipo:** refactor arquitectónico (NO cambia comportamiento). Segundo paso de la Fase 3.
+- **Antes:** las fases eran strings mágicos (`"fase_4_confirmacion"`…) que el modelo proponía y los enforcers reescribían libremente; las constantes estaban dispersas (`CONFIRMATION_PHASE` en agent.py, `TERMINAL/DONE/ESCALATED_PHASES` en rules.py). Sin grafo de transiciones ni forma de detectar un salto incoherente.
+- **Ahora (`app/state.py`):** enum `Phase` (hereda de `str` → compatible con todo el código), `TERMINAL/DONE/ESCALATED_PHASES` tipadas, `LEGAL_TRANSITIONS` (grafo del flujo real documentado), `is_legal_transition()` e `is_terminal()`. `agent.CONFIRMATION_PHASE` ahora deriva de `state.Phase.CONFIRMACION.value` (una sola fuente de verdad; string idéntico → cero riesgo de serialización). `rules.py` se deja intacto (convención: solo depende de config); un test verifica que el enum y las constantes de rules coinciden.
+- **Modo:** formalización + DETECCIÓN (no se bloquea ninguna transición todavía, igual que 3.1 no impuso el estado). `is_legal_transition` queda disponible para el paso 3.3.
+- **Verificación:** `tests/test_state.py` (+3: consistencia enum↔constantes, transiciones del flujo, is_terminal). Suite: **225 passed, 1 xfailed**. QA real de cierre de orden.
+- **Estado:** ✅ HECHO. Con 3.1 (estado) da el cimiento tipado para 3.3 (invertir el orden de decisión: el LLM decide, el código valida) y 3.4 (partir el monolito).
+
+### FASE-3.1 — Estado explícito de la conversación (refactor del "cómo", 2026-07-08)
+
+- **Tipo:** refactor arquitectónico (NO cambia comportamiento). Primer paso de la Fase 3 del plan `~/.claude/plans/podemos-hacer-podemos-hacer-lively-waterfall.md`. Insight del usuario: el QUÉ (lo que el cliente ve) está bien; el CÓMO (estructura interna) es el problema y genera la variabilidad.
+- **Antes:** el estado eran ~42 flags `_*` sueltas mezcladas con los datos de negocio en un dict libre, arrastradas a mano turno a turno (bucle inline en `process_turn`), sin schema ni invariantes.
+- **Ahora:** nuevo `app/state.py::ConversationState` — envuelve el mismo dict (compat total con Supabase/ai.py), con: catálogo de flags agrupado por concepto (identificación/análisis/dirección/cierre) como fuente única de verdad; `carry_over()` que reemplaza el merge inline (equivalencia byte a byte probada); `assert_valid()` con invariantes (dirección no confirmada+pendiente, cliente no encontrado+no-encontrado, bloqueado no registra); `unknown_flags()` para detectar flags fantasma; helpers `clear_menus()`/`has_analysis`.
+- **Integración:** en `process_turn` la copia manual de flags → `state.ConversationState(fields).carry_over(prev_captured)`. Nada más cambia; el resto del código sigue leyendo el dict.
+- **Verificación:** `tests/test_state.py` (6, incluye equivalencia con el bucle viejo y que el catálogo cubre todas las flags usadas en `agent.py`). Suite: **222 passed, 1 xfailed**. QA real de confirmación end-to-end.
+- **Estado:** ✅ HECHO. Cimiento para 3.2 (FSM), 3.3 (invertir orden de decisión), 3.4 (partir el monolito).
+
+
+### ERR-057 — Interpretación inconsistente de especie/raza ("toro" a veces especie, a veces raza) — fix de CORE (2026-07-07)
+
+- **Severidad:** medio (core del dominio). Del historial del "toro": "un toro" se interpretaba de 4 formas distintas entre corridas (especie "toro", raza "Toro", "Bovino"…). A3 atiende TODAS las especies (bovinos, porcinos, equinos, ovinos, caprinos, conejos, aves, etc.), no solo perros/gatos.
+- **Causa raíz (no era un parche, era el core incompleto):** el modelo de dominio de animales estaba a medias y FRAGMENTADO en dos mapas: `_RECOVERABLE_SPECIES` tenía las especies canónicas pero sin las palabras coloquiales (faltaban toro/vaca/puerco/oveja/cabra/gallina…), e `_IMPLIED_ANIMAL_FIELDS` (especie+sexo) solo cubría perro/gato/caballo. Sin normalización determinística, el LLM improvisaba → inconsistencia.
+- **Solución (fuente única de verdad):** un solo `_ANIMAL_DOMAIN` (`app/agent.py`) — palabra coloquial → (especie canónica, sexo implícito cuando es inequívoco: toro=Macho, vaca=Hembra; genéricos como perro/cerdo/caballo NO asumen sexo). `_RECOVERABLE_SPECIES` e `_IMPLIED_ANIMAL_FIELDS` se DERIVAN de él (sin duplicar). Cubre caninos, felinos, bovinos, porcinos, equinos, ovinos, caprinos, conejos, roedores, aves y reptiles con sus variantes. Prompt actualizado: A3 atiende todas las especies y "toro/vaca/cerdo" son ESPECIE+sexo, nunca la raza (la raza es Holstein, Angus, Brahman…).
+- **Validación (modelo real):** QA de especies 5/5 (toro→Bovino+Macho, vaca→Bovino+Hembra, cerdo→Porcino, conejo→Conejo, oveja→Ovino+Hembra; ninguno quedó como raza). Tests: `tests/test_species_domain.py` (19). Suite: 216 passed, 1 xfailed.
+- **Estado:** ✅ CORREGIDO de raíz. El modelo de dominio de animales es ahora completo y determinístico.
+
+
+### ERR-056 — 'Análisis de sangre' ofrecía Coagulación / registraba 'Sangre Oculta'; 'prequirúrgico' entraba en bucle (2026-07-07)
+
+- **Severidad:** medio (flujo; el dinero ya estaba blindado). Del historial real del "toro" (Animal PET).
+- **BUG G — término de área vaga mal resuelto:** "Quiero hacer un análisis de sangre" → ofrecía opciones de **Coagulación** (PT/PTT), y `resolve_tests` daba un falso EXACT a **1704 Sangre Oculta** ("sangre" es el token inicial de ese nombre). **Fix (dos capas):** (1) `app/catalog.py`: un término cuyo contenido significativo es solo una palabra de ÁREA vaga (`_AREA_WORDS`: sangre/orina/heces/suero…) NO resuelve a un test — se deja para la ayuda de área dedicada. (2) `app/services/db.py::find_tests_by_area`: excluye muestras ultra-genéricas ('sangre','suero','plasma') del match por tipo de muestra (casi todo análisis es de sangre → no identifica un área). Resultado: "análisis de sangre" → `_enforce_generic_blood_analysis_help` ofrece **Hematología**.
+- **BUG F — 'un prequirúrgico' durante el agregado → bucle:** confirmado resuelto (el handler ofrece los perfiles de la categoría, ERR-055).
+- **BUG H — 'Un pre quirúrgico 1' registraba PT:** era consecuencia de que "análisis de sangre" abría mal el menú de coagulación; resuelto de raíz con BUG G.
+- **Validación (modelo real):** QA del tramo del historial (Animal PET) **4/4 OK**: "análisis de sangre" ofrece hematología, no registra basura; "un prequirúrgico" ofrece perfiles; sin PT espurio.
+- **Tests:** `test_catalog_module` (área vaga → NONE), suite 197 passed, 1 xfailed.
+- **Estado:** ✅ CORREGIDO y validado con modelo real.
+
+
+### ERR-055 — QA EXTREMO (nivel "toro") reveló 5 bugs de flujo/dinero (2026-07-07)
+
+- **Severidad:** alto. Batería adversarial larga (multi-orden, correcciones tercas, cambio de sede, análisis inexistentes) contra `process_turn` + modelo real. 11/15 invariantes en la 1ª pasada.
+- **BUG A — menú pegado:** un `_test_menu_options` no consumido (el cliente dijo "mejor no") quedaba activo; un dígito incidental posterior ("2 años" = edad) seleccionaba una opción vieja y agregaba un análisis NO pedido (PTT). **Fix:** (1) `_select_tests_from_menu` no toma un dígito como opción si va seguido de una unidad de magnitud (`_MAGNITUDE_UNITS`: años/meses/kilos…); (2) en `process_turn` se descarta el menú si el mensaje es largo (>6 tokens) o abre otra orden.
+- **BUG E — precio con fuzzy:** `_catalog_price_answer` usaba el matcher viejo → "glucosa en ayunas, ¿cuánto es el total?" arrastraba "Colesterol Total (Ayunas)". **Fix:** migrado a `catalog.resolve_tests(collect_partial=True)` (cotiza lo nombrado e ignora el ruido de la pregunta) + **desempate por cobertura** en `_resolve_one` ("glucosa EN AYUNAS" → Glucosa (Ayunas), no las otras glucosas).
+- **BUG F — perfil por categoría durante el agregado:** "un prequirúrgico" repetido caía en bucle "¿qué análisis?". **Fix:** `_handle_extra_analysis_answer` ofrece los perfiles de la categoría (`_category_profiles_menu_response`) antes de tratarlo como análisis suelto.
+- **BUG C — quitar+poner ('sacá eso y ponme una glucosa'):** se ignoraba. **Fix:** detectar reemplazo (remove + `_ADD_ANALYSIS_TOKENS` + análisis concreto) → limpia lo suelto y agrega el nuevo.
+- **BUG D — cambio de sede mal interpretado** ("esta orden es para la otra sede" → registró Perfil Felino IV espurio): causa = el MODELO alucinó la selección (ni `_profile_codes_from_text` ni `_wants_to_change_client` la detectaban), inducido por un menú de perfiles felinos pegado en el contexto y por no reconocer "otra sede" como cambio de cliente. **Fix:** `_wants_to_change_client` ahora incluye los sustantivos de sede (`_BRANCH_NOUN_TOKENS`: sede/sucursal/local) + señal de cambio → "esta orden es para la otra sede" se maneja como cambio de cliente determinísticamente, antes de que el modelo alucine. Verificado que no rompe "confirmo los datos del cliente" ni "la sede del norte está bien".
+- **Tests:** `test_client_match_selection` (menú/edad), `test_qa_realista_guardrails` (glucosa ambigua), resolvedor con desempate. Suite: 196 passed, 1 xfailed.
+- **Métricas QA extremo (modelo real):** 11/15 → 12/15 → (final con A/C/E/F/D). Falsos negativos corregidos: X1-e (resumen antes de cerrar = correcto), X3-b (la cotización era correcta).
+- **Mejora BUG D (cambio de sede sin perder la orden):** el interceptor distingue cambio de SEDE (misma orden) de cambio de CLIENTE. Nueva `_switch_branch_keep_order`: ante "esta orden es para la otra sede" descarta solo identificación + dirección y re-verifica la sede, MANTENIENDO paciente, análisis, médico, pago y observaciones (antes reiniciaba todo). Test: `test_client_match_selection::test_branch_switch_keeps_patient_and_analysis`.
+- **Estado:** A/C/D/E/F ✅ corregidos y en verde (196 passed, 1 xfailed). Pendiente menor: cotizar (`_catalog_price_answer`) no estructura la selección — el precio es correcto pero el cliente re-confirma (variante QA-6, no dinero).
+
+
+### ERR-054 — QA con modelo real reveló 3 bugs de flujo (selección de sede, captura en bloque, glucosa $0) (2026-07-07)
+
+- **Severidad:** alto (identificación y dinero). Detectados con batería QA adversarial contra `process_turn` + OpenAI real + Supabase real (no mocks).
+- **Bug #1 — selección de sede por nombre con relleno:** con 2 sedes del mismo NIT, "la de quinta paredes" NO seleccionaba (el substring del texto COMPLETO `la_de_quinta_paredes` no estaba en el nombre) → bucle de identificación. "quinta paredes" sí funcionaba. **Fix:** `_select_client_match` puntúa por PALABRAS distintivas compartidas (tokens ≥4) y elige la de mayor coincidencia única; empate por palabra común no elige. Tests: `test_client_match_selection::test_selection_by_distinctive_word_with_filler` y `::..._common_to_both_stays_ambiguous`.
+- **Bug #2 — bloque de datos del paciente ignorado:** con dirección pendiente de confirmar, un bloque de 6+ datos del paciente hacía que el bot re-preguntara la dirección ya conocida (perdía el turno). La guarda `progressed` solo miraba turnos anteriores. **Fix:** contar también un BLOQUE de 3+ campos nuevos del paciente en el turno actual como avance (confirma la dirección por progresión). Exige 3+ campos para no regresar ERR-046 (un solo dato no confirma).
+- **Bug #3 — análisis genérico ambiguo → $0:** "una glucosa" (varias variantes reales: Ayunas/Pre y Pos/Insulina) quedaba como texto suelto con precio $0. **Fix:** `_enforce_loose_exam_catalog_resolution`, ante `resolve_tests`=AMBIGUOUS, OFRECE las opciones (`_test_options_response`) en vez de dejar texto con $0. Test: `test_qa_realista_guardrails::test_loose_exam_ambiguous_offers_options_instead_of_zero_price`.
+- **Validación:** re-QA con modelo real **10/10 invariantes OK** (identificación, sin análisis basura, precios del catálogo, cierre informal, bloque de datos). Suite: 196 passed, 1 xfailed.
+- **Estado:** ✅ CORREGIDO y validado con modelo real. Pendiente: batería QA EXTREMA (multi-orden/correcciones/cambio de sede) en curso.
+
+
+### ERR-053 — El bot agregaba análisis que el cliente NUNCA pidió (match por subcadena) (2026-07-07)
+
+- **Severidad:** crítico (dinero/orden incorrecta)
+- **Flujo:** perfil (agregar análisis a un perfil elegido)
+- **Síntoma observado:** en prueba real (chat=1) el cliente elige "Perfil Prequirúrgico II" y luego, al intentar agregar análisis sueltos, el bot pegaba tests basura: "Quiero agregar otro análisis" → `1201-PT`, "Análisis sanguíneos" → `1408-Gases sanguíneos Plus`, "Parasitologico 3" → `1501-T3 Total`. `selected_tests` quedó `[1201, 1408, 1501]`.
+- **Reproducción mínima:** `db.get_tests_by_codes_or_names(_named_analysis_terms("Parasitologico 3"))` devolvía `T3 Total` porque el término `"3"` estaba contenido en `"t3 total"`.
+- **Causa raíz:** dos piezas combinadas. (1) `get_tests_by_codes_or_names` (`db.py`) matcheaba con `lookup in name_key` — **subcadena** — así que un fragmento cortito caía dentro de cualquier nombre que lo contuviera. (2) `_named_analysis_terms` (`agent.py`) admitía **dígitos sueltos** (`t.isdigit()`) y verbos/muletillas de ≥4 letras ("quiero", "agregar", "otro"). El match del mensaje completo daba `[]`; era el fallback por términos sueltos el que inventaba el test y lo agregaba en silencio.
+- **Solución aplicada:** (1) `db.py`: nuevo `_tokens_contained()` — el término debe aparecer como secuencia contigua de **palabras completas** dentro del nombre (límite de palabra), no subcadena arbitraria. (2) `agent.py`: `_named_analysis_terms` descarta dígitos de <3 cifras (los códigos tienen ≥3) y verbos de acción vía `_ACTION_STOPWORDS`.
+- **Archivos afectados:** `app/services/db.py`, `app/agent.py`.
+- **Tests:** suite de perfiles/análisis en verde (79 tests: `test_category_profile_menu`, `test_profile_addition_invariant`, `test_add_analysis_during_adjustment`, `test_analysis_options_restore`, `test_profile_price_resolution`, `test_extra_analysis_offer`, `test_price_answers`, `test_qa_realista_guardrails`). Pendiente: agregar regresión dedicada de los 3 casos.
+- **Validación manual:** reproducción contra BD real: "Parasitologico 3" → `[]`, "Quiero agregar otro análisis" → `[]`, "hemograma"/"cuadro hematico"/"1201"/"PT" siguen resolviendo bien.
+- **Residual conocido (primer parche):** "Análisis sanguíneos" todavía resolvía a `Gases sanguíneos Plus` porque `"sanguineos"` es una palabra COMPLETA del nombre. Era un match por token, no el bug de subcadena. → cerrado abajo con la corrección de fondo.
+- **Corrección de FONDO (2026-07-07, refactor eje catálogo Fase 1):** en vez de seguir endureciendo el matcher de bajo nivel, se atacó la causa raíz del cluster (~20 parches): la resolución texto→código se centralizó en un módulo puro **`app/catalog.py::resolve_tests`** que solo AGREGA con match inequívoco (código exacto, nombre canónico completo, o token inicial/≥50% de cobertura del nombre). Un término genérico o de área ("sanguíneos", "orina") devuelve `AMBIGUOUS` → el flujo ofrece opciones (menú que SUMA al perfil) en vez de adivinar un test suelto. Integrado en `_handle_extra_analysis_answer` (el punto donde el usuario reprodujo el bug en vivo). Principio: ante la duda, ofrecer — nunca adivinar (regla de dinero, L48).
+- **Red de seguridad (Fase 0, previa al refactor):** `tests/test_catalog_resolution.py` (ejercita la resolución REAL con catálogo inyectado en `db._client`) + `tests/test_money_invariants.py` (invariantes I1 códigos válidos / I2 sin precio inventado / I4 total por códigos, end-to-end sobre `process_turn`).
+- **Guardrails migrados a `resolve_tests` (Fase 1.4a):** `_enforce_loose_exam_catalog_resolution` y `_enforce_multiple_tests_capture` dejaron su matching propio (loops de `get_tests_by_codes_or_names`) y ahora delegan en el resolvedor unívoco. Unifica la resolución texto→código en un solo lugar y elimina la duplicación que causaba variantes del bug por rutas distintas.
+- **Validador I1 (red dura, Fase 1.2):** nuevo `_enforce_selected_tests_are_catalog_codes`, corre JUSTO antes de registrar: descarta cualquier `selected_tests` que no sea un código real del catálogo (fail-safe si no hay catálogo). Garantiza que ninguna orden se cree con un análisis fantasma ni payload en $0, pase lo que pase en los guardrails previos. Test: `test_money_invariants::test_invalid_code_from_model_is_dropped_before_registering`.
+- **Tests nuevos:** `tests/test_catalog_module.py` (9, resolvedor puro), `test_extra_analysis_offer::test_generic_area_term_offers_options_instead_of_autoadding` y `::test_named_exact_test_still_adds_via_resolver`, `test_money_invariants` (3). Suite: **192 passed, 1 xfailed**.
+- **Estado:** ✅ CORREGIDO de raíz. El eje catálogo/dinero (cluster de ~20 parches) queda centralizado en `app/catalog.py`. Deuda documentada (xfail estricto): retirar del todo la función laxa `get_tests_by_codes_or_names` de bajo nivel cuando se migren sus últimos call-sites (precios/remove). Pendiente sin empezar: Fase 2 (intención por IA, Etapas 2-4 de ERR-011) y Fase 3 (FSM explícita).
+
 ### RESUELTO-026 — "Animal Pet es la clínica..." se extraía como "Con La Que Trabajo" (2026-07-03)
 
 - **Síntoma:** En Chatwoot `chat=1`, el usuario respondió `animal Pet es la clínica con la que trabajo` y el bot contestó `No encuentro ningún cliente registrado con ese dato. ¿Eres cliente nuevo?`.
@@ -474,7 +595,9 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 - Flujo: interpretacion de lenguaje (transversal)
 - Sintoma observado: solo las Etapas 0 (schema+prompt) y 1 (identificacion de cliente) usan `user_intent_signal` como fuente primaria. El resto del flujo todavia decide con detectores de tokens como autoridad.
 - Solucion propuesta: migrar por etapas — 2 (confirmaciones/correcciones/direccion), 3 (memoria/"el mismo de siempre"/cambio de cliente), 4 (perfiles/small talk). Plan: `~/.claude/plans/glittery-marinating-newell.md`.
-- Estado: en progreso.
+- Progreso (2026-07-07): migrado el CIERRE de orden (`_confirms_order_now` en `_enforce_confirmation_step`) a `user_intent_signal=affirm` como fuente primaria, con salvaguardas (no cierra si la IA leyó correccion/negacion/cambio/otra orden/cancelar). Cierra confirmaciones fuera de lista ("me sirve así, avancemos"). Test: `test_profile_price_resolution::test_confirmation_closes_on_affirm_signal_outside_token_list`.
+- **Hallazgo arquitectonico clave (por qué el plan previo se estancó):** el grueso de los detectores de Etapa 2/3 vive en la cascada PRE-LLM de `process_turn` (~40 `if token: return` ANTES de llamar al modelo), donde `user_intent_signal` todavía NO existe. Solo los detectores POST-LLM (como el cierre) pueden usar la señal limpiamente. Completar Etapa 2-4 requiere PRIMERO reordenar el pipeline para que el LLM corra antes de los atajos de token — eso ES la Fase 3 (FSM/reorden). Etapa 2 y Fase 3 están acopladas; NO son independientes como asumía el plan previo.
+- Estado: en progreso (cierre migrado; el resto depende del reorden del pipeline — Fase 3). Requiere validacion en vivo con modelo real de que la señal se llena bien antes de seguir.
 
 ---
 

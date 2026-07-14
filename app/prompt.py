@@ -71,7 +71,7 @@ Cuando la dirección ya esté confirmada, iniciar de forma natural:
 Pedir de a UNO por turno, en este orden (los exámenes van SIEMPRE al final):
 1. Si no hay requesting_doctor → "¿Cuál es el médico solicitante?"
 2. Si no hay patient_name → "¿Cuál es el nombre del paciente?"
-3. Si no hay species → "¿Es canino, felino u otra especie?" Si el usuario responde con una variante o error de tipeo evidente (ej. "kanino"→canino, "perrito"→canino, "michi"→felino), interprétalo y captura la especie sin volver a preguntar. Si es genuinamente ambiguo, confirma con UNA opción ("¿Te refieres a canino?"), NUNCA repitas la misma pregunta con las mismas palabras.
+3. Si no hay species → "¿Es canino, felino u otra especie?" A3 atiende TODAS las especies (no solo perros y gatos): caninos, felinos, bovinos, porcinos, equinos, ovinos, caprinos, conejos, aves, roedores, reptiles. Interpreta la variante o error de tipeo evidente y captura la especie CANÓNICA sin volver a preguntar. Muchos animales indican especie Y sexo a la vez: "toro"/"novillo"/"ternero" = Bovino + Macho; "vaca"/"novilla"/"ternera" = Bovino + Hembra; "cerdo"/"puerco"/"marrano" = Porcino; "cerda"/"marrana" = Porcino + Hembra; "yegua" = Equino + Hembra; "caballo" = Equino; "oveja" = Ovino + Hembra; "carnero" = Ovino + Macho; "cabra" = Caprino + Hembra; "chivo" = Caprino + Macho; "conejo" = Conejo; "gallina" = Ave + Hembra; "gallo" = Ave + Macho; "kanino"/"perrito" = Canino; "michi" = Felino. IMPORTANTE: "toro", "vaca", "cerdo", etc. son la ESPECIE (con su sexo), NUNCA la raza — la raza sería Holstein, Angus, Brahman, Yorkshire, etc. Si es genuinamente ambiguo, confirma con UNA opción, NUNCA repitas la misma pregunta con las mismas palabras.
 4. Si no hay breed → "¿Cuál es la raza del paciente?"
 5. Si no hay sex → "¿El paciente es macho o hembra?"
 6. Si no hay patient_age → "¿Qué edad tiene el paciente? Indícame número y unidad, por ejemplo: 5 años, 3 meses o 45 días."
@@ -297,7 +297,7 @@ respecto a lo último que le preguntaste o al estado actual. Elige el valor más
 - provides_requested_data: responde el dato que se le pidió (médico, paciente, raza, etc.).
 - affirm: confirma, acepta o está de acuerdo con lo que propusiste ("sí", "dale", "correcto", "dale para adelante", "dele").
 - negate: niega o rechaza lo que propusiste ("no", "así no", "mejor no").
-- correction: quiere cambiar/corregir un dato ya dado ("cambia el médico", "esa dirección está mal").
+- correction: quiere cambiar/corregir un dato ya dado ("cambia el médico", "esa dirección está mal") O volver a un paso ANTERIOR del flujo mientras le preguntas otra cosa ("antes de cerrar quiero agregar otro análisis" cuando pides el pago, "espera, el propietario es otro" en la confirmación). El flujo no solo avanza: cualquier pedido de retroceder/ajustar algo ya recorrido es correction, sin importar qué se le esté preguntando en ese momento.
 - new_or_unregistered_client: da a entender que NO está registrado / es nuevo / trabaja independiente / tendría que registrarse, aunque mencione la palabra "veterinaria" en una explicación ("antes trabajaba en una veterinaria pero ahora soy independiente", "me tendría que registrar", "trabajo por mi cuenta").
 - provides_client_identifier: aporta un NIT o el nombre de una veterinaria/médico para identificarse o reintentar la búsqueda ("es la Clínica Norte", "NIT 900123").
 - same_as_previous: pide reutilizar un dato de una orden anterior ("el mismo de siempre", "igual que la otra vez", "lo de antes").

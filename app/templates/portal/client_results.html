@@ -1,0 +1,40 @@
+{% extends "portal/base.html" %}
+{% block title %}A3 Portal - Mis resultados{% endblock %}
+{% block subtitle %}Mi cuenta{% endblock %}
+{% block heading %}Mis resultados{% endblock %}
+
+{% block content %}
+<section class="card">
+  <div class="card-head"><h3>Resultados disponibles</h3><p>Informes compartidos por el laboratorio</p></div>
+  <form method="get" action="{{ url_for('portal.client_results_page') }}" class="filter-bar">
+    <input class="cell-input" name="patient" value="{{ filters.patient }}" placeholder="Paciente">
+    <input class="cell-input" name="order_number" value="{{ filters.order_number }}" placeholder="N° orden">
+    <input class="cell-input" name="date_from" type="date" value="{{ filters.date_from }}">
+    <input class="cell-input" name="date_to" type="date" value="{{ filters.date_to }}">
+    <button type="submit" class="ghost-btn small">Filtrar</button>
+    <span class="table-counter">{{ results|length }} resultado(s)</span>
+  </form>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Fecha</th><th>Orden</th><th>Paciente</th><th>Propietario</th><th>Análisis</th><th></th></tr></thead>
+      <tbody>
+        {% for r in results %}
+        <tr>
+          <td>{{ (r.published_at or r.created_at or '')[:10] }}</td>
+          <td>{{ r.order_number or '—' }}</td>
+          <td>{{ r.patient_name or '—' }}</td>
+          <td>{{ r.owner_name or '—' }}</td>
+          <td>{{ r.exam_name or '—' }}</td>
+          <td>
+            <a class="ghost-btn small" href="{{ url_for('portal.client_result_detail', result_id=r.id) }}">Ver informe</a>
+            <a class="ghost-btn small" href="{{ url_for('portal.client_result_pdf', result_id=r.id) }}">PDF</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="muted-text">Aún no hay resultados compartidos con su cuenta.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

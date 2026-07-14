@@ -47,9 +47,12 @@ def _lookup(items):
 # ── QA-1 / QA-7: análisis suelto se estructura y el precio sale del catálogo ─────
 
 
+_CATALOG_ROWS = [COPRO, CUADRO] + URO_TESTS
+
+
 def test_loose_exam_with_invented_price_resolves_to_catalog():
     ai = _route_resp({"exam_type": "Coprológico $23k"})
-    with patch.object(agent.db, "get_tests_by_codes_or_names", side_effect=_lookup):
+    with patch.object(agent.db, "list_catalog_tests", return_value=_CATALOG_ROWS):
         out = agent._enforce_loose_exam_catalog_resolution(ai, {})
     f = out["captured_fields"]
     assert f["selected_tests"] == ["1701"]
@@ -59,7 +62,7 @@ def test_loose_exam_with_invented_price_resolves_to_catalog():
 
 def test_loose_exam_without_price_also_resolves():
     ai = _route_resp({"exam_type": "Cuadro Hemático"})
-    with patch.object(agent.db, "get_tests_by_codes_or_names", side_effect=_lookup):
+    with patch.object(agent.db, "list_catalog_tests", return_value=_CATALOG_ROWS):
         out = agent._enforce_loose_exam_catalog_resolution(ai, {})
     assert out["captured_fields"]["selected_tests"] == ["1101"]
 
@@ -67,11 +70,30 @@ def test_loose_exam_without_price_also_resolves():
 def test_loose_exam_unresolved_keeps_text_without_price():
     """Sin match único: no inventa nada, pero el precio escrito se descarta."""
     ai = _route_resp({"exam_type": "Química sanguínea especial $99k"})
-    with patch.object(agent.db, "get_tests_by_codes_or_names", return_value=[]):
+    with patch.object(agent.db, "list_catalog_tests", return_value=_CATALOG_ROWS), \
+         patch.object(agent, "_category_profiles_menu_response", return_value=None):
         out = agent._enforce_loose_exam_catalog_resolution(ai, {})
     f = out["captured_fields"]
     assert "$99" not in (f["exam_type"] or "")
     assert not f.get("selected_tests")
+
+
+def test_loose_exam_ambiguous_offers_options_instead_of_zero_price():
+    """QA modelo real: 'una glucosa' (varias variantes reales) cerraba mostrando '$0'.
+    Ahora un análisis genérico ambiguo OFRECE las opciones para elegir, sin estructurar
+    a ciegas ni mostrar precio cero."""
+    glucosas = [
+        {"code": "1316", "name": "Glucosa (Ayunas)", "price": 12000, "category": "Química"},
+        {"code": "1317", "name": "Glucosa Pre y Pos", "price": 20000, "category": "Química"},
+        {"code": "1511", "name": "Insulina / Glucosa", "price": 43000, "category": "Endocrino"},
+    ]
+    ai = _route_resp({"exam_type": "Glucosa"})
+    with patch.object(agent.db, "list_catalog_tests", return_value=glucosas):
+        out = agent._enforce_loose_exam_catalog_resolution(ai, {})
+    f = out["captured_fields"]
+    assert f.get("_test_menu_options")                            # ofreció opciones
+    assert not agent._as_text_items(f.get("selected_tests"))       # no estructuró a ciegas
+    assert "$0" not in (out["reply"] or "") and "1316" in out["reply"]
 
 
 def test_loose_exam_untouched_when_profile_base_or_structure_exists():
@@ -87,19 +109,8 @@ def test_loose_exam_with_two_tests_resolves_both():
     """QA run 3: 'Cuadro Hemático Completo , Creatinina' como texto dejaba el payload
     en $0; cada ítem resoluble 1:1 se estructura en selected_tests."""
     creat = {"code": "1309", "name": "Creatinina", "price": 12000, "category": "Química"}
-
-    def lookup(items):
-        out = []
-        for item in items:
-            key = agent._catalog_item_key(item)
-            for row in (CUADRO, creat):
-                if key and key in agent._catalog_item_key(row["name"]):
-                    out.append(row)
-                    break
-        return out
-
     ai = _route_resp({"exam_type": "Cuadro Hemático Completo , Creatinina"})
-    with patch.object(agent.db, "get_tests_by_codes_or_names", side_effect=lookup):
+    with patch.object(agent.db, "list_catalog_tests", return_value=[CUADRO, creat]):
         out = agent._enforce_loose_exam_catalog_resolution(ai, {})
     f = out["captured_fields"]
     assert f["selected_tests"] == ["1101", "1309"]
@@ -203,6 +214,7 @@ def test_price_answer_area_mention_lists_area_options():
     fields = {"_selected_profile_code": "152", "_selected_profile_name": "Perfil Prequirúrgico I",
               "_selected_profile_price": 24000, "species": "Canino"}
     with patch.object(agent.db, "get_tests_by_codes_or_names", return_value=[]), \
+         patch.object(agent.db, "list_catalog_tests", return_value=[]), \
          patch.object(agent.db, "find_tests_by_area", return_value=("Uroanálisis", URO_TESTS)):
         answer = agent._catalog_price_answer(fields, "¿cuánto queda el total con el parcial de orina incluido?")
     assert answer is not None
@@ -213,6 +225,7 @@ def test_price_answer_area_mention_lists_area_options():
 
 def test_price_answer_single_test_still_works():
     with patch.object(agent.db, "get_tests_by_codes_or_names", side_effect=_lookup), \
+         patch.object(agent.db, "list_catalog_tests", return_value=[COPRO, CUADRO] + URO_TESTS), \
          patch.object(agent.db, "find_tests_by_area", return_value=(None, [])):
         answer = agent._catalog_price_answer({}, "¿cuánto sale el coprológico?")
     assert answer is not None and "12,000" in answer
@@ -310,6 +323,7 @@ def test_block_data_with_payment_confirms_address_and_keeps_capture():
         "find_tests_by_area": dict(return_value=(None, [])),
         "get_tests_by_codes_or_names": dict(side_effect=_lookup),
         "get_tests_by_codes": dict(side_effect=_lookup),
+        "list_catalog_tests": dict(return_value=[COPRO, CUADRO] + URO_TESTS),
         "find_catalog_profiles": dict(return_value=[]),
         "find_catalog_profile": dict(return_value=None),
         "get_catalog_profiles_by_codes": dict(return_value=[]),
@@ -395,3 +409,118 @@ def test_single_test_total_has_no_discount_breakdown():
     """Un solo análisis no tiene descuento: el texto sigue simple."""
     text = agent._estimated_total_text(agent.calculate_custom_profile_total([dict(CUADRO)]))
     assert text == "Valor estimado: $14,000 COP."
+
+
+# ── Prueba real chat 4 (2026-07-08): tres fallos del 20% restante ────────────────
+
+
+def test_new_test_menu_discards_stale_profile_menu():
+    """BUG menú pegado de PERFILES: pidió 'prueba de orina' (menú de análisis nuevo) con el
+    menú de perfiles prequirúrgicos viejo aún vivo; el '1' registró '152 Perfil Prequirúrgico I'
+    pisando el perfil personalizado. Mostrar un menú de análisis DESCARTA el de perfiles."""
+    fields = {"_profile_menu_options": [{"code": "152", "name": "Perfil Prequirúrgico I", "price": 24000}]}
+    agent._store_test_menu_options(fields, URO_TESTS)
+    assert not fields.get("_profile_menu_options")          # menú viejo descartado
+    assert fields.get("_test_menu_options")                 # menú nuevo activo
+    # Y la inversa: mostrar perfiles descarta el menú de análisis.
+    fields2 = {"_test_menu_options": [{"code": "1601", "name": "Parcial de Orina", "price": 16000}],
+               "_test_menu_adds_to_profile": True}
+    agent._store_profile_menu_options(fields2, [{"code": "152", "name": "Perfil Prequirúrgico I", "price": 24000}])
+    assert not fields2.get("_test_menu_options") and not fields2.get("_test_menu_adds_to_profile")
+
+
+def test_payment_question_does_not_override_add_analysis_request():
+    """'antes de cerrar quiero agregar otro análisis' cuando el bot pregunta el pago NO debe
+    ser pisado re-preguntando el pago: se reabre el paso de agregado."""
+    fields = {"_client_found": True, "clinic_name": "X", "pickup_address": "Y",
+              "requesting_doctor": "Dr", "patient_name": "Messi", "species": "Caprino",
+              "breed": "Arida", "sex": "Hembra", "patient_age": "9 años", "owner_name": "Matias",
+              "observations": "sin observaciones", "exam_type": "Perfil personalizado (3 análisis)",
+              "selected_tests": ["1101", "1404", "1405"]}
+    ai = _route_resp(fields)
+    out = agent._enforce_payment_step({"client_id": "c1"}, ai, ai["captured_fields"],
+                                      "antes de cerrar quiero agregar otro analisis")
+    assert "agregar" in out["reply"].lower() and "pago" not in out["reply"].lower()
+    assert out["captured_fields"].get("_awaiting_additional_test") == "add"
+    # Sin ese pedido, el paso de pago sigue normal.
+    ai2 = _route_resp(fields)
+    out2 = agent._enforce_payment_step({"client_id": "c1"}, ai2, ai2["captured_fields"], "listo")
+    assert out2["reply"] == agent.PAYMENT_METHOD_QUESTION
+
+
+def test_reference_phrase_captured_as_doctor_is_discarded():
+    """'el que ya te dije' capturado LITERAL como requesting_doctor ('El Que Ya Te Dije')
+    se descarta para que el pipeline re-pregunte; un nombre real pasa limpio."""
+    f = {"requesting_doctor": "El Que Ya Te Dije", "owner_name": "el de siempre"}
+    agent._reject_reference_phrases_as_names(f, {})
+    assert f["requesting_doctor"] is None and f["owner_name"] is None
+    ok = {"requesting_doctor": "Sr Juan", "patient_name": "Messi"}
+    agent._reject_reference_phrases_as_names(ok, {})
+    assert ok["requesting_doctor"] == "Sr Juan" and ok["patient_name"] == "Messi"
+    # Un valor que NO cambió este turno no se toca (aunque sea raro).
+    prev = {"requesting_doctor": "El Que Ya Te Dije"}
+    same = dict(prev)
+    agent._reject_reference_phrases_as_names(same, prev)
+    assert same["requesting_doctor"] == "El Que Ya Te Dije"
+
+
+# ── L50: la LÓGICA de los fallos, no la palabra (corrección del usuario 2026-07-11) ──
+
+
+def test_step_push_yields_to_correction_signal():
+    """LÓGICA DE RETROCESO: el empuje del paso de pago CEDE ante la señal semántica de
+    corrección del modelo — cualquier fraseo de 'volver atrás' (agregar análisis, cambiar
+    un dato) mientras se pregunta el pago, sin depender de palabras."""
+    fields = {"_client_found": True, "clinic_name": "X", "pickup_address": "Y",
+              "requesting_doctor": "Dr", "patient_name": "Messi", "species": "Caprino",
+              "breed": "Arida", "sex": "Hembra", "patient_age": "9 años", "owner_name": "Matias",
+              "observations": "sin observaciones", "exam_type": "Perfil personalizado (3 análisis)",
+              "selected_tests": ["1101", "1404", "1405"]}
+    ai = _route_resp(fields)
+    ai["user_intent_signal"] = "correction"
+    ai["reply"] = "Claro, dime qué quieres ajustar."
+    out = agent._enforce_payment_step({"client_id": "c1"}, ai, ai["captured_fields"],
+                                      "cualquier fraseo de cambio que el modelo entendió")
+    assert out["reply"] == "Claro, dime qué quieres ajustar."   # el empuje cedió
+    # Sin señal de corrección, el paso de pago sigue empujando normal.
+    ai2 = _route_resp(fields)
+    ai2["user_intent_signal"] = "provides_requested_data"
+    out2 = agent._enforce_payment_step({"client_id": "c1"}, ai2, ai2["captured_fields"], "ok")
+    assert out2["reply"] == agent.PAYMENT_METHOD_QUESTION
+
+
+def test_change_client_mid_order_keeps_the_order():
+    """LÓGICA DE CORRECCIÓN PUNTUAL: 'cambiar el cliente' con la orden EN CURSO conserva
+    médico, paciente, análisis y pago; solo re-verifica identidad + dirección. El cliente
+    nunca repite lo que ya dijo."""
+    fields = {"clinic_name": "Danimal Planet", "tax_id": "9001", "pickup_address": "CL 59",
+              "_client_found": True, "_address_confirmed": True,
+              "requesting_doctor": "Sr Juan", "patient_name": "Messi", "species": "Caprino",
+              "breed": "Arida", "sex": "Hembra", "patient_age": "9 años", "owner_name": "Matias",
+              "observations": "sin observaciones", "payment_method": "pago_linea",
+              "selected_tests": ["1101", "1404", "1405"],
+              "exam_type": "Perfil personalizado (3 análisis)"}
+    session = {"chat_id": "c", "client_id": "cli-1", "phase_current": "fase_4_confirmacion"}
+    with patch("app.services.db.clear_client_from_session"):
+        out = agent._restart_identification_for_new_client("c", session, dict(fields))
+    f = out["captured_fields"]
+    # Identificación y dirección: fuera (se re-verifican).
+    assert not f.get("clinic_name") and not f.get("pickup_address")
+    # La orden: intacta.
+    assert f.get("requesting_doctor") == "Sr Juan" and f.get("patient_name") == "Messi"
+    assert agent._as_text_items(f.get("selected_tests")) == ["1101", "1404", "1405"]
+    assert f.get("payment_method") == "pago_linea"
+    assert "mantengo" in out["reply"].lower()
+
+
+def test_change_client_after_registered_order_resets():
+    """Con la orden anterior YA REGISTRADA (fase terminal), 'otra orden para otro cliente'
+    sí parte de cero: es un pedido nuevo."""
+    fields = {"clinic_name": "X", "_order_registered": True,
+              "requesting_doctor": "Dr", "patient_name": "Toby",
+              "selected_tests": ["1101"], "exam_type": "1101 Cuadro Hemático"}
+    session = {"chat_id": "c", "client_id": "cli-1", "phase_current": "fase_6_cierre"}
+    with patch("app.services.db.clear_client_from_session"):
+        out = agent._restart_identification_for_new_client("c", session, dict(fields))
+    f = out["captured_fields"]
+    assert not f.get("patient_name") and not agent._as_text_items(f.get("selected_tests"))

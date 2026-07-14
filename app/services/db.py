@@ -658,13 +658,29 @@ def get_tests_by_codes_or_names(items: list[str]) -> list[dict]:
         for row in rows:
             code_key = _normalize_lookup_key(row.get("code"))
             name_key = _normalize_lookup_key(row.get("name"))
-            if lookup == code_key or lookup == name_key or lookup in name_key:
+            if lookup == code_key or lookup == name_key or _tokens_contained(lookup, name_key):
                 code = row.get("code")
                 if code and code not in seen:
                     matched.append(row)
                     seen.add(code)
                 break
     return matched
+
+
+def _tokens_contained(needle_key: str, haystack_key: str) -> bool:
+    """`needle_key` aparece como secuencia CONTIGUA de palabras completas dentro de
+    `haystack_key` (ambos ya normalizados con '_' entre tokens). Reemplaza el viejo match
+    por subcadena (`needle in haystack`), que producía falsos positivos absurdos al agregar
+    análisis: '3' caía dentro de 't3_total', 'pt' dentro de nombres arbitrarios, etc. Con
+    límite de palabra, un fragmento suelto ya no resuelve a un test que el cliente no pidió."""
+    needle = [t for t in needle_key.split("_") if t]
+    hay = [t for t in haystack_key.split("_") if t]
+    if not needle or len(needle) > len(hay):
+        return False
+    for i in range(len(hay) - len(needle) + 1):
+        if hay[i:i + len(needle)] == needle:
+            return True
+    return False
 
 
 def find_tests_by_area(value: str | None, species: str | None = None, limit: int = 15) -> tuple[str | None, list[dict]]:
@@ -696,15 +712,20 @@ def find_tests_by_area(value: str | None, species: str | None = None, limit: int
         best = max(cat_hits, key=lambda c: len(cat_hits[c]))
         return best, cat_hits[best][:limit]
 
-    # 2) Coincidencia por tipo de muestra (ej. "orina" → "Orina Fresca").
+    # 2) Coincidencia por tipo de muestra (ej. "orina" → "Orina Fresca"). Se excluyen las
+    #    muestras ULTRA-genéricas ('sangre', 'suero', 'plasma'): casi todo análisis es de
+    #    sangre, así que no identifican un área — 'análisis de sangre' no es "Coagulación".
     from collections import Counter
-    sample_hits = [
-        row for row in rows
-        if q_tokens & set(_normalize_lookup_key(row.get("sample")).split("_"))
-    ]
-    if sample_hits:
-        area = Counter(r.get("category") for r in sample_hits).most_common(1)[0][0]
-        return area, sample_hits[:limit]
+    _GENERIC_SAMPLE = {"sangre", "sanguineo", "sanguinea", "sanguineos", "suero", "plasma"}
+    sample_q = q_tokens - _GENERIC_SAMPLE
+    if sample_q:
+        sample_hits = [
+            row for row in rows
+            if sample_q & set(_normalize_lookup_key(row.get("sample")).split("_"))
+        ]
+        if sample_hits:
+            area = Counter(r.get("category") for r in sample_hits).most_common(1)[0][0]
+            return area, sample_hits[:limit]
 
     return None, []
 

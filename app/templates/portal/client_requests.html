@@ -1,0 +1,33 @@
+{% extends "portal/base.html" %}
+{% block title %}A3 Portal - Mis solicitudes{% endblock %}
+{% block subtitle %}Mi cuenta{% endblock %}
+{% block heading %}Solicitudes de retiro{% endblock %}
+{% block header_actions %}
+<a class="primary-btn" href="{{ url_for('portal.client_new_request') }}"><i data-lucide="plus"></i>Solicitar retiro</a>
+{% endblock %}
+
+{% block content %}
+<section class="card">
+  <div class="card-head"><h3>Historial de solicitudes</h3><p>Estado actual de cada retiro de muestras</p></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Orden</th><th>Fecha solicitud</th><th>Paciente</th><th>Análisis</th><th>Retiro programado</th><th>Motorizado</th><th>Estado</th></tr></thead>
+      <tbody>
+        {% for r in requests %}
+        <tr>
+          <td>{{ r.order_number or '—' }}</td>
+          <td>{{ (r.requested_at or '')[:10] }}</td>
+          <td>{{ r.patient_name or '—' }}</td>
+          <td>{{ r.exam_type or '—' }}</td>
+          <td>{{ (r.scheduled_pickup_date or '—')[:10] }}</td>
+          <td>{{ (r.couriers or {}).name or 'Por asignar' }}</td>
+          <td><span class="status-badge status-{{ r.status }}">{{ status_labels.get(r.status, r.status) }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" class="muted-text">Aún no tiene solicitudes registradas. Use «Solicitar retiro» para crear la primera.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}

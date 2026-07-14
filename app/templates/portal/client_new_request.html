@@ -1,0 +1,54 @@
+{% extends "portal/base.html" %}
+{% block title %}A3 Portal - Solicitar retiro{% endblock %}
+{% block subtitle %}Mi cuenta{% endblock %}
+{% block heading %}Solicitar retiro de muestras{% endblock %}
+{% block header_actions %}
+<a class="ghost-btn" href="{{ url_for('portal.client_requests_page') }}"><i data-lucide="arrow-left"></i>Volver</a>
+{% endblock %}
+
+{% block content %}
+<section class="card">
+  <div class="card-head"><h3>Datos de la muestra</h3><p>El motorizado asignado a su zona pasará según el horario de corte del laboratorio (17:30).</p></div>
+  <form method="post" action="{{ url_for('portal.client_new_request') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <div class="form-grid">
+      <label>Paciente *
+        <input name="patient_name" type="text" value="{{ form.get('patient_name', '') }}" required>
+      </label>
+      <label>Especie
+        <input name="species" type="text" value="{{ form.get('species', '') }}" placeholder="Canino, felino…">
+      </label>
+      <label>Edad del paciente
+        <input name="patient_age" type="text" value="{{ form.get('patient_age', '') }}">
+      </label>
+      <label>Propietario
+        <input name="owner_name" type="text" value="{{ form.get('owner_name', '') }}">
+      </label>
+      <label>Análisis solicitado *
+        <input name="exam_type" type="text" value="{{ form.get('exam_type', '') }}" placeholder="Hemograma, perfil renal…" required>
+      </label>
+      <label>Médico solicitante
+        <input name="requesting_doctor" type="text" value="{{ form.get('requesting_doctor', '') }}">
+      </label>
+      <label>Dirección de retiro
+        <input name="pickup_address" type="text" value="{{ form.get('pickup_address', '') }}" placeholder="{{ (client or {}).address or 'Dirección registrada' }}">
+      </label>
+      <label>Forma de pago
+        <select name="payment_method" class="cell-select">
+          {% for value, label in payment_options %}
+          <option value="{{ value }}" {{ 'selected' if form.get('payment_method') == value else '' }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <div class="full-field">
+      <label>Observaciones
+        <textarea name="observations" rows="3">{{ form.get('observations', '') }}</textarea>
+      </label>
+    </div>
+    <div class="wizard-actions">
+      <button type="submit" class="primary-btn"><i data-lucide="send"></i>Registrar solicitud</button>
+    </div>
+  </form>
+</section>
+{% endblock %}

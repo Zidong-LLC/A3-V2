@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A3 Portal - Acceso</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <div class="brand-lockup">
+      <div class="brand-mark">A3</div>
+      <div>
+        <h1>Portal A3</h1>
+        <p>Resultados y solicitudes de retiro</p>
+      </div>
+    </div>
+
+    <form method="post" action="{{ url_for('portal.login') }}" class="login-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Correo electrónico
+        <input name="email" type="email" autocomplete="username" required>
+      </label>
+      <label>Contraseña
+        <input name="password" type="password" autocomplete="current-password" required>
+      </label>
+      <button type="submit">Ingresar</button>
+      {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+    </form>
+  </main>
+</body>
+</html>

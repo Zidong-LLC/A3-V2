@@ -61,3 +61,15 @@ ALEGRA_BASE_URL = os.environ.get("ALEGRA_BASE_URL", "https://api.alegra.com/api/
 # Solo se pone true al migrar a la cuenta real del cliente y autorizar emisión. Ver
 # docs/guardrails-entorno-y-datos.md.
 ALEGRA_PRODUCTION = os.environ.get("ALEGRA_PRODUCTION", "false").lower() in ("1", "true", "yes")
+
+# Portal Web (staff + clientes). La anon key solo se usa para el login GoTrue;
+# si falta, el login del portal falla con mensaje claro sin afectar el resto.
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+PORTAL_RESULTS_BUCKET = os.environ.get("PORTAL_RESULTS_BUCKET", "lab-results")
+
+# Modo demo del portal: SOLO para mostrar el portal en una llamada/presentación.
+# Con PORTAL_DEMO_MODE=true, abrir el portal inicia sesión automáticamente como el
+# cliente PORTAL_DEMO_CLIENT_ID, sin contraseña ni Supabase Auth. Mantener en false
+# (o sin definir) en producción: el login normal queda intacto.
+PORTAL_DEMO_MODE = os.environ.get("PORTAL_DEMO_MODE", "false").lower() in ("1", "true", "yes")
+PORTAL_DEMO_CLIENT_ID = os.environ.get("PORTAL_DEMO_CLIENT_ID", "")

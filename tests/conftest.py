@@ -28,3 +28,4 @@ def pytest_configure(config):
     os.environ.setdefault("APP_TIMEZONE",              "America/Bogota")
     os.environ.setdefault("CUTOFF_TIME",               "17:30")
     os.environ.setdefault("DASHBOARD_ADMIN_PASSWORD",  "test-secret")
+    os.environ.setdefault("SUPABASE_ANON_KEY",         "test-anon-key")

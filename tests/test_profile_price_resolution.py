@@ -182,6 +182,31 @@ def test_confirmation_asks_which_analysis_when_addition_is_unspecified():
     assert "Quedó registrado" not in out["reply"]
 
 
+def test_confirmation_closes_on_affirm_signal_outside_token_list():
+    """Etapa 2 (comprensión por IA): una confirmación FUERA de la lista de tokens
+    ('me sirve así, avancemos con eso') cierra la orden cuando la IA marca
+    user_intent_signal=affirm. El fallback de tokens queda intacto para cuando no hay señal."""
+    fields = {
+        "clinic_name": "Veterinaria San Roque", "pickup_address": "DG 51A SUR 61B-03",
+        "requesting_doctor": "Dr. Araujo", "patient_name": "Greta", "species": "Canino",
+        "breed": "Bulldog", "sex": "Hembra", "patient_age": "7 años", "owner_name": "Pedro",
+        "observations": "sin observaciones", "payment_method": "contraentrega",
+        "exam_type": "151-Perfil General", "_selected_profile_code": "151",
+        "_selected_profile_name": "Perfil General", "_selected_profile_price": 32000,
+    }
+    msg = "me sirve así, avancemos con eso"
+    assert not agent._is_order_confirmation(msg)   # NO está en la lista de tokens
+    ai_response = agent._base_route_response("...", dict(fields))
+    ai_response["user_intent_signal"] = "affirm"
+    with patch.object(agent.db, "get_tests_by_codes_or_names", return_value=[]), \
+         patch.object(agent.db, "get_tests_by_codes", return_value=[]):
+        out = agent._enforce_confirmation_step(
+            {"client_id": "client-1"}, ai_response, ai_response["captured_fields"],
+            agent.CONFIRMATION_PHASE, msg,
+        )
+    assert out["phase"] == "fase_6_cierre"
+
+
 def test_profile_code_selection_wins_over_diagnostic_label():
     """'perfil 151' debe registrar el perfil cerrado, no abrir el flujo de perfil GENERAL."""
     session = {"client_id": "client-1"}

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1a1a1a">
+  <title>A3 CRM - Resultados</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=7">
+  <link rel="stylesheet" href="{{ url_for('static', filename='portal.css') }}?v=1">
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js" defer></script>
+</head>
+<body class="crm-theme" data-sidebar="expanded">
+  <div class="crm-app">
+    <aside class="crm-sidebar">
+      <div class="brand-row">
+        <div class="brand-mark">A3</div>
+        <div class="brand-copy"><strong>CRM Operativo</strong><span>Centro de control</span></div>
+      </div>
+
+      <div class="menu-block">
+        <span class="menu-caption">Menu principal</span>
+        <nav class="menu-list">
+          <a href="{{ url_for('dashboard.dashboard_home') }}" class="menu-link"><i data-lucide="layout-dashboard"></i><span>Panel</span></a>
+          <a href="{{ url_for('dashboard.operation_page') }}" class="menu-link"><i data-lucide="radio-tower"></i><span>Operacion</span></a>
+          <a href="{{ url_for('dashboard.clients_page') }}" class="menu-link"><i data-lucide="users"></i><span>Clientes</span></a>
+          <a href="{{ url_for('dashboard.billing_page') }}" class="menu-link"><i data-lucide="receipt"></i><span>Facturacion</span></a>
+          <a href="{{ url_for('dashboard.motorizados_page') }}" class="menu-link"><i data-lucide="bike"></i><span>Motorizados</span></a>
+          <a href="{{ url_for('dashboard.samples_page') }}" class="menu-link"><i data-lucide="test-tube-2"></i><span>Muestras</span></a>
+          <a href="{{ url_for('dashboard_results.results_page') }}" class="menu-link active"><i data-lucide="file-check-2"></i><span>Resultados</span></a>
+        </nav>
+      </div>
+
+      <div class="menu-block menu-foot">
+        <span class="menu-caption">Soporte</span>
+        <a href="{{ url_for('dashboard.logout') }}" class="menu-link"><i data-lucide="log-out"></i><span>Cerrar sesion</span></a>
+      </div>
+    </aside>
+
+    <main class="crm-main">
+      <header class="top-header">
+        <div><p class="hello-label">Bienvenido de nuevo, {{ username }}</p><h1>Resultados de análisis</h1></div>
+      </header>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+          <section class="approval-notice {{ 'error' if category == 'error' else 'ok' }}">{{ message }}</section>
+        {% endfor %}
+      {% endwith %}
+
+      <section class="card">
+        <div class="card-head"><h3>Subir informe de resultados</h3><p>PDF de máximo 10 MB. Identifique el destino por número de orden o por NIT; al compartir, el cliente lo ve en su portal y recibe aviso por Telegram si tiene chat vinculado.</p></div>
+        <form method="post" action="{{ url_for('dashboard_results.upload_result') }}" enctype="multipart/form-data" class="portal-upload-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="form-grid">
+            <label>Número de orden (A3-XXXXX)
+              <input name="order_number" type="text" placeholder="A3-00042">
+            </label>
+            <label>NIT del cliente (si no hay orden)
+              <input name="tax_id" type="text" placeholder="900123456">
+            </label>
+            <label>Paciente
+              <input name="patient_name" type="text" placeholder="Se toma de la orden si se omite">
+            </label>
+            <label>Propietario
+              <input name="owner_name" type="text" placeholder="Se toma de la orden si se omite">
+            </label>
+            <label>Análisis / examen
+              <input name="exam_name" type="text" placeholder="Hemograma, perfil renal…">
+            </label>
+            <label>Informe en PDF
+              <input name="pdf" type="file" accept="application/pdf" required>
+            </label>
+          </div>
+          <div class="portal-upload-actions">
+            <label class="portal-check"><input type="checkbox" name="publish_now" value="1"> Compartir con el cliente al subir</label>
+            <button type="submit" class="primary-btn"><i data-lucide="upload"></i>Subir resultado</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><h3>Historial de resultados emitidos</h3><p>Buscar por paciente, propietario, veterinaria, fecha o número de orden</p></div>
+        <form method="get" action="{{ url_for('dashboard_results.results_page') }}" class="filter-bar">
+          <input class="cell-input" name="patient" value="{{ filters.patient }}" placeholder="Paciente">
+          <input class="cell-input" name="owner" value="{{ filters.owner }}" placeholder="Propietario">
+          <input class="cell-input" name="clinic" value="{{ filters.clinic }}" placeholder="Veterinaria">
+          <input class="cell-input" name="order_number" value="{{ filters.order_number }}" placeholder="N° orden">
+          <input class="cell-input" name="date_from" type="date" value="{{ filters.date_from }}">
+          <input class="cell-input" name="date_to" type="date" value="{{ filters.date_to }}">
+          <button type="submit" class="ghost-btn small">Filtrar</button>
+          <span class="table-counter">{{ results|length }} resultado(s)</span>
+        </form>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>Orden</th><th>Veterinaria</th><th>Paciente</th><th>Propietario</th><th>Análisis</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody>
+              {% for r in results %}
+              <tr>
+                <td>{{ (r.created_at or '')[:10] }}</td>
+                <td>{{ r.order_number or '—' }}</td>
+                <td>{{ (r.clients or {}).clinic_name or '—' }}</td>
+                <td>{{ r.patient_name or '—' }}</td>
+                <td>{{ r.owner_name or '—' }}</td>
+                <td>{{ r.exam_name or '—' }}</td>
+                <td>{% if r.published %}<span class="status-badge status-processed">Compartido</span>{% else %}<span class="status-badge">Borrador</span>{% endif %}</td>
+                <td class="invoice-actions">
+                  <a class="ghost-btn small" href="{{ url_for('dashboard_results.result_pdf', result_id=r.id) }}" target="_blank">Ver PDF</a>
+                  {% if not r.published %}
+                  <form method="post" action="{{ url_for('dashboard_results.publish_result', result_id=r.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="ghost-btn small">Compartir</button>
+                  </form>
+                  {% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="8" class="muted-text">Sin resultados para los filtros seleccionados.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script>window.addEventListener('DOMContentLoaded', function () { if (window.lucide) lucide.createIcons(); });</script>
+</body>
+</html>

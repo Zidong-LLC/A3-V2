@@ -1,0 +1,32 @@
+{% extends "portal/base.html" %}
+{% block title %}A3 Portal - Notificaciones{% endblock %}
+{% block subtitle %}Mi cuenta{% endblock %}
+{% block heading %}Notificaciones{% endblock %}
+
+{% block content %}
+<section class="card">
+  <div class="card-head"><h3>Avisos del laboratorio</h3><p>{{ notif_unread }} sin leer</p></div>
+  <div class="portal-notif-list">
+    {% for n in notifications %}
+    <article class="portal-notif {{ 'unread' if not n.read_at else '' }}">
+      <div class="portal-notif-body">
+        <strong>{{ n.title }}</strong>
+        {% if n.body %}<p>{{ n.body }}</p>{% endif %}
+        <small>{{ (n.created_at or '')[:16] | replace('T', ' ') }}</small>
+      </div>
+      <div class="portal-notif-actions">
+        {% if n.result_id %}<a class="ghost-btn small" href="{{ url_for('portal.client_result_detail', result_id=n.result_id) }}">Ver resultado</a>{% endif %}
+        {% if not n.read_at %}
+        <form method="post" action="{{ url_for('portal.client_notification_read', notification_id=n.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button type="submit" class="ghost-btn small">Marcar leída</button>
+        </form>
+        {% endif %}
+      </div>
+    </article>
+    {% else %}
+    <p class="muted-text">No tiene notificaciones.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,32 @@
+/* Portal Web A3 — solo deltas sobre app.css (misma identidad visual). */
+
+/* Formulario de subida (staff) */
+.portal-upload-form{display:grid;gap:12px;margin-top:12px}
+.portal-upload-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.portal-check{display:inline-flex;align-items:center;gap:8px;color:#d4d4d4;font-size:13px}
+.portal-check input[type=checkbox]{width:16px;height:16px;accent-color:var(--accent)}
+
+/* Grid de metadatos (informe y perfil) */
+.portal-detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:12px}
+.portal-detail-grid span{display:block;font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.05em}
+.portal-detail-grid strong{font-size:14px;word-break:break-word}
+
+/* Visor de PDF embebido */
+.portal-pdf-embed{width:100%;min-height:70vh;border:1px solid var(--line);border-radius:12px;background:#111}
+
+/* Notificaciones */
+.portal-notif-list{display:grid;gap:10px;margin-top:12px}
+.portal-notif{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--line);border-radius:14px;background:#1d1d1d;padding:12px;flex-wrap:wrap}
+.portal-notif.unread{border-color:rgba(249,115,22,.5);background:rgba(249,115,22,.07)}
+.portal-notif-body strong{font-size:14px}
+.portal-notif-body p{margin:4px 0 0;color:var(--text-dim);font-size:13px}
+.portal-notif-body small{display:block;margin-top:4px;color:var(--text-dim);font-size:11px}
+.portal-notif-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+
+/* Badge de no leídas en el menú */
+.notif-badge{margin-left:auto;min-width:20px;height:20px;border-radius:999px;background:var(--accent);color:#111;display:grid;place-items:center;font-size:11px;font-weight:800;padding:0 6px}
+
+.portal-profile-note{margin-top:16px}
+
+/* Formularios del portal fuera del grid de dos columnas */
+.full-field label{display:grid;gap:6px;color:#d4d4d4;font-size:13px}

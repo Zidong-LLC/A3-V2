@@ -359,7 +359,7 @@ def _bool_option(value) -> str:
     return "sin_dato"
 
 
-def _build_client_rows(clients: list[dict], requests_rows: list[dict], samples: list[dict], knowledge_rows: list[dict] | None = None) -> list[dict]:
+def _build_client_rows(clients: list[dict], requests_rows: list[dict], samples: list[dict], knowledge_rows: list[dict] | None = None, pending_request_by_client: dict | None = None) -> list[dict]:
     request_count = Counter(str(row.get("client_id")) for row in requests_rows if row.get("client_id"))
     sample_count = Counter(str(row.get("client_id")) for row in samples if row.get("client_id"))
     latest_request = {}
@@ -431,6 +431,7 @@ def _build_client_rows(clients: list[dict], requests_rows: list[dict], samples: 
             "samples_count": sample_count.get(client_id, 0),
             "latest_request_status": latest_request.get(client_id, "-"),
             "latest_sample_status": latest_sample.get(client_id, "-"),
+            "pending_request_id": (pending_request_by_client or {}).get(client_id),
         })
     return rows
 
@@ -1360,8 +1361,12 @@ def build_dashboard_context() -> dict:
             row["sample_types_display"] = sample_types_map[rid]
     phases = Counter((row.get("phase_current") or "sin_etapa") for row in sessions_rows)
     sample_status = Counter((row.get("status") or "unknown") for row in samples)
+    pending_reviews = _safe_fetch(lambda: db.list_pending_client_reviews(limit=300), [])
+    pending_request_by_client = {
+        str(row["client_id"]): row["id"] for row in pending_reviews if row.get("client_id")
+    }
     approval_rows, reviewed_rows = _build_approval_rows(sessions_rows)
-    approval_rows.extend(_build_request_approval_rows(_safe_fetch(lambda: db.list_pending_client_reviews(limit=300), [])))
+    approval_rows.extend(_build_request_approval_rows(pending_reviews))
     motorizados_context = _build_motorizados_context(clients)
     service_order_rows = _build_service_order_rows(requests_rows, request_events)
     operation_center = _build_operation_center(requests_rows, samples, approval_rows, motorizados_context, service_order_rows)
@@ -1400,7 +1405,7 @@ def build_dashboard_context() -> dict:
         "samples": [{**s, "dropdown_status": _DROPDOWN_STATUS_MAP.get(s.get("status"), s.get("status"))} for s in samples],
         "sample_process_lanes": _build_sample_process_lanes_with_orders(samples, sample_events, service_order_rows),
         "service_order_rows": service_order_rows,
-        "clients_rows": _build_client_rows(clients, requests_rows, samples, knowledge),
+        "clients_rows": _build_client_rows(clients, requests_rows, samples, knowledge, pending_request_by_client),
         "catalog_rows": _build_catalog_rows(catalog),
         "profile_catalog_rows": profile_rows,
         "profile_analysis_rows": analysis_rows,
@@ -1532,7 +1537,7 @@ def new_client_page():
 
         db.create_pending_client_review(client_payload=client_payload, review_payload=review_payload)
         db.upsert_client_profile(profile_payload)
-        return redirect(url_for("dashboard.approvals_page", notice="Cliente enviado a revision", notice_type="ok"))
+        return redirect(url_for("dashboard.clients_page", notice="Cliente enviado a revision", notice_type="ok"))
 
     return render_template("new_client.html", error=None, form={}, **template_context)
 
@@ -1562,24 +1567,6 @@ def service_order_print_page(request_id: str):
     return render_template("service_order_print.html", order=order)
 
 
-@dashboard.get("/analisis")
-@_login_required
-def analysis_page():
-    return _render_dashboard("analisis")
-
-
-@dashboard.get("/flujo")
-@_login_required
-def flow_page():
-    return _render_dashboard("flujo")
-
-
-@dashboard.get("/aprobaciones")
-@_login_required
-def approvals_page():
-    return _render_dashboard("aprobaciones")
-
-
 @dashboard.post("/aprobaciones/decision")
 @_login_required
 def approval_decision():
@@ -1592,7 +1579,7 @@ def approval_decision():
     else:
         ok = db.reject_pending_client(request_id, reason or "Rechazado desde dashboard")
         message = "Cliente rechazado" if ok else "No fue posible rechazar el cliente"
-    return redirect(url_for("dashboard.approvals_page", notice=message, notice_type="ok" if ok else "error"))
+    return redirect(url_for("dashboard.clients_page", notice=message, notice_type="ok" if ok else "error"))
 
 
 @dashboard.get("/motorizados")

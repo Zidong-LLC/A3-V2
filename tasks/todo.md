@@ -2,6 +2,42 @@
 
 ---
 
+## Refactor de raíz: atacar la causa core, no la fascia (2026-07-07) — EN CURSO
+
+Plan aprobado: `~/.claude/plans/podemos-hacer-podemos-hacer-lively-waterfall.md`.
+Diagnóstico: 70 bugs, ~90% parches localizados; los mismos escenarios reparados 5-6 veces.
+Causa raíz (3 caras): (1) intención por listas de tokens, (2) resolución de catálogo por
+string-matching duplicada (dinero), (3) máquina de estados implícita (~41 flags). Orden
+elegido: **empezar por catálogo/dinero**, con **red de tests primero**.
+
+**Fase 0 — Red de seguridad — HECHA**
+- [x] `tests/test_catalog_resolution.py`: ejercita la resolución REAL (catálogo inyectado en
+      `db._client`). 6 verde + el residual "sanguíneos"→Gases sanguíneos Plus como `xfail`
+      estricto (se vuelve verde en Fase 1).
+- [x] `tests/test_money_invariants.py`: harness end-to-end sobre `process_turn` (resolución de
+      catálogo real dentro del turno) + invariantes reutilizables I1 (códigos válidos),
+      I2 (sin precio inventado en exam_type), I4 (total = cálculo por códigos).
+- [x] Suite: 180 passed, 1 xfailed (sin contar portal/dashboard, que fallan por red).
+
+**Fase 1 — Resolvedor de catálogo unívoco — EJE COMPLETO (192 passed, 1 xfailed)**
+- [x] `app/catalog.py`: `resolve_tests` puro (EXACT agrega / AMBIGUOUS ofrece / NONE pregunta).
+- [x] Integrado en `_handle_extra_analysis_answer` → residual "sanguíneos" resuelto (ofrece, no agrega).
+- [x] `_enforce_loose_exam_catalog_resolution` y `_enforce_multiple_tests_capture` migrados a `resolve_tests`.
+- [x] Validador I1 `_enforce_selected_tests_are_catalog_codes` (red dura antes de registrar).
+- [ ] Deuda (xfail estricto): retirar `get_tests_by_codes_or_names` de bajo nivel al migrar precios/remove.
+
+**Fase 2 — Comprensión por IA — ARRANCADA (punto crítico)**
+- [x] Cierre de orden migrado a `user_intent_signal` (`_confirms_order_now`): cierra confirmaciones fuera de lista.
+- [ ] Resto de detectores: acoplados a Fase 3 (viven en la cascada PRE-LLM, sin señal disponible). Ver ABIERTO-003.
+
+**Fase 3 — FSM / reorden del pipeline (sin empezar):** habilitador real de la Fase 2 completa. Requiere validación en vivo previa.
+
+> **Próximo paso: validación en vivo** del eje catálogo + cierre por señal antes de encarar Fase 3.
+
+**Fases 2-3 (esbozadas):** completar comprensión por IA (Etapas 2-4 de ERR-011); formalizar FSM.
+
+---
+
 ## Fix: ERR-051 — QA adversarial contra BD real (2026-07-05) — EN VERIFICACIÓN
 
 **Metodología nueva:** batería de 10 personas-IA adversariales contra `process_turn` +
@@ -690,3 +726,9 @@ Estas funciones se implementarán en la plataforma de gestión, no en el chatbot
 **2026-06-13** — Memoria entre órdenes mejorada + captura de varios análisis sin bucle. (1) Al crear una orden de seguimiento el agente reusa los datos estables (médico, dirección, pago) de la orden anterior y los confirma en bloque (`_carry_over_stable_fields` + flag `_stable_confirm_pending`), en vez de repreguntarlos en blanco; el reconocimiento de "el mismo" se amplió y ahora cae a `_client_memory` aunque no haya snapshot (resolución determinística sin AI). (2) Nuevo guardrail `_enforce_multiple_tests_capture`: si el cliente pide varios análisis en un mensaje y cada ítem mapea 1:1 al catálogo, los registra como perfil personalizado sin repreguntar el tipo (evita bucle); si hay ambigüedad, deja el flujo normal. Prompt R24 agregada. Suite validada: 221/221 + 6/6 flujos con modelo real.
 
 **2026-06-13** — Tres mejoras de robustez del agente (ordenado y sin loops): (#1) backstop determinístico `_enforce_custom_profile_close`: el perfil personalizado armado desde cero se cierra y fija `exam_type` cuando el cliente lo pide, sin depender del modelo (evita el bucle "¿agregás otro o cerramos?"). (#6) Eliminado el "Flujo B" muerto de cliente nuevo (`_start_new_client_capture`, `_handle_new_client_capture`, `_save_new_client_pending`, constantes `_nc_*`/`NEW_CLIENT_*`, `ai.interpret_nc_step`): nunca se invocaba y contradecía la regla "el bot nunca registra cliente nuevo"; sesiones viejas con `_nc_capturing` se auto-sanan y escalan por el flujo normal. (#3) Resume determinístico de intenciones: "resultados + recogida" en un mensaje ya no pierde la ruta — entrega el mensaje fijo de resultados y retoma la recogida en el mismo turno (`_enforce_results_message`). Suite: 222/222 + 6/6 flujos con modelo real.
+
+**2026-07-06** — Portal Web implementado (decisión 010): blueprint `/portal` con dos roles vía Supabase Auth (GoTrue, `app_metadata.portal_role` + `client_id`; alta solo por `tools/scripts/create_portal_user.py`). Staff: buscar/subir/publicar/descargar resultados PDF (bucket privado `lab-results`, signed URLs 5 min); compartir = publicar + notificación + aviso Telegram. Cliente: solicitar retiro (reutiliza `db.create_request` intacto: corte 17:30, motorizado determinista, order_number), historial con estados, resultados publicados propios, notificaciones y perfil solo lectura. Aislamiento estricto por `session["portal_client_id"]`. Dashboard y flujo conversacional intactos (main.py solo registra el blueprint). Migración `015_portal_results_notifications.sql` lista — PENDIENTE aplicarla (requiere `SUPABASE_ACCESS_TOKEN` o SQL Editor) y agregar `SUPABASE_ANON_KEY` al `.env`. Suite: 214 passed + 19 tests nuevos del portal (los 4 fallos de `test_dashboard.py` son preexistentes en HEAD).
+
+**2026-07-06 (revisión)** — El usuario definió que el Portal Web es SOLO para clientes veterinarias: el personal ya tiene su plataforma (dashboard). Se eliminó la vista staff del portal (`app/portal/staff.py`, template y tests) y la carga/publicación de resultados se movió al dashboard como blueprint separado `app/dashboard_results.py` (ruta `/resultados`, usa la sesión/login del dashboard existente; `dashboard.py` NO se modificó — solo se agregó el enlace «Resultados» al menú de `dashboard.html` con OK explícito). Login del portal ahora solo acepta cuentas con `portal_role=client`; `create_portal_user.py` simplificado a solo clientes. Decisión 010 actualizada. Suite: 215 passed (los 4 fallos de `test_dashboard.py` son preexistentes).
+
+**2026-07-06 (limpieza CRM)** — Borradas del CRM operativo las pestañas Flujo, Análisis y Aprobaciones (solo visualización read-only las dos primeras). Aprobaciones era la única vía para aprobar/rechazar clientes nuevos (activa cliente + asigna motorizado + auditoría) — antes de borrarla se movieron los botones Aprobar/Rechazar a la tabla de Clientes (nueva columna "Aprobación", visible solo si `row.pending_request_id` existe, mismo endpoint `POST /aprobaciones/decision`). Redirects de `new_client_page` y `approval_decision` ahora apuntan a `/clientes`; el aviso `notice`/`notice_type` se movió a un bloque global (ya no dependía de una pestaña). `_build_client_rows` recibe `pending_request_by_client` construido en `build_dashboard_context` reusando `db.list_pending_client_reviews` (sin doble consulta). Tests actualizados en `test_dashboard.py` (nuevo assert: Aprobar/Rechazar en /clientes + 404 en rutas eliminadas). Suite: 215 passed (los 4 fallos de siempre son preexistentes, no relacionados).

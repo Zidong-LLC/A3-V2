@@ -29,7 +29,8 @@ def _by_codes_or_names(items):
 
 
 def _answer(fields, msg):
-    with patch.object(agent.db, "get_tests_by_codes_or_names", side_effect=_by_codes_or_names):
+    with patch.object(agent.db, "get_tests_by_codes_or_names", side_effect=_by_codes_or_names), \
+         patch.object(agent.db, "list_catalog_tests", return_value=CATALOG):
         return agent._catalog_price_answer(fields, msg)
 
 
@@ -66,6 +67,7 @@ def test_non_price_question_returns_none():
 def test_price_from_menu_options_selection():
     """Tras mostrar un menú, '¿cuánto el primero?' resuelve por la opción mostrada."""
     fields = {"_test_menu_options": [{"code": "1601", "name": "Uroanálisis Completo", "price": 35000}]}
-    with patch.object(agent.db, "get_tests_by_codes_or_names", return_value=[]):
+    with patch.object(agent.db, "get_tests_by_codes_or_names", return_value=[]), \
+         patch.object(agent.db, "list_catalog_tests", return_value=[]):
         ans = agent._catalog_price_answer(fields, "¿cuánto el primero?")
     assert ans is not None and "35,000" in ans

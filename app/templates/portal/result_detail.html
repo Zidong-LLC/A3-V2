@@ -1,0 +1,29 @@
+{% extends "portal/base.html" %}
+{% block title %}A3 Portal - Informe{% endblock %}
+{% block subtitle %}Mis resultados{% endblock %}
+{% block heading %}Informe de resultados{% endblock %}
+{% block header_actions %}
+<a class="ghost-btn" href="{{ back_url }}"><i data-lucide="arrow-left"></i>Volver</a>
+<a class="primary-btn" href="{{ url_for('portal.client_result_pdf', result_id=result.id) }}"><i data-lucide="download"></i>Descargar PDF</a>
+{% endblock %}
+
+{% block content %}
+<section class="card">
+  <div class="portal-detail-grid">
+    <div><span>N° orden</span><strong>{{ result.order_number or '—' }}</strong></div>
+    <div><span>Paciente</span><strong>{{ result.patient_name or '—' }}</strong></div>
+    <div><span>Propietario</span><strong>{{ result.owner_name or '—' }}</strong></div>
+    <div><span>Análisis</span><strong>{{ result.exam_name or '—' }}</strong></div>
+    <div><span>Fecha de emisión</span><strong>{{ (result.published_at or result.created_at or '')[:10] }}</strong></div>
+  </div>
+</section>
+
+<section class="card">
+  {% if pdf_url %}
+  <embed src="{{ pdf_url }}" type="application/pdf" class="portal-pdf-embed">
+  <p class="muted-text">Si el visor no carga, use el botón «Descargar PDF» (el enlace firmado expira en 5 minutos).</p>
+  {% else %}
+  <p class="form-error">No se pudo generar el enlace del PDF. Intente de nuevo.</p>
+  {% endif %}
+</section>
+{% endblock %}
