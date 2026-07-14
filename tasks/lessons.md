@@ -358,3 +358,11 @@ del contexto, no solo los flags de `captured_fields` (que persisten varios turno
 - Ante un bug conversacional, primero formular la LÓGICA del fallo en una frase sin citar palabras del chat ("el flujo no sabe retroceder", "corregir X borra Y"). Si el fix propuesto solo funciona con el fraseo del reporte, es parche de palabra: buscar el punto donde la INTENCIÓN debería mandar.
 - Los "empujes" de paso (pago, confirmación, oferta) ceden ante `user_intent_signal` de cambio/corrección; los tokens quedan de red.
 - Cambiar un dato conserva todos los demás. El reset total solo aplica cuando la orden anterior ya quedó registrada.
+
+### L51 — Un test que finge la respuesta del modelo no detecta bugs reales (corrección del usuario, 2026-07-14)
+**Problema:** teníamos ~14 tests que mockeaban `ai.generate_turn` con una respuesta hardcodeada (el reply y los `captured_fields` que el modelo "diría") y sobre esa realidad inventada validaban el guardrail. El usuario lo señaló: ninguna de las conversaciones donde encontramos bugs se parecía al dato mockeado. El bug real es JUSTAMENTE que el modelo, en vivo, interpreta un input inesperado distinto a como el mock supone; fijar la salida del modelo tapa la única parte que falla.
+**Regla:**
+- **Nunca** hardcodear la respuesta del LLM (`patch(generate_turn, return_value=...)`) para "probar el flujo". Eso no es una prueba, es una tautología: verifica el guardrail contra una realidad que vos inventaste.
+- Hay tres tipos de "mock" y solo uno es inútil: (A) fingir la respuesta del modelo → **eliminar**; (B) lógica pura con el texto REAL del cliente (`_confirms_address("sisi")`, `resolve_tests("cuadro hematico")`, un validador con un código inválido) → **es la red buena, mantener**; (C) mock de infraestructura (Supabase/Telegram) → necesario, no es "dato de comportamiento".
+- La cobertura de un escenario conversacional end-to-end va al **modelo real** (`validate_flows.py`, QA adversarial con OpenAI + Supabase real). Un test determinista solo prueba la función determinista, con el dato tal como se cuela.
+- Al escribir un test, preguntar: "¿estoy fijando lo que el modelo devuelve?". Si sí, o lo paso a lógica pura sobre la función que hace cumplir la regla, o lo muevo al QA de modelo real. Refuerza [[feedback_real_model_validation]].

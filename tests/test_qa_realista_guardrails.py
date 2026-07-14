@@ -270,89 +270,12 @@ def test_age_unchanged_from_previous_turn_is_untouched():
     assert out["captured_fields"]["patient_age"] == "5 años"
 
 
-# ── QA-2: confirmación de dirección + datos en bloque + pago (turno completo) ────
-
-
-def _full_ai_response(reply, captured):
-    return {"reply": reply, "intent": "route_scheduling", "phase": "fase_2_recogida_datos",
-            "service_area": "route_scheduling", "captured_fields": captured,
-            "message_mode": "flow_progress", "user_intent_signal": "provides_requested_data",
-            "requires_handoff": False, "handoff_area": None, "resume_prompt": "",
-            "confidence": 1.0, "pending_intents": []}
-
-
-def test_block_data_with_payment_confirms_address_and_keeps_capture():
-    """El turno QA-2 real: 'si, correcta. necesito coprologico para luna... y
-    contraentrega' debe confirmar la dirección, conservar TODO lo capturado y avanzar
-    (antes: '¿Cuál es la dirección de retiro?' pisando el turno entero)."""
-    REG = "CL 27 SUR 12-22"
-    prev = {"_client_found": True, "clinic_name": "Animal Club", "tax_id": "35529523-1",
-            "pickup_address": REG, "_client_address": REG,
-            "_address_confirmation_pending": True, "_address_confirmed": False}
-    session = {"chat_id": "t", "channel": "telegram", "client_id": "client-A",
-               "phase_current": "fase_2_recogida_datos", "intent_current": "route_scheduling",
-               "captured_fields": prev}
-    history = [
-        {"role": "user", "content": "1"},
-        {"role": "bot", "content": f"Perfecto, encontramos Animal Club. Tenemos como domicilio de retiro: {REG}. ¿Es correcta?"},
-    ]
-    msg = ("si, correcta. necesito coprologico para luna, gata siames, hembra, 2 años, "
-           "dra sofia, dueña carolina, sin observaciones y contraentrega. confirmamos?")
-    ai_captured = dict(prev)
-    ai_captured.update({
-        "requesting_doctor": "Dra. Sofia", "patient_name": "Luna", "species": "Felino",
-        "breed": "Siames", "sex": "Hembra", "patient_age": "2 años", "owner_name": "Carolina",
-        "observations": "sin observaciones", "payment_method": "contraentrega",
-        "exam_type": "Coprológico",
-    })
-    db_patches = {
-        "get_or_create_session": dict(side_effect=lambda c, channel="telegram": session),
-        "get_recent_messages": dict(side_effect=lambda c, limit=8: history[-limit:]),
-        "save_message": dict(side_effect=lambda c, t, r: history.append({"role": r, "content": t})),
-        "update_session": dict(side_effect=lambda c, ai: session.update(
-            phase_current=ai["phase"], intent_current=ai["intent"], captured_fields=ai["captured_fields"])),
-        "get_client_by_id": dict(return_value={"id": "client-A", "clinic_name": "Animal Club",
-                                               "tax_id": "35529523-1", "phone": "300", "address": REG}),
-        "get_courier_for_client": dict(return_value=None),
-        "get_catalog_context": dict(return_value=""),
-        "get_individual_tests_context": dict(return_value=""),
-        "get_last_order_for_client": dict(return_value=None),
-        "list_diagnostic_labels": dict(return_value=[]),
-        "find_diagnostic_label": dict(return_value=None),
-        "get_tests_for_label": dict(return_value=[]),
-        "find_tests_by_area": dict(return_value=(None, [])),
-        "get_tests_by_codes_or_names": dict(side_effect=_lookup),
-        "get_tests_by_codes": dict(side_effect=_lookup),
-        "list_catalog_tests": dict(return_value=[COPRO, CUADRO] + URO_TESTS),
-        "find_catalog_profiles": dict(return_value=[]),
-        "find_catalog_profile": dict(return_value=None),
-        "get_catalog_profiles_by_codes": dict(return_value=[]),
-        "list_catalog_profiles_for_species": dict(return_value=[]),
-        "list_catalog_profiles_matching_category": dict(return_value=[]),
-        "create_request": dict(return_value={"request_id": "r1", "order_number": "A3-2026-901"}),
-    }
-    patchers = [patch(f"app.services.db.{n}", **kw) for n, kw in db_patches.items()]
-    patchers.append(patch.object(agent.ai, "generate_turn",
-                                 return_value=_full_ai_response("Perfecto, lo anoto.", ai_captured)))
-    for p in patchers:
-        p.start()
-    try:
-        reply = agent.process_turn("t", msg)
-    finally:
-        for p in patchers:
-            p.stop()
-
-    f = session["captured_fields"]
-    assert f.get("_address_confirmation_pending") is False
-    assert f.get("_address_confirmed") is True
-    assert f.get("pickup_address") == REG
-    assert f.get("patient_name") == "Luna"
-    # El coprológico quedó estructurado con el precio real del catálogo.
-    assert agent._as_text_items(f.get("selected_tests")) == ["1701"]
-    assert "¿Cuál es la dirección de retiro?" != (reply or "")
-    # La orden completa muestra el resumen con el precio del catálogo, no inventado.
-    assert "12,000" in (reply or "")
-    assert "23" not in (reply or "").replace("12,000", "")
+# QA-2 (confirmación de dirección + datos en bloque + pago en un turno completo): el
+# escenario end-to-end se prueba con el MODELO REAL —fingir la respuesta del LLM no
+# detecta el bug real— en tools/scripts/validate_flows.py y los QA adversariales.
+# Los invariantes deterministas que ese turno debía respetar (dirección por señal,
+# código del catálogo, precio real) están cubiertos por los tests de lógica pura de este
+# archivo, test_money_invariants.py y test_address_pending_reask.py.
 
 
 # ── Desglose del descuento por volumen (reporte del usuario 2026-07-06) ──────────
