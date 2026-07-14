@@ -20,8 +20,12 @@ from app.rules import TERMINAL_PHASES, calculate_custom_profile_total, calculate
 from app.detectors import (
     _FAREWELL_TOKENS, _CONTINUE_TOKENS, _GREETING_TOKENS, _AFFIRMATIVE_TOKENS, _NEGATIVE_TOKENS,
     _RESULTS_CHOICE_TOKENS, _OTHER_CHOICE_TOKENS,
+    _PROFILE_CUSTOMIZE_TOKENS, _PROFILE_CONFIRM_TOKENS, _CLOSE_PROFILE_TOKENS,
+    _CLOSE_PROFILE_PHRASES, _AMBIGUOUS_PROFILE_TOKENS, _ARMED_PROFILE_TOKENS,
     _is_farewell, _is_greeting_only, _is_affirmative_text, _is_negative_text,
     _is_results_choice, _is_other_choice, _confirms_new_client, _explicitly_says_new_client,
+    _is_profile_customization_request, _is_profile_confirmation, _wants_to_close_custom_profile,
+    _is_ambiguous_profile_change, _asks_for_armed_profiles,
 )
 from app.messages import (
     CLIENT_LOOKUP_PROGRESS_MESSAGE, WELCOME_MESSAGE, FINAL_USER_MESSAGE,
@@ -287,32 +291,8 @@ _IDENTIFICATION_RETRY_RESET_FIELDS = frozenset({
     "_client_match_query", "_client_match_options",
 })
 
-_PROFILE_CUSTOMIZE_TOKENS = frozenset({
-    "personalizar", "personalizarlo", "modificar", "ajustar", "ajustarlo",
-    "agregar", "agrega", "agregarle", "agregale", "agregarlo", "añadir", "sumar", "incluir", "quitar", "quita",
-    "sacar", "saca", "retirar", "remover", "cambiar",
-})
-
-_PROFILE_CONFIRM_TOKENS = frozenset({
-    "si", "sí", "asi", "así", "dejalo", "dejarlo", "confirmo", "confirmado",
-    "correcto", "exacto", "listo", "ok", "okay", "perfecto", "ese", "esa",
-})
-
-# Cierre EXPLÍCITO de un perfil personalizado armado desde cero. No incluye "sí"
-# ni "ya" sueltos para no cerrar por error mientras el cliente navega el catálogo.
-_CLOSE_PROFILE_TOKENS = frozenset({
-    "cerramos", "cerrar", "cierra", "cierralo", "ciérralo", "cierre", "cerremos",
-    "completo", "completa", "suficiente", "listo", "lista", "nada", "eso",
-})
-_CLOSE_PROFILE_PHRASES = (
-    "asi esta", "asi nomas", "asi nada", "asi quedamos", "dejalo asi",
-    "ya esta", "nada mas", "es todo", "eso es todo", "esos no mas", "esos nomas",
-)
-
-_AMBIGUOUS_PROFILE_TOKENS = frozenset({
-    "ese", "esa", "eso", "esos", "esas", "otro", "otra", "otros", "otras",
-    "mismo", "misma", "mismos", "mismas",
-})
+# _PROFILE_CUSTOMIZE_TOKENS, _PROFILE_CONFIRM_TOKENS, _CLOSE_PROFILE_TOKENS,
+# _CLOSE_PROFILE_PHRASES, _AMBIGUOUS_PROFILE_TOKENS → app/detectors.py (importados arriba).
 
 _PROFILE_DETAIL_TOKENS = frozenset({
     "incluye", "incluyen", "contiene", "contienen", "trae", "traen",
@@ -426,22 +406,8 @@ def _profile_customization_reply(fields: dict) -> str:
     )
 
 
-def _is_profile_customization_request(text: str) -> bool:
-    return bool(set(_tokenize(text)) & _PROFILE_CUSTOMIZE_TOKENS)
-
-
-def _is_profile_confirmation(text: str) -> bool:
-    tokens = set(_tokenize(text))
-    return bool(tokens & _PROFILE_CONFIRM_TOKENS) and not _is_profile_customization_request(text)
-
-
-def _wants_to_close_custom_profile(text: str) -> bool:
-    if _is_profile_customization_request(text):
-        return False
-    normalized = " ".join(_tokenize(text))
-    if any(phrase in normalized for phrase in _CLOSE_PROFILE_PHRASES):
-        return True
-    return bool(set(_tokenize(text)) & _CLOSE_PROFILE_TOKENS)
+# _is_profile_customization_request, _is_profile_confirmation, _wants_to_close_custom_profile
+# → app/detectors.py (importados arriba).
 
 
 def _as_text_items(value) -> list[str]:
@@ -507,9 +473,7 @@ def _unknown_catalog_items(items: list[str], rows: list[dict]) -> list[str]:
     return [item for item in items if not any(_catalog_row_matches_item(item, row) for row in rows)]
 
 
-def _is_ambiguous_profile_change(text: str) -> bool:
-    tokens = set(_tokenize(text))
-    return bool(tokens & _PROFILE_CUSTOMIZE_TOKENS) and bool(tokens & _AMBIGUOUS_PROFILE_TOKENS)
+# _is_ambiguous_profile_change → app/detectors.py (importado arriba).
 
 
 def _is_profile_detail_question(text: str) -> bool:
@@ -587,17 +551,10 @@ def _wants_profile_recommendation(text: str) -> bool:
     return bool(set(_tokenize(text)) & _RECOMMENDATION_TOKENS)
 
 
-_ARMED_PROFILE_TOKENS = frozenset({
-    "armado", "armados", "armadas", "prearmado", "prearmados", "prearmadas",
-    "predefinido", "predefinidos", "predefinida", "predefinidas", "hechos", "listos",
-})
+# _ARMED_PROFILE_TOKENS → app/detectors.py (importado arriba).
 
 
-def _asks_for_armed_profiles(text: str) -> bool:
-    """¿El cliente pregunta por perfiles ya armados/prearmados del catálogo?
-    Ej.: '¿no tienes perfiles armados?'."""
-    tokens = set(_tokenize(text))
-    return bool(tokens & {"perfil", "perfiles"}) and bool(tokens & _ARMED_PROFILE_TOKENS)
+# _asks_for_armed_profiles → app/detectors.py (importado arriba).
 
 
 def _wants_partial_analysis_change(text: str) -> bool:
