@@ -17,6 +17,16 @@ from app.species import (
 from app.config import ALEGRA_ENABLED, APP_TIMEZONE
 from app.services import ai, db, alegra
 from app.rules import TERMINAL_PHASES, calculate_custom_profile_total, calculate_profile_adjusted_total
+from app.messages import (
+    CLIENT_LOOKUP_PROGRESS_MESSAGE, WELCOME_MESSAGE, FINAL_USER_MESSAGE,
+    CLIENT_IDENTIFICATION_REQUIRED_MESSAGE, CLIENT_NOT_FOUND_MESSAGE,
+    CLIENT_NEW_REGISTRATION_MESSAGE, CLIENT_SEARCH_FAILED_MESSAGE,
+    CLIENT_RETRY_NOT_FOUND_MESSAGE, CLIENT_IDENTIFIER_RETRY_MESSAGE,
+    POST_TERMINAL_GREETING_REPLY, RESULTS_PENDING_MESSAGE, OPTION_RECONSIDER_MESSAGE,
+    ORDER_NUMBER_NEEDS_CLIENT_MESSAGE, ORDER_NUMBER_NOT_FOUND_MESSAGE, FAREWELL_REPLY,
+    CLOSING_PROMPT, PAYMENT_METHOD_QUESTION, PAYMENT_ONLINE_HANDOFF_MESSAGE,
+    EXTRA_ANALYSIS_OFFER, NO_COURIER_HANDOFF_MESSAGE, AGE_QUESTION, CORRECTION_PROMPT,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -27,86 +37,7 @@ _turn_prev_phase: contextvars.ContextVar[str] = contextvars.ContextVar(
     "turn_prev_phase", default=""
 )
 
-CLIENT_LOOKUP_PROGRESS_MESSAGE = "Permíteme un momentico mientras reviso nuestros registros 🔍"
-
-WELCOME_MESSAGE = (
-    "Hola! Buen día, me alegra que nos visites.\n"
-    "Bienvenido a A3 laboratorio clínico veterinario 🧪 🧫\n"
-    "Atendemos clínicas y profesionales veterinarios registrados.\n\n"
-    "¿Con qué te ayudamos hoy? Respóndeme con el número:\n"
-    "1. Programar análisis y recogida de muestra\n"
-    "2. Consultar resultados\n"
-    "3. Pagos\n"
-    "4. Otro"
-)
-
-FINAL_USER_MESSAGE = (
-    "A3 trabaja directamente con clínicas y profesionales veterinarios registrados. "
-    "Para procesar muestras o programar recogidas, por favor gestiona la solicitud a través de tu veterinaria."
-)
-
-CLIENT_IDENTIFICATION_REQUIRED_MESSAGE = (
-    "Para gestionar pedidos, A3 atiende clínicas y profesionales veterinarios registrados. "
-    "Para continuar necesito una de estas dos opciones: 1) el NIT, o 2) el nombre exacto de la veterinaria o médico veterinario."
-)
-
-CLIENT_NOT_FOUND_MESSAGE = (
-    "En este momento no encuentro el cliente registrado en nuestra base de datos.\n"
-    "Para poder coordinar el retiro de muestras, primero necesitamos realizar el registro del cliente.\n"
-    "Te voy a comunicar con atención al cliente para que puedan ayudarte con este proceso."
-)
-
-CLIENT_NEW_REGISTRATION_MESSAGE = (
-    "Como aún no estás registrado, el alta la debe hacer atención al cliente. "
-    "Te voy a comunicar con ellos para que puedan ayudarte con ese proceso."
-)
-
-CLIENT_SEARCH_FAILED_MESSAGE = (
-    "No encuentro ningún cliente registrado con ese dato.\n"
-    "¿Eres cliente nuevo?"
-)
-
-CLIENT_RETRY_NOT_FOUND_MESSAGE = (
-    "Tampoco encuentro un cliente registrado con ese dato. "
-    "¿Me confirmas si es cliente nuevo para ponerte en contacto con atención al cliente?"
-)
-
-CLIENT_IDENTIFIER_RETRY_MESSAGE = (
-    "Para ubicar el cliente registrado, compárteme el NIT o el nombre exacto de la veterinaria o médico veterinario."
-)
-
-POST_TERMINAL_GREETING_REPLY = "Hola. ¿En qué podemos ayudarte hoy?"
-
-# Opción 2 del menú (consultar resultados). Todavía no se resuelve por este medio:
-# la consulta de estados se habilitará cuando se integre la plataforma.
-RESULTS_PENDING_MESSAGE = (
-    "Por ahora la consulta de resultados y estados de muestra todavía no está disponible por este medio. "
-    "La estamos integrando con nuestra plataforma y muy pronto vas a poder consultarlos por aquí 🙌.\n"
-    "Si necesitas un resultado puntual, escríbenos y con gusto te comunicamos con el equipo. "
-    "¿Te ayudo con algo más, como programar una recogida?"
-)
-
-# El usuario se confundió de opción o quiere volver a elegir: se reofrece el menú.
-OPTION_RECONSIDER_MESSAGE = (
-    "Tranquilo, sin problema 🙂. ¿Con qué te ayudo? Respóndeme con el número:\n"
-    "1. Programar análisis y recogida de muestra\n"
-    "2. Consultar resultados\n"
-    "3. Pagos\n"
-    "4. Otro"
-)
-
-ORDER_NUMBER_NEEDS_CLIENT_MESSAGE = (
-    "Para darte el número de tu orden necesito identificarte primero. "
-    "¿Me compartes el NIT o el nombre de la veterinaria o médico veterinario?"
-)
-ORDER_NUMBER_NOT_FOUND_MESSAGE = (
-    "Todavía no encuentro una orden registrada a tu nombre. ¿Quieres que programemos una recogida?"
-)
-
-FAREWELL_REPLY = (
-    "Con mucho gusto, para eso estamos! "
-    "Si en algún momento necesitas algo más, acá seguimos. ¡Hasta luego, cuídate!"
-)
+# Mensajes de texto fijos → app/messages.py (importados arriba).
 
 _FAREWELL_TOKENS = frozenset({
     "gracias", "dale", "ok", "okay", "listo", "perfecto", "entendido",
@@ -235,26 +166,8 @@ _NEGATIVE_TOKENS = frozenset({"no", "nop", "negativo", "incorrecto", "otra", "di
 _HANDOFF_INTENTS = frozenset({"accounting", "new_client"})
 
 PAYMENT_METHODS = frozenset({"contraentrega", "pago_linea"})
-PAYMENT_METHOD_QUESTION = "Antes de cerrar, ¿cómo prefieres el pago: contraentrega con el motorizado o pago en línea?"
-PAYMENT_ONLINE_HANDOFF_MESSAGE = (
-    "Tu orden quedó registrada. Como elegiste pago en línea, nuestro equipo de contabilidad "
-    "te contactará en breve para enviarte el link y procesar el pago. "
-    "La recogida de la muestra sigue programada con normalidad."
-)
-
-# Oferta de agregar más análisis antes del pago. Se repite tras cada agregado hasta que el
-# cliente decida seguir (decline o dé el método de pago). El "si ya está, seguimos con el
-# pago" deja la salida clara para no caer en bucle.
-EXTRA_ANALYSIS_OFFER = (
-    "¿Quieres agregar otro análisis o perfil, o personalizar este? "
-    "Si ya está, seguimos con el pago."
-)
-
-# Cierre cordial al final de una orden registrada: ofrecer otra orden o terminar.
-CLOSING_PROMPT = (
-    "Si necesitas crear otra orden para otro paciente, escríbeme: otra orden. "
-    "Si eso es todo, quedamos atentos. 🙂"
-)
+# PAYMENT_METHOD_QUESTION, PAYMENT_ONLINE_HANDOFF_MESSAGE, EXTRA_ANALYSIS_OFFER,
+# CLOSING_PROMPT → app/messages.py (importados arriba).
 
 
 def _payment_method_from_text(text: str) -> str | None:
@@ -268,12 +181,7 @@ def _payment_method_from_text(text: str) -> str | None:
     return None
 
 
-NO_COURIER_HANDOFF_MESSAGE = (
-    "Recibimos la orden. En este momento no veo un motorizado asignado al cliente, "
-    "así que operaciones la va a coordinar manualmente."
-)
-
-AGE_QUESTION = "¿Qué edad tiene el paciente? Indícame número y unidad, por ejemplo: 5 años, 3 meses o 45 días."
+# NO_COURIER_HANDOFF_MESSAGE, AGE_QUESTION → app/messages.py (importados arriba).
 _AGE_UNIT_TOKENS = frozenset({"año", "años", "ano", "anos", "mes", "meses", "dia", "dias", "día", "días"})
 
 # Campos de texto libre que se normalizan a Mayúscula inicial (Sección 11 del spec).
@@ -282,10 +190,7 @@ _TITLECASE_FIELDS = ("clinic_name", "patient_name", "species", "breed", "owner_n
 
 # Confirmación editable previa al registro (Sección 7.1 del spec).
 CONFIRMATION_PHASE = state.Phase.CONFIRMACION.value  # "fase_4_confirmacion" (fuente: state.Phase)
-CORRECTION_PROMPT = (
-    "Claro. ¿Qué dato quieres corregir? "
-    "(dirección, médico, paciente, especie, raza, sexo, edad, propietario, observaciones, análisis o forma de pago)"
-)
+# CORRECTION_PROMPT → app/messages.py (importado arriba).
 _CORRECTION_TOKENS = frozenset({
     "corregir", "corrige", "corrijo", "cambiar", "cambia", "cambie", "modificar",
     "modifica", "editar", "edita", "arreglar", "incorrecto", "mal", "equivocado",
