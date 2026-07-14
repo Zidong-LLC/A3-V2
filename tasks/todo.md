@@ -41,8 +41,15 @@ elegido: **empezar por catálogo/dinero**, con **red de tests primero**.
       5 tests nuevos en `test_state.py`. Suite: 280 passed, 1 xfailed (6 fallos de red ajenos).
 - [ ] Paso 3.2 (BLOQUEO real de la transición/estado): recién cuando los logs en vivo confirmen
       que las señales de detección no dan falsos positivos. Validar en vivo primero.
-- [ ] Paso 3.3 (invertir orden token-vs-LLM) y 3.4 (partir el monolito, agent.py ~5.730 líneas):
-      tocan el flujo → avisar y validar en vivo entre pasos (regla dura). NO hacer big-bang.
+- [~] Paso 3.4 (partir el monolito) — EN CURSO, por tandas verificadas ("el cómo, no el qué"):
+      - [x] `app/messages.py`: 22 textos fijos del agente (respuestas/prompts/preguntas).
+      - [x] `app/detectors.py`: 8 detectores puros (texto→bool) + su vocabulario
+            (conversación básica + elección de menú + cliente nuevo). Grupos CERRADOS
+            (solo `app.text`), sin circularidad; agent.py los re-importa.
+      - agent.py: 5.729 → 5.583 líneas. Cada tanda: suite 280 passed, 1 xfailed.
+      - [ ] Resto: seguir moviendo detectores/lógica por grupos cerrados (incremental).
+- [ ] Paso 3.3 (invertir orden token-vs-LLM): CAMBIA comportamiento → avisar y validar en vivo
+      entre pasos (regla dura). NO hacer big-bang. Pendiente de prueba en vivo previa.
 
 > **Próximo paso: validación en vivo** del eje catálogo + cierre por señal antes de encarar Fase 3.
 
