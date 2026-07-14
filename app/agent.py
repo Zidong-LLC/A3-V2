@@ -22,10 +22,12 @@ from app.detectors import (
     _RESULTS_CHOICE_TOKENS, _OTHER_CHOICE_TOKENS,
     _PROFILE_CUSTOMIZE_TOKENS, _PROFILE_CONFIRM_TOKENS, _CLOSE_PROFILE_TOKENS,
     _CLOSE_PROFILE_PHRASES, _AMBIGUOUS_PROFILE_TOKENS, _ARMED_PROFILE_TOKENS,
+    _ADDRESS_CONFIRM_TOKENS, _NO_OWNER_TOKENS, _NO_OWNER_PHRASES,
     _is_farewell, _is_greeting_only, _is_affirmative_text, _is_negative_text,
     _is_results_choice, _is_other_choice, _confirms_new_client, _explicitly_says_new_client,
     _is_profile_customization_request, _is_profile_confirmation, _wants_to_close_custom_profile,
     _is_ambiguous_profile_change, _asks_for_armed_profiles,
+    _confirms_address, _rejects_address, _says_no_owner,
 )
 from app.messages import (
     CLIENT_LOOKUP_PROGRESS_MESSAGE, WELCOME_MESSAGE, FINAL_USER_MESSAGE,
@@ -2417,29 +2419,10 @@ def _identifier_retry_from_text(text: str, history: list[dict]) -> tuple[str | N
 # ("sí es ese", "esa misma", "esa está bien") y a veces mezcla una pregunta en
 # el mismo mensaje. No exigimos longitud corta ni palabras exactas; una negación
 # explícita siempre gana.
-_ADDRESS_CONFIRM_TOKENS = _AFFIRMATIVE_TOKENS | {
-    "ese", "esa", "eso", "esos", "esas", "correcta", "correcto",
-    "asi", "así", "afirmativo", "confirmo", "confirmado", "seguro", "vale",
-}
+# _ADDRESS_CONFIRM_TOKENS → app/detectors.py (importado arriba).
 
 
-def _confirms_address(text: str) -> bool:
-    words = set(_tokenize(text))
-    if not words or words & _NEGATIVE_TOKENS:
-        return False
-    if words == {"1"}:  # respondió la opción "1) sí, esa dirección está bien"
-        return True
-    if words & _ADDRESS_CONFIRM_TOKENS:
-        return True
-    # Confirmaciones coloquiales pegadas o alargadas: "sisi", "sisisi", "siii", "sí sí".
-    return any(re.fullmatch(r"(s[ií]+)+", w) for w in words)
-
-
-def _rejects_address(text: str) -> bool:
-    words = set(_tokenize(text))
-    if words == {"2"}:  # respondió la opción "2) enviarme la dirección correcta"
-        return True
-    return _is_negative_text(text)
+# _confirms_address, _rejects_address → app/detectors.py (importados arriba).
 
 
 def _address_written_by_user(address, user_message: str) -> bool:
@@ -2824,24 +2807,10 @@ def _apply_common_order_fallbacks(fields: dict, user_message: str) -> None:
             fields["exam_type"] = "análisis de sangre"
 
 
-_NO_OWNER_TOKENS = frozenset({
-    "ninguno", "ninguna", "callejero", "callejera", "callejeros", "callejeras",
-    "rescatado", "rescatada", "rescate",
-})
-_NO_OWNER_PHRASES = (
-    "sin dueño", "sin dueno", "sin propietario", "sin amo",
-    "no tiene dueño", "no tiene dueno", "no tiene propietario", "no tiene amo",
-    "no hay dueño", "no hay dueno", "no aplica", "no sabemos",
-)
+# _NO_OWNER_TOKENS, _NO_OWNER_PHRASES → app/detectors.py (importados arriba).
 
 
-def _says_no_owner(text: str) -> bool:
-    """El cliente indica que el paciente NO tiene propietario (callejero, rescatado, etc.).
-    Solo se usa cuando se está pidiendo el propietario, así 'ninguna' es inequívoco ahí."""
-    low = (text or "").lower()
-    if any(p in low for p in _NO_OWNER_PHRASES):
-        return True
-    return bool(set(_tokenize(text)) & _NO_OWNER_TOKENS)
+# _says_no_owner → app/detectors.py (importado arriba).
 
 
 def _merge_existing_route_fields(prev_fields: dict, fields: dict) -> None:

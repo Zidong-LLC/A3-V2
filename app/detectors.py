@@ -5,6 +5,8 @@ que solo dependen de la tokenización (`app.text`) y de su propio vocabulario �
 negocio ni I/O. Este módulo es el primer grupo de detectores movido; irán sumándose más a
 medida que se confirme que cada grupo es cerrado (no llama a funciones que quedan en agent).
 """
+import re
+
 from app.text import tokenize as _tokenize
 
 # ── Vocabulario ─────────────────────────────────────────────────────────────────
@@ -63,6 +65,21 @@ _ARMED_PROFILE_TOKENS = frozenset({
     "armado", "armados", "armadas", "prearmado", "prearmados", "prearmadas",
     "predefinido", "predefinidos", "predefinida", "predefinidas", "hechos", "listos",
 })
+
+_ADDRESS_CONFIRM_TOKENS = _AFFIRMATIVE_TOKENS | {
+    "ese", "esa", "eso", "esos", "esas", "correcta", "correcto",
+    "asi", "así", "afirmativo", "confirmo", "confirmado", "seguro", "vale",
+}
+
+_NO_OWNER_TOKENS = frozenset({
+    "ninguno", "ninguna", "callejero", "callejera", "callejeros", "callejeras",
+    "rescatado", "rescatada", "rescate",
+})
+_NO_OWNER_PHRASES = (
+    "sin dueño", "sin dueno", "sin propietario", "sin amo",
+    "no tiene dueño", "no tiene dueno", "no tiene propietario", "no tiene amo",
+    "no hay dueño", "no hay dueno", "no aplica", "no sabemos",
+)
 
 
 # ── Detectores ──────────────────────────────────────────────────────────────────
@@ -158,3 +175,32 @@ def _asks_for_armed_profiles(text: str) -> bool:
     Ej.: '¿no tienes perfiles armados?'."""
     tokens = set(_tokenize(text))
     return bool(tokens & {"perfil", "perfiles"}) and bool(tokens & _ARMED_PROFILE_TOKENS)
+
+
+# ── Detectores de dirección y "sin propietario" ─────────────────────────────────
+def _confirms_address(text: str) -> bool:
+    words = set(_tokenize(text))
+    if not words or words & _NEGATIVE_TOKENS:
+        return False
+    if words == {"1"}:  # respondió la opción "1) sí, esa dirección está bien"
+        return True
+    if words & _ADDRESS_CONFIRM_TOKENS:
+        return True
+    # Confirmaciones coloquiales pegadas o alargadas: "sisi", "sisisi", "siii", "sí sí".
+    return any(re.fullmatch(r"(s[ií]+)+", w) for w in words)
+
+
+def _rejects_address(text: str) -> bool:
+    words = set(_tokenize(text))
+    if words == {"2"}:  # respondió la opción "2) enviarme la dirección correcta"
+        return True
+    return _is_negative_text(text)
+
+
+def _says_no_owner(text: str) -> bool:
+    """El cliente indica que el paciente NO tiene propietario (callejero, rescatado, etc.).
+    Solo se usa cuando se está pidiendo el propietario, así 'ninguna' es inequívoco ahí."""
+    low = (text or "").lower()
+    if any(p in low for p in _NO_OWNER_PHRASES):
+        return True
+    return bool(set(_tokenize(text)) & _NO_OWNER_TOKENS)
