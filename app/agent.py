@@ -19,7 +19,9 @@ from app.services import ai, db, alegra
 from app.rules import TERMINAL_PHASES, calculate_custom_profile_total, calculate_profile_adjusted_total
 from app.detectors import (
     _FAREWELL_TOKENS, _CONTINUE_TOKENS, _GREETING_TOKENS, _AFFIRMATIVE_TOKENS, _NEGATIVE_TOKENS,
+    _RESULTS_CHOICE_TOKENS, _OTHER_CHOICE_TOKENS,
     _is_farewell, _is_greeting_only, _is_affirmative_text, _is_negative_text,
+    _is_results_choice, _is_other_choice, _confirms_new_client, _explicitly_says_new_client,
 )
 from app.messages import (
     CLIENT_LOOKUP_PROGRESS_MESSAGE, WELCOME_MESSAGE, FINAL_USER_MESSAGE,
@@ -2406,25 +2408,7 @@ def _client_found_reply(fields: dict) -> str:
     return f"Perfecto, encontramos {name}, pero no veo dirección registrada. ¿Cuál es la dirección de retiro?"
 
 
-def _confirms_new_client(text: str) -> bool:
-    tokens = _tokenize(text)
-    if not tokens or any(token == "no" for token in tokens):
-        return False
-
-    words = set(tokens)
-    if "cliente" in words and "nuevo" in words:
-        return True
-    return len(tokens) <= 4 and bool(words & _AFFIRMATIVE_TOKENS) and not any(token.isdigit() for token in tokens)
-
-
-def _explicitly_says_new_client(text: str) -> bool:
-    """Mención EXPLÍCITA de ser cliente nuevo ('soy cliente nuevo', 'cliente nuevo').
-    A diferencia de `_confirms_new_client`, no cuenta una afirmación pelada ('sí',
-    'la uno'): esas solo significan 'soy nuevo' si el bot acaba de preguntarlo (L46)."""
-    words = set(_tokenize(text))
-    if "no" in words:
-        return False
-    return "cliente" in words and "nuevo" in words
+# _confirms_new_client, _explicitly_says_new_client → app/detectors.py (importados arriba).
 
 
 def _claims_unregistered_client(text: str) -> bool:
@@ -2536,20 +2520,8 @@ def _rejects_address_now(ai_response: dict, user_message: str) -> bool:
     return _rejects_address(user_message)
 
 
-_RESULTS_CHOICE_TOKENS = frozenset({"2", "dos", "resultado", "resultados"})
-_OTHER_CHOICE_TOKENS = frozenset({"4", "cuatro", "otro", "otra"})
-
-
-def _is_results_choice(text: str) -> bool:
-    """El usuario eligió la opción 2 del menú (consultar resultados)."""
-    words = _tokenize(text)
-    return bool(set(words) & _RESULTS_CHOICE_TOKENS) and len(words) <= 4
-
-
-def _is_other_choice(text: str) -> bool:
-    """El usuario eligió la opción 4 del menú (otro)."""
-    words = _tokenize(text)
-    return bool(set(words) & _OTHER_CHOICE_TOKENS) and len(words) <= 4
+# _RESULTS_CHOICE_TOKENS, _OTHER_CHOICE_TOKENS, _is_results_choice, _is_other_choice
+# → app/detectors.py (importados arriba).
 
 
 _OPTION_CORRECTION_TOKENS = frozenset({

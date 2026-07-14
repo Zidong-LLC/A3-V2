@@ -29,6 +29,9 @@ _AFFIRMATIVE_TOKENS = frozenset({
 
 _NEGATIVE_TOKENS = frozenset({"no", "nop", "negativo", "incorrecto", "otra", "diferente"})
 
+_RESULTS_CHOICE_TOKENS = frozenset({"2", "dos", "resultado", "resultados"})
+_OTHER_CHOICE_TOKENS = frozenset({"4", "cuatro", "otro", "otra"})
+
 
 # ── Detectores ──────────────────────────────────────────────────────────────────
 def _is_farewell(text: str) -> bool:
@@ -59,3 +62,36 @@ def _is_affirmative_text(text: str) -> bool:
 def _is_negative_text(text: str) -> bool:
     words = set(_tokenize(text))
     return bool(words & _NEGATIVE_TOKENS) and len(words) <= 8
+
+
+def _is_results_choice(text: str) -> bool:
+    """El usuario eligió la opción 2 del menú (consultar resultados)."""
+    words = _tokenize(text)
+    return bool(set(words) & _RESULTS_CHOICE_TOKENS) and len(words) <= 4
+
+
+def _is_other_choice(text: str) -> bool:
+    """El usuario eligió la opción 4 del menú (otro)."""
+    words = _tokenize(text)
+    return bool(set(words) & _OTHER_CHOICE_TOKENS) and len(words) <= 4
+
+
+def _confirms_new_client(text: str) -> bool:
+    tokens = _tokenize(text)
+    if not tokens or any(token == "no" for token in tokens):
+        return False
+
+    words = set(tokens)
+    if "cliente" in words and "nuevo" in words:
+        return True
+    return len(tokens) <= 4 and bool(words & _AFFIRMATIVE_TOKENS) and not any(token.isdigit() for token in tokens)
+
+
+def _explicitly_says_new_client(text: str) -> bool:
+    """Mención EXPLÍCITA de ser cliente nuevo ('soy cliente nuevo', 'cliente nuevo').
+    A diferencia de `_confirms_new_client`, no cuenta una afirmación pelada ('sí',
+    'la uno'): esas solo significan 'soy nuevo' si el bot acaba de preguntarlo (L46)."""
+    words = set(_tokenize(text))
+    if "no" in words:
+        return False
+    return "cliente" in words and "nuevo" in words
