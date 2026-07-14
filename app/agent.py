@@ -4572,12 +4572,34 @@ def _remember_client_fields(fields: dict) -> None:
         fields["_client_memory"] = memory
 
 
+def _observe_state_health(fields: dict) -> None:
+    """Fase 3.2 (modo DETECCIÓN, no bloqueo): observa la salud del estado tras cada
+    turno sin alterar el flujo. Loggea banderas incoherentes (dos que no pueden coexistir
+    = "banderas pegadas") y flags de control fantasma/typos — la raíz de los bucles
+    (clusters 3 y 6 de la bitácora)— para hacerlas visibles antes de imponer la FSM.
+    Nunca lanza: si el observador falla, el turno sigue igual."""
+    try:
+        st = state.ConversationState(fields if isinstance(fields, dict) else {})
+        try:
+            st.assert_valid()
+        except AssertionError as exc:
+            logger.warning("estado incoherente tras el turno: %s", exc)
+        unknown = st.unknown_flags()
+        if unknown:
+            logger.warning(
+                "flags de control desconocidas (posible typo/fantasma): %s", sorted(unknown)
+            )
+    except Exception:  # pragma: no cover - defensivo, nunca debe romper el turno
+        logger.debug("observador de estado falló (ignorado)", exc_info=True)
+
+
 def _persist_turn(chat_id: str, user_message: str, ai_response: dict) -> str:
     db.save_message(chat_id, user_message, "user")
     db.save_message(chat_id, ai_response["reply"], "bot")
     fields = ai_response.get("captured_fields", {})
     fields["_pending_intents"] = ai_response.get("pending_intents", [])
     _remember_client_fields(fields)
+    _observe_state_health(fields)
     ai_response["captured_fields"] = fields
     db.update_session(chat_id, ai_response)
     return ai_response["reply"]

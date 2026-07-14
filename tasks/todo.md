@@ -30,7 +30,17 @@ elegido: **empezar por catálogo/dinero**, con **red de tests primero**.
 - [x] Cierre de orden migrado a `user_intent_signal` (`_confirms_order_now`): cierra confirmaciones fuera de lista.
 - [ ] Resto de detectores: acoplados a Fase 3 (viven en la cascada PRE-LLM, sin señal disponible). Ver ABIERTO-003.
 
-**Fase 3 — FSM / reorden del pipeline (sin empezar):** habilitador real de la Fase 2 completa. Requiere validación en vivo previa.
+**Fase 3 — FSM / reorden del pipeline — ARRANCADA (Paso 3.2 en modo DETECCIÓN)**
+- [x] `app/state.py` ya tenía la FSM documentada (`Phase`, `LEGAL_TRANSITIONS`, `is_legal_transition`)
+      y las invariantes de estado (`assert_valid`, `unknown_flags`).
+- [x] `agent._observe_state_health` conectado al embudo `_persist_turn`: tras cada turno loggea
+      (warning) banderas incoherentes ("pegadas") y flags fantasma — la raíz de los bucles
+      (clusters 3 y 6)— SIN bloquear ni cambiar el flujo. 3 tests nuevos en `test_state.py`.
+      Suite: 278 passed, 1 xfailed (6 fallos de red preexistentes: dashboard/portal_auth).
+- [ ] Paso 3.2 (bloqueo) + transición de fase ilegal en vivo: requiere prev_phase en el embudo →
+      acoplado a reestructurar los ~20 return de `process_turn` (Paso 3.4). Validar en vivo primero.
+- [ ] Paso 3.3 (invertir orden token-vs-LLM) y 3.4 (partir el monolito): tocan el flujo → avisar
+      y validar en vivo entre pasos (regla dura del proyecto). NO hacer big-bang.
 
 > **Próximo paso: validación en vivo** del eje catálogo + cierre por señal antes de encarar Fase 3.
 

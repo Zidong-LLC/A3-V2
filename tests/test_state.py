@@ -87,6 +87,33 @@ def test_legal_transitions_of_the_flow():
     assert not T("fase_0_bienvenida", "fase_4_confirmacion")   # bienvenida no salta a confirmar
 
 
+def test_observer_logs_incoherent_state_without_breaking(caplog):
+    """Fase 3.2 modo detección: el observador de `agent` loggea el estado pegado y NO rompe."""
+    import logging
+    from app import agent
+    fields = {"_address_confirmed": True, "_address_confirmation_pending": True}
+    with caplog.at_level(logging.WARNING, logger="app.agent"):
+        agent._observe_state_health(fields)          # no lanza
+    assert any("incoherente" in r.message for r in caplog.records)
+
+
+def test_observer_logs_unknown_flags(caplog):
+    import logging
+    from app import agent
+    with caplog.at_level(logging.WARNING, logger="app.agent"):
+        agent._observe_state_health({"_client_found": True, "_flag_fantasma": 1})
+    assert any("desconocidas" in r.message for r in caplog.records)
+
+
+def test_observer_silent_on_healthy_state(caplog):
+    """Un estado sano no genera ruido (no cambia el comportamiento del caso común)."""
+    import logging
+    from app import agent
+    with caplog.at_level(logging.WARNING, logger="app.agent"):
+        agent._observe_state_health({"_client_found": True, "selected_tests": ["1101"]})
+    assert not caplog.records
+
+
 def test_clear_menus_and_has_analysis():
     st = ConversationState({"_test_menu_options": [1], "_profile_menu_options": [2],
                             "_test_menu_adds_to_profile": True})
