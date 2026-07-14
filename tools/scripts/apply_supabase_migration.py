@@ -36,7 +36,13 @@ def _execute_sql_with_access_token(sql: str) -> None:
     req = request.Request(
         endpoint,
         data=payload,
-        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+            # Sin User-Agent, el WAF (Cloudflare) de api.supabase.com rechaza el
+            # request de urllib con 403 code 1010. Un UA propio lo evita.
+            "User-Agent": "A3-migrations/1.0",
+        },
         method="POST",
     )
     try:
