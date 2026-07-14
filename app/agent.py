@@ -1235,11 +1235,18 @@ def _enforce_extra_analysis_offer(session: dict, ai_response: dict, prev_fields:
         return ai_response
     if fields.get("_offering_extra_analysis") or fields.get("payment_method"):
         return ai_response
-    # No interferir si hay un menú/selección de análisis a medio resolver.
+    has_analysis = bool(fields.get("exam_type") or fields.get("selected_tests") or fields.get("_selected_profile_code"))
+    # Menú pegado que ya no aplica: si la orden YA tiene análisis, un menú de perfiles/análisis
+    # anterior es basura de estado (bandera pegada; ej. el menú de perfiles armados que no se
+    # limpió al pasar a "armar a medida"). Se descarta para que no inhiba la oferta ni contamine
+    # los turnos siguientes — la oferta de agregar otro sale determinística, no a merced del modelo.
+    if has_analysis:
+        for k in ("_profile_menu_options", "_test_menu_options", "_test_menu_adds_to_profile"):
+            fields.pop(k, None)
+    # No interferir si hay un menú/selección de análisis a medio resolver (aún sin análisis).
     if (fields.get("_test_menu_options") or fields.get("_profile_menu_options")
             or fields.get("_test_menu_adds_to_profile") or fields.get("_diagnostic_label")):
         return ai_response
-    has_analysis = bool(fields.get("exam_type") or fields.get("selected_tests") or fields.get("_selected_profile_code"))
     if not has_analysis:
         return ai_response
     analysis_new = (
@@ -1250,7 +1257,8 @@ def _enforce_extra_analysis_offer(session: dict, ai_response: dict, prev_fields:
     if not analysis_new or _missing_route_field(session, fields) != "payment_method":
         return ai_response
     exam = fields.get("_selected_profile_name") or fields.get("exam_type")
-    return _analysis_settled_response(session, fields, f"Listo, queda {exam}.")
+    intro = f"Listo, queda {exam}." if exam else "Listo, lo anoto."
+    return _analysis_settled_response(session, fields, intro)
 
 
 def _enforce_multiple_tests_capture(session: dict, ai_response: dict, prev_fields: dict) -> dict:

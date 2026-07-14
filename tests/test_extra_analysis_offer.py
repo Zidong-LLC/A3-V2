@@ -103,3 +103,26 @@ def test_answer_bare_yes_asks_which():
 
 def test_new_order_resets_offer_flag():
     assert "_offering_extra_analysis" in agent._ORDER_RESET_FIELDS
+
+
+def test_stuck_profile_menu_does_not_block_extra_offer():
+    """Regresión turno-15 (chat real 2026-07-14): el menú de perfiles armados queda PEGADO al
+    pasar de 'elegir armado' a 'armar a medida'; en el turno siguiente, con los análisis ya
+    capturados, ese menú obsoleto inhibía _enforce_extra_analysis_offer y la oferta quedaba a
+    merced del modelo (a veces saltaba al pago). Ahora el menú pegado se descarta y la oferta
+    sale determinística. Lógica pura sobre el estado real, sin fingir la respuesta del modelo."""
+    base = {k: v for k, v in COMPLETE.items()
+            if k not in ("exam_type", "_selected_profile_code",
+                         "_selected_profile_name", "_selected_profile_price")}
+    fields = dict(base)
+    fields["selected_tests"] = ["1404", "1405"]                 # Potasio + Sodio recién capturados
+    # sin exam_type (el modelo puso solo selected_tests) → antes salía "Listo, queda None."
+    fields["_profile_menu_options"] = [{"code": "152", "name": "Perfil Prequirúrgico I",
+                                        "price": 24000}]         # menú PEGADO del turno anterior
+    ai = {"intent": "route_scheduling", "reply": agent.PAYMENT_METHOD_QUESTION,
+          "captured_fields": fields}
+    out = agent._enforce_extra_analysis_offer(SESSION, ai, base)
+    assert fields.get("_profile_menu_options") is None          # el menú pegado se descarta
+    assert fields.get("_offering_extra_analysis") is True       # y se ofrece agregar otro
+    assert "agregar otro análisis" in out["reply"]
+    assert "None" not in out["reply"]                           # sin "queda None" cuando no hay nombre

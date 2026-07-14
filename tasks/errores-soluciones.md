@@ -27,6 +27,26 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### ERR-060 — Menú de perfiles PEGADO inhibe la oferta de "agregar otro" (replay del chat real, 2026-07-14)
+**Síntoma:** al reproducir el chat 4 real con el modelo real, tras "Potasio y sodio" (armado a
+medida) el bot a veces saltaba directo a preguntar el pago en vez de ofrecer "¿agregás otro o
+cerramos?". No-determinístico: otras corridas sí ofrecían.
+**Causa raíz (bandera pegada, la clase que la Fase 3.2 detecta):** al pasar de "elegir un perfil
+armado" (menú `_profile_menu_options`) a "armar a medida", el menú NO se limpiaba y sobrevivía al
+turno siguiente. Con los análisis ya capturados, `_enforce_extra_analysis_offer` se abstenía por el
+menú pegado (guarda contra menús a medio resolver), dejando la oferta a merced de lo que el modelo
+decidiera generar → variabilidad. El estado quedaba incoherente: menú de elección + `selected_tests`
+llenos coexistiendo.
+**Solución (determinística, ataca la raíz):** en `_enforce_extra_analysis_offer`, si la orden YA
+tiene análisis, se descartan los menús pegados (`_profile_menu_options`/`_test_menu_options`/
+`_test_menu_adds_to_profile`) antes de evaluar la guarda — un menú de elección y análisis ya
+seleccionados no pueden coexistir. Así la oferta sale siempre, sin depender del modelo.
+**Tests:** `tests/test_extra_analysis_offer.py::test_stuck_profile_menu_does_not_block_extra_offer`
+(lógica pura sobre el estado real, sin fingir el modelo). Suite: 267 passed. Verificado en vivo con
+el replay del chat 4 (modelo real).
+**Estado:** RESUELTO. Refuerza el valor del observador de la Fase 3.2 (detecta este tipo de bandera
+pegada) y la lección [[L51]] (validar con el chat real, no con mocks).
+
 ### ERR-059 — Dos LÓGICAS de fallo (no frases): el flujo no sabía retroceder y corregir un dato reiniciaba todo (2026-07-11)
 
 - **Origen:** corrección directa del usuario (→ L50 en lessons.md): "resolvé la lógica del fallo, no la palabra — ningún cliente repite el fraseo exacto". Análisis de los 2 chats que rompieron al agente.
