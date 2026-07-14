@@ -17,6 +17,10 @@ from app.species import (
 from app.config import ALEGRA_ENABLED, APP_TIMEZONE
 from app.services import ai, db, alegra
 from app.rules import TERMINAL_PHASES, calculate_custom_profile_total, calculate_profile_adjusted_total
+from app.detectors import (
+    _FAREWELL_TOKENS, _CONTINUE_TOKENS, _GREETING_TOKENS, _AFFIRMATIVE_TOKENS, _NEGATIVE_TOKENS,
+    _is_farewell, _is_greeting_only, _is_affirmative_text, _is_negative_text,
+)
 from app.messages import (
     CLIENT_LOOKUP_PROGRESS_MESSAGE, WELCOME_MESSAGE, FINAL_USER_MESSAGE,
     CLIENT_IDENTIFICATION_REQUIRED_MESSAGE, CLIENT_NOT_FOUND_MESSAGE,
@@ -39,19 +43,7 @@ _turn_prev_phase: contextvars.ContextVar[str] = contextvars.ContextVar(
 
 # Mensajes de texto fijos → app/messages.py (importados arriba).
 
-_FAREWELL_TOKENS = frozenset({
-    "gracias", "dale", "ok", "okay", "listo", "perfecto", "entendido",
-    "chao", "chau", "bye", "hasta", "luego", "claro", "excelente", "genial",
-    "bien", "super", "súper", "👍", "de nada", "con gusto", "bueno",
-})
-
-_CONTINUE_TOKENS = frozenset({
-    "consulta", "pregunta", "quiero", "necesito", "puedo", "podria", "podrías", "podrias",
-    "otra", "adicional", "tambien", "también", "informacion", "información", "perfil", "perfiles",
-    "cotizar", "resultado", "resultados", "muestra", "ruta", "retiro", "agendar", "programar",
-})
-
-_GREETING_TOKENS = frozenset({"hola", "buenos", "buenas", "dias", "días", "tardes", "noches"})
+# _FAREWELL_TOKENS, _CONTINUE_TOKENS, _GREETING_TOKENS → app/detectors.py (importados arriba).
 
 # Consulta del número de orden ya creada (no confundir con crear una orden nueva)
 _ORDER_QUERY_TOKENS = frozenset({"orden", "ordenes", "órdenes", "pedido", "pedidos", "solicitud", "radicado"})
@@ -136,32 +128,10 @@ def _reject_reference_phrases_as_names(fields: dict, prev_fields: dict) -> None:
             fields[field] = None
 
 
-def _is_farewell(text: str) -> bool:
-    tokens = _tokenize(text)
-    if not tokens:
-        return False
-
-    words = set(tokens)
-    if words & _CONTINUE_TOKENS:
-        return False
-
-    if len(tokens) <= 6 and all(token in _FAREWELL_TOKENS for token in tokens):
-        return True
-
-    return len(tokens) <= 3 and tokens[0] in _FAREWELL_TOKENS
+# _is_farewell, _is_greeting_only → app/detectors.py (importados arriba).
 
 
-def _is_greeting_only(text: str) -> bool:
-    tokens = _tokenize(text)
-    return bool(tokens) and len(tokens) <= 3 and all(token in _GREETING_TOKENS for token in tokens)
-
-
-_AFFIRMATIVE_TOKENS = frozenset({
-    "si", "sí", "ok", "okay", "listo", "perfecto", "claro", "bien",
-    "correcto", "exacto", "dale", "sip", "aja", "ajá",
-})
-
-_NEGATIVE_TOKENS = frozenset({"no", "nop", "negativo", "incorrecto", "otra", "diferente"})
+# _AFFIRMATIVE_TOKENS, _NEGATIVE_TOKENS → app/detectors.py (importados arriba).
 
 _HANDOFF_INTENTS = frozenset({"accounting", "new_client"})
 
@@ -2499,14 +2469,7 @@ def _identifier_retry_from_text(text: str, history: list[dict]) -> tuple[str | N
     return None, None
 
 
-def _is_affirmative_text(text: str) -> bool:
-    words = set(_tokenize(text))
-    return bool(words & _AFFIRMATIVE_TOKENS) and len(words) <= 5
-
-
-def _is_negative_text(text: str) -> bool:
-    words = set(_tokenize(text))
-    return bool(words & _NEGATIVE_TOKENS) and len(words) <= 8
+# _is_affirmative_text, _is_negative_text → app/detectors.py (importados arriba).
 
 
 # Confirmación de la dirección registrada: la gente confirma con deícticos
