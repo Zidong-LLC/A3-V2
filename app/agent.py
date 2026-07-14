@@ -1,5 +1,6 @@
 import re
 import logging
+import contextvars
 from typing import Callable
 from datetime import datetime
 
@@ -18,6 +19,13 @@ from app.services import ai, db, alegra
 from app.rules import TERMINAL_PHASES, calculate_custom_profile_total, calculate_profile_adjusted_total
 
 logger = logging.getLogger(__name__)
+
+# Fase de la conversación al ENTRAR al turno actual. Alcance de turno (thread-safe con
+# ContextVar), lo setea process_turn al inicio y lo lee el observador de la FSM (3.2) para
+# detectar transiciones de fase no previstas, sin drillear el dato por los ~20 return.
+_turn_prev_phase: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "turn_prev_phase", default=""
+)
 
 CLIENT_LOOKUP_PROGRESS_MESSAGE = "Permíteme un momentico mientras reviso nuestros registros 🔍"
 
@@ -4572,12 +4580,13 @@ def _remember_client_fields(fields: dict) -> None:
         fields["_client_memory"] = memory
 
 
-def _observe_state_health(fields: dict) -> None:
+def _observe_state_health(fields: dict, new_phase: str = "") -> None:
     """Fase 3.2 (modo DETECCIÓN, no bloqueo): observa la salud del estado tras cada
-    turno sin alterar el flujo. Loggea banderas incoherentes (dos que no pueden coexistir
-    = "banderas pegadas") y flags de control fantasma/typos — la raíz de los bucles
-    (clusters 3 y 6 de la bitácora)— para hacerlas visibles antes de imponer la FSM.
-    Nunca lanza: si el observador falla, el turno sigue igual."""
+    turno sin alterar el flujo. Loggea (1) banderas incoherentes (dos que no pueden
+    coexistir = "banderas pegadas"), (2) flags de control fantasma/typos, y (3)
+    transiciones de fase fuera del grafo documentado — las tres son la raíz de los
+    bucles y del contexto perdido (clusters 3 y 6). Hacerlas visibles ANTES de imponer
+    la FSM. Nunca lanza: si el observador falla, el turno sigue igual."""
     try:
         st = state.ConversationState(fields if isinstance(fields, dict) else {})
         try:
@@ -4589,6 +4598,9 @@ def _observe_state_health(fields: dict) -> None:
             logger.warning(
                 "flags de control desconocidas (posible typo/fantasma): %s", sorted(unknown)
             )
+        prev_phase = _turn_prev_phase.get()
+        if prev_phase and new_phase and not state.is_legal_transition(prev_phase, new_phase):
+            logger.warning("transición de fase no prevista: %s -> %s", prev_phase, new_phase)
     except Exception:  # pragma: no cover - defensivo, nunca debe romper el turno
         logger.debug("observador de estado falló (ignorado)", exc_info=True)
 
@@ -4599,7 +4611,7 @@ def _persist_turn(chat_id: str, user_message: str, ai_response: dict) -> str:
     fields = ai_response.get("captured_fields", {})
     fields["_pending_intents"] = ai_response.get("pending_intents", [])
     _remember_client_fields(fields)
-    _observe_state_health(fields)
+    _observe_state_health(fields, ai_response.get("phase", ""))
     ai_response["captured_fields"] = fields
     db.update_session(chat_id, ai_response)
     return ai_response["reply"]
@@ -4615,6 +4627,8 @@ def process_turn(
     session["channel"] = channel
     history = db.get_recent_messages(chat_id, limit=8)
     started_from_escalation = session.get("phase_current") == "fase_7_escalado"
+    # Fase de entrada del turno, para que el observador de la FSM (3.2) detecte saltos.
+    _turn_prev_phase.set(session.get("phase_current", "") or "")
 
     # Cliente final/particular ya identificado: A3 no le presta servicio y el
     # agente deja de responder (sin saludo, sin procesar el turno).

@@ -34,13 +34,15 @@ elegido: **empezar por catálogo/dinero**, con **red de tests primero**.
 - [x] `app/state.py` ya tenía la FSM documentada (`Phase`, `LEGAL_TRANSITIONS`, `is_legal_transition`)
       y las invariantes de estado (`assert_valid`, `unknown_flags`).
 - [x] `agent._observe_state_health` conectado al embudo `_persist_turn`: tras cada turno loggea
-      (warning) banderas incoherentes ("pegadas") y flags fantasma — la raíz de los bucles
-      (clusters 3 y 6)— SIN bloquear ni cambiar el flujo. 3 tests nuevos en `test_state.py`.
-      Suite: 278 passed, 1 xfailed (6 fallos de red preexistentes: dashboard/portal_auth).
-- [ ] Paso 3.2 (bloqueo) + transición de fase ilegal en vivo: requiere prev_phase en el embudo →
-      acoplado a reestructurar los ~20 return de `process_turn` (Paso 3.4). Validar en vivo primero.
-- [ ] Paso 3.3 (invertir orden token-vs-LLM) y 3.4 (partir el monolito): tocan el flujo → avisar
-      y validar en vivo entre pasos (regla dura del proyecto). NO hacer big-bang.
+      (warning) las TRES señales de raíz de los bucles (clusters 3 y 6), SIN bloquear ni cambiar
+      el flujo: (1) banderas incoherentes ("pegadas", `assert_valid`), (2) flags fantasma/typos
+      (`unknown_flags`), (3) transiciones de fase fuera del grafo (`is_legal_transition`). La fase
+      de entrada se pasa vía `ContextVar` de alcance de turno (sin drillear los ~20 return).
+      5 tests nuevos en `test_state.py`. Suite: 280 passed, 1 xfailed (6 fallos de red ajenos).
+- [ ] Paso 3.2 (BLOQUEO real de la transición/estado): recién cuando los logs en vivo confirmen
+      que las señales de detección no dan falsos positivos. Validar en vivo primero.
+- [ ] Paso 3.3 (invertir orden token-vs-LLM) y 3.4 (partir el monolito, agent.py ~5.730 líneas):
+      tocan el flujo → avisar y validar en vivo entre pasos (regla dura). NO hacer big-bang.
 
 > **Próximo paso: validación en vivo** del eje catálogo + cierre por señal antes de encarar Fase 3.
 

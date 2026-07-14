@@ -114,6 +114,31 @@ def test_observer_silent_on_healthy_state(caplog):
     assert not caplog.records
 
 
+def test_observer_logs_illegal_phase_transition(caplog):
+    """El observador loggea un salto de fase fuera del grafo (bienvenida -> confirmación)."""
+    import logging
+    from app import agent
+    token = agent._turn_prev_phase.set("fase_0_bienvenida")
+    try:
+        with caplog.at_level(logging.WARNING, logger="app.agent"):
+            agent._observe_state_health({"_client_found": True}, "fase_4_confirmacion")
+        assert any("transición" in r.message for r in caplog.records)
+    finally:
+        agent._turn_prev_phase.reset(token)
+
+
+def test_observer_silent_on_legal_transition(caplog):
+    import logging
+    from app import agent
+    token = agent._turn_prev_phase.set("fase_2_recogida_datos")
+    try:
+        with caplog.at_level(logging.WARNING, logger="app.agent"):
+            agent._observe_state_health({"_client_found": True}, "fase_4_confirmacion")
+        assert not caplog.records
+    finally:
+        agent._turn_prev_phase.reset(token)
+
+
 def test_clear_menus_and_has_analysis():
     st = ConversationState({"_test_menu_options": [1], "_profile_menu_options": [2],
                             "_test_menu_adds_to_profile": True})
