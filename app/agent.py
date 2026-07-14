@@ -28,6 +28,19 @@ from app.detectors import (
     _is_profile_customization_request, _is_profile_confirmation, _wants_to_close_custom_profile,
     _is_ambiguous_profile_change, _asks_for_armed_profiles,
     _confirms_address, _rejects_address, _says_no_owner,
+    _CORRECTION_TOKENS,
+    _CONFIRM_ORDER_TOKENS,
+    _ORDER_REQUEST_TOKENS,
+    _OPTION_CORRECTION_TOKENS,
+    _OPTION_WORDS,
+    _RECONSIDER_HINT_TOKENS,
+    _HANDOFF_ACCEPT_TOKENS,
+    _is_order_confirmation,
+    _is_correction_request,
+    _expresses_order_request,
+    _wants_to_reconsider_option,
+    _accepts_handoff_offer,
+    _confirms_order_now,
 )
 from app.messages import (
     CLIENT_LOOKUP_PROGRESS_MESSAGE, WELCOME_MESSAGE, FINAL_USER_MESSAGE,
@@ -169,15 +182,7 @@ _TITLECASE_FIELDS = ("clinic_name", "patient_name", "species", "breed", "owner_n
 # Confirmación editable previa al registro (Sección 7.1 del spec).
 CONFIRMATION_PHASE = state.Phase.CONFIRMACION.value  # "fase_4_confirmacion" (fuente: state.Phase)
 # CORRECTION_PROMPT → app/messages.py (importado arriba).
-_CORRECTION_TOKENS = frozenset({
-    "corregir", "corrige", "corrijo", "cambiar", "cambia", "cambie", "modificar",
-    "modifica", "editar", "edita", "arreglar", "incorrecto", "mal", "equivocado",
-    "equivoqué", "equivoque", "no",
-})
-_CONFIRM_ORDER_TOKENS = frozenset({
-    "si", "sí", "confirmo", "confirmar", "confirmado", "correcto", "exacto",
-    "dale", "ok", "okay", "listo", "perfecto", "bien", "registralo", "regístralo",
-})
+# Vocabulario de confirmación/pedido/corrección → app/detectors.py (importados arriba).
 _SAME_AS_PREVIOUS_TOKENS = frozenset({
     "mismo", "misma", "mismos", "mismas", "igual", "iguales",
     "anterior", "antes", "previo", "repetir", "repetido",
@@ -2464,28 +2469,9 @@ def _rejects_address_now(ai_response: dict, user_message: str) -> bool:
 # → app/detectors.py (importados arriba).
 
 
-_OPTION_CORRECTION_TOKENS = frozenset({
-    "confundi", "confundí", "confundido", "confundida", "confundir",
-    "equivoque", "equivoqué", "equivoco", "equivocada", "equivocado",
-})
-_OPTION_WORDS = frozenset({"opcion", "opción", "opciones", "menu", "menú"})
-_RECONSIDER_HINT_TOKENS = frozenset({
-    "otra", "otras", "cambiar", "cambio", "cambie", "no", "volver", "regresar",
-    "mal", "distinta", "distinto", "diferente",
-})
-
-
-def _wants_to_reconsider_option(text: str) -> bool:
-    """El usuario indica que se confundió de opción o quiere volver a elegir
-    (ej. 'perdón, me confundí de opción'). No es un dato a capturar."""
-    words = set(_tokenize(text))
-    if not words:
-        return False
-    if words & _OPTION_CORRECTION_TOKENS:
-        return True
-    return bool(words & _OPTION_WORDS and words & _RECONSIDER_HINT_TOKENS)
-
-
+# _is_order_confirmation, _is_correction_request, _expresses_order_request,
+# _wants_to_reconsider_option, _accepts_handoff_offer, _confirms_order_now
+# → app/detectors.py (importados arriba).
 def _option_reconsider_response(fields: dict) -> dict:
     """Reconduce al menú con calidez cuando el usuario se confundió de opción,
     limpiando el estado de identificación para que elija de nuevo desde cero."""
@@ -2550,26 +2536,6 @@ NEW_BRANCH_OFFER_MESSAGE = (
 
 # Cuando hay una oferta de derivación pendiente ("¿te derivo o seguimos?"), estas
 # palabras indican que el usuario ACEPTA que lo derivemos a una persona.
-_HANDOFF_ACCEPT_TOKENS = frozenset({
-    "derivame", "derivar", "deriva", "deriven", "derivenme", "persona", "humano",
-    "asesor", "agente", "registrar", "registra", "registrame", "regístrame", "registralo",
-    "regístralo", "comunicame", "comunícame", "contactenme", "contáctenme",
-})
-
-
-def _accepts_handoff_offer(text: str, signal: str | None) -> bool:
-    """¿El usuario acepta la oferta de derivación? Fuente primaria: la señal de la IA;
-    fallback: tokens de aceptación / afirmación, salvo que niegue explícitamente."""
-    if signal == "affirm":
-        return True
-    if signal == "negate":
-        return False
-    tokens = set(_tokenize(text))
-    if tokens & _NEGATIVE_TOKENS:
-        return False
-    return bool(tokens & _HANDOFF_ACCEPT_TOKENS) or _is_affirmative_text(text)
-
-
 def _menu_choice_context(session: dict, history: list[dict], fields: dict) -> bool:
     """¿Estamos en el punto donde el usuario elige una opción del menú? O bien el
     bot acaba de ofrecer el menú, o la conversación está al inicio sin intención
@@ -3930,32 +3896,6 @@ def _route_confirmation_summary(fields: dict) -> str | None:
     return "\n".join(lines)
 
 
-def _is_correction_request(text: str) -> bool:
-    return bool(set(_tokenize(text)) & _CORRECTION_TOKENS)
-
-
-def _is_order_confirmation(text: str) -> bool:
-    tokens = set(_tokenize(text))
-    if tokens & _CORRECTION_TOKENS:
-        return False
-    return bool(tokens & _CONFIRM_ORDER_TOKENS)
-
-
-def _confirms_order_now(ai_response: dict, user_message: str) -> bool:
-    """¿El cliente confirma la orden en este turno? Fuente primaria: la lectura semántica
-    de la IA (`user_intent_signal`); fallback: tokens de confirmación. Si la IA leyó OTRA
-    intención (corrección, negación, cambio de cliente, otra orden, cancelar) no se cierra
-    por tokens — se respeta al modelo. Así 'dale, me sirve' o 'listo, cerremos' cierran
-    aunque no estén en la lista, y un 'sí' incidental dentro de una corrección no dispara el
-    cierre (Etapa 2 de la comprensión por IA — ERR-011 / ABIERTO-003)."""
-    signal = ai_response.get("user_intent_signal")
-    if signal == "affirm":
-        return True
-    if signal in {"negate", "correction", "change_client", "another_order", "cancel"}:
-        return False
-    return _is_order_confirmation(user_message)
-
-
 def _detect_correction_field(text: str) -> str | None:
     tokens = set(_tokenize(text))
     for keywords, field in _CORRECTION_FIELD_KEYWORDS:
@@ -4080,30 +4020,6 @@ def _catalog_price_answer(fields: dict, user_message: str) -> str | None:
     if price and name:
         return f"El valor de {name} es {_money(int(price))}."
     return None
-
-
-_ORDER_REQUEST_TOKENS = frozenset({
-    "quiero", "necesito", "deseo", "dame", "hazme", "registra", "registrame",
-    "regístrame", "anota", "anótalo", "apunta", "agenda", "agendame", "agéndame",
-    "confirmo", "solicito", "pedimos", "programa", "programame", "prográmame",
-    "confirmame", "confírmame", "confirmas", "confirmás", "confirma",
-})
-
-
-def _expresses_order_request(text: str) -> bool:
-    """¿El mensaje PIDE/ordena análisis (no solo consulta el precio)? 'quiero cuadro
-    hemático y creatinina, ¿cuánto sale?' es un pedido con consulta — la elección debe
-    capturarse, no solo responderse el valor. 'quiero saber cuánto sale' NO es pedido."""
-    normalized = " ".join(_tokenize(text))
-    if re.search(r"\b(quiero|necesito|deseo|quisiera)\s+(saber|preguntar|consultar|cotizar|conocer)\b", normalized):
-        return False
-    tokens = set(_tokenize(text))
-    hits = tokens & _ORDER_REQUEST_TOKENS
-    # "¿me confirmas el precio/valor?" es consulta pura, no un pedido de registrar.
-    if hits <= {"confirma", "confirmas", "confirmás", "confirmame", "confírmame"} and \
-            re.search(r"\bconfirm\w*\s+(el\s+|la\s+)?(precio|valor|costo|cuanto|cuánto)\b", normalized):
-        return False
-    return bool(hits)
 
 
 def _price_answer_for_order(fields: dict, user_message: str) -> str | None:
