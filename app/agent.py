@@ -1353,19 +1353,36 @@ def _enforce_selected_tests_grounding(session: dict, ai_response: dict, prev_fie
     if set(new_codes) <= set(_as_text_items(snapshot.get("selected_tests"))):
         return ai_response
     try:
-        rows_by_code = {str(r.get("code")): r for r in db.get_tests_by_codes(new_codes)}
+        all_rows = db.list_catalog_tests(limit=5000)
     except Exception:
         return ai_response
+    rows_by_code = {str(r.get("code")): r for r in all_rows if str(r.get("code")) in set(new_codes)}
     if not rows_by_code:
         return ai_response
-    # Anclaje: lo que el cliente escribió (este turno y los 2 anteriores) más la última
-    # respuesta del bot (cubre 'sí, agrégalo' cuando el bot acaba de proponer un análisis).
+    # Anclaje con el MISMO resolvedor unívoco de la vía de texto: lo que el mensaje resuelve
+    # EXACT está anclado; si resuelve AMBIGUOUS y el código está entre los candidatos, el
+    # modelo eligió por el cliente en un empate real ('glucosa' → las tres glucosas) y esas
+    # MISMAS opciones son el menú. Para el resto (p. ej. 'sí, agrégalo' tras una oferta),
+    # ancla el texto reciente del cliente o la última respuesta del bot que lo nombró.
+    resolved = catalog.resolve_tests(user_message, all_rows, fields.get("species"))
+    exact_codes = ({str(r.get("code")) for r in resolved.tests}
+                   if resolved.status == catalog.EXACT else set())
+    tie_codes = ({str(r.get("code")) for r in resolved.tests}
+                 if resolved.status == catalog.AMBIGUOUS else set())
     user_texts = [m.get("content", "") for m in history if m.get("role") == "user"][-2:]
     bot_texts = [m.get("content", "") for m in history if m.get("role") != "user"][-1:]
     corpus = " ".join([user_message] + user_texts + bot_texts)
-    guessed = [r for r in rows_by_code.values() if not catalog.names_test(corpus, r)]
-    if not guessed:
+    guessed, tied = [], []
+    for code, row in rows_by_code.items():
+        if code in exact_codes:
+            continue
+        if code in tie_codes:
+            tied.append(row)
+        elif not catalog.names_test(corpus, row):
+            guessed.append(row)
+    if not guessed and not tied:
         return ai_response
+    guessed = tied + guessed
 
     guessed_codes = {str(r.get("code")) for r in guessed}
     kept = [c for c in _as_text_items(fields.get("selected_tests")) if c not in guessed_codes]
@@ -1377,7 +1394,16 @@ def _enforce_selected_tests_grounding(session: dict, ai_response: dict, prev_fie
                     if c in rows_by_code and c not in guessed_codes]
     intro = f"Listo, registro {_format_test_items(grounded_new)}. " if grounded_new else ""
 
-    # La adivinanza se ofrece como menú de su área para que ELIJA el cliente.
+    # La adivinanza se ofrece como MENÚ para que ELIJA el cliente. Empate de nombres
+    # ('glucosa' → las tres glucosas): las opciones son los propios candidatos del
+    # resolvedor. Palabra de área ('orina'): el menú del área del test adivinado.
+    if tied:
+        options = resolved.tests[:10]
+        label = resolved.area or "ese análisis"
+        _store_test_menu_options(fields, options)
+        if kept or fields.get("_selected_profile_code"):
+            fields["_test_menu_adds_to_profile"] = True
+        return _base_route_response(intro + _test_area_suggestion_reply(label, options), fields)
     area, area_tests = db.find_tests_by_area(
         guessed[0].get("category") or guessed[0].get("name"), fields.get("species"), limit=10,
     )
@@ -3515,6 +3541,13 @@ def _enforce_payment_step(session: dict, ai_response: dict, fields: dict, user_m
             ai_response["handoff_area"] = None
         return ai_response
 
+    # Un menú activo es una PREGUNTA ABIERTA al cliente (ej. las opciones de orina del
+    # anclaje): el empuje del pago no la pisa — el pago se pregunta cuando el menú se
+    # resuelva (misma lógica L50: ningún empuje de paso pisa lo pendiente). Los menús
+    # pegados de turnos anteriores ya fueron descartados antes (ERR-060), así que lo que
+    # queda acá es una pregunta legítima de ESTE turno.
+    if fields.get("_test_menu_options") or fields.get("_profile_menu_options"):
+        return ai_response
     ai_response["reply"] = PAYMENT_METHOD_QUESTION
     ai_response["phase"] = "fase_2_recogida_datos"
     ai_response["intent"] = "route_scheduling"

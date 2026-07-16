@@ -21,6 +21,11 @@ PARCIAL_ORINA = {"code": "1601", "name": "Parcial de Orina (14 parámetros)", "p
                  "category": "Uroanálisis"}
 CORTISOL_ORINA = {"code": "1507", "name": "Cortisol en Orina", "price": 33000,
                   "category": "Uroanálisis"}
+GLU_AYUNAS = {"code": "1316", "name": "Glucosa (Ayunas)", "price": 12000, "category": "Química"}
+GLU_POST = {"code": "1317", "name": "Glucosa Post Prandial", "price": 14000, "category": "Química"}
+GLU_CURVA = {"code": "1318", "name": "Curva de Glucosa", "price": 30000, "category": "Química"}
+
+CATALOGO = [POTASIO, SODIO, PARCIAL_ORINA, CORTISOL_ORINA, GLU_AYUNAS, GLU_POST, GLU_CURVA]
 
 SESSION = {"client_id": "c1"}
 PREV = {"_client_found": True, "clinic_name": "Clinica Veterinaria Colombia",
@@ -48,8 +53,7 @@ def test_model_guess_becomes_area_menu_and_grounded_stay():
     registra con precio; la adivinanza de orina se quita y se ofrece el menú del área."""
     fields = dict(PREV)
     fields["selected_tests"] = ["1404", "1405", "1601"]
-    with patch.object(agent.db, "get_tests_by_codes",
-                      return_value=[POTASIO, SODIO, PARCIAL_ORINA]), \
+    with patch.object(agent.db, "list_catalog_tests", return_value=CATALOGO), \
          patch.object(agent.db, "find_tests_by_area",
                       return_value=("Uroanálisis", [CORTISOL_ORINA, PARCIAL_ORINA])):
         out = agent._enforce_selected_tests_grounding(
@@ -62,12 +66,28 @@ def test_model_guess_becomes_area_menu_and_grounded_stay():
     assert "1601" in out["reply"] and "1507" in out["reply"]                    # opciones visibles
 
 
+def test_name_tie_offers_the_tied_candidates_for_any_term():
+    """Empate de nombres para CUALQUIER término (no palabras fijas): 'una glucosa' nombra a
+    las TRES glucosas del catálogo; si el modelo elige una sola, esa elección se convierte
+    en el menú de las candidatas empatadas — elige el cliente."""
+    fields = dict(PREV)
+    fields["selected_tests"] = ["1316"]                       # el modelo eligió una glucosa
+    with patch.object(agent.db, "list_catalog_tests", return_value=CATALOGO):
+        out = agent._enforce_selected_tests_grounding(
+            SESSION, _ai(fields), PREV, "quiero una glucosa", [])
+    f = out["captured_fields"]
+    assert agent._as_text_items(f.get("selected_tests")) == []          # nada agregado solo
+    menu_codes = {o["code"] for o in f.get("_test_menu_options") or []}
+    assert menu_codes == {"1316", "1317", "1318"}                        # las 3 glucosas
+    assert "1317" in out["reply"] and "1318" in out["reply"]
+
+
 def test_grounded_codes_pass_untouched():
     """Todos los códigos nombrados por el cliente → el guardrail no interviene."""
     fields = dict(PREV)
     fields["selected_tests"] = ["1404", "1405"]
     ai = _ai(fields)
-    with patch.object(agent.db, "get_tests_by_codes", return_value=[POTASIO, SODIO]):
+    with patch.object(agent.db, "list_catalog_tests", return_value=CATALOGO):
         out = agent._enforce_selected_tests_grounding(
             SESSION, ai, PREV, "quiero potasio y sodio", [])
     assert out is ai
@@ -83,10 +103,29 @@ def test_affirmation_grounds_against_bot_offer():
         {"role": "bot", "content": "El examen suelto es Parcial de Orina (14 parámetros) $16.000. ¿Lo agrego?"},
     ]
     ai = _ai(fields)
-    with patch.object(agent.db, "get_tests_by_codes", return_value=[PARCIAL_ORINA]):
+    with patch.object(agent.db, "list_catalog_tests", return_value=CATALOGO):
         out = agent._enforce_selected_tests_grounding(SESSION, ai, PREV, "sí, agrégalo", history)
     assert out is ai
     assert agent._as_text_items(fields.get("selected_tests")) == ["1601"]
+
+
+def test_payment_push_yields_to_open_menu():
+    """El empuje del paso de pago NO pisa un menú abierto (la pregunta de este turno).
+    Sin esto, el menú de orina quedaba guardado pero el cliente veía '¿cómo prefieres el
+    pago?' — el menú invisible (variabilidad observada en el replay con modelo real)."""
+    fields = dict(PREV)
+    fields.update({
+        "pickup_address": "DG 40", "requesting_doctor": "Dr. Beni", "patient_name": "Simón",
+        "breed": "Jabalí", "sex": "Macho", "patient_age": "12 años", "owner_name": "Pepe",
+        "observations": "sin observaciones",
+        "exam_type": "Perfil personalizado (2 análisis)", "selected_tests": ["1404", "1405"],
+        "_test_menu_options": [{"code": "1601", "name": "Parcial de Orina", "price": 16000}],
+        "_test_menu_adds_to_profile": True,
+    })
+    ai = {"intent": "route_scheduling", "reply": "Para uroanálisis tenemos estas opciones: ...",
+          "requires_handoff": False, "captured_fields": fields}
+    out = agent._enforce_payment_step(SESSION, ai, fields, "quiero hacer potasio sodio y orina")
+    assert out["reply"] == "Para uroanálisis tenemos estas opciones: ..."   # el menú no se pisa
 
 
 def test_menu_selection_turns_are_skipped():
