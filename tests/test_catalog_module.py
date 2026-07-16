@@ -86,6 +86,31 @@ def test_structural_words_never_match_an_area():
     assert res2.status == EXACT and set(_codes(res2)) == {"1404", "1405"}
 
 
+def test_generic_spanish_word_alone_never_names_a_test():
+    """ERR-064 (auditoría de trampas léxicas): 'cálculo' suelto auto-agregaba 'Estudio de
+    Cálculo' ($83k); 'básico', 'panel', 'cuadro', 'lectura' igual. Un descriptor genérico
+    del español SOLO no nombra un test — el nombre completo con su palabra distintiva sí."""
+    trampas = [
+        {"code": "1603", "name": "Estudio de Cálculo", "price": 83000, "category": "Uroanálisis"},
+        {"code": "1910", "name": "Espermograma Básico", "price": 44000, "category": "Reproducción"},
+        {"code": "1204", "name": "Panel Test de Coagulación (PT, PTT, APTT, Fibrinógeno)",
+         "price": 74000, "category": "Coagulación"},
+        {"code": "1602", "name": "Lectura Sedimento Urinario", "price": 7000, "category": "Uroanálisis"},
+    ]
+    rows = CATALOG + trampas
+    # Palabras genéricas sueltas (o en frases de plata) → jamás EXACT:
+    for frase in ("calculo", "hazme el calculo del total", "algo basico",
+                  "panel", "te paso el cuadro", "lectura"):
+        assert catalog.resolve_tests(frase, rows).status != EXACT, frase
+        for t in trampas:
+            assert not catalog.names_test(frase, t), (frase, t["name"])
+    # El nombre real (con su palabra distintiva) sigue funcionando:
+    assert catalog.resolve_tests("espermograma basico", rows).status == EXACT
+    assert catalog.resolve_tests("panel de coagulacion", rows).status == EXACT
+    assert catalog.resolve_tests("lectura de sedimento", rows).status == EXACT
+    assert catalog.resolve_tests("cuadro hematico", rows).status == EXACT
+
+
 # ── Invariante de plata: los tests devueltos traen el precio del catálogo ─────────
 
 def test_resolved_tests_have_catalog_price():

@@ -40,6 +40,21 @@ _REQUEST_WORDS = frozenset({"necesito", "quiero", "quisiera", "dame", "deme", "h
 # db.find_tests_by_area (fuente única del vocabulario estructural).
 STRUCTURAL_TOKENS = frozenset(_FILLER | _ANALYSIS_NOUNS | _REQUEST_WORDS)
 
+# Descriptores GENÉRICOS del español: aparecen en nombres de tests ('Estudio de CÁLCULO',
+# 'Espermograma BÁSICO', 'PANEL Test', 'CUADRO Hemático', 'LECTURA Sedimento', 'Calcio
+# TOTAL') pero también en el habla corriente ('hazme el cálculo', 'algo básico', 'te paso
+# el cuadro'). SOLOS nunca nombran un test — la auditoría de trampas léxicas (ERR-064)
+# mostró que 'cálculo' suelto auto-agregaba un test de $83.000. Solo cuentan como APOYO
+# junto a una palabra distintiva del dominio ('cuadro HEMÁTICO' sí nombra).
+GENERIC_DESCRIPTORS = frozenset({
+    "basico", "basica", "basicos", "basicas", "completo", "completa", "general",
+    "generales", "total", "totales", "parcial", "parciales", "panel", "paneles",
+    "cuadro", "cuadros", "lectura", "lecturas", "calculo", "calculos", "control",
+    "controles", "simple", "doble", "triple", "tiempo", "tiempos", "medio", "media",
+    "directo", "directa", "indirecto", "indirecta", "rapido", "rapida", "fresco",
+    "fresca", "especial", "comun",
+})
+
 _SPLIT = re.compile(r"\s*(?:,|;|/|\+|\by\b|\be\b|\bmas\b|\bmás\b)\s*")
 
 
@@ -76,14 +91,18 @@ def _content_only(tokens) -> list[str]:
 def _name_is_named_by(user_tokens: set[str], name_tokens: list[str]) -> bool:
     """¿El texto del usuario nombra ESTE análisis de forma inequívoca? Se compara solo el
     CONTENIDO distintivo de ambos lados: cubre el token inicial (el más distintivo) o al
-    menos la mitad de los tokens. Palabras genéricas no cuentan para nombrar."""
+    menos la mitad de los tokens. Además, el match debe incluir al menos UNA palabra
+    distintiva del dominio: los descriptores genéricos del español solos ('cálculo',
+    'básico', 'panel', 'cuadro') NO nombran un test — solo apoyan (ERR-064)."""
     sig = _content_only(name_tokens)
     if not sig:
         return False
+    matched = [t for t in sig if t in user_tokens]
+    if not matched or all(t in GENERIC_DESCRIPTORS for t in matched):
+        return False
     if sig[0] in user_tokens:
         return True
-    covered = sum(1 for t in sig if t in user_tokens)
-    return covered >= math.ceil(0.5 * len(sig))
+    return len(matched) >= math.ceil(0.5 * len(sig))
 
 
 def _overlaps(user_tokens: set[str], name_tokens: list[str]) -> bool:
@@ -159,9 +178,9 @@ def _resolve_one(text: str, rows: list[dict], species: str | None) -> ResolveRes
 
 def _resolve_area(user_tokens: set[str], rows: list[dict], species: str | None):
     """Análisis cuya categoría o tipo de muestra coincide con una palabra del usuario.
-    Solo cuentan palabras de CONTENIDO en ambos lados: una preposición ('con') no
-    identifica un área aunque aparezca en el nombre de la muestra."""
-    user_tokens = user_tokens - STRUCTURAL_TOKENS
+    Solo cuentan palabras de CONTENIDO en ambos lados: una preposición ('con') o un
+    genérico ('medio') no identifican un área aunque aparezcan en el nombre de la muestra."""
+    user_tokens = user_tokens - STRUCTURAL_TOKENS - GENERIC_DESCRIPTORS
 
     def keyset(value):
         return {t for t in _tokens(value) if len(t) >= 3 and t not in _FILLER}

@@ -27,6 +27,28 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### ERR-064 — Auditoría de trampas léxicas: 5 palabras comunes del español auto-agregaban tests (2026-07-16)
+**Origen:** tras ERR-063 el usuario preguntó si había más frases "raras" latentes ("la gente
+habla con muchas palabras que no se conectan"). Se construyó una AUDITORÍA determinística:
+~200 palabras comunes del español conversacional disparadas contra el catálogo real por los
+tres caminos (resolución EXACT, menú de área, anclaje names_test).
+**Hallazgos (bugs latentes, nunca reportados):** una sola palabra común auto-agregaba un test:
+"cálculo" → Estudio de Cálculo **$83.000** ("hazme el cálculo"), "básico" → Espermograma Básico
+$44.000, "panel" → Panel Coagulación $74.000, "cuadro" → Cuadro Hemático $14.000, "lectura" →
+Lectura Sedimento $7.000. Y "medio" activaba el menú de Microbiología.
+**Causa raíz (clase):** `_name_is_named_by` aceptaba que UNA palabra genérica del español
+nombrara un test si era parte de su nombre (primer token distintivo o ≥50% de cobertura).
+**Solución (clase):** `catalog.GENERIC_DESCRIPTORS` (~40 descriptores genéricos: básico,
+completo, total, parcial, panel, cuadro, lectura, cálculo, control…): solos JAMÁS nombran un
+test — solo apoyan junto a una palabra distintiva del dominio ("cuadro HEMÁTICO" sí). Aplica a
+la resolución, al anclaje (names_test) y a ambos buscadores de área. El nombre completo de cada
+test sigue resolviendo EXACT (verificado).
+**Tests:** `test_catalog_module.py::test_generic_spanish_word_alone_never_names_a_test` (frases
+de plata reales: "hazme el cálculo del total" ya no agrega nada). Suite: 285 passed.
+**Verificación:** re-auditoría → 0 trampas en los tres chequeos. El script de auditoría queda
+como herramienta (correrlo tras cada cambio de catálogo).
+**Estado:** RESUELTO.
+
 ### ERR-063 — "vamos CON el 152..." ofrecía el menú de Coagulación: una preposición elegía el área (prueba en vivo, 2026-07-16)
 **Síntoma:** "vamos con el 152 y le quiero agregar potasio y sodio si?" registró bien el perfil
 152 pero ofreció el menú de COAGULACIÓN (PT, PTT, Dímero D…) — nada que ver con lo pedido.
