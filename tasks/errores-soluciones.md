@@ -43,6 +43,12 @@ siempre corresponde al dato que de verdad falta.
 **Tests:** `tests/test_avoid_repeated_question.py` (3, lógica pura sobre el estado exacto del bug,
 sin fingir el modelo — L51). Suite: 270 passed. Verificado en vivo reproduciendo la secuencia real
 con modelo real.
+**Origen forense (verificado en git a pedido del usuario):** NO fue regresión de los cambios de
+julio. El mecanismo (adivinar por palabras del reply) existe desde el 2026-05-20 (`e5d8456`) y la
+rama "¿macho o hembra?" desde el 2026-06-16 (`694e518`, caso Luciano). Estaba byte-idéntico en el
+estado aprobado del 07-13 (`b0a1471`); el diff de esas funciones entre ese estado y el previo al
+fix es vacío. Latente un mes: disparó por primera vez el 07-16 porque nunca antes un usuario había
+respondido la raza con una palabra de sexo.
 **Estado:** RESUELTO.
 
 ### ERR-060 — Menú de perfiles PEGADO inhibe la oferta de "agregar otro" (replay del chat real, 2026-07-14)
