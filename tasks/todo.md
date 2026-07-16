@@ -41,15 +41,22 @@ elegido: **empezar por catálogo/dinero**, con **red de tests primero**.
       5 tests nuevos en `test_state.py`. Suite: 280 passed, 1 xfailed (6 fallos de red ajenos).
 - [ ] Paso 3.2 (BLOQUEO real de la transición/estado): recién cuando los logs en vivo confirmen
       que las señales de detección no dan falsos positivos. Validar en vivo primero.
-- [~] Paso 3.4 (partir el monolito) — EN CURSO, por tandas verificadas ("el cómo, no el qué"):
-      - [x] `app/messages.py`: 22 textos fijos del agente (respuestas/prompts/preguntas).
-      - [x] `app/detectors.py`: 8 detectores puros (texto→bool) + su vocabulario
-            (conversación básica + elección de menú + cliente nuevo). Grupos CERRADOS
-            (solo `app.text`), sin circularidad; agent.py los re-importa.
-      - agent.py: 5.729 → 5.583 líneas. Cada tanda: suite 280 passed, 1 xfailed.
-      - [ ] Resto: seguir moviendo detectores/lógica por grupos cerrados (incremental).
-- [ ] Paso 3.3 (invertir orden token-vs-LLM): CAMBIA comportamiento → avisar y validar en vivo
-      entre pasos (regla dura). NO hacer big-bang. Pendiente de prueba en vivo previa.
+- [~] Paso 3.4 (partir el monolito) — DETECTORES COMPLETOS como paquete (2026-07-16):
+      - [x] `app/messages.py`: 22 textos fijos del agente.
+      - [x] Paquete `app/detectors/` por tema (basico/perfil/direccion/orden/cliente, todos
+            <200 líneas; `__init__` re-exporta = superficie de import idéntica): 30 detectores
+            puros + su vocabulario movidos en 7 tandas verificadas.
+      - agent.py: 5.729 → 5.485 líneas. Suite verde en cada tanda (290 passed al cierre).
+      - [ ] Resto del 3.4: los 23 enforcers `_enforce_*` (NO son puros: llaman db y se
+            encadenan) → moverlos por responsabilidad en sesión dedicada, con validación viva.
+- [ ] Paso 3.3 (invertir orden token-vs-LLM): los sitios POST-LLM ya son señal-primero
+      (cierre, dirección, pago-corrección, handoff, sede, coincidencia única). Lo que FALTA
+      es el REORDEN del pipeline: los detectores de cambio-de-cliente/otra-orden/etc. corren
+      PRE-LLM (agent.py ~4600-5100), donde la señal no existe aún. Mover esas ramas a
+      después del modelo = cirugía mayor → sesión dedicada con QA real entre pasos.
+- Nota 3.2: logs del observador LIMPIOS en todas las pruebas en vivo del 2026-07-16 (cero
+  falsas alarmas). El bloqueo duro queda diferido: los estados pegados encontrados
+  (ERR-060/061) se arreglaron determinísticamente en su origen, mejor que bloquear.
 
 > **Próximo paso: validación en vivo** del eje catálogo + cierre por señal antes de encarar Fase 3.
 

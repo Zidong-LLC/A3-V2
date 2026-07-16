@@ -18,6 +18,20 @@ from app.config import ALEGRA_ENABLED, APP_TIMEZONE
 from app.services import ai, db, alegra
 from app.rules import TERMINAL_PHASES, calculate_custom_profile_total, calculate_profile_adjusted_total
 from app.detectors import (
+    _wants_to_change_client,
+    _wants_new_branch,
+    _claims_unregistered_client,
+    _asks_if_new_client,
+    _is_no_identifier_text,
+    _looks_like_bare_client_name,
+    _asks_for_client_identity,
+    _rejects_match_options,
+    _BRANCH_NOUN_TOKENS,
+    _CLIENT_CHANGE_SIGNAL_TOKENS,
+    _CLIENT_NOUN_TOKENS,
+    _BRANCH_NEW_SIGNAL_TOKENS,
+    _NON_IDENTIFIER_TOKENS,
+    _REJECT_ALL_MATCH_TOKENS,
     _FAREWELL_TOKENS, _CONTINUE_TOKENS, _GREETING_TOKENS, _AFFIRMATIVE_TOKENS, _NEGATIVE_TOKENS,
     _RESULTS_CHOICE_TOKENS, _OTHER_CHOICE_TOKENS,
     _PROFILE_CUSTOMIZE_TOKENS, _PROFILE_CONFIRM_TOKENS, _CLOSE_PROFILE_TOKENS,
@@ -328,18 +342,7 @@ _ORDINAL_SELECTIONS = {
     "quinta": 5, "quinto": 5,
 }
 
-_NON_IDENTIFIER_TOKENS = frozenset({
-    "paciente", "mascota", "perro", "gato", "examen", "analisis", "análisis",
-    "muestra", "hemograma", "perfil", "llama", "resultado", "resultados",
-    "motivo", "motivos", "muerte", "muerto", "muerta", "fallecio", "falleció",
-    "registrado", "registrados", "registrada", "registradas", "registrarme",
-    "dije", "dicho",
-    # Correcciones / confusión de opción: nunca son el NIT ni el nombre del cliente.
-    "confundi", "confundí", "confundido", "confundida", "equivoque", "equivoqué",
-    "equivoco", "equivocado", "equivocada", "opcion", "opción", "opciones", "menu", "menú",
-})
-
-
+# Detectores de identificación de cliente → app/detectors/cliente.py (importados arriba).
 def _strip_question_sentences(text: str) -> str:
     chunks = [c.strip() for c in re.split(r"(?<=[.!?])\s+", (text or "").strip()) if c.strip()]
     kept = [chunk for chunk in chunks if "?" not in chunk and "¿" not in chunk]
@@ -1824,10 +1827,6 @@ def _clear_client_match_options(fields: dict) -> None:
     fields.pop("_client_match_options", None)
 
 
-_REJECT_ALL_MATCH_TOKENS = frozenset({
-    "ninguno", "ninguna", "ningun", "ningún", "ningunos", "ningunas", "tampoco",
-})
-
 # Palabras comunes que NO deben tratarse como un nombre de cliente en la búsqueda exacta de
 # refuerzo (segundo intento). Evita falsos positivos al probar palabras sueltas del mensaje.
 _EXACT_RETRY_STOPWORDS = frozenset({
@@ -1837,12 +1836,6 @@ _EXACT_RETRY_STOPWORDS = frozenset({
     "registrado", "registrados", "cliente", "nueva", "nuevo", "somos", "soy",
     "pero", "entonces", "creo", "entiendo", "perdon", "perdón",
 })
-
-
-def _rejects_match_options(text: str) -> bool:
-    """El cliente indica que NINGUNA de las coincidencias listadas es la suya
-    ('ninguno de esos', 'no es ninguna', 'tampoco')."""
-    return bool(set(_tokenize(text)) & _REJECT_ALL_MATCH_TOKENS)
 
 
 def _select_client_match(text: str, fields: dict, signal: str | None = None) -> dict | None:
@@ -2135,44 +2128,9 @@ def _payment_method_label(value: str | None) -> str:
 
 # Sustantivos que designan al cliente/empresa (no al médico). Para disparar un
 # cambio de cliente deben venir junto a una señal de cambio (otra, no, me equivoqué…).
-_CLIENT_NOUN_TOKENS = frozenset({
-    "veterinaria", "veterinarias", "clinica", "clínica", "clinicas", "clínicas",
-    "consultorio", "hospital", "cliente", "clientes",
-})
-_CLIENT_CHANGE_SIGNAL_TOKENS = frozenset({
-    "otra", "otras", "otro", "otros", "cambiar", "cambia", "cambio", "cambió", "distinta", "distinto",
-    "diferente", "no", "equivoque", "equivoqué", "equivoco", "equivocado", "equivocada",
-    "nueva", "nuevo",
-})
-
-
-def _wants_to_change_client(text: str) -> bool:
-    """¿El usuario indica que la orden es para OTRA veterinaria/cliente/sede?
-    Exige un sustantivo de cliente o SEDE + una señal de cambio para no confundir un
-    'confirmo los datos del cliente' con un cambio real. Incluye sede/sucursal porque
-    'esta orden es para la otra sede' es un cambio de cliente (QA extremo: se interpretaba
-    como una selección de perfil espuria)."""
-    tokens = set(_tokenize(text))
-    return bool(tokens & (_CLIENT_NOUN_TOKENS | _BRANCH_NOUN_TOKENS)) and bool(tokens & _CLIENT_CHANGE_SIGNAL_TOKENS)
-
-
 # Sucursal/sede nueva NO registrada: requiere un sustantivo de sede + una señal de
 # "nueva/registrar", para no confundir la SELECCIÓN de una sede ya registrada
 # ("la sede del norte") con el alta de una sede nueva.
-_BRANCH_NOUN_TOKENS = frozenset({"sucursal", "sucursales", "sede", "sedes", "local", "locales"})
-_BRANCH_NEW_SIGNAL_TOKENS = frozenset({
-    "nueva", "nuevo", "nuevas", "nuevos", "registrar", "registro",
-    "agregar", "añadir", "anadir", "abrir", "abrimos", "abrieron", "abrio", "abrió",
-    "inaugurar", "inauguramos", "ninguna", "ninguno",
-})
-
-
-def _wants_new_branch(text: str) -> bool:
-    """¿El usuario quiere usar/registrar una SUCURSAL o SEDE nueva no registrada?"""
-    tokens = set(_tokenize(text))
-    return bool(tokens & _BRANCH_NOUN_TOKENS) and bool(tokens & _BRANCH_NEW_SIGNAL_TOKENS)
-
-
 def _restart_identification_for_new_client(chat_id: str, session: dict, fields: dict) -> dict:
     """Cambio de cliente. LÓGICA (L50): corregir UN dato no reinicia el pedido. Con una
     orden EN CURSO (no registrada) se conserva TODO lo ya dado (médico, paciente, análisis,
@@ -2498,26 +2456,6 @@ def _client_found_reply(fields: dict) -> str:
 # _confirms_new_client, _explicitly_says_new_client → app/detectors.py (importados arriba).
 
 
-def _claims_unregistered_client(text: str) -> bool:
-    normalized = " ".join(_tokenize(text))
-    phrases = (
-        "no estoy registrado", "no estamos registrados", "no esta registrado",
-        "no está registrado", "no estoy en la base", "no estamos en la base",
-        # Formas naturales de decir que no está registrado / es independiente / es nuevo
-        "de forma independiente", "soy independiente", "trabajo independiente",
-        "trabajo de forma independiente", "de manera independiente", "por mi cuenta",
-        "me tendria que registrar", "me tendría que registrar", "tendria que registrarme",
-        "tendría que registrarme", "tengo que registrarme", "me tengo que registrar",
-        "registrarme de nuevo", "no me he registrado", "todavia no estoy registrado",
-        "todavía no estoy registrado", "aun no estoy registrado", "aún no estoy registrado",
-    )
-    return any(phrase in normalized for phrase in phrases)
-
-
-def _asks_if_new_client(reply: str) -> bool:
-    return "cliente nuevo" in " ".join(_tokenize(reply))
-
-
 def _provides_new_identifier(text: str, prev_fields: dict) -> bool:
     # ¿La respuesta trae un identificador genuino para volver a buscar?
     # Solo un NIT distinto o un nombre con palabra clave de veterinaria/clínica.
@@ -2748,11 +2686,6 @@ def _awaiting_client_identifier(history: list[dict]) -> bool:
     )
 
 
-def _is_no_identifier_text(text: str) -> bool:
-    words = set(_tokenize(text))
-    return "no" in words and bool(words & {"se", "sé", "tengo", "dato", "ninguno"})
-
-
 def _extract_tax_id_candidate(text: str, allow_unlabeled: bool = False) -> str | None:
     value_pattern = r"[0-9][0-9.\s-]{5,}[0-9](?:\s*-?\s*[A-Za-z])?"
     labeled = re.search(rf"\bnit\s*[:#-]?\s*({value_pattern})", text, flags=re.IGNORECASE)
@@ -2840,17 +2773,6 @@ def _has_client_marker(text: str) -> bool:
         re.search(r"(?i)\b(soy de|somos|de la veterinaria|de la cl[ií]nica)\b", text or "")
         or re.search(r"(?i)\b(?:veterinaria|cl[ií]nica)\b[^,.;]{0,60}\b(?:es|se llama|llamada)\b", text or "")
     )
-
-
-def _looks_like_bare_client_name(text: str) -> bool:
-    if _claims_unregistered_client(text):
-        return False
-    tokens = _tokenize(text)
-    if not tokens or len(tokens) > 4:
-        return False
-    if tokens[0] in {"para", "por", "porque", "como", "cómo", "que", "qué", "cual", "cuál", "tengo"}:
-        return False
-    return not (set(tokens) & _NON_IDENTIFIER_TOKENS)
 
 
 def _apply_identification_fallbacks(
@@ -3056,11 +2978,6 @@ def _repeats_last_bot_question(ai_response: dict, history: list[dict], fields: d
         return False
     last_bot = next((m.get("content", "") for m in reversed(history) if m.get("role") == "bot"), "")
     return bool(reply_keys & _question_keys(last_bot))
-
-
-def _asks_for_client_identity(reply: str) -> bool:
-    tokens = set(_tokenize(reply))
-    return "nit" in tokens and ("veterinaria" in tokens or "nombre" in tokens)
 
 
 def _avoid_redundant_client_identity_question(session: dict, ai_response: dict) -> dict:

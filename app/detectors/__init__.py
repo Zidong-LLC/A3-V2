@@ -55,3 +55,19 @@ from app.detectors.orden import (  # noqa: F401
     _is_order_confirmation,
     _wants_to_reconsider_option,
 )
+from app.detectors.cliente import (  # noqa: F401
+    _BRANCH_NEW_SIGNAL_TOKENS,
+    _BRANCH_NOUN_TOKENS,
+    _CLIENT_CHANGE_SIGNAL_TOKENS,
+    _CLIENT_NOUN_TOKENS,
+    _NON_IDENTIFIER_TOKENS,
+    _REJECT_ALL_MATCH_TOKENS,
+    _asks_for_client_identity,
+    _asks_if_new_client,
+    _claims_unregistered_client,
+    _is_no_identifier_text,
+    _looks_like_bare_client_name,
+    _rejects_match_options,
+    _wants_new_branch,
+    _wants_to_change_client,
+)
