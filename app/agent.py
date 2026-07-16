@@ -1236,14 +1236,17 @@ def _enforce_extra_analysis_offer(session: dict, ai_response: dict, prev_fields:
     if fields.get("_offering_extra_analysis") or fields.get("payment_method"):
         return ai_response
     has_analysis = bool(fields.get("exam_type") or fields.get("selected_tests") or fields.get("_selected_profile_code"))
-    # Menú pegado que ya no aplica: si la orden YA tiene análisis, un menú de perfiles/análisis
-    # anterior es basura de estado (bandera pegada; ej. el menú de perfiles armados que no se
-    # limpió al pasar a "armar a medida"). Se descarta para que no inhiba la oferta ni contamine
-    # los turnos siguientes — la oferta de agregar otro sale determinística, no a merced del modelo.
+    # Menú PEGADO que ya no aplica (ERR-060): si la orden YA tiene análisis, un menú arrastrado
+    # de un turno anterior (idéntico al de prev = vino por carry_over) es basura de estado y se
+    # descarta para que no inhiba la oferta. Un menú puesto EN ESTE turno (difiere de prev) es
+    # una pregunta legítima al cliente —p. ej. el menú de área del grounding— y se respeta.
     if has_analysis:
-        for k in ("_profile_menu_options", "_test_menu_options", "_test_menu_adds_to_profile"):
-            fields.pop(k, None)
-    # No interferir si hay un menú/selección de análisis a medio resolver (aún sin análisis).
+        for k in ("_profile_menu_options", "_test_menu_options"):
+            if fields.get(k) and fields.get(k) == prev_fields.get(k):
+                fields.pop(k, None)
+        if not fields.get("_test_menu_options"):
+            fields.pop("_test_menu_adds_to_profile", None)
+    # No interferir si hay un menú/selección de análisis a medio resolver.
     if (fields.get("_test_menu_options") or fields.get("_profile_menu_options")
             or fields.get("_test_menu_adds_to_profile") or fields.get("_diagnostic_label")):
         return ai_response
@@ -1258,6 +1261,20 @@ def _enforce_extra_analysis_offer(session: dict, ai_response: dict, prev_fields:
         return ai_response
     exam = fields.get("_selected_profile_name") or fields.get("exam_type")
     intro = f"Listo, queda {exam}." if exam else "Listo, lo anoto."
+    # Códigos nuevos capturados este turno sin perfil base: mostrar QUÉ quedó registrado y
+    # a qué precio (reporte 2026-07-16: 'Potasio y Sodio' se anotaban sin decir el valor).
+    new_codes = [c for c in _as_text_items(fields.get("selected_tests"))
+                 if c not in set(_as_text_items(prev_fields.get("selected_tests")))]
+    if new_codes and not fields.get("_selected_profile_code"):
+        try:
+            rows = db.get_tests_by_codes(_as_text_items(fields.get("selected_tests")))
+            new_rows = [r for r in rows if str(r.get("code")) in set(new_codes)]
+            if new_rows:
+                totals = calculate_custom_profile_total(rows)
+                intro = (f"Listo, registro {_format_test_items(new_rows)}. "
+                         f"{_estimated_total_text(totals)}")
+        except Exception:  # informativo: si el catálogo no responde, queda el intro simple
+            pass
     return _analysis_settled_response(session, fields, intro)
 
 
@@ -1301,6 +1318,78 @@ def _enforce_multiple_tests_capture(session: dict, ai_response: dict, prev_field
         f"{_estimated_total_text(totals)}"
     )
     return _analysis_settled_response(session, fields, intro)
+
+
+def _enforce_selected_tests_grounding(session: dict, ai_response: dict, prev_fields: dict,
+                                      user_message: str, history: list[dict]) -> dict:
+    """I3 por la puerta lateral (prueba real 2026-07-16): cuando el MODELO estructura
+    `selected_tests` por su cuenta, el resolvedor de texto nunca corre y nada validaba que
+    cada código correspondiera a un análisis que el cliente NOMBRÓ. 'potasio sodio y orina'
+    → el modelo eligió solo 'Parcial de Orina' entre 5 opciones de orina y se aceptó en
+    silencio. Regla: cada código NUEVO debe estar anclado al texto del cliente (mensaje
+    actual, turnos recientes o la oferta previa del bot); lo no-anclado se quita y se vuelve
+    MENÚ de su área — la adivinanza del modelo se convierte en opciones, nunca en agregado."""
+    if ai_response.get("intent") != "route_scheduling" or ai_response.get("requires_handoff"):
+        return ai_response
+    fields = ai_response.get("captured_fields", {})
+    if not (session.get("client_id") or fields.get("_client_found")):
+        return ai_response
+    prev = prev_fields or {}
+    prev_codes = set(_as_text_items(prev.get("selected_tests")))
+    new_codes = [c for c in _as_text_items(fields.get("selected_tests")) if c not in prev_codes]
+    if not new_codes:
+        return ai_response
+    # Vías ya validadas por otro camino: la repetición del pedido previo, o una selección
+    # sobre el menú mostrado ('el 1' no nombra el análisis) — pero SOLO si los códigos nuevos
+    # salen de ese menú. Un menú PEGADO de otro paso (ej. perfiles prequirúrgicos arrastrados
+    # hasta el armado a medida) no desactiva el anclaje: por ese hueco 'orina' se registró
+    # igual sin menú en el replay verificado.
+    if _is_same_as_previous(user_message):
+        return ai_response
+    menu_codes = {str(o.get("code")) for o in (prev.get("_test_menu_options") or []) if o.get("code")}
+    if menu_codes and set(new_codes) <= menu_codes:
+        return ai_response
+    snapshot = prev.get("_prev_order_snapshot") or {}
+    if set(new_codes) <= set(_as_text_items(snapshot.get("selected_tests"))):
+        return ai_response
+    try:
+        rows_by_code = {str(r.get("code")): r for r in db.get_tests_by_codes(new_codes)}
+    except Exception:
+        return ai_response
+    if not rows_by_code:
+        return ai_response
+    # Anclaje: lo que el cliente escribió (este turno y los 2 anteriores) más la última
+    # respuesta del bot (cubre 'sí, agrégalo' cuando el bot acaba de proponer un análisis).
+    user_texts = [m.get("content", "") for m in history if m.get("role") == "user"][-2:]
+    bot_texts = [m.get("content", "") for m in history if m.get("role") != "user"][-1:]
+    corpus = " ".join([user_message] + user_texts + bot_texts)
+    guessed = [r for r in rows_by_code.values() if not catalog.names_test(corpus, r)]
+    if not guessed:
+        return ai_response
+
+    guessed_codes = {str(r.get("code")) for r in guessed}
+    kept = [c for c in _as_text_items(fields.get("selected_tests")) if c not in guessed_codes]
+    fields["selected_tests"] = kept
+    exam = str(fields.get("exam_type") or "")
+    if "personalizado" in exam.lower():
+        fields["exam_type"] = f"Perfil personalizado ({len(kept)} análisis)" if kept else None
+    grounded_new = [rows_by_code[c] for c in new_codes
+                    if c in rows_by_code and c not in guessed_codes]
+    intro = f"Listo, registro {_format_test_items(grounded_new)}. " if grounded_new else ""
+
+    # La adivinanza se ofrece como menú de su área para que ELIJA el cliente.
+    area, area_tests = db.find_tests_by_area(
+        guessed[0].get("category") or guessed[0].get("name"), fields.get("species"), limit=10,
+    )
+    if area and area_tests:
+        _store_test_menu_options(fields, area_tests)
+        if kept or fields.get("_selected_profile_code"):
+            fields["_test_menu_adds_to_profile"] = True
+        return _base_route_response(intro + _test_area_suggestion_reply(area, area_tests), fields)
+    return _base_route_response(
+        f"{intro}Del resto no estoy seguro de cuál análisis necesitas: "
+        "¿me confirmas el nombre o código exacto?", fields,
+    )
 
 
 def _analysis_help_candidate(fields: dict, prev_fields: dict, user_message: str, history: list[dict]) -> str | None:
@@ -5361,6 +5450,10 @@ def process_turn(
     ai_response = _enforce_exam_type_grounding(ai_response, prev_captured, user_message, history)
     fields = ai_response.get("captured_fields", fields)
     ai_response = _enforce_multiple_tests_capture(session, ai_response, prev_captured)
+    fields = ai_response.get("captured_fields", fields)
+    # Códigos que el modelo estructuró por su cuenta: validar el anclaje (I3). Corre después
+    # de la captura por texto (esa ya resuelve anclada) y antes de las ofertas/cierres.
+    ai_response = _enforce_selected_tests_grounding(session, ai_response, prev_captured, user_message, history)
     fields = ai_response.get("captured_fields", fields)
     ai_response = _enforce_catalog_profile_code_selection(session, ai_response, user_message)
     fields = ai_response.get("captured_fields", fields)

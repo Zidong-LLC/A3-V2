@@ -4,7 +4,10 @@ import unicodedata
 from datetime import datetime, timezone
 from supabase import create_client, Client
 from app.config import SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
-from app.rules import INTENT_TO_SERVICE_AREA, calculate_profile_adjusted_total, get_scheduled_pickup_date
+from app.rules import (
+    INTENT_TO_SERVICE_AREA, calculate_custom_profile_total,
+    calculate_profile_adjusted_total, get_scheduled_pickup_date,
+)
 
 _client: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
@@ -1140,11 +1143,25 @@ def _profile_event_payload(fields: dict) -> dict | None:
     base_price = _as_int(fields.get("_selected_profile_price"))
     added_tests = _event_test_rows(_as_catalog_item_list(fields.get("selected_tests")))
     removed_tests = _event_test_rows(_as_catalog_item_list(fields.get("removed_tests")))
-    totals = calculate_profile_adjusted_total(
-        base_price,
-        [test["price"] for test in added_tests],
-        [test["price"] for test in removed_tests],
-    )
+    if not code and not base_price and added_tests:
+        # Perfil PERSONALIZADO (solo pruebas sueltas): el total persistido debe ser el
+        # cotizado en el chat, que incluye el descuento por volumen (2026-07-16: la orden
+        # quedaba registrada por $48.000 cuando al cliente se le cotizó $41.280).
+        custom = calculate_custom_profile_total(added_tests)
+        totals = {
+            "base": 0,
+            "added": custom["subtotal"],
+            "removed": 0,
+            "subtotal": custom["subtotal"],
+            "volume_discount": custom["discount"],
+            "total": custom["total"],
+        }
+    else:
+        totals = calculate_profile_adjusted_total(
+            base_price,
+            [test["price"] for test in added_tests],
+            [test["price"] for test in removed_tests],
+        )
 
     return {
         "base_profile": {

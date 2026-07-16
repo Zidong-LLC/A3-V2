@@ -27,6 +27,42 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### ERR-061 — El modelo estructuraba selected_tests él solo y elegía un test AMBIGUO en silencio (prueba en vivo, 2026-07-16)
+**Síntoma:** "quiero hacer potasio sodio y orina" → el bot respondió "Listo, lo anoto" sin
+mostrar precios y con 'Parcial de Orina' (1601) ya elegido POR EL MODELO entre las 5 opciones
+de orina del catálogo — el cliente nunca eligió ni vio el menú.
+**Causa raíz (I3 por la puerta lateral):** el resolvedor unívoco (`resolve_tests`, Fase 1) solo
+corre cuando el análisis llega como TEXTO; si el modelo estructura los códigos directamente en
+`selected_tests`, ningún guardrail validaba que cada código correspondiera a un análisis que el
+cliente NOMBRÓ. El I1 solo chequea que el código exista. Además el intro de la oferta ("Listo,
+lo anoto") no mostraba ítems ni precios.
+**Solución:** nuevo guardrail `_enforce_selected_tests_grounding` + `catalog.names_test` (mismo
+criterio de contenido distintivo que la resolución): cada código NUEVO capturado por el modelo
+debe estar anclado al texto del cliente (mensaje, turnos recientes o la oferta previa del bot);
+lo anclado se registra MOSTRANDO ítems y precios, y la adivinanza se convierte en MENÚ de su
+área (elige el cliente, nunca el modelo). El pop de menús pegados de ERR-060 se refinó: solo
+descarta menús ARRASTRADOS (idénticos a prev), un menú puesto en el turno se respeta.
+**Tests:** `tests/test_selected_tests_grounding.py` (5) + 2 en `test_extra_analysis_offer.py`
+(lógica pura, estado real, sin fingir el modelo — L51). Verificado en vivo con modelo real.
+**Estado:** RESUELTO.
+
+### ERR-062 — El borrador de Alegra facturaba $48.000 cuando el chat cotizó $41.280 (prueba en vivo, 2026-07-16)
+**Síntoma:** la orden A3-2026-148 (4 pruebas sueltas) se cerró cotizando $41.280 (subtotal
+$48.000 − 14% descuento por volumen) pero el borrador creado en Alegra quedó en $48.000.
+**Causa raíz:** `billing.build_invoice_lines` arma las líneas a precio pleno de catálogo y no
+conocía el descuento por volumen de los perfiles personalizados (los tramos DISCOUNT_TIERS se
+configuraron después de escribir billing). Además `db._profile_event_payload` persistía el
+total sin descuento (`calculate_profile_adjusted_total`) para el perfil personalizado puro.
+**Solución:** para el perfil personalizado (sin perfil base con precio): (1) `billing` aplica el
+% del tramo como descuento por línea (solo pruebas no-convenio) → la factura suma exactamente lo
+cotizado; se elimina la línea de perfil $0; `invoice_order` pasa `discount` al item de Alegra.
+(2) `db._profile_event_payload` persiste el total cotizado (subtotal, volume_discount, total).
+Los perfiles armados (precio fijo) siguen sin descuento, igual que el chat.
+**Tests:** 3 nuevos en `tests/test_alegra_billing.py` (total = $41.280 exacto; perfil base sin
+descuento; el % viaja al item de Alegra). Suite: 280 passed.
+**Estado:** RESUELTO — pendiente de verificar el monto en la cuenta zidong en el próximo cierre
+de orden del usuario.
+
 ### ERR-060b — El reescritor anti-bucle adivinaba el campo por PALABRAS del reply y tapaba la pregunta real (prueba en vivo, 2026-07-16)
 **Síntoma:** con "es un toro" (Bovino/Macho implícitos) y la RAZA pendiente, el usuario respondió
 "macho" (no es una raza). El bot quedó en bucle infinito repreguntando "¿el paciente es macho o

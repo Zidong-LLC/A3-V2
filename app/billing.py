@@ -10,6 +10,7 @@ que A3 persiste y muestra en el dashboard. Las líneas se arman para que el tota
 
 import re
 
+from app.rules import calculate_custom_profile_total, is_convenio_test
 from app.services import alegra
 
 
@@ -92,9 +93,11 @@ def _line(code: str | None, name: str, price: int) -> dict:
 
 def build_invoice_lines(profile_payload: dict | None) -> list[dict]:
     """Convierte el `profile` del event_payload en líneas de factura
-    [{reference, name, price, quantity}]. El perfil base se factura con su precio menos las
-    pruebas removidas; cada prueba agregada es una línea aparte. Así el total cuadra con
-    `price_adjustment.total`. Devuelve [] si no hay nada con precio para facturar."""
+    [{reference, name, price, quantity[, discount]}]. El perfil base se factura con su precio
+    menos las pruebas removidas; cada prueba agregada es una línea aparte. Un perfil
+    PERSONALIZADO (sin perfil base con precio) lleva el descuento por volumen como porcentaje
+    por línea, para que el borrador facture EXACTAMENTE lo cotizado en el chat (2026-07-16:
+    borrador $48.000 vs cotizado $41.280). Devuelve [] si no hay nada con precio."""
     if not profile_payload:
         return []
 
@@ -104,12 +107,25 @@ def build_invoice_lines(profile_payload: dict | None) -> list[dict]:
 
     removed_total = sum(int(t.get("price") or 0) for t in removed)
     base_price = max(int(base.get("price") or 0) - removed_total, 0)
+    pure_custom = not base.get("code") and base_price <= 0
 
     lines: list[dict] = []
-    if base.get("name") or base.get("code"):
+    # El "perfil" sintético sin código ni precio ('Perfil personalizado (N análisis)') no es
+    # un ítem facturable: solo agregaría una línea de $0 como ruido en la factura.
+    if not pure_custom and (base.get("name") or base.get("code")):
         lines.append(_line(base.get("code"), base.get("name") or "Perfil", base_price))
     for test in added:
         lines.append(_line(test.get("code"), test.get("name"), test.get("price")))
+
+    if pure_custom and added:
+        totals = calculate_custom_profile_total(added)
+        discountable = [t for t in added if not is_convenio_test(t)]
+        discountable_subtotal = sum(int(t.get("price") or 0) for t in discountable)
+        if totals.get("discount") and discountable_subtotal:
+            pct = round(100.0 * totals["discount"] / discountable_subtotal, 4)
+            for line, test in zip(lines, added):
+                if not is_convenio_test(test):
+                    line["discount"] = pct
 
     if not any(line["price"] for line in lines):
         return []
@@ -135,7 +151,10 @@ def invoice_order(
     invoice_items = []
     for line in lines:
         item = alegra.get_or_create_item(line["reference"], line["name"], line["price"])
-        invoice_items.append({"id": item.get("id"), "quantity": line["quantity"], "price": line["price"]})
+        invoice_item = {"id": item.get("id"), "quantity": line["quantity"], "price": line["price"]}
+        if line.get("discount"):
+            invoice_item["discount"] = line["discount"]
+        invoice_items.append(invoice_item)
 
     invoice = alegra.create_invoice(contact_id, invoice_items, date)
     return {

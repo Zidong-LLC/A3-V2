@@ -174,6 +174,19 @@ def _resolve_area(user_tokens: set[str], rows: list[dict], species: str | None):
     return None, []
 
 
+def names_test(text: str, row: dict) -> bool:
+    """¿El texto nombra inequívocamente ESTE análisis (o menciona su código)? Mismo criterio
+    de contenido distintivo que la resolución: palabras de área ('orina'), genéricas
+    ('prueba') o de pedido ('necesito') NO nombran. Sirve para validar el anclaje (I3) de
+    códigos que el modelo capturó por su cuenta: 'potasio sodio y orina' nombra Potasio y
+    Sodio, pero NO nombra 'Parcial de Orina' — ese debe ofrecerse, no asumirse."""
+    tokens = set(_tokens(text))
+    if str(row.get("code") or "") in tokens:
+        return True
+    match_tokens = tokens - _FILLER - _AREA_WORDS - _ANALYSIS_NOUNS - _REQUEST_WORDS
+    return bool(match_tokens) and _name_is_named_by(match_tokens, _tokens(row.get("name")))
+
+
 def resolve_tests(text: str, rows: list[dict], species: str | None = None,
                   collect_partial: bool = False) -> ResolveResult:
     """Resuelve uno o varios análisis nombrados en `text` contra `rows` (catálogo cargado).

@@ -41,6 +41,60 @@ def test_reference_se_deriva_del_nombre_cuando_falta_codigo():
     assert lines[0]["reference"].startswith("A3-")
 
 
+def test_perfil_personalizado_lleva_descuento_por_volumen():
+    """ERR-062 (prueba real 2026-07-16): 4 pruebas sueltas ($48.000) se facturaban a precio
+    pleno cuando el chat cotizó $41.280 (descuento por volumen 14%). El borrador debe
+    facturar EXACTAMENTE lo cotizado: sin línea de perfil $0 y con el % por línea."""
+    profile = {
+        "base_profile": {"code": None, "name": "Perfil personalizado (4 análisis)", "price": None},
+        "added_tests": [
+            {"code": "1106", "name": "Hemoglobina y Hematocrito", "price": 8000},
+            {"code": "1404", "name": "Potasio", "price": 12000},
+            {"code": "1405", "name": "Sodio", "price": 12000},
+            {"code": "1601", "name": "Parcial de Orina (14 parámetros)", "price": 16000},
+        ],
+        "removed_tests": [],
+    }
+    lines = billing.build_invoice_lines(profile)
+    assert len(lines) == 4                                   # sin la línea de perfil $0
+    assert all(l["discount"] == 14.0 for l in lines)         # tramo de 4 pruebas
+    total = sum(round(l["price"] * (1 - l["discount"] / 100)) for l in lines)
+    assert total == 41280                                    # = lo cotizado en el chat
+
+
+def test_perfil_base_no_lleva_descuento_por_volumen():
+    """Los perfiles armados tienen precio fijo: sus líneas van sin descuento (como el chat)."""
+    profile = {
+        "base_profile": {"code": "152", "name": "Perfil Prequirúrgico I", "price": 24000},
+        "added_tests": [{"code": "1601", "name": "Parcial de Orina", "price": 16000}],
+        "removed_tests": [],
+    }
+    lines = billing.build_invoice_lines(profile)
+    assert all("discount" not in l for l in lines)
+    assert sum(l["price"] for l in lines) == 40000
+
+
+def test_invoice_order_pasa_el_descuento_a_alegra(monkeypatch):
+    """El % de descuento de la línea viaja al item de la factura en Alegra."""
+    monkeypatch.setattr(alegra, "get_or_create_contact", lambda *a, **k: {"id": "7"})
+    monkeypatch.setattr(alegra, "get_or_create_item", lambda ref, name, price: {"id": f"i-{ref}"})
+    captured = {}
+
+    def fake_create_invoice(contact_id, items, date, due_date=None, status=None):
+        captured["items"] = items
+        return {"id": "55", "total": 41280}
+
+    monkeypatch.setattr(alegra, "create_invoice", fake_create_invoice)
+    lines = [
+        {"reference": "1404", "name": "Potasio", "price": 12000, "quantity": 1, "discount": 14.0},
+        {"reference": "1405", "name": "Sodio", "price": 12000, "quantity": 1},
+    ]
+    result = billing.invoice_order("900123456", "Vet Demo", lines, "2026-07-16")
+    assert result["invoice_id"] == "55"
+    assert captured["items"][0]["discount"] == 14.0
+    assert "discount" not in captured["items"][1]
+
+
 # ----------------------------- hook _try_invoice_in_alegra -----------------------------
 
 def _order_and_response():

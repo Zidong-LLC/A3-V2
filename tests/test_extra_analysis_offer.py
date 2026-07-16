@@ -109,20 +109,58 @@ def test_stuck_profile_menu_does_not_block_extra_offer():
     """Regresión turno-15 (chat real 2026-07-14): el menú de perfiles armados queda PEGADO al
     pasar de 'elegir armado' a 'armar a medida'; en el turno siguiente, con los análisis ya
     capturados, ese menú obsoleto inhibía _enforce_extra_analysis_offer y la oferta quedaba a
-    merced del modelo (a veces saltaba al pago). Ahora el menú pegado se descarta y la oferta
-    sale determinística. Lógica pura sobre el estado real, sin fingir la respuesta del modelo."""
+    merced del modelo (a veces saltaba al pago). Un menú pegado viene ARRASTRADO del turno
+    anterior (idéntico en prev): se descarta y la oferta sale determinística. Lógica pura
+    sobre el estado real, sin fingir la respuesta del modelo."""
+    stuck_menu = [{"code": "152", "name": "Perfil Prequirúrgico I", "price": 24000}]
     base = {k: v for k, v in COMPLETE.items()
             if k not in ("exam_type", "_selected_profile_code",
                          "_selected_profile_name", "_selected_profile_price")}
+    base["_profile_menu_options"] = stuck_menu                  # ya estaba en el turno anterior
     fields = dict(base)
     fields["selected_tests"] = ["1404", "1405"]                 # Potasio + Sodio recién capturados
     # sin exam_type (el modelo puso solo selected_tests) → antes salía "Listo, queda None."
-    fields["_profile_menu_options"] = [{"code": "152", "name": "Perfil Prequirúrgico I",
-                                        "price": 24000}]         # menú PEGADO del turno anterior
     ai = {"intent": "route_scheduling", "reply": agent.PAYMENT_METHOD_QUESTION,
           "captured_fields": fields}
-    out = agent._enforce_extra_analysis_offer(SESSION, ai, base)
+    with patch.object(agent.db, "get_tests_by_codes", return_value=[]):
+        out = agent._enforce_extra_analysis_offer(SESSION, ai, base)
     assert fields.get("_profile_menu_options") is None          # el menú pegado se descarta
     assert fields.get("_offering_extra_analysis") is True       # y se ofrece agregar otro
     assert "agregar otro análisis" in out["reply"]
     assert "None" not in out["reply"]                           # sin "queda None" cuando no hay nombre
+
+
+def test_fresh_menu_set_this_turn_is_respected():
+    """Un menú puesto EN ESTE turno (no estaba en prev — p. ej. el menú de área del grounding
+    de 'orina') es una pregunta legítima al cliente: no se descarta ni se pisa con la oferta."""
+    base = {k: v for k, v in COMPLETE.items()
+            if k not in ("exam_type", "_selected_profile_code",
+                         "_selected_profile_name", "_selected_profile_price")}
+    fields = dict(base)
+    fields["selected_tests"] = ["1404", "1405"]
+    fields["_test_menu_options"] = [{"code": "1601", "name": "Parcial de Orina", "price": 16000}]
+    fields["_test_menu_adds_to_profile"] = True
+    ai = {"intent": "route_scheduling", "reply": "Para orina tenemos estas opciones: ...",
+          "captured_fields": fields}
+    out = agent._enforce_extra_analysis_offer(SESSION, ai, base)
+    assert fields.get("_test_menu_options")                     # el menú fresco sigue vivo
+    assert fields.get("_test_menu_adds_to_profile") is True
+    assert out["reply"] == "Para orina tenemos estas opciones: ..."   # no lo pisó la oferta
+
+
+def test_offer_intro_shows_new_tests_with_prices():
+    """Reporte 2026-07-16: 'potasio y sodio' se anotaban sin decir el precio. Cuando el turno
+    captura códigos nuevos (sin perfil base), el intro muestra ítems con precio y el total."""
+    POTASIO = {"code": "1404", "name": "Potasio", "price": 12000}
+    SODIO = {"code": "1405", "name": "Sodio", "price": 12000}
+    base = {k: v for k, v in COMPLETE.items()
+            if k not in ("exam_type", "_selected_profile_code",
+                         "_selected_profile_name", "_selected_profile_price")}
+    fields = dict(base)
+    fields["selected_tests"] = ["1404", "1405"]
+    ai = {"intent": "route_scheduling", "reply": agent.PAYMENT_METHOD_QUESTION,
+          "captured_fields": fields}
+    with patch.object(agent.db, "get_tests_by_codes", return_value=[POTASIO, SODIO]):
+        out = agent._enforce_extra_analysis_offer(SESSION, ai, base)
+    assert "Potasio $12k" in out["reply"] and "Sodio $12k" in out["reply"]
+    assert "agregar otro análisis" in out["reply"]
