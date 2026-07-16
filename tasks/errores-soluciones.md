@@ -27,6 +27,25 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### ERR-065 — Ráfagas de mensajes: cada fragmento se procesaba por separado (prueba en vivo, 2026-07-16)
+**Síntoma:** el cliente escribió "Si como no" / "La veterinaria es" / "Animal PET" en 6
+segundos (así habla la gente real). El bot procesó cada fragmento solo: buscó "Si como no"
+como nombre de veterinaria → "No encuentro ningún cliente… ¿Eres cliente nuevo?" dos veces,
+antes de que llegara el dato real.
+**Causa (lógica de transporte, no del flujo):** los webhooks procesaban cada mensaje entrante
+de inmediato; no existía noción de "el cliente todavía está escribiendo".
+**Solución:** buffer de ráfagas con debounce (`app/services/debounce.py`, capa de transporte —
+el agente no cambia): al llegar un mensaje se esperan `MESSAGE_DEBOUNCE_SECONDS` (5s, en
+`.env`); si llegan más, se acumulan y la espera se reinicia; al parar la ráfaga TODOS los
+fragmentos se procesan como UN solo mensaje (unidos con salto de línea) y se responde una vez.
+Tope duro `MESSAGE_DEBOUNCE_MAX_WAIT` (20s) para ráfagas interminables. Con 0 queda apagado
+(modo tests: webhooks síncronos como antes). Estado en memoria del proceso — si se escala a
+varios workers en Render, moverlo a Supabase/Redis (anotado en el módulo).
+**Trade-off asumido:** TODA respuesta ahora tarda ~5s más (el costo de esperar la ráfaga).
+**Tests:** `tests/test_debounce.py` (5: ráfaga real combinada, chats no se mezclan, tope duro,
+fallo no rompe el buffer, passthrough síncrono). Suite: 290 passed.
+**Estado:** RESUELTO — pendiente prueba en vivo del usuario mandando la ráfaga real.
+
 ### ERR-064 — Auditoría de trampas léxicas: 5 palabras comunes del español auto-agregaban tests (2026-07-16)
 **Origen:** tras ERR-063 el usuario preguntó si había más frases "raras" latentes ("la gente
 habla con muchas palabras que no se conectan"). Se construyó una AUDITORÍA determinística:

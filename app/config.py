@@ -36,6 +36,12 @@ CONVENIO_LABELS: tuple[str, ...] = (
 FLASK_SECRET_KEY = os.environ["FLASK_SECRET_KEY"]
 APP_ENV = os.environ.get("APP_ENV", "production")
 
+# Ráfagas de mensajes (ERR-065): segundos que se espera a que el cliente termine de
+# escribir antes de procesar TODOS sus mensajes juntos como uno solo. 0 = apagado
+# (respuesta inmediata mensaje a mensaje, modo de los tests). MAX_WAIT es el tope duro.
+MESSAGE_DEBOUNCE_SECONDS = float(os.environ.get("MESSAGE_DEBOUNCE_SECONDS", "5"))
+MESSAGE_DEBOUNCE_MAX_WAIT = float(os.environ.get("MESSAGE_DEBOUNCE_MAX_WAIT", "20"))
+
 CHATWOOT_URL = os.environ.get("CHATWOOT_URL", "").rstrip("/")
 CHATWOOT_ACCOUNT_ID = os.environ.get("CHATWOOT_ACCOUNT_ID", "")
 CHATWOOT_API_TOKEN = os.environ.get("CHATWOOT_API_TOKEN", "")
