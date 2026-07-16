@@ -2883,7 +2883,7 @@ def _rephrased_repeated_question(reply: str) -> str:
     return "Para seguir con la orden necesito ese dato. Si ahora no lo tienes a mano, dime y lo retomamos, o con gusto te comunico con alguien del equipo."
 
 
-def _avoid_repeated_question(ai_response: dict, history: list[dict], prev_fields: dict) -> dict:
+def _avoid_repeated_question(session: dict, ai_response: dict, history: list[dict], prev_fields: dict) -> dict:
     if ai_response.get("requires_handoff") or ai_response.get("phase") in TERMINAL_PHASES:
         return ai_response
 
@@ -2909,7 +2909,16 @@ def _avoid_repeated_question(ai_response: dict, history: list[dict], prev_fields
 
     for msg in history:
         if msg.get("role") == "bot" and reply_keys & _question_keys(msg.get("content", "")):
-            ai_response["reply"] = _rephrased_repeated_question(ai_response["reply"])
+            # ERR-060b: no adivinar el campo por palabras sueltas en el TEXTO del reply (una
+            # respuesta que solo re-confirma el sexo ya capturado mientras re-pregunta la raza
+            # contiene "macho"/"sexo" y disparaba el canned de sexo por error, tapando la raza
+            # real pendiente -> bucle infinito). La fuente de verdad es el campo REALMENTE
+            # pendiente (_missing_route_field), no el texto que el modelo eligió para redactar.
+            missing = _missing_route_field(session, fields)
+            if missing:
+                ai_response["reply"] = _missing_route_field_question(missing)
+            else:
+                ai_response["reply"] = _rephrased_repeated_question(ai_response["reply"])
             break
     return ai_response
 
@@ -5395,7 +5404,7 @@ def process_turn(
     ai_response = _avoid_redundant_client_identity_question(session, ai_response)
     ai_response = _avoid_forbidden_route_question(session, ai_response)
     ai_response = _avoid_redundant_route_field_question(session, ai_response)
-    ai_response = _avoid_repeated_question(ai_response, history, prev_captured)
+    ai_response = _avoid_repeated_question(session, ai_response, history, prev_captured)
     ai_response = _apply_route_closure_summary(ai_response)
     ai_response = _clarify_captured_field(ai_response, prev_captured)
     ai_response = _enforce_field_coherence(session, ai_response, prev_captured, user_message, history)

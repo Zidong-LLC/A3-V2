@@ -27,6 +27,24 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### ERR-060b — El reescritor anti-bucle adivinaba el campo por PALABRAS del reply y tapaba la pregunta real (prueba en vivo, 2026-07-16)
+**Síntoma:** con "es un toro" (Bovino/Macho implícitos) y la RAZA pendiente, el usuario respondió
+"macho" (no es una raza). El bot quedó en bucle infinito repreguntando "¿el paciente es macho o
+hembra?" — un dato que YA tenía — y nunca volvió a preguntar la raza. 3 turnos idénticos.
+**Causa raíz (parche de palabra, la clase que L50 prohíbe):** `_rephrased_repeated_question`
+elegía la pregunta canned adivinando el campo por tokens del TEXTO del reply. El reply del modelo
+re-confirmaba "Macho como sexo" mientras repetía la pregunta de raza → contenía "macho"/"sexo" →
+el reescritor la sustituía por la pregunta de sexo, pisando la de raza. Como "macho" tampoco
+avanzaba la raza, el ciclo se repetía cada turno.
+**Solución (fuente de verdad, no palabras):** `_avoid_repeated_question` ahora recibe `session` y
+pregunta el campo REALMENTE pendiente con `_missing_route_field` (determinístico); el canned por
+tokens queda solo de último fallback cuando no hay campo de ruta pendiente. La pregunta re-escrita
+siempre corresponde al dato que de verdad falta.
+**Tests:** `tests/test_avoid_repeated_question.py` (3, lógica pura sobre el estado exacto del bug,
+sin fingir el modelo — L51). Suite: 270 passed. Verificado en vivo reproduciendo la secuencia real
+con modelo real.
+**Estado:** RESUELTO.
+
 ### ERR-060 — Menú de perfiles PEGADO inhibe la oferta de "agregar otro" (replay del chat real, 2026-07-14)
 **Síntoma:** al reproducir el chat 4 real con el modelo real, tras "Potasio y sodio" (armado a
 medida) el bot a veces saltaba directo a preguntar el pago en vez de ofrecer "¿agregás otro o
