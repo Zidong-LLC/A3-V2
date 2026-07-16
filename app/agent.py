@@ -1118,8 +1118,13 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
     """Interpreta la respuesta del cliente a la oferta '¿agregar otro análisis o seguimos con
     el pago?'. Devuelve la respuesta del bot, o None si dio el método de pago (que el pipeline
     normal capture). Se repite tras cada agregado hasta que el cliente decida seguir."""
-    # 1) Sigue al pago: dio el método o dijo que ya está.
-    if _wants_to_proceed_to_payment(user_message):
+    # 1) Sigue al pago: dio el método o dijo que ya está. Un atajo solo traga el mensaje si
+    # NO trae más que eso (L49): un 'no' incidental dentro de otra intención ('...esta orden
+    # va a nombre de otra clínica, no de animal pets') no debe cerrar la oferta y saltar al
+    # pago — verificado en vivo con modelo real (3.3).
+    if _wants_to_proceed_to_payment(user_message) and (
+        _payment_method_from_text(user_message) or len(_tokenize(user_message)) <= 6
+    ):
         fields.pop("_offering_extra_analysis", None)
         if _payment_method_from_text(user_message):
             return None  # el pipeline normal captura el método de pago
@@ -1220,6 +1225,12 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
     if _is_affirmative_text(user_message) or _is_profile_customization_request(user_message):
         fields["_awaiting_additional_test"] = "add"
         return _base_route_response("Claro. ¿Qué análisis quieres agregar? Decime el nombre o el código.", fields)
+
+    # 6a) Mensaje largo que no encaja en NADA de la oferta: trae otra intención (cambiar el
+    # cliente, corregir un dato…) — que lo lea el MODELO y actúen las señales (3.3), en vez
+    # de tragarlo con la re-pregunta de la oferta.
+    if len(_tokenize(user_message)) > 8:
+        return None
 
     # 6) No se entendió: aclarar sin perder el estado ni cerrar a ciegas.
     return _base_route_response(
@@ -4947,6 +4958,27 @@ def process_turn(
             chat_id, session, ai_response, started_from_escalation, session.get("phase_current", ""),
         )
         return _persist_turn(chat_id, user_message, ai_response)
+
+    # 3.3 — SEÑAL como fuente primaria (cambio de cliente): los atajos por tokens del
+    # pre-LLM cubren los fraseos conocidos en sus contextos (confirmación, reoferta);
+    # acá la lectura semántica del modelo cubre TODOS los demás fraseos y contextos
+    # ("esta orden en realidad va a nombre de otra clínica"). Misma acción determinística
+    # que la vía por tokens: con orden en curso se conserva TODO y solo se re-verifica
+    # identidad + dirección (L50); tras una orden registrada, reset completo.
+    if (
+        signal == "change_client"
+        and ai_response.get("intent") == "route_scheduling"
+        and not ai_response.get("requires_handoff")
+        and (session.get("client_id") or fields.get("_client_found"))
+        and not prev_captured.get("_client_match_options")
+    ):
+        # El cambio de cliente resuelve cualquier oferta/espera abierta de análisis.
+        fields.pop("_offering_extra_analysis", None)
+        fields.pop("_awaiting_additional_test", None)
+        return _persist_turn(
+            chat_id, user_message,
+            _restart_identification_for_new_client(chat_id, session, fields),
+        )
 
     # Oferta de derivación pendiente ("¿te derivo o seguimos?"): resolver según la
     # respuesta. Si acepta, derivar a una persona; si quiere seguir, limpiar el flag

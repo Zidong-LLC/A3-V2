@@ -106,7 +106,11 @@ def _name_is_named_by(user_tokens: set[str], name_tokens: list[str]) -> bool:
 
 
 def _overlaps(user_tokens: set[str], name_tokens: list[str]) -> bool:
-    return bool(user_tokens & set(_content_only(name_tokens)))
+    """Overlap DÉBIL (último recurso para ofrecer): exige palabras de contenido de ≥4
+    letras en ambos lados — la 'a' de '...va A nombre de...' matcheaba 'Amiloide Sérico A
+    Felino' y generaba un menú fantasma (verificado en vivo, 3.3)."""
+    sig = {t for t in _content_only(name_tokens) if len(t) >= 4 and t not in GENERIC_DESCRIPTORS}
+    return bool({t for t in user_tokens if len(t) >= 4} & sig)
 
 
 def _dedupe(rows) -> list[dict]:
