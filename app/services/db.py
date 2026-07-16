@@ -692,7 +692,11 @@ def find_tests_by_area(value: str | None, species: str | None = None, limit: int
     Devuelve (nombre del área, tests). Permite ofrecer opciones cuando el cliente
     pide por área y no por nombre/código exacto de un perfil."""
     key = _normalize_lookup_key(value)
-    q_tokens = {t for t in key.split("_") if len(t) >= 3}
+    # Palabras estructurales fuera: el "con" de 'vamos CON el 152...' no identifica un área
+    # aunque aparezca en la muestra 'Tubo Tapa Azul CON 3/4 de sangre' (bug real 2026-07-16;
+    # vocabulario único en app.catalog.STRUCTURAL_TOKENS).
+    from app.catalog import STRUCTURAL_TOKENS
+    q_tokens = {t for t in key.split("_") if len(t) >= 3 and t not in STRUCTURAL_TOKENS}
     if not q_tokens:
         return None, []
 

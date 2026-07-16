@@ -65,6 +65,27 @@ def test_area_by_category_offers_options():
     assert set(_codes(res)) >= {"1309"}   # Creatinina es de Química
 
 
+def test_structural_words_never_match_an_area():
+    """ERR-063 (prueba real 2026-07-16): el 'con' de 'vamos CON el 152...' matcheaba la
+    muestra 'Tubo Tapa Azul CON 3/4 de sangre' y ofrecía el menú de Coagulación. Una
+    palabra estructural (preposición, verbo de pedido) jamás identifica un área."""
+    coag = [
+        {"code": "1201", "name": "PT (Tiempo de Protrombina)", "price": 18000,
+         "category": "Coagulación", "sample": "Tubo Tapa Azul con 3/4 de sangre"},
+        {"code": "1202", "name": "PTT (Tiempo parcial de Tromboplastina)", "price": 18000,
+         "category": "Coagulación", "sample": "Tubo Tapa Azul con 3/4 de sangre"},
+    ]
+    res = catalog.resolve_tests("necesito una prueba con urgencia", CATALOG + coag)
+    assert res.status == NONE                       # 'con'/'urgencia' no eligen Coagulación
+    # Y el pedido compuesto real resuelve EXACT a lo nombrado, sin ruido del área:
+    res2 = catalog.resolve_tests("vamos con el 152 y le quiero agregar potasio y sodio si?",
+                                 CATALOG + coag + [
+        {"code": "1404", "name": "Potasio", "price": 12000, "category": "Química"},
+        {"code": "1405", "name": "Sodio", "price": 12000, "category": "Química"},
+    ])
+    assert res2.status == EXACT and set(_codes(res2)) == {"1404", "1405"}
+
+
 # ── Invariante de plata: los tests devueltos traen el precio del catálogo ─────────
 
 def test_resolved_tests_have_catalog_price():

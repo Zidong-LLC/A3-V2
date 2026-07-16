@@ -27,6 +27,24 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### ERR-063 — "vamos CON el 152..." ofrecía el menú de Coagulación: una preposición elegía el área (prueba en vivo, 2026-07-16)
+**Síntoma:** "vamos con el 152 y le quiero agregar potasio y sodio si?" registró bien el perfil
+152 pero ofreció el menú de COAGULACIÓN (PT, PTT, Dímero D…) — nada que ver con lo pedido.
+**Causa raíz (matching por palabra estructural, la clase de siempre):** el camino compuesto
+("perfil + agregar") prueba primero el ÁREA con el mensaje completo; `find_tests_by_area`
+filtraba tokens solo por longitud (≥3) y la preposición **"con"** matcheó la muestra
+"Tubo Tapa Azul CON 3/4 de sangre" → área = Coagulación. El mismo hueco existía en
+`catalog._resolve_area`. Bug latente: cualquier mensaje con "con"/"para"/"las" podía disparar
+un menú de área fantasma.
+**Solución (de clase, vocabulario único):** `catalog.STRUCTURAL_TOKENS` (fillers + sustantivos
+genéricos + verbos de pedido) como fuente única; `db.find_tests_by_area` y `catalog._resolve_area`
+excluyen esas palabras de ambos lados del match — una palabra estructural jamás identifica un
+área. Con esto, el camino compuesto cae al match por nombre y agrega Potasio+Sodio directo.
+**Tests:** `test_catalog_module.py::test_structural_words_never_match_an_area` +
+`test_db_identification.py::test_find_tests_by_area_ignores_structural_words` (con control
+positivo: "tubo tapa azul" sí matchea). Suite: 284 passed. Verificado en vivo con modelo real.
+**Estado:** RESUELTO.
+
 ### ERR-061 — El modelo estructuraba selected_tests él solo y elegía un test AMBIGUO en silencio (prueba en vivo, 2026-07-16)
 **Síntoma:** "quiero hacer potasio sodio y orina" → el bot respondió "Listo, lo anoto" sin
 mostrar precios y con 'Parcial de Orina' (1601) ya elegido POR EL MODELO entre las 5 opciones

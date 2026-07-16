@@ -30,8 +30,15 @@ _ANALYSIS_NOUNS = frozenset({"analisis", "examen", "examenes", "prueba", "prueba
 # Verbos/muletillas de pedido: no nombran un análisis ('NECESITO una prueba de orina').
 _REQUEST_WORDS = frozenset({"necesito", "quiero", "quisiera", "dame", "deme", "hazme",
                             "hacer", "hacerle", "pon", "ponme", "ponle", "ponele",
-                            "agregame", "agrega", "agregar", "sumale", "suma", "favor",
-                            "porfa", "quiere", "queremos", "necesitamos", "solicito"})
+                            "agregame", "agrega", "agregar", "agregarle", "sumale", "suma",
+                            "favor", "porfa", "quiere", "queremos", "necesitamos",
+                            "solicito", "vamos"})
+
+# Palabras ESTRUCTURALES: jamás identifican un área/muestra del catálogo. Sin este filtro,
+# el "con" de 'vamos CON el 152...' matcheaba la muestra 'Tubo Tapa Azul CON 3/4 de sangre'
+# y ofrecía el menú de Coagulación (prueba real 2026-07-16). Lo usan este módulo y
+# db.find_tests_by_area (fuente única del vocabulario estructural).
+STRUCTURAL_TOKENS = frozenset(_FILLER | _ANALYSIS_NOUNS | _REQUEST_WORDS)
 
 _SPLIT = re.compile(r"\s*(?:,|;|/|\+|\by\b|\be\b|\bmas\b|\bmás\b)\s*")
 
@@ -151,9 +158,13 @@ def _resolve_one(text: str, rows: list[dict], species: str | None) -> ResolveRes
 
 
 def _resolve_area(user_tokens: set[str], rows: list[dict], species: str | None):
-    """Análisis cuya categoría o tipo de muestra coincide con una palabra del usuario."""
+    """Análisis cuya categoría o tipo de muestra coincide con una palabra del usuario.
+    Solo cuentan palabras de CONTENIDO en ambos lados: una preposición ('con') no
+    identifica un área aunque aparezca en el nombre de la muestra."""
+    user_tokens = user_tokens - STRUCTURAL_TOKENS
+
     def keyset(value):
-        return {t for t in _tokens(value) if len(t) >= 3}
+        return {t for t in _tokens(value) if len(t) >= 3 and t not in _FILLER}
 
     sp = (species or "").strip().lower()
     scoped = [r for r in rows

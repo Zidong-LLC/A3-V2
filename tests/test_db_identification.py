@@ -157,6 +157,51 @@ def test_find_tests_by_area_matches_sample_name(monkeypatch):
     assert [test["code"] for test in tests] == ["U01", "U02"]
 
 
+def test_find_tests_by_area_ignores_structural_words(monkeypatch):
+    """ERR-063 (prueba real 2026-07-16): el 'con' de 'vamos CON el 152 y le quiero agregar
+    potasio y sodio' matcheaba la muestra 'Tubo Tapa Azul CON 3/4 de sangre' y devolvía el
+    área Coagulación. Las palabras estructurales no identifican un área."""
+    from types import SimpleNamespace
+    from app.services import db
+
+    rows = [
+        {"code": "1201", "name": "PT (Tiempo de Protrombina)", "category": "Coagulación",
+         "sample": "Tubo Tapa Azul con 3/4 de sangre", "price": 18000},
+        {"code": "1202", "name": "PTT", "category": "Coagulación",
+         "sample": "Tubo Tapa Azul con 3/4 de sangre", "price": 18000},
+    ]
+
+    class FakeQuery:
+        def select(self, *_args):
+            return self
+
+        def eq(self, *_args):
+            return self
+
+        def in_(self, *_args):
+            return self
+
+        def limit(self, *_args):
+            return self
+
+        def execute(self):
+            return SimpleNamespace(data=rows)
+
+    class FakeClient:
+        def table(self, table_name: str):
+            assert table_name == "catalog_tests"
+            return FakeQuery()
+
+    monkeypatch.setattr(db, "_client", FakeClient())
+
+    area, tests = db.find_tests_by_area(
+        "vamos con el 152 y le quiero agregar potasio y sodio si?", limit=10)
+    assert area is None and tests == []
+    # Control positivo: nombrar la muestra por su contenido sí matchea.
+    area2, tests2 = db.find_tests_by_area("tubo tapa azul", limit=10)
+    assert area2 == "Coagulación" and len(tests2) == 2
+
+
 def test_create_request_persists_adjusted_profile_payload(monkeypatch):
     from app.services import db
 
