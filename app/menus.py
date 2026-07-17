@@ -140,3 +140,80 @@ def _client_identity_prompt_count(history: list[dict]) -> int:
         1 for msg in history
         if msg.get("role") == "bot" and _asks_for_client_identity(msg.get("content", ""))
     )
+
+
+
+def _profile_menu_option_lines(profiles: list[dict]) -> list[str]:
+    lines = []
+    for idx, p in enumerate(profiles, start=1):
+        desc = p.get("description")
+        detail = f": {desc}" if desc else ""
+        lines.append(f"{idx}. {p.get('code')} {p.get('name')}{detail} — {_money(p.get('price'))}")
+    return lines
+
+
+
+def _profile_description_items(description: str | None) -> list[str]:
+    items = []
+    current = []
+    depth = 0
+    for char in description or "":
+        if char == "(":
+            depth += 1
+        elif char == ")" and depth > 0:
+            depth -= 1
+
+        if char == "," and depth == 0:
+            item = "".join(current).strip()
+            if item:
+                items.append(item)
+            current = []
+        else:
+            current.append(char)
+
+    item = "".join(current).strip()
+    if item:
+        items.append(item)
+    return items
+
+
+
+def _catalog_row_matches_item(item: str, row: dict) -> bool:
+    item_key = _catalog_item_key(item)
+    code_key = _catalog_item_key(row.get("code"))
+    name_key = _catalog_item_key(row.get("name"))
+    return item_key == code_key or item_key == name_key or (len(item_key) >= 3 and item_key in name_key)
+
+
+
+def _format_profile_recommendation(species: str, profiles: list[dict]) -> str:
+    """Lista de perfiles recomendados para la especie en formato legible: una línea por
+    perfil con código, análisis incluidos y precio. Seleccionable por número o nombre."""
+    lines = [f"Para {species.lower()} te puedo recomendar estos perfiles:"]
+    lines.extend(_profile_menu_option_lines(profiles))
+    lines.append("Decime el número o el nombre del que prefieras y lo registro.")
+    return "\n".join(lines)
+
+
+
+def _profile_detail_reply(profile: dict) -> str:
+    name = profile.get("name") or "perfil seleccionado"
+    lines = [f"El {name} incluye estos análisis:"]
+    for item in _profile_description_items(profile.get("description")):
+        lines.append(f"- {item}")
+    lines.append(f"Valor base: {_money(profile.get('price'))}.")
+    lines.append("¿Lo dejamos así o quieres personalizarlo para agregar o quitar algún análisis?")
+    return "\n".join(lines)
+
+
+
+def _reply_asks_missing_field(reply: str, field: str) -> bool:
+    if field == "client":
+        return _asks_for_client_identity(reply)
+    return _reply_asks_for_route_field(reply, field)
+
+
+
+def _unknown_catalog_items(items: list[str], rows: list[dict]) -> list[str]:
+    return [item for item in items if not any(_catalog_row_matches_item(item, row) for row in rows)]
+

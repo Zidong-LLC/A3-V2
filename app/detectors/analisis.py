@@ -283,3 +283,167 @@ def _payment_method_from_text(text: str) -> str | None:
     if ({"pago", "pagar"} & tokens) and ({"linea", "línea", "online"} & tokens):
         return "pago_linea"
     return None
+
+
+_SOCIAL_PHRASES = (
+    "como vas", "como estas", "como andas", "como te va", "como va",
+    "que mas", "que tal", "todo bien", "que cuentas", "que hubo",
+    "como amaneciste", "como sigues", "como va todo",
+)
+
+
+_OFF_TOPIC_SMALL_TALK_TOKENS = frozenset({
+    "hola", "holi", "ola", "buenas", "buenos", "buen", "dia", "dias",
+    "tarde", "tardes", "noche", "noches", "hey", "hi", "saludos",
+    "como", "estas", "va", "vas", "andas", "anda", "todo", "bien",
+    "que", "tal", "mas", "gracias", "jaja", "jeje", "jajaja", "uy",
+    # conectores y muletillas que acompañan al small talk
+    "y", "ah", "ahh", "ay", "oye", "pero", "pues", "eh", "este",
+    "ok", "okay", "che", "ja", "bueno",
+})
+
+
+_ORDER_QUERY_TOKENS = frozenset({"orden", "ordenes", "órdenes", "pedido", "pedidos", "solicitud", "radicado"})
+
+
+_ORDER_CREATE_TOKENS = frozenset({
+    "crear", "crea", "nueva", "nuevo", "otra", "otro", "hacer", "haz", "programar",
+    "generar", "agendar", "necesito", "quiero", "registrar",
+})
+
+
+_ORDER_NUMBER_TOKENS = frozenset({
+    "numero", "número", "num", "codigo", "código", "rastreo", "rastrear",
+    "seguimiento", "radicado", "referencia",
+})
+
+
+_FINAL_USER_PHRASES = (
+    "cliente final", "persona particular", "soy particular", "soy dueño",
+    "soy dueno", "soy el dueño", "soy el dueno", "soy propietario",
+    "soy el propietario", "dueño de mascota", "dueno de mascota",
+    "tutor de mascota", "mi mascota", "mi perro", "mi gato",
+    "no soy veterinario", "no soy veterinaria", "no soy de una veterinaria",
+    "no tengo veterinaria",
+)
+
+
+_AREA_OPTION_QUESTION_TOKENS = frozenset({
+    "que", "qué", "cuales", "cuáles", "cual", "cuál", "tienen", "tienes", "tiene",
+    "hay", "ofrecen", "ofreces", "manejan", "maneja", "disponibles", "disponible",
+    "opciones", "tipos", "tipo", "muestrame", "muéstrame", "muestra", "lista",
+})
+
+
+_ANALYSIS_TOKENS = frozenset({"analisis", "análisis", "examen", "examenes", "exámenes", "perfil", "prueba", "muestra", "muestras"})
+
+
+_FOLLOWUP_NEW_TOKENS = frozenset({"otra", "otras", "otro", "otros", "nueva", "nuevo", "nuevas", "nuevos"})
+
+
+_FOLLOWUP_CREATE_TOKENS = frozenset({
+    "crear", "crea", "hacer", "haz", "programar", "agendar", "generar", "necesito", "quiero",
+})
+
+
+_FOLLOWUP_OBJECT_TOKENS = frozenset({
+    "orden", "ordenes", "órdenes", "servicio", "pedido", "pedidos", "muestra",
+    "muestras", "ruta", "recogida", "retiro", "paciente", "animal", "analisis", "análisis",
+})
+
+
+
+def _looks_off_topic_smalltalk(text: str) -> bool:
+    # El tokenizador conserva acentos; se normalizan para comparar.
+    norm = " ".join(t.translate(_ACCENT_TRANSLATION) for t in _tokenize(text))
+    if not norm:
+        return False
+    if any(phrase in norm for phrase in _SOCIAL_PHRASES):
+        return True
+    return set(norm.split()) <= _OFF_TOPIC_SMALL_TALK_TOKENS
+
+
+
+def _is_order_number_query(text: str) -> bool:
+    tokens = set(_tokenize(text))
+    if tokens & _ORDER_CREATE_TOKENS:
+        return False
+    return bool(tokens & _ORDER_QUERY_TOKENS) and bool(tokens & _ORDER_NUMBER_TOKENS)
+
+
+
+def _is_final_user_text(text: str) -> bool:
+    normalized = " ".join(_tokenize(text))
+    return any(phrase in normalized for phrase in _FINAL_USER_PHRASES)
+
+
+
+def _asks_for_area_options(text: str) -> bool:
+    """¿El mensaje es una pregunta abierta por opciones de un área ('qué análisis de
+    orina tienen', 'qué tipos de sangre manejan'), en vez de nombrar un test exacto?"""
+    tokens = set(_tokenize(text))
+    return bool(tokens & _AREA_OPTION_QUESTION_TOKENS) or "?" in (text or "")
+
+
+
+def _followup_wants_new_analysis(text: str) -> bool:
+    """En el mismo mensaje de 'otra orden', ¿el cliente pidió CAMBIAR el análisis?
+    Ej.: 'otra orden con los mismos datos pero cambiale el análisis a glucosa'. Exige
+    nombrar el análisis/examen/perfil junto a una señal de cambio para no confundir con
+    'otra orden para otro paciente' (que mantiene el análisis anterior)."""
+    tokens = set(_tokenize(text))
+    if not (tokens & _ANALYSIS_TOKENS):
+        return False
+    if re.search(r"(?i)\bcambi", text or ""):
+        return True
+    return bool(tokens & {"otro", "otra", "nuevo", "nueva", "distinto", "distinta", "diferente"})
+
+
+
+def _wants_another_service_order(text: str) -> bool:
+    return _explicitly_wants_another_order(text)
+
+
+
+def _explicitly_wants_another_order(text: str) -> bool:
+    """Pide explícitamente OTRA orden. A diferencia de `_wants_another_service_order`,
+    NO se conforma con un 'sí' suelto: se usa fuera de la fase terminal (cuando no venimos
+    de la pregunta '¿necesitas otra orden?'), por eso exige señal fuerte de nueva orden."""
+    words = set(_tokenize(text))
+    if not words or "no" in words:
+        return False
+    if words & _FOLLOWUP_NEW_TOKENS and (words & _FOLLOWUP_OBJECT_TOKENS or len(words) <= 3):
+        return True
+    return bool(words & _FOLLOWUP_CREATE_TOKENS) and bool(words & _FOLLOWUP_OBJECT_TOKENS)
+
+
+
+def _reply_asks_for_route_field(reply: str, field: str) -> bool:
+    text = " ".join(_tokenize(reply))
+    if field == "requesting_doctor":
+        return "medico solicitante" in text or "médico solicitante" in text
+    if field == "exam_type":
+        return (
+            "que tipo de analisis" in text or "qué tipo de análisis" in text
+            or "analisis o perfil exacto" in text or "análisis o perfil exacto" in text
+            or "cual van a enviar" in text or "cuál van a enviar" in text
+            or "perfil desean" in text
+        )
+    if field == "patient_name":
+        return "nombre del paciente" in text
+    if field == "species":
+        return "canino felino" in text or "otra especie" in text
+    if field == "breed":
+        return "raza del paciente" in text
+    if field == "sex":
+        return "macho o hembra" in text
+    if field == "patient_age":
+        return "edad tiene" in text
+    if field == "owner_name":
+        return "nombre del propietario" in text
+    if field == "observations":
+        return "observacion" in text or "observación" in text or "observaciones" in text
+    if field == "payment_method":
+        return "contraentrega" in text and ("linea" in text or "línea" in text)
+    return False
+

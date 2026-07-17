@@ -18,6 +18,25 @@ from app.config import ALEGRA_ENABLED, APP_TIMEZONE, FSM_ENFORCE
 from app.services import ai, db, alegra
 from app.rules import TERMINAL_PHASES, calculate_custom_profile_total, calculate_profile_adjusted_total
 from app.detectors import (
+    _looks_off_topic_smalltalk,
+    _is_order_number_query,
+    _is_final_user_text,
+    _asks_for_area_options,
+    _followup_wants_new_analysis,
+    _wants_another_service_order,
+    _explicitly_wants_another_order,
+    _reply_asks_for_route_field,
+    _SOCIAL_PHRASES,
+    _OFF_TOPIC_SMALL_TALK_TOKENS,
+    _ORDER_QUERY_TOKENS,
+    _ORDER_CREATE_TOKENS,
+    _ORDER_NUMBER_TOKENS,
+    _FINAL_USER_PHRASES,
+    _AREA_OPTION_QUESTION_TOKENS,
+    _ANALYSIS_TOKENS,
+    _FOLLOWUP_NEW_TOKENS,
+    _FOLLOWUP_CREATE_TOKENS,
+    _FOLLOWUP_OBJECT_TOKENS,
     _PRICE_QUESTION_TOKENS,
     _TOTAL_QUESTION_TOKENS,
     _wants_partial_analysis_change,
@@ -103,6 +122,13 @@ from app.flow import (
     missing_route_field_question as _missing_route_field_question,
 )
 from app.menus import (
+    _profile_menu_option_lines as _profile_menu_option_lines,
+    _profile_description_items as _profile_description_items,
+    _catalog_row_matches_item as _catalog_row_matches_item,
+    _format_profile_recommendation as _format_profile_recommendation,
+    _profile_detail_reply as _profile_detail_reply,
+    _reply_asks_missing_field as _reply_asks_missing_field,
+    _unknown_catalog_items as _unknown_catalog_items,
     _test_area_suggestion_reply as _test_area_suggestion_reply,
     _store_test_menu_options as _store_test_menu_options,
     _store_profile_menu_options as _store_profile_menu_options,
@@ -152,24 +178,7 @@ _turn_prev_phase: contextvars.ContextVar[str] = contextvars.ContextVar(
 # _FAREWELL_TOKENS, _CONTINUE_TOKENS, _GREETING_TOKENS → app/detectors.py (importados arriba).
 
 # Consulta del número de orden ya creada (no confundir con crear una orden nueva)
-_ORDER_QUERY_TOKENS = frozenset({"orden", "ordenes", "órdenes", "pedido", "pedidos", "solicitud", "radicado"})
-_ORDER_NUMBER_TOKENS = frozenset({
-    "numero", "número", "num", "codigo", "código", "rastreo", "rastrear",
-    "seguimiento", "radicado", "referencia",
-})
-_ORDER_CREATE_TOKENS = frozenset({
-    "crear", "crea", "nueva", "nuevo", "otra", "otro", "hacer", "haz", "programar",
-    "generar", "agendar", "necesito", "quiero", "registrar",
-})
-
-
-def _is_order_number_query(text: str) -> bool:
-    tokens = set(_tokenize(text))
-    if tokens & _ORDER_CREATE_TOKENS:
-        return False
-    return bool(tokens & _ORDER_QUERY_TOKENS) and bool(tokens & _ORDER_NUMBER_TOKENS)
-
-
+# Ronda A del troceo → detectors/analisis.py y menus.py (importados arriba).
 def _order_number_reply(order: dict | None) -> str:
     if order and order.get("order_number"):
         exam = order.get("exam_type")
@@ -340,15 +349,6 @@ _IDENTIFICATION_RETRY_RESET_FIELDS = frozenset({
 # _PROFILE_CUSTOMIZE_TOKENS, _PROFILE_CONFIRM_TOKENS, _CLOSE_PROFILE_TOKENS,
 # _CLOSE_PROFILE_PHRASES, _AMBIGUOUS_PROFILE_TOKENS → app/detectors.py (importados arriba).
 
-_FINAL_USER_PHRASES = (
-    "cliente final", "persona particular", "soy particular", "soy dueño",
-    "soy dueno", "soy el dueño", "soy el dueno", "soy propietario",
-    "soy el propietario", "dueño de mascota", "dueno de mascota",
-    "tutor de mascota", "mi mascota", "mi perro", "mi gato",
-    "no soy veterinario", "no soy veterinaria", "no soy de una veterinaria",
-    "no tengo veterinaria",
-)
-
 _ORDINAL_SELECTIONS = {
     "primera": 1, "primero": 1,
     "segunda": 2, "segundo": 2,
@@ -370,40 +370,6 @@ def _default_handoff_reply(handoff_area: str | None) -> str:
     if handoff_area == "operaciones":
         return "Te voy a comunicar con atención al cliente para ayudarte con este proceso."
     return "Te voy a comunicar con el equipo correspondiente para ayudarte mejor."
-
-
-def _profile_description_items(description: str | None) -> list[str]:
-    items = []
-    current = []
-    depth = 0
-    for char in description or "":
-        if char == "(":
-            depth += 1
-        elif char == ")" and depth > 0:
-            depth -= 1
-
-        if char == "," and depth == 0:
-            item = "".join(current).strip()
-            if item:
-                items.append(item)
-            current = []
-        else:
-            current.append(char)
-
-    item = "".join(current).strip()
-    if item:
-        items.append(item)
-    return items
-
-
-def _profile_detail_reply(profile: dict) -> str:
-    name = profile.get("name") or "perfil seleccionado"
-    lines = [f"El {name} incluye estos análisis:"]
-    for item in _profile_description_items(profile.get("description")):
-        lines.append(f"- {item}")
-    lines.append(f"Valor base: {_money(profile.get('price'))}.")
-    lines.append("¿Lo dejamos así o quieres personalizarlo para agregar o quitar algún análisis?")
-    return "\n".join(lines)
 
 
 # Armadores de menús/replies → app/menus.py (importados arriba).
@@ -440,17 +406,6 @@ def _extract_phone_candidate(text: str, allow_unlabeled: bool = False) -> str | 
     return None
 
 
-def _catalog_row_matches_item(item: str, row: dict) -> bool:
-    item_key = _catalog_item_key(item)
-    code_key = _catalog_item_key(row.get("code"))
-    name_key = _catalog_item_key(row.get("name"))
-    return item_key == code_key or item_key == name_key or (len(item_key) >= 3 and item_key in name_key)
-
-
-def _unknown_catalog_items(items: list[str], rows: list[dict]) -> list[str]:
-    return [item for item in items if not any(_catalog_row_matches_item(item, row) for row in rows)]
-
-
 # _is_ambiguous_profile_change → app/detectors.py (importado arriba).
 
 
@@ -461,24 +416,6 @@ def _unknown_catalog_items(items: list[str], rows: list[dict]) -> list[str]:
 
 
 # _asks_for_armed_profiles → app/detectors.py (importado arriba).
-
-
-def _profile_menu_option_lines(profiles: list[dict]) -> list[str]:
-    lines = []
-    for idx, p in enumerate(profiles, start=1):
-        desc = p.get("description")
-        detail = f": {desc}" if desc else ""
-        lines.append(f"{idx}. {p.get('code')} {p.get('name')}{detail} — {_money(p.get('price'))}")
-    return lines
-
-
-def _format_profile_recommendation(species: str, profiles: list[dict]) -> str:
-    """Lista de perfiles recomendados para la especie en formato legible: una línea por
-    perfil con código, análisis incluidos y precio. Seleccionable por número o nombre."""
-    lines = [f"Para {species.lower()} te puedo recomendar estos perfiles:"]
-    lines.extend(_profile_menu_option_lines(profiles))
-    lines.append("Decime el número o el nombre del que prefieras y lo registro.")
-    return "\n".join(lines)
 
 
 def _format_category_profile_menu(category: str, profiles: list[dict]) -> str:
@@ -805,20 +742,6 @@ def _add_tests_to_order(fields: dict, rows: list[dict], action: str) -> None:
     fields["removed_tests"] = removed if fields.get("_selected_profile_code") else []
     if not fields.get("_selected_profile_code") and selected:
         fields["exam_type"] = f"Perfil personalizado ({len(selected)} análisis)"
-
-
-_AREA_OPTION_QUESTION_TOKENS = frozenset({
-    "que", "qué", "cuales", "cuáles", "cual", "cuál", "tienen", "tienes", "tiene",
-    "hay", "ofrecen", "ofreces", "manejan", "maneja", "disponibles", "disponible",
-    "opciones", "tipos", "tipo", "muestrame", "muéstrame", "muestra", "lista",
-})
-
-
-def _asks_for_area_options(text: str) -> bool:
-    """¿El mensaje es una pregunta abierta por opciones de un área ('qué análisis de
-    orina tienen', 'qué tipos de sangre manejan'), en vez de nombrar un test exacto?"""
-    tokens = set(_tokenize(text))
-    return bool(tokens & _AREA_OPTION_QUESTION_TOKENS) or "?" in (text or "")
 
 
 def _area_options_for_profile_addition(fields: dict, user_message: str,
@@ -1300,11 +1223,6 @@ def _enforce_profile_recommendation_help(session: dict, ai_response: dict, user_
     return _base_route_response(_format_profile_recommendation(species, profiles), fields)
 
 
-def _is_final_user_text(text: str) -> bool:
-    normalized = " ".join(_tokenize(text))
-    return any(phrase in normalized for phrase in _FINAL_USER_PHRASES)
-
-
 def _unsupported_final_user_response(fields: dict) -> dict:
     return {
         "reply": FINAL_USER_MESSAGE,
@@ -1463,7 +1381,6 @@ _TIME_QUESTION_TOKENS = frozenset({
     "rapido", "rápido", "llega", "llegan", "llegaria", "llegaría", "pasan",
 })
 _RESULT_TOKENS = frozenset({"resultado", "resultados", "entrega", "entregan", "entregar"})
-_ANALYSIS_TOKENS = frozenset({"analisis", "análisis", "examen", "examenes", "exámenes", "perfil", "prueba", "muestra", "muestras"})
 _ROUTE_TIMING_TOKENS = frozenset({
     "motorizado", "motorizados", "repartidor", "mensajero", "ruta", "recogida",
     "retiro", "retirar", "recoger", "pasan", "pasar", "llega", "llegaria", "llegaría",
@@ -1724,19 +1641,6 @@ def _switch_branch_keep_order(chat_id: str, session: dict, fields: dict) -> dict
         "Claro, cambiamos de sede. ¿Me compartes el NIT o el nombre de la otra veterinaria o "
         "sede para verificarla? Mantengo el resto de la orden (paciente, análisis y demás).",
     )
-
-
-def _followup_wants_new_analysis(text: str) -> bool:
-    """En el mismo mensaje de 'otra orden', ¿el cliente pidió CAMBIAR el análisis?
-    Ej.: 'otra orden con los mismos datos pero cambiale el análisis a glucosa'. Exige
-    nombrar el análisis/examen/perfil junto a una señal de cambio para no confundir con
-    'otra orden para otro paciente' (que mantiene el análisis anterior)."""
-    tokens = set(_tokenize(text))
-    if not (tokens & _ANALYSIS_TOKENS):
-        return False
-    if re.search(r"(?i)\bcambi", text or ""):
-        return True
-    return bool(tokens & {"otro", "otra", "nuevo", "nueva", "distinto", "distinta", "diferente"})
 
 
 def _start_followup_service_order_response(fields: dict, user_message: str = "") -> dict:
@@ -2127,32 +2031,6 @@ def _enforce_results_message(session: dict, ai_response: dict, user_message: str
     return _results_pending_response(fields, pending)
 
 
-_FOLLOWUP_NEW_TOKENS = frozenset({"otra", "otras", "otro", "otros", "nueva", "nuevo", "nuevas", "nuevos"})
-_FOLLOWUP_OBJECT_TOKENS = frozenset({
-    "orden", "ordenes", "órdenes", "servicio", "pedido", "pedidos", "muestra",
-    "muestras", "ruta", "recogida", "retiro", "paciente", "animal", "analisis", "análisis",
-})
-_FOLLOWUP_CREATE_TOKENS = frozenset({
-    "crear", "crea", "hacer", "haz", "programar", "agendar", "generar", "necesito", "quiero",
-})
-
-
-def _wants_another_service_order(text: str) -> bool:
-    return _explicitly_wants_another_order(text)
-
-
-def _explicitly_wants_another_order(text: str) -> bool:
-    """Pide explícitamente OTRA orden. A diferencia de `_wants_another_service_order`,
-    NO se conforma con un 'sí' suelto: se usa fuera de la fase terminal (cuando no venimos
-    de la pregunta '¿necesitas otra orden?'), por eso exige señal fuerte de nueva orden."""
-    words = set(_tokenize(text))
-    if not words or "no" in words:
-        return False
-    if words & _FOLLOWUP_NEW_TOKENS and (words & _FOLLOWUP_OBJECT_TOKENS or len(words) <= 3):
-        return True
-    return bool(words & _FOLLOWUP_CREATE_TOKENS) and bool(words & _FOLLOWUP_OBJECT_TOKENS)
-
-
 def _same_text(left: str | None, right: str | None) -> bool:
     return " ".join(_tokenize(left or "")) == " ".join(_tokenize(right or ""))
 
@@ -2496,36 +2374,6 @@ def _avoid_forbidden_route_question(session: dict, ai_response: dict) -> dict:
     return ai_response
 
 
-def _reply_asks_for_route_field(reply: str, field: str) -> bool:
-    text = " ".join(_tokenize(reply))
-    if field == "requesting_doctor":
-        return "medico solicitante" in text or "médico solicitante" in text
-    if field == "exam_type":
-        return (
-            "que tipo de analisis" in text or "qué tipo de análisis" in text
-            or "analisis o perfil exacto" in text or "análisis o perfil exacto" in text
-            or "cual van a enviar" in text or "cuál van a enviar" in text
-            or "perfil desean" in text
-        )
-    if field == "patient_name":
-        return "nombre del paciente" in text
-    if field == "species":
-        return "canino felino" in text or "otra especie" in text
-    if field == "breed":
-        return "raza del paciente" in text
-    if field == "sex":
-        return "macho o hembra" in text
-    if field == "patient_age":
-        return "edad tiene" in text
-    if field == "owner_name":
-        return "nombre del propietario" in text
-    if field == "observations":
-        return "observacion" in text or "observación" in text or "observaciones" in text
-    if field == "payment_method":
-        return "contraentrega" in text and ("linea" in text or "línea" in text)
-    return False
-
-
 def _avoid_redundant_route_field_question(session: dict, ai_response: dict) -> dict:
     if ai_response.get("intent") != "route_scheduling" or ai_response.get("requires_handoff"):
         return ai_response
@@ -2575,12 +2423,6 @@ def _enforce_first_missing_after_progress(session: dict, ai_response: dict, prev
     return ai_response
 
 
-def _reply_asks_missing_field(reply: str, field: str) -> bool:
-    if field == "client":
-        return _asks_for_client_identity(reply)
-    return _reply_asks_for_route_field(reply, field)
-
-
 def _resume_route_after_lateral_turn(session: dict, ai_response: dict) -> dict:
     if ai_response.get("intent") != "route_scheduling" or ai_response.get("requires_handoff"):
         return ai_response
@@ -2618,36 +2460,8 @@ _COHERENCE_GUARDED_FIELDS = frozenset({
 # Señales baratas de respuesta off-topic: saludos y cortesía social. Si TODA la
 # respuesta cabe acá, no contesta el dato pedido. Ningún valor válido de los campos
 # guardados (canino/felino, macho/hembra, nombres, edad con unidad) cae en este set.
-_OFF_TOPIC_SMALL_TALK_TOKENS = frozenset({
-    "hola", "holi", "ola", "buenas", "buenos", "buen", "dia", "dias",
-    "tarde", "tardes", "noche", "noches", "hey", "hi", "saludos",
-    "como", "estas", "va", "vas", "andas", "anda", "todo", "bien",
-    "que", "tal", "mas", "gracias", "jaja", "jeje", "jajaja", "uy",
-    # conectores y muletillas que acompañan al small talk
-    "y", "ah", "ahh", "ay", "oye", "pero", "pues", "eh", "este",
-    "ok", "okay", "che", "ja", "bueno",
-})
-
 # Frases sociales completas: aunque el mensaje traiga conectores, si contiene una de
 # estas claramente no responde el dato pedido.
-_SOCIAL_PHRASES = (
-    "como vas", "como estas", "como andas", "como te va", "como va",
-    "que mas", "que tal", "todo bien", "que cuentas", "que hubo",
-    "como amaneciste", "como sigues", "como va todo",
-)
-
-
-
-def _looks_off_topic_smalltalk(text: str) -> bool:
-    # El tokenizador conserva acentos; se normalizan para comparar.
-    norm = " ".join(t.translate(_ACCENT_TRANSLATION) for t in _tokenize(text))
-    if not norm:
-        return False
-    if any(phrase in norm for phrase in _SOCIAL_PHRASES):
-        return True
-    return set(norm.split()) <= _OFF_TOPIC_SMALL_TALK_TOKENS
-
-
 def _enforce_field_coherence(
     session: dict, ai_response: dict, prev_fields: dict, user_message: str, history: list[dict]
 ) -> dict:
