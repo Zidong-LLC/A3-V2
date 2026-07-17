@@ -148,6 +148,16 @@ from app.enforcers.catalogo import (
     _enforce_selected_tests_grounding as _enforce_selected_tests_grounding,
     _enforce_test_category_help as _enforce_test_category_help,
 )
+from app.enforcers.ayudas import (
+    _enforce_analysis_help_fallback as _enforce_analysis_help_fallback,
+    _enforce_catalog_profile_help as _enforce_catalog_profile_help,
+    _enforce_profile_detail_step as _enforce_profile_detail_step,
+)
+from app.enforcers.flujo import (
+    _enforce_field_coherence as _enforce_field_coherence,
+    _enforce_first_missing_after_progress as _enforce_first_missing_after_progress,
+    _enforce_payment_step as _enforce_payment_step,
+)
 from app.enforcers import enforce_selected_tests_are_catalog_codes as _enforce_selected_tests_are_catalog_codes
 from app.enforcers.grounding import (
     enforce_exam_type_grounding as _enforce_exam_type_grounding,
@@ -1023,45 +1033,7 @@ def _enforce_multiple_tests_capture(session: dict, ai_response: dict, prev_field
 
 
 # Enforcers de catálogo/identificación → app/enforcers/catalogo.py (importados arriba).
-def _enforce_analysis_help_fallback(session: dict, ai_response: dict, prev_fields: dict,
-                                    user_message: str, history: list[dict]) -> dict:
-    """Red de seguridad final del paso de análisis: si el bot pidió el análisis y el cliente
-    respondió algo VAGO (un síntoma/necesidad que no mapeó a área ni etiqueta, o no supo qué
-    pedir) y el AI dejó exam_type vacío, mostrar perfiles de la especie en una lista
-    seleccionable con precios REALES, en vez de dejar que el modelo improvise una lista sin
-    menú detrás (no seleccionable y con riesgo de inventar precios). Ver RESUELTO-016."""
-    if ai_response.get("intent") != "route_scheduling":
-        return ai_response
-    fields = ai_response.get("captured_fields", {})
-    if not (session.get("client_id") or fields.get("_client_found")):
-        return ai_response
-    species = fields.get("species")
-    if not species:
-        return ai_response
-    # Si ya hay análisis capturado o un menú/perfil/etiqueta en curso, no interferir.
-    if (fields.get("exam_type") or fields.get("_selected_profile_code")
-            or fields.get("selected_tests") is not None or fields.get("_diagnostic_label")
-            or fields.get("_test_menu_options") or fields.get("_profile_menu_options")):
-        return ai_response
-    if _detect_which_field_is_being_asked(history) != "exam_type":
-        return ai_response
-    if _wants_partial_analysis_change(user_message) or _profile_codes_from_text(user_message):
-        return ai_response
-    # ¿El mensaje nombra un análisis concreto del catálogo? Entonces NO es vago: dejar que
-    # el flujo normal lo registre, no mostrar una lista.
-    if db.get_tests_by_codes_or_names(_named_analysis_terms(user_message)):
-        return ai_response
-
-    profiles = db.list_catalog_profiles_for_species(species, limit=6)
-    if not profiles:
-        return ai_response
-    fields["exam_type"] = None
-    fields["selected_tests"] = None
-    fields["removed_tests"] = None
-    _store_profile_menu_options(fields, profiles)
-    return _base_route_response(_format_profile_recommendation(species, profiles), fields)
-
-
+# Ronda B → app/enforcers/ayudas.py y flujo.py (importados arriba).
 def _catalog_overview_response(fields: dict) -> dict:
     tests = db.list_catalog_tests(limit=500)
     choices = _catalog_overview_choices(tests)
@@ -1119,55 +1091,6 @@ def _enforce_diagnostic_label_help(session: dict, ai_response: dict, user_messag
     if area and area_tests:
         reply += f"\n\nTambién mencionaste {area.lower()}; apenas cerremos este perfil, recuérdamelo y lo vemos."
     return _base_route_response(reply, fields)
-
-
-def _enforce_catalog_profile_help(session: dict, ai_response: dict, user_message: str, history: list[dict]) -> dict:
-    if ai_response.get("intent") != "route_scheduling":
-        return ai_response
-
-    fields = ai_response.get("captured_fields", {})
-    if not (session.get("client_id") or fields.get("_client_found")):
-        return ai_response
-
-    detail_question = _is_profile_detail_question(user_message)
-    species = fields.get("species")
-
-    if fields.get("_profile_detail_offered"):
-        if detail_question and fields.get("_selected_profile_code"):
-            profiles = db.get_catalog_profiles_by_codes([fields["_selected_profile_code"]], species)
-            if profiles:
-                return _base_route_response(_profile_detail_reply(profiles[0]), fields)
-        return ai_response
-
-    if detail_question:
-        codes = _profile_codes_from_text(user_message) or _profile_codes_from_text(_last_bot_message(history))
-        if codes:
-            profiles = db.get_catalog_profiles_by_codes(codes, species)
-            if len(profiles) == 1:
-                _store_selected_profile_fields(fields, profiles[0])
-                return _base_route_response(_profile_detail_reply(profiles[0]), fields)
-            if len(profiles) > 1:
-                fields["exam_type"] = None
-                fields["_profile_options_offered"] = True
-                return _base_route_response(_format_profile_options_with_details(None, profiles), fields)
-
-    query = fields.get("exam_type") if _looks_like_catalog_profile(fields.get("exam_type")) else None
-    if detail_question and not query:
-        query = user_message
-    if not query:
-        return ai_response
-    if not detail_question and _looks_like_specific_profile_query(query):
-        return ai_response
-
-    profiles = db.find_catalog_profiles(query, species)
-    if len(profiles) > 1:
-        fields["exam_type"] = None
-        fields["_profile_options_offered"] = True
-        return _base_route_response(_format_profile_options_with_details(query, profiles), fields)
-    if detail_question and len(profiles) == 1:
-        _store_selected_profile_fields(fields, profiles[0])
-        return _base_route_response(_profile_detail_reply(profiles[0]), fields)
-    return ai_response
 
 
 def _enforce_profile_recommendation_help(session: dict, ai_response: dict, user_message: str, history: list[dict]) -> dict:
@@ -2391,38 +2314,6 @@ def _avoid_redundant_route_field_question(session: dict, ai_response: dict) -> d
     return ai_response
 
 
-def _enforce_first_missing_after_progress(session: dict, ai_response: dict, prev_fields: dict) -> dict:
-    if ai_response.get("intent") != "route_scheduling" or ai_response.get("requires_handoff"):
-        return ai_response
-    if ai_response.get("phase") in TERMINAL_PHASES or ai_response.get("phase") == CONFIRMATION_PHASE:
-        return ai_response
-
-    fields = ai_response.get("captured_fields", {})
-    if fields.get("_client_match_options") or fields.get("_client_not_found"):
-        return ai_response
-    # Oferta de agregar otro análisis activa (Parte B): no pisarla con la pregunta de pago.
-    if fields.get("_offering_extra_analysis"):
-        return ai_response
-    # Un menú recién ofrecido (análisis o perfiles) ES la pregunta del análisis: no
-    # pisarlo con la plantilla del dato faltante (ERR-048: "Perfecto, lo anoto. ¿qué
-    # análisis o perfil desean?" tapaba el menú de perfiles por categoría).
-    if (fields.get("_test_menu_options") or fields.get("_profile_menu_options")
-            or (fields.get("selected_tests") is not None and not fields.get("exam_type"))):
-        return ai_response
-    progressed = any(fields.get(f) and fields.get(f) != prev_fields.get(f) for f in _ROUTE_REQUIRED_FIELDS)
-    if not progressed:
-        return ai_response
-
-    missing = _missing_route_field(session, fields)
-    if not missing or _reply_asks_missing_field(ai_response.get("reply", ""), missing):
-        return ai_response
-    if missing == "pickup_address" and fields.get("_address_confirmation_pending"):
-        return ai_response
-
-    ai_response["reply"] = f"Perfecto, lo anoto. {_missing_route_field_question(missing)}"
-    return ai_response
-
-
 def _resume_route_after_lateral_turn(session: dict, ai_response: dict) -> dict:
     if ai_response.get("intent") != "route_scheduling" or ai_response.get("requires_handoff"):
         return ai_response
@@ -2453,55 +2344,11 @@ def _resume_route_after_lateral_turn(session: dict, ai_response: dict) -> dict:
 # llega un saludo o small talk, hay que reencauzar en vez de capturar basura.
 # exam_type queda fuera (lo gobierna el flujo de catálogo/perfil); cliente,
 # dirección, pago y observaciones tienen su propio manejo dedicado.
-_COHERENCE_GUARDED_FIELDS = frozenset({
-    "requesting_doctor", "patient_name", "species", "breed", "sex", "patient_age", "owner_name",
-})
-
 # Señales baratas de respuesta off-topic: saludos y cortesía social. Si TODA la
 # respuesta cabe acá, no contesta el dato pedido. Ningún valor válido de los campos
 # guardados (canino/felino, macho/hembra, nombres, edad con unidad) cae en este set.
 # Frases sociales completas: aunque el mensaje traiga conectores, si contiene una de
 # estas claramente no responde el dato pedido.
-def _enforce_field_coherence(
-    session: dict, ai_response: dict, prev_fields: dict, user_message: str, history: list[dict]
-) -> dict:
-    """Red de seguridad: si el bot pidió un dato concreto del paciente y el usuario
-    respondió con un saludo o small talk, no captura basura. Verifica con un modelo
-    corto (solo cuando la respuesta huele a off-topic) y, si confirma que no responde,
-    descarta lo capturado para ese campo y reencauza con calidez."""
-    if ai_response.get("intent") != "route_scheduling" or ai_response.get("requires_handoff"):
-        return ai_response
-    if ai_response.get("message_mode") == "cancellation":
-        return ai_response
-    if ai_response.get("phase") in TERMINAL_PHASES or ai_response.get("phase") == CONFIRMATION_PHASE:
-        return ai_response
-
-    fields = ai_response.get("captured_fields", {})
-    if not (session.get("client_id") or fields.get("_client_found")):
-        return ai_response
-    # No interferir con el armado/personalización de perfil ni la selección de análisis.
-    if fields.get("selected_tests") is not None or fields.get("_profile_customizing"):
-        return ai_response
-
-    field = _detect_which_field_is_being_asked(history)
-    if field not in _COHERENCE_GUARDED_FIELDS:
-        return ai_response
-    if not _looks_off_topic_smalltalk(user_message):
-        return ai_response
-
-    question = _last_bot_message(history) or _missing_route_field_question(field)
-    interp = ai.interpret_route_field(question, user_message)
-    if interp.get("action") == "save" and interp.get("value"):
-        return ai_response
-
-    # Incoherente: descartar lo que el modelo haya capturado para ese campo y reencauzar.
-    fields[field] = prev_fields.get(field)
-    reply = interp.get("reply") or _missing_route_field_question(field)
-    response = _base_route_response(reply, fields)
-    response["message_mode"] = "small_talk"
-    return response
-
-
 # Variantes y errores de tipeo comunes de los campos enumerados. Si el modelo no
 # captura la respuesta (p. ej. "kanino", "perrito", "masho"), la recuperamos nosotros
 # para no repreguntar en bucle. Valores genuinamente ambiguos (ej. "Kany") quedan
@@ -2651,130 +2498,6 @@ def _prevent_incomplete_route_closure(session: dict, ai_response: dict, fields: 
     ai_response["handoff_area"] = None
     ai_response["message_mode"] = "flow_progress"
     return ai_response
-
-
-def _enforce_payment_step(session: dict, ai_response: dict, fields: dict, user_message: str = "") -> dict:
-    if ai_response.get("intent") != "route_scheduling":
-        return ai_response
-    if fields.get("_profile_customizing"):
-        return ai_response
-    # Mientras está activa la oferta de agregar otro análisis (Parte B), no saltar al pago:
-    # ese paso lo decide _handle_extra_analysis_answer cuando el cliente diga que sigue.
-    if fields.get("_offering_extra_analysis"):
-        return ai_response
-
-    if not _route_ready_for_payment(session, fields):
-        return ai_response
-
-    # LÓGICA DE RETROCESO (L50): el flujo no solo avanza — el cliente puede volver a un paso
-    # anterior desde cualquier punto ("antes de cerrar quiero agregar otro análisis", "esperá,
-    # el dueño es otro"). Si la IA leyó una corrección/cambio, el empuje del paso de pago CEDE
-    # y se respeta la respuesta del modelo que atiende ese cambio. Fuente primaria: la señal;
-    # el detector de tokens de abajo es la red para cuando el modelo no la marca.
-    if not fields.get("payment_method") and ai_response.get("user_intent_signal") == "correction":
-        return ai_response
-
-    # Red de tokens: pide AGREGAR otro análisis sin nombrarlo → reabrir el paso de agregado.
-    if not fields.get("payment_method") and _wants_partial_analysis_change(user_message):
-        fields["_offering_extra_analysis"] = True
-        fields["_awaiting_additional_test"] = "add"
-        ai_response["reply"] = "Claro. ¿Qué análisis quieres agregar? Decime el nombre o el código."
-        ai_response["phase"] = "fase_2_recogida_datos"
-        ai_response["intent"] = "route_scheduling"
-        ai_response["service_area"] = "route_scheduling"
-        ai_response["requires_handoff"] = False
-        ai_response["handoff_area"] = None
-        ai_response["message_mode"] = "flow_progress"
-        return ai_response
-
-    payment_method = fields.get("payment_method")
-    if payment_method in PAYMENT_METHODS:
-        ai_response["service_area"] = "route_scheduling"
-        if payment_method == "pago_linea":
-            ai_response["requires_handoff"] = True
-            ai_response["handoff_area"] = ai_response.get("handoff_area") or "contabilidad"
-        elif payment_method == "contraentrega":
-            ai_response["requires_handoff"] = False
-            ai_response["handoff_area"] = None
-        return ai_response
-
-    # Un menú activo es una PREGUNTA ABIERTA al cliente (ej. las opciones de orina del
-    # anclaje): el empuje del pago no la pisa — el pago se pregunta cuando el menú se
-    # resuelva (misma lógica L50: ningún empuje de paso pisa lo pendiente). Los menús
-    # pegados de turnos anteriores ya fueron descartados antes (ERR-060), así que lo que
-    # queda acá es una pregunta legítima de ESTE turno.
-    if fields.get("_test_menu_options") or fields.get("_profile_menu_options"):
-        return ai_response
-    ai_response["reply"] = PAYMENT_METHOD_QUESTION
-    ai_response["phase"] = "fase_2_recogida_datos"
-    ai_response["intent"] = "route_scheduling"
-    ai_response["service_area"] = "route_scheduling"
-    ai_response["requires_handoff"] = False
-    ai_response["handoff_area"] = None
-    ai_response["message_mode"] = "flow_progress"
-    ai_response["pending_intents"] = ai_response.get("pending_intents", [])
-    return ai_response
-
-
-def _enforce_profile_detail_step(session: dict, ai_response: dict, fields: dict, user_message: str) -> dict:
-    if ai_response.get("intent") != "route_scheduling":
-        return ai_response
-    if fields.get("_profile_detail_confirmed") or fields.get("_profile_customizing"):
-        return ai_response
-    if fields.get("selected_tests") is not None and not fields.get("_selected_profile_code"):
-        return ai_response
-
-    if fields.get("_profile_detail_offered"):
-        signal = ai_response.get("user_intent_signal")
-        # Ajuste PARCIAL del perfil base: 'personalizar/agregar/quitar' (tokens explícitos) o
-        # 'el mismo pero sin X / igual más Y'. Mantiene el perfil base y entra al modo
-        # personalización; el detalle (qué agregar/quitar) lo captura el LLM con el contexto
-        # de "PERFIL BASE EN PERSONALIZACIÓN" inyectado.
-        wants_customization = _is_profile_customization_request(user_message) or _wants_partial_analysis_change(user_message)
-        rows = db.get_tests_by_codes_or_names([user_message] + _named_analysis_terms(user_message)) if wants_customization else []
-        if wants_customization and (rows or signal != "negate"):
-            fields["_profile_customizing"] = True
-            if not isinstance(fields.get("selected_tests"), list):
-                fields["selected_tests"] = []
-            if not isinstance(fields.get("removed_tests"), list):
-                fields["removed_tests"] = []
-            if rows:
-                selected = _as_text_items(fields.get("selected_tests"))
-                removed = _as_text_items(fields.get("removed_tests"))
-                target = removed if {"quitar", "quita", "sacar", "saca", "retirar", "remover"} & set(_tokenize(user_message)) else selected
-                action = "quito" if target is removed else "agrego"
-                for row in rows:
-                    code = str(row.get("code") or row.get("name"))
-                    if code not in target:
-                        target.append(code)
-                    if target is removed and code in selected:
-                        selected.remove(code)
-                fields["selected_tests"] = selected
-                fields["removed_tests"] = removed
-                return _base_route_response(
-                    f"Listo, {action} {_format_test_items(rows)}. ¿Agregas o quitas otro análisis, o cerramos así?",
-                    fields,
-                )
-            return _base_route_response(_profile_customization_reply(fields), fields)
-        if signal in {"affirm", "negate"} or _is_profile_confirmation(user_message):
-            fields["_profile_detail_confirmed"] = True
-        return ai_response
-
-    exam_type = fields.get("exam_type")
-    if not _looks_like_catalog_profile(exam_type):
-        return ai_response
-
-    profile = db.find_catalog_profile(exam_type, fields.get("species"))
-    if not profile:
-        return ai_response
-
-    fields["exam_type"] = profile.get("name") or exam_type
-    fields["_selected_profile_code"] = profile.get("code")
-    fields["_selected_profile_name"] = profile.get("name") or exam_type
-    fields["_selected_profile_price"] = int(profile.get("price") or 0)
-    fields["_selected_profile_description"] = profile.get("description") or ""
-    fields["_profile_detail_offered"] = True
-    return _base_route_response(_profile_detail_reply(profile), fields)
 
 
 def _enforce_profile_customization_changes(ai_response: dict, prev_fields: dict, user_message: str) -> dict:
