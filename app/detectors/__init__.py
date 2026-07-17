@@ -71,3 +71,8 @@ from app.detectors.cliente import (  # noqa: F401
     _wants_new_branch,
     _wants_to_change_client,
 )
+from app.detectors.orden import (  # noqa: F401
+    _SAME_AS_PHRASES,
+    _SAME_AS_PREVIOUS_TOKENS,
+    _is_same_as_previous,
+)

@@ -18,6 +18,9 @@ from app.config import ALEGRA_ENABLED, APP_TIMEZONE
 from app.services import ai, db, alegra
 from app.rules import TERMINAL_PHASES, calculate_custom_profile_total, calculate_profile_adjusted_total
 from app.detectors import (
+    _SAME_AS_PREVIOUS_TOKENS,
+    _SAME_AS_PHRASES,
+    _is_same_as_previous,
     _wants_to_change_client,
     _wants_new_branch,
     _claims_unregistered_client,
@@ -69,6 +72,10 @@ from app.flow import (
     missing_route_field_question as _missing_route_field_question,
 )
 from app.enforcers import enforce_selected_tests_are_catalog_codes as _enforce_selected_tests_are_catalog_codes
+from app.enforcers.grounding import (
+    enforce_exam_type_grounding as _enforce_exam_type_grounding,
+    enforce_age_unit_grounding as _enforce_age_unit_grounding,
+)
 from app.messages import (
     CLIENT_LOOKUP_PROGRESS_MESSAGE, WELCOME_MESSAGE, FINAL_USER_MESSAGE,
     CLIENT_IDENTIFICATION_REQUIRED_MESSAGE, CLIENT_NOT_FOUND_MESSAGE,
@@ -204,35 +211,12 @@ _TITLECASE_FIELDS = ("clinic_name", "patient_name", "species", "breed", "owner_n
 CONFIRMATION_PHASE = state.Phase.CONFIRMACION.value  # "fase_4_confirmacion" (fuente: state.Phase)
 # CORRECTION_PROMPT → app/messages.py (importado arriba).
 # Vocabulario de confirmación/pedido/corrección → app/detectors.py (importados arriba).
-_SAME_AS_PREVIOUS_TOKENS = frozenset({
-    "mismo", "misma", "mismos", "mismas", "igual", "iguales",
-    "anterior", "antes", "previo", "repetir", "repetido",
-    "repetimos", "igualito", "siempre", "costumbre",
-})
-
+# _is_same_as_previous y su vocabulario → app/detectors/orden.py (importados arriba).
 # Señal de que un campo es lo que CAMBIA (no "el mismo"): "el mismo, solo CAMBIA el paciente".
 _CHANGE_TOKENS = frozenset({
     "cambia", "cambiaba", "cambian", "cambiar", "cambie", "cambio", "cambió",
     "distinto", "distinta", "diferente", "otro", "otra", "menos", "excepto", "salvo",
 })
-
-_SAME_AS_PHRASES = (
-    "el mismo", "la misma", "lo mismo", "los mismos", "las mismas",
-    "el de siempre", "la de siempre", "lo de siempre", "como siempre",
-    "el de costumbre", "lo de costumbre", "de siempre",
-    "el de antes", "la de antes", "lo de antes",
-    "igual que el", "igual que la", "igual que lo",
-    "como el anterior", "como la anterior", "como lo anterior",
-    "el anterior", "la anterior", "lo anterior",
-    "mismo que", "misma que", "lo de la vez anterior",
-    "lo de la orden anterior", "repetir", "lo mismo de",
-    "igual al anterior", "igual a la anterior",
-    "el del otro", "la del otro",
-    "el de la orden pasada", "la de la orden pasada", "como la vez pasada",
-    "de la vez pasada", "dejalo como antes", "déjalo como antes",
-    "dejalo igual", "déjalo igual", "el de la otra", "la de la otra",
-    "como la otra",
-)
 
 _SAME_AS_FIELD_KEYWORDS = (
     (("médico", "medico", "doctor", "doctora", "solicitante"), "requesting_doctor"),
@@ -2252,20 +2236,6 @@ def _begin_followup_order(fields: dict, user_message: str = "") -> dict:
     return ai_response
 
 
-def _is_same_as_previous(text: str) -> bool:
-    lower = (text or "").lower().strip()
-    if not lower:
-        return False
-    tokens = set(_tokenize(text))
-    if tokens & _SAME_AS_PREVIOUS_TOKENS and len(tokens) <= 6:
-        if not tokens & _AFFIRMATIVE_TOKENS or len(tokens) <= 3:
-            return True
-    for phrase in _SAME_AS_PHRASES:
-        if phrase in lower:
-            return True
-    return False
-
-
 def _extract_same_as_field(text: str) -> str | None:
     lower = (text or "").lower().strip()
     for keywords, field in _SAME_AS_FIELD_KEYWORDS:
@@ -3544,90 +3514,7 @@ def _enforce_profile_customization_changes(ai_response: dict, prev_fields: dict,
 
 # Sin "dia/día/semana" en singular: aparecen en charla común ("buen día") y hacían
 # creer que el cliente dio la unidad. La edad en días/semanas se dice en plural.
-_AGE_UNIT_TOKENS = frozenset({
-    "año", "años", "anio", "anios", "ano", "anos", "mes", "meses",
-    "dias", "días", "semanas",
-})
-
-
-def _enforce_age_unit_grounding(ai_response: dict, prev_fields: dict, user_message: str,
-                                history: list[dict] | None = None) -> dict:
-    """QA-3 (2026-07-05): el cliente dio la edad SIN unidad ('hembra, 2') y el modelo
-    registró '2 años' inventando la unidad. Si la unidad no vino del cliente (ni en este
-    mensaje ni en sus turnos recientes), se guarda solo el número y la regla existente
-    (#10) la re-pregunta con ejemplos."""
-    if ai_response.get("intent") != "route_scheduling":
-        return ai_response
-    fields = ai_response.get("captured_fields", {})
-    age = fields.get("patient_age")
-    if not age or age == (prev_fields or {}).get("patient_age"):
-        return ai_response
-    match = re.match(r"^\s*(\d{1,3})\s*(años?|anios?|meses?|d[ií]as?|semanas?)\s*$",
-                     str(age), re.IGNORECASE)
-    if not match:
-        return ai_response
-    user_texts = [user_message] + [
-        m.get("content", "") for m in (history or []) if m.get("role") == "user"
-    ]
-    tokens = set()
-    for text in user_texts:
-        tokens |= set(_tokenize(text))
-    if tokens & _AGE_UNIT_TOKENS:
-        return ai_response
-    if match.group(1) not in tokens:
-        return ai_response  # el número no vino del cliente: no tocar
-    fields["patient_age"] = match.group(1)
-    return ai_response
-
-
-_EXAM_GROUNDING_STOPWORDS = frozenset({
-    "perfil", "perfiles", "analisis", "análisis", "examen", "prueba", "pruebas",
-    "canino", "canina", "felino", "felina", "completo", "completa", "test", "panel",
-})
-
-
-def _enforce_exam_type_grounding(ai_response: dict, prev_fields: dict,
-                                 user_message: str, history: list[dict]) -> dict:
-    """QA-5 (2026-07-05): el modelo capturó un perfil que el cliente NUNCA nombró
-    ('Perfil Senior Canino V' — $130.000 — ante un 'sin observaciones') y la orden se
-    confirmó así. Un exam_type NUEVO debe estar anclado a lo que el cliente dijo (este
-    mensaje o sus turnos recientes): si ningún token significativo del análisis aparece
-    en el texto del cliente, se descarta y se pregunta el análisis en vez de inventarlo."""
-    if ai_response.get("intent") != "route_scheduling":
-        return ai_response
-    fields = ai_response.get("captured_fields", {})
-    exam = fields.get("exam_type")
-    prev = prev_fields or {}
-    if (not exam or exam == prev.get("exam_type")
-            or fields.get("_diagnostic_label")
-            or prev.get("_test_menu_options") or prev.get("_profile_menu_options")
-            or prev.get("_selected_profile_code")
-            or prev.get("selected_tests") is not None
-            or prev.get("_profile_customizing")
-            or _is_same_as_previous(user_message)):
-        return ai_response
-    snapshot = prev.get("_prev_order_snapshot") or {}
-    if exam == snapshot.get("exam_type"):
-        return ai_response
-    user_text = " ".join(
-        [user_message] + [m.get("content", "") for m in history if m.get("role") == "user"]
-    )
-    user_key = _catalog_item_key(user_text)
-    tokens = [
-        t for t in _catalog_item_key(_strip_price_text(str(exam))).split("_")
-        if len(t) >= 4 and t not in _EXAM_GROUNDING_STOPWORDS
-    ]
-    if not tokens or any(t in user_key for t in tokens):
-        return ai_response
-    fields["exam_type"] = None
-    fields["selected_tests"] = None
-    fields["removed_tests"] = None
-    reply = ai_response.get("reply") or ""
-    if "análisis" not in reply.lower() and "perfil" not in reply.lower():
-        ai_response["reply"] = _missing_route_field_question("exam_type")
-    return ai_response
-
-
+# Enforcers de anclaje → app/enforcers/grounding.py (importados abajo con alias).
 def _enforce_loose_exam_catalog_resolution(ai_response: dict, prev_fields: dict) -> dict:
     """QA-1/QA-7 (2026-07-05): un análisis suelto capturado como TEXTO ('Coprológico $23k')
     se resuelve SIEMPRE contra el catálogo — selected_tests estructurado con código y

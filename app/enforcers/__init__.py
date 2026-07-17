@@ -7,3 +7,7 @@ queden en agent, para no crear imports circulares).
 from app.enforcers.dinero import (  # noqa: F401
     enforce_selected_tests_are_catalog_codes,
 )
+from app.enforcers.grounding import (  # noqa: F401
+    enforce_exam_type_grounding,
+    enforce_age_unit_grounding,
+)

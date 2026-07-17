@@ -2,7 +2,7 @@
 import re
 
 from app.text import tokenize as _tokenize
-from app.detectors.basico import _NEGATIVE_TOKENS, _is_affirmative_text
+from app.detectors.basico import _AFFIRMATIVE_TOKENS, _NEGATIVE_TOKENS, _is_affirmative_text
 
 _CORRECTION_TOKENS = frozenset({
     "corregir", "corrige", "corrijo", "cambiar", "cambia", "cambie", "modificar",
@@ -105,3 +105,43 @@ def _confirms_order_now(ai_response: dict, user_message: str) -> bool:
     if signal in {"negate", "correction", "change_client", "another_order", "cancel"}:
         return False
     return _is_order_confirmation(user_message)
+
+
+_SAME_AS_PREVIOUS_TOKENS = frozenset({
+    "mismo", "misma", "mismos", "mismas", "igual", "iguales",
+    "anterior", "antes", "previo", "repetir", "repetido",
+    "repetimos", "igualito", "siempre", "costumbre",
+})
+
+
+_SAME_AS_PHRASES = (
+    "el mismo", "la misma", "lo mismo", "los mismos", "las mismas",
+    "el de siempre", "la de siempre", "lo de siempre", "como siempre",
+    "el de costumbre", "lo de costumbre", "de siempre",
+    "el de antes", "la de antes", "lo de antes",
+    "igual que el", "igual que la", "igual que lo",
+    "como el anterior", "como la anterior", "como lo anterior",
+    "el anterior", "la anterior", "lo anterior",
+    "mismo que", "misma que", "lo de la vez anterior",
+    "lo de la orden anterior", "repetir", "lo mismo de",
+    "igual al anterior", "igual a la anterior",
+    "el del otro", "la del otro",
+    "el de la orden pasada", "la de la orden pasada", "como la vez pasada",
+    "de la vez pasada", "dejalo como antes", "déjalo como antes",
+    "dejalo igual", "déjalo igual", "el de la otra", "la de la otra",
+    "como la otra",
+)
+
+
+def _is_same_as_previous(text: str) -> bool:
+    lower = (text or "").lower().strip()
+    if not lower:
+        return False
+    tokens = set(_tokenize(text))
+    if tokens & _SAME_AS_PREVIOUS_TOKENS and len(tokens) <= 6:
+        if not tokens & _AFFIRMATIVE_TOKENS or len(tokens) <= 3:
+            return True
+    for phrase in _SAME_AS_PHRASES:
+        if phrase in lower:
+            return True
+    return False
