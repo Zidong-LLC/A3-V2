@@ -42,6 +42,7 @@ from app.menus import (
     _unknown_catalog_items,
 )
 from app.orders import (
+    _scan_ambiguous_terms, _menu_for_ambiguous_term,
     _add_tests_to_order,
     _analysis_settled_response,
     _area_options_for_profile_addition,
@@ -153,12 +154,15 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
             _add_tests_to_order(fields, result.tests, "add")
             fields.pop("_awaiting_additional_test", None)
             intro = f"Listo, agrego {_format_test_items(result.tests)}."
-            # Pedido MIXTO (ERR-067): si la misma frase menciona además un ÁREA ambigua
-            # ('orina, sodio y potasio'), el área se OFRECE — no se ignora en silencio.
-            area_resp = _area_options_for_profile_addition(fields, user_message, require_question=False)
-            if area_resp:
-                area_resp["reply"] = f"{intro}\n{area_resp['reply']}"
-                return area_resp
+            # Pedido MIXTO (ERR-067): los términos con OPCIONES de la misma frase se
+            # ofrecen en ORDEN de pedido — el primero ya, el resto en cola paso a paso.
+            ambiguous = _scan_ambiguous_terms(fields, user_message)
+            if ambiguous:
+                menu = _menu_for_ambiguous_term(fields, ambiguous[0])
+                if menu:
+                    if ambiguous[1:]:
+                        fields["_pending_ambiguous_items"] = ambiguous[1:]
+                    return _base_route_response(f"{intro}\n{menu}", fields)
             return _analysis_settled_response(session, fields, intro)
         if result.status == catalog.AMBIGUOUS:
             _store_test_menu_options(fields, result.tests)

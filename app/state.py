@@ -80,7 +80,7 @@ FLAGS_ANALISIS = frozenset({
     "_profile_options_offered", "_profile_customizing", "_diagnostic_label",
     "_custom_profile_summary", "_test_menu_options", "_test_menu_adds_to_profile",
     "_profile_menu_options", "_offering_extra_analysis", "_awaiting_additional_test",
-    "_awaiting_exact_name",
+    "_awaiting_exact_name", "_pending_ambiguous_items",
 })
 FLAGS_DIRECCION = frozenset({"_address_confirmation_pending", "_address_confirmed"})
 FLAGS_CIERRE = frozenset({

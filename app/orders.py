@@ -152,6 +152,11 @@ def _route_closure_summary(fields: dict) -> str | None:
 
 
 def _analysis_settled_response(session: dict, fields: dict, intro: str) -> dict:
+    # Cola de ambiguos pendientes (pedido múltiple): antes de ofrecer/avanzar, continuar
+    # con el SIGUIENTE término que el cliente pidió ('perfecto, ahora vamos con...').
+    pending = _offer_next_pending(session, fields, intro)
+    if pending:
+        return pending
     """Respuesta única tras fijar o ajustar el análisis. Si la orden YA tiene análisis y lo
     único que falta es el pago, OFRECE agregar más (se repite tras cada agregado hasta que el
     cliente siga). Si faltan otros datos, pide el siguiente; si está todo, muestra el resumen.
@@ -274,6 +279,62 @@ def _category_profiles_menu_response(fields: dict, category_text: str) -> dict |
 
 
 
+def _menu_for_ambiguous_term(fields: dict, term: str) -> str | None:
+    """Arma el menú (tests de área o perfiles de categoría) para UN término ambiguo y lo
+    deja seleccionable. Devuelve el texto del menú, o None si el término no abre opciones."""
+    area, tests = db.find_tests_by_area(term, fields.get("species"), limit=10)
+    if area and tests:
+        _store_test_menu_options(fields, tests)
+        fields["_test_menu_adds_to_profile"] = True
+        return _test_area_suggestion_reply(area, tests)
+    try:
+        profiles = db.list_catalog_profiles_matching_category(term, fields.get("species"), limit=11)
+    except Exception:
+        profiles = []
+    if profiles:
+        _store_profile_menu_options(fields, profiles)
+        lines = [f"Para {term.strip().lower()} tenemos estos perfiles armados:"]
+        lines += _profile_menu_option_lines(profiles)
+        lines.append("Decime el número o el nombre del que prefieras.")
+        return "\n".join(lines)
+    return None
+
+
+def _scan_ambiguous_terms(fields: dict, user_message: str) -> list[str]:
+    """Términos del mensaje que abren OPCIONES (área de tests o categoría de perfiles),
+    en el ORDEN en que el cliente los dijo. Ignora lo ya resuelto inequívoco."""
+    added_names = " ".join(str(t) for t in (fields.get("selected_tests") or []))
+    terms = []
+    for item in catalog.split_items(user_message):
+        area, tests = db.find_tests_by_area(item, fields.get("species"), limit=3)
+        if area and tests:
+            terms.append(item)
+            continue
+        try:
+            if db.list_catalog_profiles_matching_category(item, fields.get("species"), limit=2):
+                terms.append(item)
+        except Exception:
+            pass
+    return terms
+
+
+def _offer_next_pending(session: dict, fields: dict, intro: str) -> dict | None:
+    """PASO A PASO por orden de pedido (feature 2026-07-17): si quedan términos ambiguos
+    en cola de un pedido múltiple ('orina y un prequirúrgico'), al resolverse uno se ofrece
+    el MENÚ del siguiente automáticamente, hasta drenar la cola."""
+    queue = list(fields.get("_pending_ambiguous_items") or [])
+    while queue:
+        term = queue.pop(0)
+        fields["_pending_ambiguous_items"] = queue
+        menu = _menu_for_ambiguous_term(fields, term)
+        if menu:
+            return _base_route_response(
+                f"{intro} Ahora vamos con lo siguiente que pediste:\n{menu}", fields,
+            )
+    fields.pop("_pending_ambiguous_items", None)
+    return None
+
+
 def _profile_addition_if_mentioned(session: dict, fields: dict, user_message: str, intro: str) -> dict | None:
     """Agregados mencionados JUNTO a otra cosa (elegir el perfil, un pedido mixto). Mira el
     CONTENIDO, no el verbo — 'le quiero ARRESTAR aparte orina sodio y potasio' (typo real)
@@ -291,10 +352,17 @@ def _profile_addition_if_mentioned(session: dict, fields: dict, user_message: st
     if res is not None and res.status == catalog.EXACT and res.tests:
         _add_tests_to_order(fields, res.tests, "add")
         added_txt = f" Agrego {_format_test_items(res.tests)}."
-    area_response = _area_options_for_profile_addition(fields, user_message, require_question=False)
-    if area_response:
-        area_response["reply"] = f"{intro}{added_txt}\n{area_response['reply']}"
-        return area_response
+    # Términos con OPCIONES, en orden de pedido: el primero se ofrece ya; el resto queda en
+    # cola y se ofrece paso a paso a medida que el cliente vaya eligiendo.
+    ambiguous = _scan_ambiguous_terms(fields, user_message)
+    if ambiguous:
+        first, rest = ambiguous[0], ambiguous[1:]
+        menu = _menu_for_ambiguous_term(fields, first)
+        if menu:
+            if rest:
+                fields["_pending_ambiguous_items"] = rest
+            fields.pop("_awaiting_additional_test", None)
+            return _base_route_response(f"{intro}{added_txt}\n{menu}", fields)
     if added_txt:
         fields["_profile_customizing"] = False
         return _analysis_settled_response(session, fields, f"{intro}{added_txt}")

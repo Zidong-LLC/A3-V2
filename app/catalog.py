@@ -58,6 +58,11 @@ GENERIC_DESCRIPTORS = frozenset({
 _SPLIT = re.compile(r"\s*(?:,|;|/|\+|\by\b|\be\b|\bmas\b|\bmás\b)\s*")
 
 
+def split_items(text: str) -> list[str]:
+    """Ítems de un pedido múltiple, en el orden en que el cliente los dijo."""
+    return [i.strip() for i in _SPLIT.split(text or "") if i and i.strip()]
+
+
 @dataclass
 class ResolveResult:
     status: str

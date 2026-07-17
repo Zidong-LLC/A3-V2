@@ -69,3 +69,35 @@ def test_mixed_during_extra_offer_also_decomposes():
     assert {"1404", "1405"} <= set(fields.get("selected_tests") or [])
     assert fields.get("_test_menu_options")
     assert "Sodio" in out["reply"] and "uroanálisis" in out["reply"].lower()
+
+
+def test_multiple_ambiguous_resolve_step_by_step_in_order():
+    """Feature 2026-07-17: 'orina y un prequirurgico' — ambos con opciones. Primero el menú
+    de orina; al elegir, el bot solo sigue con el siguiente pedido (cola en orden)."""
+    fields = dict(BASE)
+    fields.pop("_selected_profile_code"); fields.pop("_selected_profile_name")
+    fields.pop("_selected_profile_price"); fields.pop("exam_type")
+    PREQ = [{"code": "152", "name": "Perfil Prequirúrgico I", "price": 24000}]
+
+    def fake_area(term, species=None, limit=15):
+        return ("Uroanálisis", URO) if "orina" in term.lower() else (None, [])
+
+    def fake_cats(term, species=None, limit=11):
+        return PREQ if "prequirurgico" in term.lower() or "prequirúrgico" in term.lower() else []
+
+    with patch.object(orders.db, "list_catalog_tests", return_value=CATALOGO), \
+         patch.object(orders.db, "find_tests_by_area", side_effect=fake_area), \
+         patch.object(orders.db, "list_catalog_profiles_matching_category", side_effect=fake_cats), \
+         patch.object(orders.db, "get_tests_by_codes_or_names", return_value=[]):
+        out = orders._profile_addition_if_mentioned(
+            SESSION, fields, "quiero un analisis de orina y un prequirurgico", "Listo.")
+        # 1) primero el menú de orina; el prequirúrgico queda EN COLA
+        assert out and "uroanálisis" in out["reply"].lower()
+        assert fields.get("_pending_ambiguous_items")
+        # 2) el cliente elige del menú → al asentarse, sigue SOLO con el prequirúrgico
+        fields["selected_tests"] = ["1601"]
+        fields.pop("_test_menu_options", None)
+        out2 = orders._analysis_settled_response(SESSION, dict(BASE, **fields), "Listo, agrego 1601.")
+        assert "ahora vamos con lo siguiente" in out2["reply"].lower()
+        assert "prequir" in out2["reply"].lower()
+        assert not (out2["captured_fields"].get("_pending_ambiguous_items"))   # cola drenada
