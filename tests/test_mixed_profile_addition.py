@@ -55,3 +55,17 @@ def test_plain_profile_selection_mentions_nothing():
         res = orders._profile_addition_if_mentioned(SESSION, fields, "el 152", "Listo.")
     assert res is None
     assert not fields.get("selected_tests")
+
+
+def test_mixed_during_extra_offer_also_decomposes():
+    """Mismo patrón en la oferta '¿agregás otro?': 'orina sodio y potasio' (sin verbo de
+    agregar) suma los nombrados Y ofrece el menú del área — antes el área se ignoraba."""
+    from app.enforcers import orden as eorden
+    fields = dict(BASE, _offering_extra_analysis=True)
+    with patch.object(eorden.db, "list_catalog_tests", return_value=CATALOGO), \
+         patch.object(eorden.db, "find_tests_by_area", return_value=("Uroanálisis", URO)), \
+         patch.object(eorden.db, "get_tests_by_codes_or_names", return_value=[]):
+        out = eorden._handle_extra_analysis_answer(SESSION, fields, "orina sodio y potasio")
+    assert {"1404", "1405"} <= set(fields.get("selected_tests") or [])
+    assert fields.get("_test_menu_options")
+    assert "Sodio" in out["reply"] and "uroanálisis" in out["reply"].lower()
