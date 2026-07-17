@@ -3346,10 +3346,15 @@ def process_turn(
                 # el nombre que leyó el LLM y, de refuerzo (a veces lo captura con ruido), las
                 # palabras significativas del mensaje. NUNCA match parcial aquí.
                 fields.pop("_awaiting_exact_name", None)
-                for cand in [fields.get("clinic_name")] + [
-                    t for t in _tokenize(user_message)
-                    if len(t) >= 4 and t not in _EXACT_RETRY_STOPWORDS
-                ]:
+                # El nombre real suele ser una SECUENCIA de palabras envuelta en ruido
+                # ('Sisi es animal Pets' → 'animal pets'): se prueban también los pares y
+                # tríos consecutivos de palabras significativas, no solo tokens sueltos
+                # (ERR-066: 'Animal Pets' fallaba dos veces con el nombre correcto adentro).
+                sig = [t for t in _tokenize(user_message)
+                       if len(t) >= 3 and t not in _EXACT_RETRY_STOPWORDS]
+                ngrams = [" ".join(sig[i:j]) for i in range(len(sig))
+                          for j in (i + 3, i + 2) if j <= len(sig)]
+                for cand in [fields.get("clinic_name")] + ngrams + [t for t in sig if len(t) >= 4]:
                     client = db.find_client_exact(cand)
                     if client:
                         break

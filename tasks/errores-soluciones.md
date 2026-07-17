@@ -27,6 +27,24 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### ERR-066 — El match exacto no probaba SECUENCIAS de palabras: 'Sisi es animal Pets' no encontraba a Animal Pets (prueba en vivo, 2026-07-17)
+**Síntoma:** tras rechazar la lista de coincidencias ("estoy seguro que ya me tienen
+registrado"), el flujo entra al modo solo-match-EXACTO. Ahí "Sisi es animal Pets" y
+"Ya te lo di / Animal Pets" dieron "No encuentro ningún cliente" DOS veces, con el nombre
+correcto adentro, hasta que el cliente escribió el nombre pelado.
+**Causa raíz (clase: palabras sueltas donde el dato es una secuencia):** el reintento
+exacto probaba el nombre capturado (venía sucio) y tokens SUELTOS ("sisi", "animal",
+"pets") — ningún cliente se llama exactamente "Animal" ni "Pets", pero "animal pets"
+(el bigrama) sí es el nombre exacto y nunca se probaba.
+**Solución:** el reintento prueba también los PARES y TRÍOS consecutivos de palabras
+significativas (tríos primero, más específicos). Sigue siendo match exacto: no cambia el
+diseño aprobado post-rechazo. Verificado directo: find_client_exact("animal pets") → Animal Pets.
+**ERR-066b (mismo chat, menor):** el menú de orina se tituló "Para HORMONAS..." — la
+etiqueta del área salía del PRIMER hit (Cortisol en Orina, categoría Hormonas). Ahora es
+la categoría más común entre los hits (test en test_catalog_module).
+**Estado:** RESUELTO. Suite: 297 passed. Lo demás del test funcionó completo (cabra→Caprino,
+compuesto 152+sodio/potasio, menú de orina, ráfaga combinada, pago natural, cierre).
+
 ### ERR-065 — Ráfagas de mensajes: cada fragmento se procesaba por separado (prueba en vivo, 2026-07-16)
 **Síntoma:** el cliente escribió "Si como no" / "La veterinaria es" / "Animal PET" en 6
 segundos (así habla la gente real). El bot procesó cada fragmento solo: buscó "Si como no"

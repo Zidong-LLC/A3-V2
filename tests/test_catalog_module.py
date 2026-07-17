@@ -117,3 +117,20 @@ def test_resolved_tests_have_catalog_price():
     res = catalog.resolve_tests("Coprológico, Creatinina", CATALOG)
     assert res.status == EXACT
     assert {t["code"]: t["price"] for t in res.tests} == {"1701": 12000, "1309": 12000}
+
+
+def test_area_label_is_most_common_category():
+    """ERR-066b (chat real): 'orina' mostraba 'Para HORMONAS...' porque la etiqueta salía
+    del primer hit (Cortisol en Orina, categoría Hormonas). La etiqueta es la categoría
+    más común entre los hits del área."""
+    rows = [
+        {"code": "1507", "name": "Cortisol en Orina", "price": 33000,
+         "category": "Hormonas", "sample": "Orina"},
+        {"code": "1601", "name": "Parcial de Orina (14 parámetros)", "price": 16000,
+         "category": "Uroanálisis", "sample": "Orina Fresca"},
+        {"code": "1602", "name": "Lectura Sedimento Urinario", "price": 7000,
+         "category": "Uroanálisis", "sample": "Orina Fresca"},
+    ]
+    res = catalog.resolve_tests("si orina tambien", rows)
+    assert res.status == AMBIGUOUS
+    assert res.area == "Uroanálisis"          # la más común, no la del primer hit

@@ -204,7 +204,11 @@ def _resolve_area(user_tokens: set[str], rows: list[dict], species: str | None):
 
     sample_hits = [r for r in scoped if user_tokens & keyset(r.get("sample"))]
     if sample_hits:
-        return (sample_hits[0].get("category"), _dedupe(sample_hits))
+        # Etiqueta = la categoría MÁS COMÚN entre los hits ('orina' → Uroanálisis), no la
+        # del primero (mostraba 'Para hormonas...' por el Cortisol en Orina; chat real).
+        from collections import Counter
+        area = Counter(r.get("category") for r in sample_hits).most_common(1)[0][0]
+        return (area, _dedupe(sample_hits))
     return None, []
 
 
