@@ -6,7 +6,7 @@ import re
 
 from app.text import tokenize as _tokenize, money as _money, as_text_items as _as_text_items,     catalog_item_key as _catalog_item_key
 from app.flow import base_route_response as _base_route_response,     format_test_items as _format_test_items, estimated_total_text as _estimated_total_text
-from app.detectors import _detect_which_field_is_being_asked, _last_bot_message, _asks_for_client_identity, _profile_codes_from_text, _wants_partial_analysis_change
+from app.detectors import _detect_which_field_is_being_asked, _last_bot_message, _reply_asks_for_route_field, _asks_for_client_identity, _profile_codes_from_text, _wants_partial_analysis_change
 from app.services import db
 
 

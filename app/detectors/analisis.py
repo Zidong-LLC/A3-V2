@@ -4,7 +4,7 @@ Capa de detección que desbloquea la migración de enforcers (Paso 3.4): solo de
 app.text/app.flow/otros detectores — sin I/O ni helpers de agent."""
 import re
 
-from app.text import tokenize as _tokenize
+from app.text import tokenize as _tokenize, ACCENT_TRANSLATION as _ACCENT_TRANSLATION
 from app.detectors.orden import _is_same_as_previous, _SAME_AS_PREVIOUS_TOKENS
 from app.detectors.basico import _AFFIRMATIVE_TOKENS, _NEGATIVE_TOKENS
 
