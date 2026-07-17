@@ -274,14 +274,39 @@ def _category_profiles_menu_response(fields: dict, category_text: str) -> dict |
 
 
 
-def _selected_profile_addition_response(session: dict, fields: dict, user_message: str, intro: str) -> dict:
-    fields["_profile_customizing"] = True
-    # Área mencionada (pregunta O pedido afirmativo): menú de esa área para elegir con
-    # código y precio reales, antes que cualquier match difuso por nombre.
+def _profile_addition_if_mentioned(session: dict, fields: dict, user_message: str, intro: str) -> dict | None:
+    """Agregados mencionados JUNTO a otra cosa (elegir el perfil, un pedido mixto). Mira el
+    CONTENIDO, no el verbo — 'le quiero ARRESTAR aparte orina sodio y potasio' (typo real)
+    perdía todo el agregado. Un pedido MIXTO (área ambigua + tests nombrados en la misma
+    frase) se DESCOMPONE: lo inequívoco se agrega ya con precio, y el área se ofrece como
+    menú — antes el menú del área respondía primero y se tragaba sodio/potasio (chat real
+    2026-07-17, pedidos DOS veces y ausentes de la orden). Devuelve None si el mensaje no
+    menciona nada agregable."""
+    added_txt = ""
+    try:
+        res = catalog.resolve_tests(user_message, db.list_catalog_tests(limit=5000),
+                                    fields.get("species"), collect_partial=True)
+    except Exception:
+        res = None
+    if res is not None and res.status == catalog.EXACT and res.tests:
+        _add_tests_to_order(fields, res.tests, "add")
+        added_txt = f" Agrego {_format_test_items(res.tests)}."
     area_response = _area_options_for_profile_addition(fields, user_message, require_question=False)
     if area_response:
-        area_response["reply"] = f"{intro}\n{area_response['reply']}"
+        area_response["reply"] = f"{intro}{added_txt}\n{area_response['reply']}"
         return area_response
+    if added_txt:
+        fields["_profile_customizing"] = False
+        return _analysis_settled_response(session, fields, f"{intro}{added_txt}")
+    return None
+
+
+def _selected_profile_addition_response(session: dict, fields: dict, user_message: str, intro: str) -> dict:
+    fields["_profile_customizing"] = True
+    # Primero el CONTENIDO: tests nombrados y/o menú de área (pedidos mixtos incluidos).
+    mentioned = _profile_addition_if_mentioned(session, fields, user_message, intro)
+    if mentioned:
+        return mentioned
     # Nombre/código concreto: el mensaje completo primero (match más específico); los
     # términos sueltos solo como fallback, para no sumar tests espurios por una palabra.
     extra = (db.get_tests_by_codes_or_names([user_message])
@@ -307,6 +332,13 @@ def _capture_profile_menu_selection(session: dict, fields: dict, option: dict, u
     fields.pop("_test_menu_options", None)
     fields.pop("_correction_pending", None)
     intro = f"Listo, registro {profile.get('code')} {profile.get('name')} ({_money(profile.get('price'))})."
-    if user_message and _wants_partial_analysis_change(user_message):
-        return _selected_profile_addition_response(session, fields, user_message, intro)
+    if user_message:
+        # CONTENIDO primero (no el verbo): 'el 152 y arrestar aparte orina sodio y potasio'
+        # agrega/ofrece aunque el verbo venga con typo. Un '152' pelado no menciona nada
+        # agregable y sigue el camino normal.
+        mentioned = _profile_addition_if_mentioned(session, fields, user_message, intro)
+        if mentioned:
+            return mentioned
+        if _wants_partial_analysis_change(user_message):
+            return _selected_profile_addition_response(session, fields, user_message, intro)
     return _analysis_settled_response(session, fields, intro)

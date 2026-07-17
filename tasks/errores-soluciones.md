@@ -27,6 +27,21 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### ERR-067 — El pedido MIXTO (área + tests nombrados) perdía los nombrados; el compuesto dependía del verbo (prueba en vivo, 2026-07-17)
+**Síntoma:** "le quiero agregar un análisis de ORINA, SODIO y POTASIO" mostró el menú de
+orina pero PERDIÓ sodio y potasio (pedidos DOS veces, ausentes de la orden final). Y el
+compuesto con typo ("le quiero ARRESTAR aparte...") perdió todo el agregado.
+**Causa raíz (clase):** en el camino de agregar-al-perfil, "el primer match gana": el menú
+del área respondía primero y se tragaba los nombres exactos del mismo mensaje. Y la
+detección de "quiere agregar" dependía del VERBO ("agregar"), no del contenido.
+**Solución:** `orders._profile_addition_if_mentioned` — mira el CONTENIDO: resuelve primero
+lo nombrado inequívoco (se agrega ya, con precio, vía resolve_tests collect_partial) y
+ADEMÁS ofrece el menú del área si la frase la menciona (pedido mixto descompuesto, mismo
+patrón del anclaje ERR-061). La selección de perfil lo consulta siempre (el verbo queda de
+fallback) → el typo es irrelevante. "El 152" pelado no dispara nada (test).
+**Tests:** tests/test_mixed_profile_addition.py (3, con los mensajes reales del chat).
+**Estado:** RESUELTO. Suite: 300 passed.
+
 ### ERR-066 — El match exacto no probaba SECUENCIAS de palabras: 'Sisi es animal Pets' no encontraba a Animal Pets (prueba en vivo, 2026-07-17)
 **Síntoma:** tras rechazar la lista de coincidencias ("estoy seguro que ya me tienen
 registrado"), el flujo entra al modo solo-match-EXACTO. Ahí "Sisi es animal Pets" y
