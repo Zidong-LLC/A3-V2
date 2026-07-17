@@ -6,7 +6,7 @@ from datetime import datetime
 
 from app import billing, catalog, state
 from app.text import (
-    tokenize as _tokenize, money as _money, catalog_item_key as _catalog_item_key,
+    tokenize as _tokenize, as_text_items as _as_text_items, money as _money, catalog_item_key as _catalog_item_key,
     strip_price_text as _strip_price_text, ACCENT_TRANSLATION as _ACCENT_TRANSLATION,
 )
 from app.species import (
@@ -56,6 +56,7 @@ from app.detectors import (
     _accepts_handoff_offer,
     _confirms_order_now,
 )
+from app.enforcers import enforce_selected_tests_are_catalog_codes as _enforce_selected_tests_are_catalog_codes
 from app.messages import (
     CLIENT_LOOKUP_PROGRESS_MESSAGE, WELCOME_MESSAGE, FINAL_USER_MESSAGE,
     CLIENT_IDENTIFICATION_REQUIRED_MESSAGE, CLIENT_NOT_FOUND_MESSAGE,
@@ -420,14 +421,7 @@ def _profile_customization_reply(fields: dict) -> str:
 # → app/detectors.py (importados arriba).
 
 
-def _as_text_items(value) -> list[str]:
-    if isinstance(value, list):
-        raw_items = value
-    elif isinstance(value, str):
-        raw_items = [value]
-    else:
-        return []
-    return [str(item).strip() for item in raw_items if str(item or "").strip()]
+# _as_text_items → app.text.as_text_items (importado arriba).
 
 
 _EXAM_ITEM_SEPARATOR = re.compile(r",|;|\n|\b y \b|\b e \b|\+", re.IGNORECASE)
@@ -3780,27 +3774,7 @@ def _enforce_loose_exam_catalog_resolution(ai_response: dict, prev_fields: dict)
     return ai_response
 
 
-def _enforce_selected_tests_are_catalog_codes(ai_response: dict) -> dict:
-    """Invariante I1 (red dura, corre justo antes de registrar): todo `selected_tests` es un
-    CÓDIGO que existe en el catálogo. Descarta cualquier valor que no sea un código válido
-    (texto libre o código inventado que se haya colado). Fail-safe: si no se puede leer el
-    catálogo, no toca nada. Garantiza que ninguna orden se cree con un análisis fantasma
-    ni un payload en $0, pase lo que pase en los guardrails anteriores."""
-    fields = ai_response.get("captured_fields", {})
-    codes = _as_text_items(fields.get("selected_tests"))
-    if not codes:
-        return ai_response
-    try:
-        valid = {str(r.get("code")) for r in db.list_catalog_tests(limit=5000) if r.get("code")}
-    except Exception:
-        return ai_response
-    if not valid:
-        return ai_response
-    kept = [c for c in codes if c in valid]
-    if kept != codes:
-        fields["selected_tests"] = kept
-    return ai_response
-
+# _enforce_selected_tests_are_catalog_codes → app/enforcers/dinero.py (importado abajo como alias).
 
 def _enforce_profile_exam_type_integrity(ai_response: dict) -> dict:
     """Invariante estructural (chat 4): con un perfil base elegido, exam_type es EXACTAMENTE
@@ -4979,6 +4953,24 @@ def process_turn(
             chat_id, user_message,
             _restart_identification_for_new_client(chat_id, session, fields),
         )
+
+    # 3.3 — SEÑAL another_order: tras una orden registrada, cualquier fraseo de "necesito
+    # otra orden" que los tokens no conozcan ("me quedó pendiente mandarte muestras de otro
+    # paciente") lo lee el modelo. Misma acción determinística que la vía por tokens:
+    # _begin_followup_order (nueva orden conservando cliente y datos estables).
+    if (
+        signal == "another_order"
+        and ai_response.get("intent") == "route_scheduling"
+        and not ai_response.get("requires_handoff")
+        and (prev_captured.get("_order_registered") or just_closed_order)
+        and (session.get("client_id") or fields.get("_client_found"))
+    ):
+        if _wants_to_change_client(user_message):
+            return _persist_turn(
+                chat_id, user_message,
+                _restart_identification_for_new_client(chat_id, session, prev_captured),
+            )
+        return _persist_turn(chat_id, user_message, _begin_followup_order(prev_captured, user_message))
 
     # Oferta de derivación pendiente ("¿te derivo o seguimos?"): resolver según la
     # respuesta. Si acepta, derivar a una persona; si quiere seguir, limpiar el flag

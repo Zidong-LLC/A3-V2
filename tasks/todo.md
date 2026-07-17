@@ -49,7 +49,16 @@ elegido: **empezar por catálogo/dinero**, con **red de tests primero**.
       - agent.py: 5.729 → 5.485 líneas. Suite verde en cada tanda (290 passed al cierre).
       - [ ] Resto del 3.4: los 23 enforcers `_enforce_*` (NO son puros: llaman db y se
             encadenan) → moverlos por responsabilidad en sesión dedicada, con validación viva.
-- [ ] Paso 3.3 (invertir orden token-vs-LLM): los sitios POST-LLM ya son señal-primero
+- [~] Paso 3.3 — señal→ACCIÓN (2026-07-17): `change_client` y `another_order` ya tienen
+      manejador de acción post-modelo (mismas acciones determinísticas que los tokens:
+      conservar orden / _begin_followup_order). change_client verificado EN VIVO con fraseo
+      nuevo. `same_as_previous`/`farewell`/`cancel`: sin consumidor propio pero cubiertas por
+      otras vías (memoria pre-LLM, fases terminales, message_mode=cancellation) — revisar si
+      la prueba en vivo muestra huecos. Falta: reorden pre-LLM completo (sesión dedicada).
+- [~] Paso 3.4 enforcers — ARRANCADO: paquete `app/enforcers/` (dinero.py: validador I1)
+      + `as_text_items` movido a app/text.py. Los 22 restantes dependen de la capa de
+      helpers de respuesta de agent.py: moverla primero (sesión dedicada).
+- [ ] (histórico) Paso 3.3: los sitios POST-LLM ya son señal-primero
       (cierre, dirección, pago-corrección, handoff, sede, coincidencia única). Lo que FALTA
       es el REORDEN del pipeline: los detectores de cambio-de-cliente/otra-orden/etc. corren
       PRE-LLM (agent.py ~4600-5100), donde la señal no existe aún. Mover esas ramas a
