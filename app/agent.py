@@ -56,6 +56,18 @@ from app.detectors import (
     _accepts_handoff_offer,
     _confirms_order_now,
 )
+from app.flow import (
+    AGE_UNIT_TOKENS as _AGE_UNIT_TOKENS,
+    age_has_unit as _age_has_unit,
+    ROUTE_ORDER_FIELDS_BEFORE_PAYMENT as _ROUTE_ORDER_FIELDS_BEFORE_PAYMENT,
+    ROUTE_REQUIRED_FIELDS as _ROUTE_REQUIRED_FIELDS,
+    base_route_response as _base_route_response,
+    format_test_items as _format_test_items,
+    estimated_total_text as _estimated_total_text,
+    route_ready_for_payment as _route_ready_for_payment,
+    missing_route_field as _missing_route_field,
+    missing_route_field_question as _missing_route_field_question,
+)
 from app.enforcers import enforce_selected_tests_are_catalog_codes as _enforce_selected_tests_are_catalog_codes
 from app.messages import (
     CLIENT_LOOKUP_PROGRESS_MESSAGE, WELCOME_MESSAGE, FINAL_USER_MESSAGE,
@@ -118,11 +130,7 @@ def _append_order_number(reply: str, order_info) -> str:
     return f"{reply}\n\nNúmero de orden: {order_number}"
 
 
-def _age_has_unit(value: str | None) -> bool:
-    """La edad solo es válida si trae unidad (años/meses/días)."""
-    return bool(set(_tokenize(value or "")) & _AGE_UNIT_TOKENS)
-
-
+# Capa de respuesta del flujo → app/flow.py (importada arriba con alias).
 def _titlecase_value(value: str | None) -> str | None:
     if not value or not isinstance(value, str):
         return value
@@ -188,8 +196,6 @@ def _payment_method_from_text(text: str) -> str | None:
 
 
 # NO_COURIER_HANDOFF_MESSAGE, AGE_QUESTION → app/messages.py (importados arriba).
-_AGE_UNIT_TOKENS = frozenset({"año", "años", "ano", "anos", "mes", "meses", "dia", "dias", "día", "días"})
-
 # Campos de texto libre que se normalizan a Mayúscula inicial (Sección 11 del spec).
 # No incluye exam_type (códigos/nombres de perfil) ni observations (texto libre).
 _TITLECASE_FIELDS = ("clinic_name", "patient_name", "species", "breed", "owner_name", "requesting_doctor", "sex")
@@ -282,13 +288,6 @@ _CORRECTION_FIELD_KEYWORDS = (
     (("pago",), "payment_method"),
 )
 MAX_CLIENT_MATCH_OPTIONS = 5
-_ROUTE_ORDER_FIELDS_BEFORE_PAYMENT = (
-    "pickup_address", "requesting_doctor",
-    "patient_name", "species", "breed", "sex", "patient_age",
-    "owner_name", "observations", "exam_type",
-)
-_ROUTE_REQUIRED_FIELDS = _ROUTE_ORDER_FIELDS_BEFORE_PAYMENT + ("payment_method",)
-
 # Datos estables del cliente que el agente recuerda a largo plazo (entre órdenes
 # y sesiones del mismo chat). NO incluye datos del paciente: esos cambian en cada
 # orden y reutilizarlos arrastraría información de otro animal.
@@ -356,22 +355,6 @@ def _default_handoff_reply(handoff_area: str | None) -> str:
     if handoff_area == "operaciones":
         return "Te voy a comunicar con atención al cliente para ayudarte con este proceso."
     return "Te voy a comunicar con el equipo correspondiente para ayudarte mejor."
-
-
-def _estimated_total_text(totals: dict) -> str:
-    """Texto del valor estimado. Si hay descuento por volumen, SIEMPRE se desglosa
-    (subtotal → descuento → total): sin el desglose, el total parece un error de
-    cálculo ('$14k + $8k = $19,360?' — reporte del usuario, 2026-07-06)."""
-    if totals.get("discount"):
-        return (f"Subtotal {_money(totals['subtotal'])}, descuento por volumen "
-                f"-{_money(totals['discount'])} → valor estimado {_money(totals['total'])}.")
-    return f"Valor estimado: {_money(totals['total'])}."
-
-
-def _format_test_items(rows: list[dict]) -> str:
-    if not rows:
-        return "ninguno"
-    return ", ".join(f"{r['code']}-{r['name']} ${int(r.get('price') or 0)//1000}k" for r in rows)
 
 
 def _profile_description_items(description: str | None) -> list[str]:
@@ -1902,22 +1885,6 @@ def _looks_like_catalog_profile(value: str | None) -> bool:
     return text.isdigit() or bool(tokens & {"perfil", "panel"})
 
 
-def _base_route_response(reply: str, fields: dict) -> dict:
-    return {
-        "reply": reply,
-        "phase": "fase_2_recogida_datos",
-        "intent": "route_scheduling",
-        "service_area": "route_scheduling",
-        "requires_handoff": False,
-        "handoff_area": None,
-        "captured_fields": fields,
-        "confidence": 1.0,
-        "message_mode": "flow_progress",
-        "pending_intents": [],
-        "resume_prompt": "",
-    }
-
-
 _TIME_QUESTION_TOKENS = frozenset({
     "cuanto", "cuánto", "cuando", "cuándo", "tiempo", "tardan", "tarda",
     "demoran", "demora", "demorar", "promedio", "aproximado", "aproximadamente",
@@ -3345,59 +3312,6 @@ def _consecutive_affirmatives(history: list[dict]) -> int:
         else:
             break
     return count
-
-
-def _route_ready_for_payment(session: dict, fields: dict) -> bool:
-    has_client = bool(session.get("client_id") or fields.get("_client_found"))
-    has_route_data = all(fields.get(k) for k in _ROUTE_ORDER_FIELDS_BEFORE_PAYMENT)
-    return has_client and has_route_data and not fields.get("_address_confirmation_pending")
-
-
-def _missing_route_field(session: dict, fields: dict) -> str | None:
-    if not (session.get("client_id") or fields.get("_client_found")):
-        return "client"
-    if fields.get("_address_confirmation_pending"):
-        return "pickup_address"
-    for field in _ROUTE_REQUIRED_FIELDS:
-        if field == "exam_type":
-            # El análisis puede estar como perfil elegido, selección estructurada de tests o
-            # texto libre: cualquiera cuenta (tras un reemplazo suelto exam_type queda vacío
-            # pero selected_tests tiene el análisis — no re-preguntar el análisis; QA extremo).
-            if not (fields.get("exam_type") or _as_text_items(fields.get("selected_tests"))
-                    or fields.get("_selected_profile_code")):
-                return field
-            continue
-        if not fields.get(field):
-            return field
-        if field == "patient_age" and not _age_has_unit(fields.get(field)):
-            return field
-    return None
-
-
-def _missing_route_field_question(field: str) -> str:
-    if field == "client":
-        return "¿Me compartes el NIT o el nombre de la veterinaria o médico veterinario para ver si está registrado?"
-    if field == "pickup_address":
-        return "¿Cuál es la dirección de retiro?"
-    if field == "requesting_doctor":
-        return "¿Cuál es el médico solicitante?"
-    if field == "exam_type":
-        return "Por último, ¿qué análisis o perfil desean?"
-    if field == "patient_name":
-        return "¿Cuál es el nombre del paciente?"
-    if field == "species":
-        return "¿Es canino, felino u otra especie?"
-    if field == "breed":
-        return "¿Cuál es la raza del paciente?"
-    if field == "sex":
-        return "¿El paciente es macho o hembra?"
-    if field == "patient_age":
-        return AGE_QUESTION
-    if field == "owner_name":
-        return "¿Cuál es el nombre del propietario?"
-    if field == "observations":
-        return "¿Quieres dejar alguna observación para la orden o la registramos sin observaciones?"
-    return PAYMENT_METHOD_QUESTION
 
 
 def _prevent_incomplete_route_closure(session: dict, ai_response: dict, fields: dict) -> dict:
