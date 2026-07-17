@@ -3385,6 +3385,25 @@ def process_turn(
                             if m2:
                                 matches = m2
                                 break
+                    if not client and not matches:
+                        # Red SEMÁNTICA (la solución GENERAL): que la IA lea TODO el mensaje
+                        # —frases, ruido, ráfagas, cualquier orden— y extraiga el nombre/NIT
+                        # limpios; el código solo verifica contra la BD. Una llamada corta,
+                        # solo cuando todo lo determinístico falló (patrón interpret_route_field).
+                        try:
+                            extracted = ai.extract_client_identifier(user_message)
+                        except Exception:
+                            extracted = {}
+                        clean_name = (extracted.get("name") or "").strip()
+                        clean_nit = (extracted.get("tax_id") or "").strip()
+                        if clean_nit:
+                            tax_hits = db.find_clients_by_tax_id(clean_nit)
+                            if len(tax_hits) == 1:
+                                client = tax_hits[0]
+                        if not client and clean_name and clean_name.lower() != str(fields.get("clinic_name") or "").lower():
+                            client = db.find_client_exact(clean_name)
+                            if not client:
+                                matches = db.find_client_matches(clean_name, limit=MAX_CLIENT_MATCH_OPTIONS + 1)
                     if client:
                         pass
                     elif matches:

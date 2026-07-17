@@ -41,6 +41,32 @@ def interpret_route_field(question: str, user_message: str) -> dict:
     return json.loads(response.choices[0].message.content)
 
 
+
+_CLIENT_ID_EXTRACT_SYSTEM = (
+    "Eres un extractor. Del mensaje de un cliente de un laboratorio veterinario, extrae "
+    "SOLO el nombre de la veterinaria/clinica o el NIT si los menciona, limpios de "
+    "muletillas, saludos y contexto. Responde JSON: {\"name\": str|null, \"tax_id\": str|null}. "
+    "Si no menciona ninguno, ambos null. No inventes."
+)
+
+
+def extract_client_identifier(user_message: str) -> dict:
+    """Lee TODO el mensaje (frases, ruido, ráfagas) y extrae el identificador limpio.
+    Red SEMÁNTICA de la identificación: se usa solo cuando la búsqueda determinística
+    falló — el cliente dijo el nombre envuelto en cualquier fraseo (ERR-068 general)."""
+    messages = [
+        {"role": "system", "content": _CLIENT_ID_EXTRACT_SYSTEM},
+        {"role": "user", "content": user_message},
+    ]
+    response = _client.chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=messages,
+        response_format={"type": "json_object"},
+        temperature=0,
+    )
+    return json.loads(response.choices[0].message.content)
+
+
 def generate_turn(
     session: dict,
     history: list[dict],
