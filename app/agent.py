@@ -3368,7 +3368,26 @@ def process_turn(
                     client = exact
                 else:
                     matches = db.find_client_matches(fields.get("clinic_name"), limit=MAX_CLIENT_MATCH_OPTIONS + 1)
-                    if matches:
+                    if not matches:
+                        # ERR-068 (gemelo de ERR-066, primer intento): el nombre capturado
+                        # vino ENVUELTO en ruido de ráfaga ('Sisi cómo no / Animal pets') y
+                        # ni el exacto ni el parcial matchean. Probar los n-gramas
+                        # significativos del mensaje: exacto primero, parcial de refuerzo.
+                        sig = [t for t in _tokenize(user_message)
+                               if len(t) >= 3 and t not in _EXACT_RETRY_STOPWORDS]
+                        for cand in [" ".join(sig[i:j]) for i in range(len(sig))
+                                     for j in (i + 3, i + 2) if j <= len(sig)]:
+                            exact2 = db.find_client_exact(cand)
+                            if exact2:
+                                client = exact2
+                                break
+                            m2 = db.find_client_matches(cand, limit=MAX_CLIENT_MATCH_OPTIONS + 1)
+                            if m2:
+                                matches = m2
+                                break
+                    if client:
+                        pass
+                    elif matches:
                         has_more = len(matches) > MAX_CLIENT_MATCH_OPTIONS
                         shown = matches[:MAX_CLIENT_MATCH_OPTIONS]
                         _store_client_match_options(fields, fields.get("clinic_name"), shown)
