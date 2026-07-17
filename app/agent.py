@@ -14,7 +14,7 @@ from app.species import (
     IMPLIED_ANIMAL_FIELDS as _IMPLIED_ANIMAL_FIELDS, RECOVERABLE_SEX as _RECOVERABLE_SEX,
     apply_implied_animal_fields as _apply_implied_animal_fields,
 )
-from app.config import ALEGRA_ENABLED, APP_TIMEZONE
+from app.config import ALEGRA_ENABLED, APP_TIMEZONE, FSM_ENFORCE
 from app.services import ai, db, alegra
 from app.rules import TERMINAL_PHASES, calculate_custom_profile_total, calculate_profile_adjusted_total
 from app.detectors import (
@@ -3598,6 +3598,10 @@ def _observe_state_health(fields: dict, new_phase: str = "") -> None:
             st.assert_valid()
         except AssertionError as exc:
             logger.warning("estado incoherente tras el turno: %s", exc)
+            if FSM_ENFORCE:
+                healed = st.heal()
+                if healed:
+                    logger.warning("FSM_ENFORCE: estado reparado: %s", healed)
         unknown = st.unknown_flags()
         if unknown:
             logger.warning(

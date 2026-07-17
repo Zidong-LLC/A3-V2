@@ -148,3 +148,14 @@ def test_clear_menus_and_has_analysis():
     assert ConversationState({"selected_tests": ["1101"]}).has_analysis
     assert ConversationState({"_selected_profile_code": "153"}).has_analysis
     assert not ConversationState({}).has_analysis
+
+
+def test_heal_resolves_known_incoherences():
+    """3.2 modo bloqueo: heal() repara los pares incoherentes con las reglas documentadas."""
+    st = ConversationState({"_address_confirmed": True, "_address_confirmation_pending": True,
+                            "_client_found": True, "_client_not_found": True})
+    healed = st.heal()
+    assert set(healed) == {"_address_confirmation_pending", "_client_not_found"}
+    st.assert_valid()                                   # tras reparar, el estado es coherente
+    assert st.get("_address_confirmed") is True         # gana la confirmación
+    assert ConversationState({"_client_found": True}).heal() == []   # sano: no toca nada

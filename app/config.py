@@ -42,6 +42,10 @@ APP_ENV = os.environ.get("APP_ENV", "production")
 MESSAGE_DEBOUNCE_SECONDS = float(os.environ.get("MESSAGE_DEBOUNCE_SECONDS", "5"))
 MESSAGE_DEBOUNCE_MAX_WAIT = float(os.environ.get("MESSAGE_DEBOUNCE_MAX_WAIT", "20"))
 
+# FSM en modo BLOQUEO (3.2): repara estados incoherentes además de loggearlos. Apagado
+# por defecto: se enciende cuando los logs del observador acumulen evidencia limpia.
+FSM_ENFORCE = os.environ.get("FSM_ENFORCE", "false").lower() in ("1", "true", "yes")
+
 CHATWOOT_URL = os.environ.get("CHATWOOT_URL", "").rstrip("/")
 CHATWOOT_ACCOUNT_ID = os.environ.get("CHATWOOT_ACCOUNT_ID", "")
 CHATWOOT_API_TOKEN = os.environ.get("CHATWOOT_API_TOKEN", "")

@@ -140,6 +140,27 @@ class ConversationState:
         return {k for k in self.flags()
                 if k not in KNOWN_FLAGS and not k.startswith("_nc_")}
 
+    def heal(self) -> list[str]:
+        """Modo BLOQUEO de la FSM (3.2): repara los estados incoherentes conocidos con
+        reglas documentadas, devolviendo qué reparó (para loggear). Solo corre con
+        FSM_ENFORCE activo — se enciende cuando los logs en vivo del observador acumulen
+        evidencia sin falsas alarmas.
+        Reglas: (1) dirección confirmada Y pendiente → gana la confirmación (la pendiente
+        quedó pegada); (2) cliente encontrado Y no-encontrado → gana encontrado (el
+        no-encontrado es de un intento anterior); (3) bloqueado Y orden registrada →
+        gana bloqueado (no debe operar)."""
+        d, healed = self.data, []
+        if d.get("_address_confirmed") and d.get("_address_confirmation_pending"):
+            d["_address_confirmation_pending"] = False
+            healed.append("_address_confirmation_pending")
+        if d.get("_client_found") and d.get("_client_not_found"):
+            d["_client_not_found"] = False
+            healed.append("_client_not_found")
+        if d.get("_blocked") and d.get("_order_registered"):
+            d.pop("_order_registered", None)
+            healed.append("_order_registered")
+        return healed
+
     def assert_valid(self) -> None:
         """Invariantes de un estado coherente. Úsese en tests / modo defensivo."""
         d = self.data
