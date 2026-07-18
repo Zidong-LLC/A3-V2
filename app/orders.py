@@ -17,6 +17,8 @@ from app.flow import (
     ROUTE_ORDER_FIELDS_BEFORE_PAYMENT as _ROUTE_ORDER_FIELDS_BEFORE_PAYMENT,
 )
 from app.detectors import (
+    _PRICE_QUESTION_TOKENS,
+    _TOTAL_QUESTION_TOKENS,
     _asks_for_area_options,
     _looks_like_catalog_profile,
     _named_analysis_terms,
@@ -26,7 +28,7 @@ from app.detectors import (
 from app.menus import (
     _store_test_menu_options, _store_profile_menu_options, _store_selected_profile_fields,
     _test_area_suggestion_reply, _profile_menu_option_lines, _profile_description_items,
-    _format_profile_recommendation,
+    _format_profile_recommendation, _select_tests_from_menu,
 )
 from app.messages import EXTRA_ANALYSIS_OFFER, PAYMENT_METHOD_QUESTION
 from app.rules import calculate_custom_profile_total, calculate_profile_adjusted_total
@@ -410,3 +412,79 @@ def _capture_profile_menu_selection(session: dict, fields: dict, option: dict, u
         if _wants_partial_analysis_change(user_message):
             return _selected_profile_addition_response(session, fields, user_message, intro)
     return _analysis_settled_response(session, fields, intro)
+
+
+# ── Respuesta de PRECIO con valores reales del catálogo (movido de agent.py, 3.4a) ────
+
+def _format_tests_total(rows: list[dict]) -> str:
+    """Lista los análisis con su precio y el total. Si hay descuento por volumen, lo muestra
+    explícito (subtotal → descuento → total) para que el total no parezca incoherente con la
+    suma de cada precio."""
+    totals = calculate_custom_profile_total(rows)
+    if totals["discount"]:
+        return (
+            f"{_format_test_items(rows)}. Subtotal {_money(totals['subtotal'])}, "
+            f"descuento por volumen {_money(totals['discount'])} → total {_money(totals['total'])}."
+        )
+    return f"{_format_test_items(rows)}. Total: {_money(totals['total'])}."
+
+
+def _catalog_price_answer(fields: dict, user_message: str) -> str | None:
+    """Responde una pregunta de precio con valores REALES del catálogo, sin inventar:
+    1) el total de los análisis ya elegidos ('¿cuánto serían todos?'),
+    2) un análisis puntual nombrado en la pregunta ('¿cuánto sale el hemograma?'),
+    3) el perfil ya seleccionado con su valor.
+    Devuelve None si no es pregunta de precio o no hay con qué responder con certeza."""
+    tokens = set(_tokenize(user_message))
+    if not (tokens & _PRICE_QUESTION_TOKENS):
+        return None
+
+    # 1) Total de los análisis que el cliente ya está armando (perfil personalizado).
+    selected_codes = _as_text_items(fields.get("selected_tests"))
+    if selected_codes and (tokens & _TOTAL_QUESTION_TOKENS or len(selected_codes) >= 2):
+        rows = db.get_tests_by_codes_or_names(selected_codes)
+        if rows:
+            return _format_tests_total(rows)
+
+    # 2) Análisis nombrado(s) en la propia pregunta. Resolvedor unívoco (no fuzzy palabra por
+    #    palabra: 'glucosa en ayunas' NO debe arrastrar 'Colesterol Total (Ayunas)'; QA extremo).
+    #    collect_partial: cotiza los análisis que se nombran e ignora el ruido de la pregunta.
+    price_result = catalog.resolve_tests(user_message, db.list_catalog_tests(limit=5000),
+                                         fields.get("species"), collect_partial=True)
+    rows = price_result.tests if price_result.status == catalog.EXACT else []
+    if not rows:
+        area, area_tests = db.find_tests_by_area(user_message, fields.get("species"))
+        if area and area_tests:
+            lines = [f"Para {area.lower()} tenemos estas opciones:"]
+            for t in area_tests[:8]:
+                lines.append(f"- {t.get('code')} {t.get('name')}: {_money(t.get('price'))}")
+            lines.append("Dime cuál necesitas (número, nombre o código).")
+            # Con un análisis/perfil en curso, la selección posterior SUMA a la orden.
+            _store_test_menu_options(fields, area_tests[:8])
+            if fields.get("_selected_profile_code") or _as_text_items(fields.get("selected_tests")):
+                fields["_test_menu_adds_to_profile"] = True
+            return "\n".join(lines)
+    if not rows:
+        terms = _named_analysis_terms(user_message)
+        rows = db.get_tests_by_codes_or_names(terms) if terms else []
+    if not rows:
+        menu = fields.get("_test_menu_options") or []
+        rows = _select_tests_from_menu(user_message, menu) if menu else []
+    if rows:
+        if len(rows) == 1:
+            r = rows[0]
+            return f"El {r.get('name')} tiene un valor de {_money(r.get('price'))}."
+        return _format_tests_total(rows)
+
+    # 3) Perfil ya elegido con su precio.
+    price = fields.get("_selected_profile_price")
+    name = fields.get("_selected_profile_name") or fields.get("exam_type")
+    if price and name:
+        return f"El valor de {name} es {_money(int(price))}."
+    return None
+
+
+def _price_answer_for_order(fields: dict, user_message: str) -> str | None:
+    """Compat: precio REAL del análisis/perfil ya elegido al confirmar. Delega en
+    `_catalog_price_answer` para cubrir también el análisis puntual y el total."""
+    return _catalog_price_answer(fields, user_message)

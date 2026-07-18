@@ -217,3 +217,80 @@ def _reply_asks_missing_field(reply: str, field: str) -> bool:
 def _unknown_catalog_items(items: list[str], rows: list[dict]) -> list[str]:
     return [item for item in items if not any(_catalog_row_matches_item(item, row) for row in rows)]
 
+
+
+# ── Selección desde un menú mostrado (movido de agent.py, Fase 3.4a) ─────────────────
+
+_ORDINAL_SELECTIONS = {
+    "primera": 1, "primero": 1,
+    "segunda": 2, "segundo": 2,
+    "tercera": 3, "tercero": 3,
+    "cuarta": 4, "cuarto": 4,
+    "quinta": 5, "quinto": 5,
+}
+
+_MAGNITUDE_UNITS = frozenset({
+    "ano", "anos", "año", "años", "mes", "meses", "dia", "dias", "día", "días",
+    "semana", "semanas", "kilo", "kilos", "kg", "gramos", "libras",
+})
+
+
+def _select_tests_from_menu(text: str, options: list[dict]) -> list[dict]:
+    """Resuelve qué análisis eligió el cliente de la lista mostrada: por número de
+    opción (1..N), ordinal ('el primero'), código de catálogo (1601) o nombre."""
+    if not options:
+        return []
+    codes = {str(o.get("code")): o for o in options}
+    selected: list[dict] = []
+    seen: set = set()
+
+    def _add(opt):
+        if opt and opt["code"] not in seen:
+            seen.add(opt["code"])
+            selected.append(opt)
+
+    toks = _tokenize(text)
+    for i, token in enumerate(toks):
+        if token.isdigit():
+            n = int(token)
+            nxt = toks[i + 1] if i + 1 < len(toks) else ""
+            if token in codes:                                  # código del catálogo
+                _add(codes[token])
+            elif len(token) <= 2 and 1 <= n <= len(options) and nxt not in _MAGNITUDE_UNITS:
+                # Número de opción 1..N, pero NO si describe una magnitud ('2 años', '3 meses',
+                # '5 kilos'): un dígito de edad no es una selección de menú (QA extremo: '2 años'
+                # elegía la opción 2 de un menú pegado y agregaba un análisis no pedido).
+                _add(options[n - 1])
+        elif token in _ORDINAL_SELECTIONS:
+            n = _ORDINAL_SELECTIONS[token]
+            if 1 <= n <= len(options):
+                _add(options[n - 1])
+    if selected:
+        return selected
+
+    # Sin número: por nombre. El match exacto gana; si varios coinciden por substring
+    # (ej. hay 4 "Parcial de Orina ...") es ambiguo: no elegir ninguno y que el cliente
+    # use el número. Evita capturar varios análisis al azar por un nombre genérico.
+    text_key = _catalog_item_key(text)
+    if len(text_key) < 4:
+        return []
+    exact = [o for o in options if _catalog_item_key(o.get("name")) == text_key]
+    if exact:
+        return [exact[0]]
+    partial = [
+        o for o in options
+        if _catalog_item_key(o.get("name")) and (
+            _catalog_item_key(o.get("name")) in text_key or text_key in _catalog_item_key(o.get("name"))
+        )
+    ]
+    if len(partial) == 1:
+        return partial
+    # Nombre sin el paréntesis aclaratorio: 'el parcial de orina está bien' debe matchear
+    # 'Parcial de Orina (14 parámetros)' aunque la frase traiga palabras alrededor (chat 4).
+    # Mínimo 5 caracteres para no matchear nombres cortos ('PT') dentro de otras palabras.
+    base_hits = []
+    for o in options:
+        base_key = _catalog_item_key(re.sub(r"\([^)]*\)", "", str(o.get("name") or "")))
+        if len(base_key) >= 5 and base_key in text_key:
+            base_hits.append(o)
+    return base_hits if len(base_hits) == 1 else []

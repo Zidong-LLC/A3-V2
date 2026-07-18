@@ -6,7 +6,7 @@ from pathlib import Path
 
 APP = Path(__file__).resolve().parents[1] / "app"
 MODULES = ([APP / "menus.py", APP / "orders.py", APP / "flow.py", APP / "catalog.py",
-            APP / "state.py", APP / "text.py", APP / "messages.py"]
+            APP / "state.py", APP / "text.py", APP / "messages.py", APP / "laterales.py"]
            + sorted((APP / "detectors").glob("*.py"))
            + sorted((APP / "enforcers").glob("*.py")))
 

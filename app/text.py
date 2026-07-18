@@ -35,6 +35,14 @@ def strip_price_text(text: str) -> str:
     return re.sub(r"\s{2,}", " ", out).strip(" -–—.,:;")
 
 
+def strip_question_sentences(text: str) -> str:
+    """Deja solo las frases que NO son pregunta: para anteponer el acuse de un turno
+    lateral a la re-pregunta del flujo sin duplicar interrogantes."""
+    chunks = [c.strip() for c in re.split(r"(?<=[.!?])\s+", (text or "").strip()) if c.strip()]
+    kept = [chunk for chunk in chunks if "?" not in chunk and "¿" not in chunk]
+    return " ".join(kept).strip()
+
+
 def as_text_items(value) -> list[str]:
     """Normaliza un valor libre (lista, string o nada) a lista de strings limpios.
     Fuente única para leer selected_tests/removed_tests con cualquier forma que el

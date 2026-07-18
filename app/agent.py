@@ -8,6 +8,14 @@ from app import billing, catalog, state
 from app.text import (
     tokenize as _tokenize, as_text_items as _as_text_items, money as _money, catalog_item_key as _catalog_item_key,
     strip_price_text as _strip_price_text, ACCENT_TRANSLATION as _ACCENT_TRANSLATION,
+    strip_question_sentences as _strip_question_sentences,
+)
+from app.laterales import (
+    _operational_side_question_answer as _operational_side_question_answer,
+    _has_active_route_context as _has_active_route_context,
+    _results_pending_response as _results_pending_response,
+    _resume_route_after_lateral_turn as _resume_route_after_lateral_turn,
+    _is_service_question as _is_service_question,
 )
 from app.species import (
     ANIMAL_DOMAIN as _ANIMAL_DOMAIN, RECOVERABLE_SPECIES as _RECOVERABLE_SPECIES,
@@ -124,6 +132,8 @@ from app.flow import (
     missing_route_field_question as _missing_route_field_question,
 )
 from app.menus import (
+    _select_tests_from_menu as _select_tests_from_menu,
+    _ORDINAL_SELECTIONS as _ORDINAL_SELECTIONS,
     _profile_menu_option_lines as _profile_menu_option_lines,
     _profile_description_items as _profile_description_items,
     _catalog_row_matches_item as _catalog_row_matches_item,
@@ -173,6 +183,9 @@ from app.orders import (
     _category_profiles_menu_response as _category_profiles_menu_response,
     _selected_profile_addition_response as _selected_profile_addition_response,
     _capture_profile_menu_selection as _capture_profile_menu_selection,
+    _format_tests_total as _format_tests_total,
+    _catalog_price_answer as _catalog_price_answer,
+    _price_answer_for_order as _price_answer_for_order,
 )
 from app.enforcers.orden import (
     _handle_extra_analysis_answer as _handle_extra_analysis_answer,
@@ -363,19 +376,8 @@ _IDENTIFICATION_RETRY_RESET_FIELDS = frozenset({
 # _PROFILE_CUSTOMIZE_TOKENS, _PROFILE_CONFIRM_TOKENS, _CLOSE_PROFILE_TOKENS,
 # _CLOSE_PROFILE_PHRASES, _AMBIGUOUS_PROFILE_TOKENS → app/detectors.py (importados arriba).
 
-_ORDINAL_SELECTIONS = {
-    "primera": 1, "primero": 1,
-    "segunda": 2, "segundo": 2,
-    "tercera": 3, "tercero": 3,
-    "cuarta": 4, "cuarto": 4,
-    "quinta": 5, "quinto": 5,
-}
-
+# _ORDINAL_SELECTIONS → app/menus.py; _strip_question_sentences → app/text.py (3.4a).
 # Detectores de identificación de cliente → app/detectors/cliente.py (importados arriba).
-def _strip_question_sentences(text: str) -> str:
-    chunks = [c.strip() for c in re.split(r"(?<=[.!?])\s+", (text or "").strip()) if c.strip()]
-    kept = [chunk for chunk in chunks if "?" not in chunk and "¿" not in chunk]
-    return " ".join(kept).strip()
 
 
 def _default_handoff_reply(handoff_area: str | None) -> str:
@@ -535,71 +537,7 @@ def _is_catalog_overview_question(text: str | None) -> bool:
     return asks_catalog and asks_analysis
 
 
-_MAGNITUDE_UNITS = frozenset({
-    "ano", "anos", "año", "años", "mes", "meses", "dia", "dias", "día", "días",
-    "semana", "semanas", "kilo", "kilos", "kg", "gramos", "libras",
-})
-
-
-def _select_tests_from_menu(text: str, options: list[dict]) -> list[dict]:
-    """Resuelve qué análisis eligió el cliente de la lista mostrada: por número de
-    opción (1..N), ordinal ('el primero'), código de catálogo (1601) o nombre."""
-    if not options:
-        return []
-    codes = {str(o.get("code")): o for o in options}
-    selected: list[dict] = []
-    seen: set = set()
-
-    def _add(opt):
-        if opt and opt["code"] not in seen:
-            seen.add(opt["code"])
-            selected.append(opt)
-
-    toks = _tokenize(text)
-    for i, token in enumerate(toks):
-        if token.isdigit():
-            n = int(token)
-            nxt = toks[i + 1] if i + 1 < len(toks) else ""
-            if token in codes:                                  # código del catálogo
-                _add(codes[token])
-            elif len(token) <= 2 and 1 <= n <= len(options) and nxt not in _MAGNITUDE_UNITS:
-                # Número de opción 1..N, pero NO si describe una magnitud ('2 años', '3 meses',
-                # '5 kilos'): un dígito de edad no es una selección de menú (QA extremo: '2 años'
-                # elegía la opción 2 de un menú pegado y agregaba un análisis no pedido).
-                _add(options[n - 1])
-        elif token in _ORDINAL_SELECTIONS:
-            n = _ORDINAL_SELECTIONS[token]
-            if 1 <= n <= len(options):
-                _add(options[n - 1])
-    if selected:
-        return selected
-
-    # Sin número: por nombre. El match exacto gana; si varios coinciden por substring
-    # (ej. hay 4 "Parcial de Orina ...") es ambiguo: no elegir ninguno y que el cliente
-    # use el número. Evita capturar varios análisis al azar por un nombre genérico.
-    text_key = _catalog_item_key(text)
-    if len(text_key) < 4:
-        return []
-    exact = [o for o in options if _catalog_item_key(o.get("name")) == text_key]
-    if exact:
-        return [exact[0]]
-    partial = [
-        o for o in options
-        if _catalog_item_key(o.get("name")) and (
-            _catalog_item_key(o.get("name")) in text_key or text_key in _catalog_item_key(o.get("name"))
-        )
-    ]
-    if len(partial) == 1:
-        return partial
-    # Nombre sin el paréntesis aclaratorio: 'el parcial de orina está bien' debe matchear
-    # 'Parcial de Orina (14 parámetros)' aunque la frase traiga palabras alrededor (chat 4).
-    # Mínimo 5 caracteres para no matchear nombres cortos ('PT') dentro de otras palabras.
-    base_hits = []
-    for o in options:
-        base_key = _catalog_item_key(re.sub(r"\([^)]*\)", "", str(o.get("name") or "")))
-        if len(base_key) >= 5 and base_key in text_key:
-            base_hits.append(o)
-    return base_hits if len(base_hits) == 1 else []
+# _MAGNITUDE_UNITS y _select_tests_from_menu -> app/menus.py (3.4a).
 
 
 def _capture_test_menu_selection(session: dict, fields: dict, selected: list[dict]) -> dict:
@@ -799,104 +737,8 @@ def _select_client_match(text: str, fields: dict, signal: str | None = None) -> 
     return None
 
 
-_TIME_QUESTION_TOKENS = frozenset({
-    "cuanto", "cuánto", "cuando", "cuándo", "tiempo", "tardan", "tarda",
-    "demoran", "demora", "demorar", "promedio", "aproximado", "aproximadamente",
-    "hora", "horas", "dia", "dias", "día", "días", "plazo", "urgente",
-    "rapido", "rápido", "llega", "llegan", "llegaria", "llegaría", "pasan",
-})
-_RESULT_TOKENS = frozenset({"resultado", "resultados", "entrega", "entregan", "entregar"})
-_ROUTE_TIMING_TOKENS = frozenset({
-    "motorizado", "motorizados", "repartidor", "mensajero", "ruta", "recogida",
-    "retiro", "retirar", "recoger", "pasan", "pasar", "llega", "llegaria", "llegaría",
-})
-# El cliente pregunta por el TOTAL de varios análisis ("¿cuánto serían todos?", "en total").
-# Palabras que NO nombran un análisis: se descartan al buscar el precio de uno puntual.
-# Marcadores de que el cliente PREGUNTA por el servicio de recogida (vs. ORDENA
-# impacientemente "programen la recogida ya"). Sin esto, cualquier mención de
-# "recogida/recoger" disparaba la respuesta operativa fija y metía bucle.
-_SERVICE_QUESTION_MARKERS = frozenset({
-    "hacen", "atienden", "recogen", "retiran", "pueden", "puede", "tienen",
-    "ofrecen", "como", "cómo", "cual", "cuál", "sirve", "sirven", "trabajan",
-    "manejan", "cubren", "donde", "dónde", "ustedes", "hay",
-})
-# Verbos imperativos: el cliente PIDE que se programe, no pregunta por el servicio.
-_SCHEDULING_IMPERATIVE_TOKENS = frozenset({
-    "programen", "programa", "programen", "agenden", "agende", "agenda",
-    "coordinen", "coordina", "manden", "manda", "envien", "envíen", "envia",
-    "envía", "recogela", "recógela", "ya", "hoy", "urgente", "rapido", "rápido",
-})
-
-
-def _is_service_question(text: str, tokens: set) -> bool:
-    """¿El mensaje es una PREGUNTA sobre el servicio (no una orden impaciente)?"""
-    has_imperative = bool(tokens & _SCHEDULING_IMPERATIVE_TOKENS)
-    has_question = ("?" in text or "¿" in text or bool(tokens & _SERVICE_QUESTION_MARKERS))
-    return has_question and not has_imperative
-
-
-def _operational_side_question_answer(text: str) -> str | None:
-    """Preguntas operativas de A3: responder sin inventar, antes de retomar el flujo."""
-    tokens = set(_tokenize(text))
-    if not tokens:
-        return None
-
-    asks_time = bool(tokens & _TIME_QUESTION_TOKENS)
-    if asks_time and tokens & (_RESULT_TOKENS | _ANALYSIS_TOKENS):
-        return (
-            "Depende del análisis y de la muestra; para no darte un tiempo incorrecto, "
-            "dime qué prueba necesitas y te oriento con el tiempo estimado."
-        )
-    if asks_time and tokens & _ROUTE_TIMING_TOKENS:
-        return (
-            "La hora exacta de recogida la confirma operaciones según la ruta y la disponibilidad "
-            "del motorizado; si es urgente, lo dejamos marcado para priorizar la coordinación."
-        )
-    # Las preguntas de precio NO se deflectan acá con una frase genérica: el precio real lo
-    # resuelve `_catalog_price_answer` (casos seguros) o el LLM, que recibe el catálogo con
-    # precios y conoce los sinónimos (hemograma = Cuadro Hemático). Deflectar bloqueaba esa
-    # respuesta y el cliente dejaba de ver el precio.
-    if tokens & {"animal", "animales", "especie", "especies"} and tokens & {"cantidad", "cuantos", "cuántos", "cuales", "cuáles", "que", "qué", "hacen", "atienden"}:
-        return (
-            "Trabajamos principalmente con pacientes veterinarios como caninos y felinos; "
-            "otras especies se revisan según el análisis y la muestra."
-        )
-    if tokens & {"retirar", "retiran", "recoger", "recogen", "recogida", "motorizado", "motorizados"}:
-        # Solo si es una PREGUNTA por el servicio; si el cliente ORDENA que programen
-        # ("recógela hoy", "programen la recogida ya"), no es duda operativa: dejar
-        # que el flujo siga capturando/cerrando en vez de soltar la frase fija (bucle).
-        if _is_service_question(text, tokens):
-            return "Sí, recogemos muestras con motorizado asignado para clientes registrados en Bogotá."
-        return None
-    return None
-
-
-def _has_active_route_context(session: dict, fields: dict) -> bool:
-    return (
-        session.get("intent_current") == "route_scheduling"
-        or bool(session.get("client_id") or fields.get("_client_found"))
-        or any(fields.get(k) for k in _ROUTE_REQUIRED_FIELDS)
-    )
-
-
-def _results_pending_response(fields: dict | None = None, pending_intents: list | None = None) -> dict:
-    """Respuesta de la opción 2 (consultar resultados): informa que aún no está
-    disponible por este medio y cierra el turno sin pedir datos. Si quedan
-    intenciones pendientes (p. ej. una ruta), se preservan para retomarlas."""
-    pending = pending_intents or []
-    return {
-        "reply": RESULTS_PENDING_MESSAGE,
-        "phase": "fase_2_recogida_datos" if pending else "fase_6_cierre",
-        "intent": "results",
-        "service_area": "results",
-        "requires_handoff": False,
-        "handoff_area": None,
-        "captured_fields": fields or {},
-        "confidence": 1.0,
-        "message_mode": "side_question",
-        "pending_intents": pending,
-        "resume_prompt": "",
-    }
+# Preguntas laterales (_operational_side_question_answer, _results_pending_response,
+# _has_active_route_context y sus tokens) -> app/laterales.py (3.4a).
 
 
 def _pre_identification_service_info_response(text: str, fields: dict) -> dict | None:
@@ -1816,30 +1658,7 @@ def _avoid_redundant_route_field_question(session: dict, ai_response: dict) -> d
     return ai_response
 
 
-def _resume_route_after_lateral_turn(session: dict, ai_response: dict) -> dict:
-    if ai_response.get("intent") != "route_scheduling" or ai_response.get("requires_handoff"):
-        return ai_response
-    if ai_response.get("phase") in TERMINAL_PHASES or ai_response.get("message_mode") == "cancellation":
-        return ai_response
-    if (
-        ai_response.get("message_mode") not in {"side_question", "small_talk"}
-        and ai_response.get("user_intent_signal") not in {"off_topic", "unclear"}
-    ):
-        return ai_response
-
-    fields = ai_response.get("captured_fields") or {}
-    missing = _missing_route_field(session, fields)
-    if not missing:
-        return ai_response
-
-    reply = (ai_response.get("reply") or "").strip()
-    if "?" in reply and _reply_asks_missing_field(reply, missing):
-        return ai_response
-
-    base = _strip_question_sentences(reply)
-    question = _missing_route_field_question(missing)
-    ai_response["reply"] = f"{base} {question}".strip() if base else question
-    return ai_response
+# _resume_route_after_lateral_turn -> app/laterales.py (3.4a).
 
 
 # Datos del paciente que deben responderse con un valor concreto: si en su lugar
@@ -2021,78 +1840,7 @@ def _extract_correction_value(field: str, text: str) -> str | None:
     return value or None
 
 
-def _format_tests_total(rows: list[dict]) -> str:
-    """Lista los análisis con su precio y el total. Si hay descuento por volumen, lo muestra
-    explícito (subtotal → descuento → total) para que el total no parezca incoherente con la
-    suma de cada precio."""
-    totals = calculate_custom_profile_total(rows)
-    if totals["discount"]:
-        return (
-            f"{_format_test_items(rows)}. Subtotal {_money(totals['subtotal'])}, "
-            f"descuento por volumen {_money(totals['discount'])} → total {_money(totals['total'])}."
-        )
-    return f"{_format_test_items(rows)}. Total: {_money(totals['total'])}."
-
-
-def _catalog_price_answer(fields: dict, user_message: str) -> str | None:
-    """Responde una pregunta de precio con valores REALES del catálogo, sin inventar:
-    1) el total de los análisis ya elegidos ('¿cuánto serían todos?'),
-    2) un análisis puntual nombrado en la pregunta ('¿cuánto sale el hemograma?'),
-    3) el perfil ya seleccionado con su valor.
-    Devuelve None si no es pregunta de precio o no hay con qué responder con certeza."""
-    tokens = set(_tokenize(user_message))
-    if not (tokens & _PRICE_QUESTION_TOKENS):
-        return None
-
-    # 1) Total de los análisis que el cliente ya está armando (perfil personalizado).
-    selected_codes = _as_text_items(fields.get("selected_tests"))
-    if selected_codes and (tokens & _TOTAL_QUESTION_TOKENS or len(selected_codes) >= 2):
-        rows = db.get_tests_by_codes_or_names(selected_codes)
-        if rows:
-            return _format_tests_total(rows)
-
-    # 2) Análisis nombrado(s) en la propia pregunta. Resolvedor unívoco (no fuzzy palabra por
-    #    palabra: 'glucosa en ayunas' NO debe arrastrar 'Colesterol Total (Ayunas)'; QA extremo).
-    #    collect_partial: cotiza los análisis que se nombran e ignora el ruido de la pregunta.
-    price_result = catalog.resolve_tests(user_message, db.list_catalog_tests(limit=5000),
-                                         fields.get("species"), collect_partial=True)
-    rows = price_result.tests if price_result.status == catalog.EXACT else []
-    if not rows:
-        area, area_tests = db.find_tests_by_area(user_message, fields.get("species"))
-        if area and area_tests:
-            lines = [f"Para {area.lower()} tenemos estas opciones:"]
-            for t in area_tests[:8]:
-                lines.append(f"- {t.get('code')} {t.get('name')}: {_money(t.get('price'))}")
-            lines.append("Dime cuál necesitas (número, nombre o código).")
-            # Con un análisis/perfil en curso, la selección posterior SUMA a la orden.
-            _store_test_menu_options(fields, area_tests[:8])
-            if fields.get("_selected_profile_code") or _as_text_items(fields.get("selected_tests")):
-                fields["_test_menu_adds_to_profile"] = True
-            return "\n".join(lines)
-    if not rows:
-        terms = _named_analysis_terms(user_message)
-        rows = db.get_tests_by_codes_or_names(terms) if terms else []
-    if not rows:
-        menu = fields.get("_test_menu_options") or []
-        rows = _select_tests_from_menu(user_message, menu) if menu else []
-    if rows:
-        if len(rows) == 1:
-            r = rows[0]
-            return f"El {r.get('name')} tiene un valor de {_money(r.get('price'))}."
-        return _format_tests_total(rows)
-
-    # 3) Perfil ya elegido con su precio.
-    price = fields.get("_selected_profile_price")
-    name = fields.get("_selected_profile_name") or fields.get("exam_type")
-    if price and name:
-        return f"El valor de {name} es {_money(int(price))}."
-    return None
-
-
-def _price_answer_for_order(fields: dict, user_message: str) -> str | None:
-    """Compat: precio REAL del análisis/perfil ya elegido al confirmar. Delega en
-    `_catalog_price_answer` para cubrir también el análisis puntual y el total."""
-    return _catalog_price_answer(fields, user_message)
+# _format_tests_total, _catalog_price_answer y _price_answer_for_order -> app/orders.py (3.4a).
 
 
 def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message: str, signal: str | None) -> dict | None:
