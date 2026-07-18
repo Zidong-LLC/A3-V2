@@ -27,6 +27,31 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### FASE-3-CIERRE — Refactor de raíz: 3.2 + 3.3 + 3.4a completados (2026-07-18)
+**Qué se cerró** (plan `snug-dancing-tiger`, tandas con suite verde y commit cada una):
+- **3.4a** (`cee8ec7`, `f5e9a5f`): 21/21 enforcers en `app/enforcers/` (nuevos:
+  `confirmacion.py`, `resultados.py`); capa de helpers de respuesta en `app/laterales.py` +
+  text/menus/orders. agent.py 3.582→3.181 líneas, sin ningún `_enforce_*`. Puro movimiento.
+- **3.2** (`86f7183`): FSM en modo BLOQUEO de ESTADO — `FSM_ENFORCE=true` en `.env` local;
+  `heal()` probado en el embudo (el par de flags pegadas llega REPARADO a `update_session`).
+  Decisiones: flags fantasma no se dropean en runtime (typo = fallo de suite, test app-wide);
+  transiciones ilegales quedan en detección (grafo descriptivo). Flip del default en
+  `config.py` PENDIENTE de la prueba en vivo.
+- **3.3** (`5fe8737`, `9c86290`, `ba5ee3a`): reorden pre-LLM completo — los 3 atajos de
+  intención (otra-orden, cambio cliente/sede, no-registrado) degradados a handlers
+  post-modelo SEÑAL-primero con tokens de red y guards portados (rama de sede, menús
+  limpios sobre prev_captured, bypass ERR-037). El carril de la oferta cede cambio de
+  cliente al modelo. Trade-off: +1 llamada LLM en esos turnos raros.
+**Validación:** suite 325 passed; `validate_flows.py` (modelo real): los flujos de las áreas
+tocadas (B, K, L, T) OK; los problemáticos NO son regresión — A falla IGUAL en el commit
+base `784b799` (verificado con worktree) y F/M/M2/S/T varían entre corridas (flakiness).
+**Pendientes que deja:** (a) prueba en vivo del usuario → flip del default FSM_ENFORCE;
+(b) Tanda D (partir `process_turn` en `app/turno/`) en sesión aparte cuando C repose;
+(c) ABIERTO-VALIDATOR: el flujo A del validador (multi-orden tras resumen) falla
+PREEXISTENTE — en la corrida observada, "contraentrega" disparó una recomendación de
+perfiles y "sí, quiero otra orden" sobre el resumen no cerró la orden. Diagnosticarlo
+como bug propio (no es del reorden).
+
 ### ERR-069 — La corrección de un dato del paciente se guardaba SIN acuse y los carriles la devoraban (prueba en vivo Chatwoot #4, 2026-07-17)
 **Síntoma:** "Me confundí con la raza es un tobiano" → el modelo capturó bien (breed=Tobiano
 desde el PRIMER intento) pero la respuesta fue la plantilla genérica "Perfecto, lo anoto.

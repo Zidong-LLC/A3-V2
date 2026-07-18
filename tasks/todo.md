@@ -30,7 +30,34 @@ elegido: **empezar por catálogo/dinero**, con **red de tests primero**.
 - [x] Cierre de orden migrado a `user_intent_signal` (`_confirms_order_now`): cierra confirmaciones fuera de lista.
 - [ ] Resto de detectores: acoplados a Fase 3 (viven en la cascada PRE-LLM, sin señal disponible). Ver ABIERTO-003.
 
-**Fase 3 — FSM / reorden del pipeline — ARRANCADA (Paso 3.2 en modo DETECCIÓN)**
+**Fase 3 — CIERRE 2026-07-18 (tandas A/B/C, plan `snug-dancing-tiger`)**
+- [x] **3.4a — 21/21 enforcers en `app/enforcers/`** (commits `cee8ec7`+`f5e9a5f`): la capa de
+      helpers de respuesta salió de agent.py (`app/laterales.py` NUEVO + text/menus/orders) y
+      los 2 enforcers finales viven en `enforcers/confirmacion.py` y `enforcers/resultados.py`.
+      agent.py: 3.582 → 3.181 líneas; ya no define ningún `_enforce_*`. Lint de referencias
+      extendido a laterales.py. PENDIENTE (Tanda D, sesión aparte): partir `process_turn` en
+      `app/turno/` — después de que el reorden C repose en vivo.
+- [x] **3.2 — FSM en modo BLOQUEO de estado** (commit `86f7183`): `FSM_ENFORCE=true` en `.env`
+      local; `heal()` probado end-to-end en el embudo (`_persist_turn` → `db.update_session`
+      recibe el estado reparado). Flags fantasma NO se dropean en runtime (typo = fallo de
+      suite: `test_catalog_covers_flags_used_in_whole_app` cubre app/**). Transiciones
+      ilegales quedan en DETECCIÓN (grafo descriptivo). [ ] Flip del default en `config.py`
+      tras la prueba en vivo del usuario con el enforce activo.
+- [x] **3.3 — REORDEN pre-LLM completo** (commits `5fe8737`/`9c86290`/`ba5ee3a`): los 3 atajos
+      de INTENCIÓN por tokens se degradaron a sus handlers post-modelo señal-primero con
+      tokens de RED y guards portados: C1 otra-orden (+_stable_confirm_pending), C2 cambio
+      cliente/sede (+rama sede, base prev_captured con menús limpios), C3 no-registrado
+      (+bypass ERR-037 en el atajo de servicio). Trade-off aceptado: +1 llamada LLM en esos
+      turnos raros (~1-3 s sobre el debounce de 5 s). Señales sin consumidor propio —
+      `same_as_previous`, `farewell`, `cancel`, `provides_requested_data` — quedan cubiertas
+      por otras vías (memoria pre-LLM, fases terminales, message_mode=cancellation, captura
+      normal); documentado, sin acción.
+- Validación: suite 325 passed (6 fallos de red ajenos); `validate_flows.py` (modelo real)
+  18-20/24 — los flujos con problemas NO son regresión: A falla igual en el commit BASE
+  (verificado con worktree en `784b799`) y F/M/M2/S/T varían entre corridas (flakiness del
+  modelo); B/K/L/T (las áreas del reorden) pasan. [ ] Prueba en vivo del usuario.
+
+**Fase 3 — histórico (estado previo al cierre)**
 - [x] `app/state.py` ya tenía la FSM documentada (`Phase`, `LEGAL_TRANSITIONS`, `is_legal_transition`)
       y las invariantes de estado (`assert_valid`, `unknown_flags`).
 - [x] `agent._observe_state_health` conectado al embudo `_persist_turn`: tras cada turno loggea
