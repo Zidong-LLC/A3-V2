@@ -2390,25 +2390,10 @@ def process_turn(
         if tokens & {"reptil", "reptiles"} or (tokens & {"hacen", "atienden"} and tokens & _ANALYSIS_TOKENS):
             return _persist_turn(chat_id, user_message, _unknown_handoff_response(dict(prev_captured)))
 
-    # Nueva orden tras una YA registrada, aunque la conversación haya seguido con turnos
-    # intermedios (charla, agradecimiento) que sacaron la sesión de la fase terminal. Sin
-    # esto, el pedido de "otra orden" no reiniciaba y arrastraba los datos de la orden previa.
-    # Se dispara también cuando el cliente vuelve con la sesión identificada (client_id) pero
-    # el intent_current no es exactamente "route_scheduling" (ej. sesión parcialmente reiniciada),
-    # evitando que el AI salte directo a "¿Cuál es el médico solicitante?" sin contexto.
-    if (
-        prev_captured.get("_order_registered")
-        and session.get("phase_current") not in TERMINAL_PHASES
-        and not prev_captured.get("_stable_confirm_pending")
-        and (session.get("intent_current") == "route_scheduling" or session.get("client_id"))
-        and _explicitly_wants_another_order(user_message)
-    ):
-        if _wants_to_change_client(user_message):
-            return _persist_turn(
-                chat_id, user_message,
-                _restart_identification_for_new_client(chat_id, session, prev_captured),
-            )
-        return _persist_turn(chat_id, user_message, _begin_followup_order(prev_captured, user_message))
+    # Reorden 3.3 (C1): el atajo pre-LLM de "otra orden" por tokens se DEGRADÓ — el turno
+    # llega al modelo y el handler post-modelo actúa señal-primero (another_order) con los
+    # mismos tokens de red y guards. El manejo DENTRO de fase terminal (bloque de arriba)
+    # no cambia: es parte del cierre aprobado.
 
     if session.get("client_id") and prev_captured.get("_client_not_found"):
         db.clear_client_from_session(chat_id)
@@ -2583,16 +2568,20 @@ def process_turn(
             _restart_identification_for_new_client(chat_id, session, fields),
         )
 
-    # 3.3 — SEÑAL another_order: tras una orden registrada, cualquier fraseo de "necesito
-    # otra orden" que los tokens no conozcan ("me quedó pendiente mandarte muestras de otro
-    # paciente") lo lee el modelo. Misma acción determinística que la vía por tokens:
+    # 3.3 — another_order SEÑAL-PRIMERO (reorden C1): tras una orden registrada, cualquier
+    # fraseo de "necesito otra orden" lo lee el modelo; los tokens quedan de RED para
+    # cuando la señal no venga. El atajo pre-LLM por tokens se degradó a este handler
+    # (guards portados: _stable_confirm_pending tiene manejo propio; la sesión
+    # parcialmente reiniciada cuenta por intent_current). Misma acción determinística:
     # _begin_followup_order (nueva orden conservando cliente y datos estables).
     if (
-        signal == "another_order"
+        (signal == "another_order" or _explicitly_wants_another_order(user_message))
         and ai_response.get("intent") == "route_scheduling"
         and not ai_response.get("requires_handoff")
         and (prev_captured.get("_order_registered") or just_closed_order)
-        and (session.get("client_id") or fields.get("_client_found"))
+        and not prev_captured.get("_stable_confirm_pending")
+        and (session.get("client_id") or fields.get("_client_found")
+             or session.get("intent_current") == "route_scheduling")
     ):
         if _wants_to_change_client(user_message):
             return _persist_turn(
