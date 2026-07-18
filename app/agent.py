@@ -2541,8 +2541,18 @@ def process_turn(
     # el mismo turno del cambio (QA extremo) — nada capturado en este turno sobrevive.
     # Cambio de SEDE (misma orden, otra sucursal) mantiene paciente y análisis; cambio
     # de CLIENTE con orden en curso conserva la orden y re-verifica identidad (L50).
+    # La RED de tokens de este handler NO puede pisar otra señal con handler propio ni
+    # actuar recién cerrada la orden: "sangre de otro peludo DE LA CLÍNICA" post-cierre
+    # matchea _wants_to_change_client (falso positivo) y robaba el turno de another_order
+    # (QA real 2026-07-18). La fase de ENTRADA (_turn_prev_phase) preserva el guard del
+    # atajo original: el bloque de fase terminal ya mutó session["phase_current"].
+    _change_by_tokens = (
+        _wants_to_change_client(user_message)
+        and signal != "another_order"
+        and _turn_prev_phase.get() not in TERMINAL_PHASES
+    )
     if (
-        (signal == "change_client" or _wants_to_change_client(user_message))
+        (signal == "change_client" or _change_by_tokens)
         and ai_response.get("intent") == "route_scheduling"
         and not ai_response.get("requires_handoff")
         and session.get("phase_current") not in TERMINAL_PHASES

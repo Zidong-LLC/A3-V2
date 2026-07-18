@@ -218,3 +218,85 @@ def test_c3_err037_service_question_does_not_swallow_unregistered():
     assert "recogemos muestras con motorizado" not in (reply or "").lower()
     assert "atención al cliente" in (reply or "").lower()
     assert persisted.get("requires_handoff") is True
+
+
+# ── QA real 2026-07-18: regresiones encontradas tratando de romper el agente ─────────
+
+def test_qa_change_client_tokens_do_not_steal_another_order_after_close():
+    """BUG B (regresión C2): tras cerrar la orden, 'sangre de otro peludo DE LA CLÍNICA'
+    matchea _wants_to_change_client (falso positivo) y robaba el turno de another_order.
+    La red de tokens de change_client no aplica con señal another_order ni con fase de
+    entrada terminal — el followup gana."""
+    msg = "ah y me quedo pendiente mandarles sangre de otro peludo de la clinica"
+    # El detector ya no hace el falso positivo ('otro'...'clinica' lejos = mención casual);
+    # los fraseos de cambio reales (señal + sustantivo cercanos) siguen matcheando.
+    assert not agent._wants_to_change_client(msg)
+    assert agent._wants_to_change_client("necesito cambiar de veterinaria")
+    assert agent._wants_to_change_client("esta orden es para la otra sede")
+    session = {
+        "external_chat_id": "c1", "client_id": "cli-A", "channel": "telegram",
+        "phase_current": "fase_6_cierre", "intent_current": "route_scheduling",
+        "captured_fields": dict(REGISTERED), "status": "in_progress",
+    }
+    fake_db = MagicMock()
+    fake_db.get_or_create_session.return_value = session
+    fake_db.get_recent_messages.return_value = [
+        {"role": "user", "content": "si confirmo"}, {"role": "bot", "content": "Quedó registrado..."},
+    ]
+    with patch.object(agent, "db", fake_db), \
+         patch.object(agent.ai, "generate_turn", return_value=_neutral_ai_response("another_order")):
+        reply = agent.process_turn("c1", msg)
+    persisted = fake_db.update_session.call_args[0][1]
+    fields = persisted.get("captured_fields", {})
+    assert "cambiamos de cliente" not in (reply or "").lower()
+    assert fields.get("_prev_order_snapshot"), "another_order no ganó el turno"
+    assert fields.get("clinic_name") == "Animal Pets"    # el cliente se conserva
+
+
+def test_qa_mixed_first_request_via_category_help_keeps_exacts():
+    """BUG A (clase ERR-067, 4ª ruta): 'sodio potasio y orina' de primer pedido llegaba a
+    _enforce_test_category_help (el modelo no capturó nada) y el menú del área MACHACABA
+    los exactos. Ahora: sodio+potasio registrados y el menú del área ofrece como agregado."""
+    from unittest.mock import patch as _patch
+    from app.enforcers import catalogo as ecat
+    CATALOGO = [
+        {"code": "1404", "name": "Potasio", "price": 12000, "category": "Minerales"},
+        {"code": "1405", "name": "Sodio", "price": 12000, "category": "Minerales"},
+        {"code": "1601", "name": "Parcial de Orina (14 parámetros)", "price": 16000,
+         "category": "Uroanálisis", "sample": "Orina Fresca"},
+    ]
+    URO = [c for c in CATALOGO if c["category"] == "Uroanálisis"]
+    ai = {"intent": "route_scheduling", "phase": "fase_2_recogida_datos",
+          "captured_fields": {"_client_found": True, "species": "Felino"}, "reply": "(modelo)"}
+    history = [{"role": "bot", "content": "Por último, ¿qué análisis o perfil desean?"}]
+    with _patch.object(ecat.db, "find_tests_by_area", return_value=("Uroanálisis", URO)), \
+         _patch.object(ecat.db, "list_catalog_tests", return_value=CATALOGO), \
+         _patch.object(ecat, "_analysis_help_candidate", return_value="sodio potasio y orina"):
+        out = ecat._enforce_test_category_help({"client_id": "c"}, ai, {},
+                                               "sodio potasio y orina", history)
+    fields = out["captured_fields"]
+    assert {"1404", "1405"} <= set(fields.get("selected_tests") or []), "exactos machacados"
+    assert fields.get("_test_menu_options")                  # el área se ofrece igual
+    assert fields.get("_test_menu_adds_to_profile") is True  # la selección SUMA
+    assert "Potasio" in out["reply"] and "uroanálisis" in out["reply"].lower()
+
+
+def test_qa_pure_area_request_still_offers_plain_menu():
+    """No-regresión del fix A: 'orina' pelado (sin exactos) mantiene el menú clásico."""
+    from unittest.mock import patch as _patch
+    from app.enforcers import catalogo as ecat
+    URO = [{"code": "1601", "name": "Parcial de Orina (14 parámetros)", "price": 16000,
+            "category": "Uroanálisis", "sample": "Orina Fresca"},
+           {"code": "1602", "name": "Lectura Sedimento Urinario", "price": 7000,
+            "category": "Uroanálisis", "sample": "Orina Fresca"}]
+    ai = {"intent": "route_scheduling", "phase": "fase_2_recogida_datos",
+          "captured_fields": {"_client_found": True, "species": "Canino"}, "reply": "(modelo)"}
+    history = [{"role": "bot", "content": "Por último, ¿qué análisis o perfil desean?"}]
+    with _patch.object(ecat.db, "find_tests_by_area", return_value=("Uroanálisis", URO)), \
+         _patch.object(ecat.db, "list_catalog_tests", return_value=URO), \
+         _patch.object(ecat, "_analysis_help_candidate", return_value="orina"):
+        out = ecat._enforce_test_category_help({"client_id": "c"}, ai, {}, "orina", history)
+    fields = out["captured_fields"]
+    assert fields.get("selected_tests") == []            # sin exactos: comportamiento clásico
+    assert fields.get("_test_menu_options")
+    assert "registro" not in out["reply"].lower()

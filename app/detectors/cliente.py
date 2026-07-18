@@ -49,9 +49,19 @@ def _wants_to_change_client(text: str) -> bool:
     Exige un sustantivo de cliente o SEDE + una señal de cambio para no confundir un
     'confirmo los datos del cliente' con un cambio real. Incluye sede/sucursal porque
     'esta orden es para la otra sede' es un cambio de cliente (QA extremo: se interpretaba
-    como una selección de perfil espuria)."""
-    tokens = set(_tokenize(text))
-    return bool(tokens & (_CLIENT_NOUN_TOKENS | _BRANCH_NOUN_TOKENS)) and bool(tokens & _CLIENT_CHANGE_SIGNAL_TOKENS)
+    como una selección de perfil espuria).
+    Señal y sustantivo deben estar CERCA (ventana de 3 palabras): 'sangre de OTRO peludo
+    de la CLÍNICA' menciona la clínica de pasada y NO es un cambio — el falso positivo
+    robaba el turno de another_order (QA real 2026-07-18; clase ERR-066: el dato es una
+    secuencia, no palabras sueltas). Los fraseos lejanos los cubre la señal del modelo."""
+    toks = _tokenize(text)
+    nouns = _CLIENT_NOUN_TOKENS | _BRANCH_NOUN_TOKENS
+    for i, tok in enumerate(toks):
+        if tok in _CLIENT_CHANGE_SIGNAL_TOKENS:
+            window = toks[max(0, i - 3):i + 4]
+            if any(t in nouns for t in window):
+                return True
+    return False
 
 
 

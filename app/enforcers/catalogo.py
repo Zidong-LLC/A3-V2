@@ -236,6 +236,29 @@ def _enforce_test_category_help(session: dict, ai_response: dict, prev_fields: d
     if not tests:
         return ai_response
 
+    # Pedido MIXTO (clase ERR-067, 4ª ruta — QA real 2026-07-18): 'sodio potasio y orina'
+    # de primer pedido llegaba ACÁ (el modelo no capturó nada y este helper matcheó el
+    # área) y el menú MACHACABA los exactos (selected_tests=[]) en silencio. Lo
+    # inequívoco se registra ya; el menú del área se ofrece como AGREGADO (la selección
+    # posterior SUMA, no reemplaza).
+    try:
+        partial = catalog.resolve_tests(user_message, db.list_catalog_tests(limit=5000),
+                                        fields.get("species"), collect_partial=True)
+    except Exception:
+        partial = None
+    if partial is not None and partial.status == catalog.EXACT and partial.tests:
+        codes = [str(r.get("code")) for r in partial.tests]
+        fields["selected_tests"] = codes
+        fields["removed_tests"] = []
+        fields["exam_type"] = (f"{partial.tests[0].get('code')} {partial.tests[0].get('name')}"
+                               if len(codes) == 1
+                               else f"Perfil personalizado ({len(codes)} análisis)")
+        _store_test_menu_options(fields, tests)
+        fields["_test_menu_adds_to_profile"] = True
+        intro = (f"Listo, registro {_format_test_items(partial.tests)}. "
+                 "Ahora vamos con lo siguiente que pediste:\n")
+        return _base_route_response(intro + _test_area_suggestion_reply(area or candidate, tests), fields)
+
     fields["exam_type"] = None
     fields["selected_tests"] = []
     fields["removed_tests"] = []

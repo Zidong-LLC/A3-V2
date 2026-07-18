@@ -27,6 +27,45 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### ERR-070 — QA real post-Fase 3: la red de tokens de change_client robaba el turno de another_order (2026-07-18)
+**Origen:** QA adversarial con MODELO REAL y base real (5 escenarios, sesiones qa-*),
+tratando de romper el agente tras el cierre de Fase 3.
+**Síntoma:** tras cerrar una orden, "me quedó pendiente mandarles sangre de otro peludo
+DE LA CLÍNICA" respondió "Claro, cambiamos de cliente" (pidió NIT de una nueva veterinaria)
+en vez de iniciar la otra orden. REGRESIÓN del reorden C2: antes el guard de fase terminal
+frenaba el falso positivo; post-reorden la fase ya está mutada cuando corre el handler.
+**Causa raíz (clase ERR-066, palabras sueltas donde el dato es una secuencia):**
+`_wants_to_change_client` matcheaba "otro"+"clinica" SUELTOS en toda la frase — la mención
+casual de la clínica no es un cambio de cliente.
+**Solución (en la fuente, beneficia a TODOS los call sites):** el detector exige señal de
+cambio y sustantivo de cliente/sede CERCANOS (ventana de 3 palabras). Además, defensa en el
+handler C2: su red de tokens no aplica si la señal es another_order ni si la fase de ENTRADA
+del turno (`_turn_prev_phase`) era terminal. Verificado con modelo real: el fraseo inicia la
+otra orden reofreciendo estables, y "el de siempre" resuelve al médico recordado.
+**Tests:** test_signal_reorder.py (falso positivo + fraseos reales siguen matcheando).
+**Estado:** RESUELTO. Suite: 328 passed.
+
+### ERR-071 — QA real: 4ª ruta de la clase ERR-067 — el menú de área machacaba los exactos en la primera captura (2026-07-18)
+**Síntoma:** "sodio potasio y orina" como PRIMER pedido, cuando el modelo no capturaba
+nada, caía en `_enforce_test_category_help`: el menú del área ponía `selected_tests=[]`
+y Sodio+Potasio se perdían EN SILENCIO (la orden cerró solo con Parcial de Orina $16k).
+**Causa raíz (clase ERR-067, "el primer match del área gana"):** ese helper no descomponía
+el pedido mixto — 4ª ruta de la misma clase (tras 067 agregado-a-perfil, 067d primera
+captura vía exam_type, 067e categoría de perfil).
+**Solución (mismo patrón):** antes de ofrecer el menú del área, `resolve_tests` con
+`collect_partial`: lo inequívoco se registra ya y el menú del área se ofrece como AGREGADO
+(`_test_menu_adds_to_profile`: la selección SUMA, no reemplaza). "orina" pelado (sin
+exactos) conserva el comportamiento clásico. Verificado con modelo real: "Listo, registro
+1404-Potasio $12k, 1405-Sodio $12k. Ahora vamos con lo siguiente que pediste: [menú uro]".
+**Observaciones del QA (menores, anotadas SIN tocar):** (a) cuando el modelo emite un
+código ADIVINADO (p.ej. Electrolitos por "sodio potasio"), el grounding ofrece el menú del
+área del adivinado (minerales) antes que el del término del mensaje — diseño de ERR-053,
+no pierde datos; (b) "quiero ver perfiles para gatos" durante la recogida se ignora con la
+re-pregunta seca del campo pendiente (clase ERR-069 pero con PREGUNTA; candidato a la
+auditoría L50 pendiente).
+**Tests:** test_signal_reorder.py (mixto conserva exactos + área pelada sin cambio).
+**Estado:** RESUELTO. Suite: 328 passed.
+
 ### FASE-3-CIERRE — Refactor de raíz: 3.2 + 3.3 + 3.4a completados (2026-07-18)
 **Qué se cerró** (plan `snug-dancing-tiger`, tandas con suite verde y commit cada una):
 - **3.4a** (`cee8ec7`, `f5e9a5f`): 21/21 enforcers en `app/enforcers/` (nuevos:
