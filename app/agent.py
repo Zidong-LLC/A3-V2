@@ -200,6 +200,11 @@ from app.enforcers.orden import (
     _ADD_ANALYSIS_TOKENS as _ADD_ANALYSIS_TOKENS,
 )
 from app.enforcers import enforce_selected_tests_are_catalog_codes as _enforce_selected_tests_are_catalog_codes
+from app.enforcers.resultados import _enforce_results_message as _enforce_results_message
+from app.enforcers.confirmacion import (
+    _confirmation_analysis_adjustment as _confirmation_analysis_adjustment,
+    _enforce_confirmation_step as _enforce_confirmation_step,
+)
 from app.enforcers.grounding import (
     enforce_exam_type_grounding as _enforce_exam_type_grounding,
     enforce_age_unit_grounding as _enforce_age_unit_grounding,
@@ -1268,34 +1273,7 @@ def _menu_choice_context(session: dict, history: list[dict], fields: dict) -> bo
     )
 
 
-def _enforce_results_message(session: dict, ai_response: dict, user_message: str) -> dict:
-    """Si el turno se clasificó como consulta de resultados, responde con el
-    mensaje fijo. Si junto con los resultados quedó pendiente programar una
-    recogida, entrega el mensaje fijo Y retoma la ruta en el mismo turno, para
-    no perder la intención de recogida (resume determinístico)."""
-    if ai_response.get("intent") != "results":
-        return ai_response
-    fields = ai_response.get("captured_fields") or {}
-    pending = ai_response.get("pending_intents") or []
-
-    operational_answer = _operational_side_question_answer(user_message)
-    if operational_answer:
-        response = _base_route_response(operational_answer, fields)
-        response["message_mode"] = "side_question"
-        return _resume_route_after_lateral_turn(session, response) if _has_active_route_context(session, fields) else response
-
-    if "route_scheduling" in pending:
-        missing = _missing_route_field(session, fields)
-        question = _missing_route_field_question(missing) if missing else "¿Confirmas que programamos la recogida?"
-        resumed = _base_route_response(
-            f"{RESULTS_PENDING_MESSAGE}\n\nMientras tanto, sigamos con la recogida que me pedías. {question}",
-            fields,
-        )
-        resumed["message_mode"] = "side_question"
-        resumed["captured_fields"]["_pending_intents"] = []
-        return resumed
-
-    return _results_pending_response(fields, pending)
+# _enforce_results_message -> app/enforcers/resultados.py (3.4a).
 
 
 def _same_text(left: str | None, right: str | None) -> bool:
@@ -1843,134 +1821,7 @@ def _extract_correction_value(field: str, text: str) -> str | None:
 # _format_tests_total, _catalog_price_answer y _price_answer_for_order -> app/orders.py (3.4a).
 
 
-def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message: str, signal: str | None) -> dict | None:
-    pending_action = fields.get("_awaiting_additional_test")
-    if not pending_action and not _wants_partial_analysis_change(user_message):
-        return None
-
-    tokens = set(_tokenize(user_message))
-    action = pending_action or "add"
-    if tokens & {"quitar", "quita", "quitale", "quítale", "sacar", "saca", "sin", "menos", "retirar", "remover"}:
-        action = "remove"
-
-    # Al AGREGAR, la mención de un ÁREA ('agregale un análisis de orina') va al menú de
-    # esa área ANTES que cualquier match difuso por nombre ('orina' → Cortisol; chat 4).
-    if action == "add":
-        area_response = _area_options_for_profile_addition(fields, user_message, require_question=False)
-        if area_response:
-            area_response["phase"] = CONFIRMATION_PHASE
-            return area_response
-
-    rows = (db.get_tests_by_codes_or_names([user_message])
-            or db.get_tests_by_codes_or_names(_named_analysis_terms(user_message)))
-    if not rows:
-        if signal == "negate" or tokens & {"nada", "ninguno", "ninguna"}:
-            return None
-        # No nombró un test exacto: si pregunta por un ÁREA ('qué análisis de orina
-        # tienen'), ofrecer las opciones de esa área para agregar, en vez de repreguntar
-        # a ciegas y dejarlo trabado.
-        area_response = _area_options_for_profile_addition(fields, user_message)
-        if area_response:
-            area_response["phase"] = CONFIRMATION_PHASE
-            return area_response
-        fields["_awaiting_additional_test"] = action
-        ask = "¿Qué análisis quieres quitar?" if action == "remove" else "¿Qué análisis quieres agregar?"
-        response = _base_route_response(f"Claro. {ask}", fields)
-        response["phase"] = CONFIRMATION_PHASE
-        return response
-
-    _add_tests_to_order(fields, rows, action)
-    fields.pop("_awaiting_additional_test", None)
-    fields.pop("_correction_pending", None)
-
-    summary = _route_confirmation_summary(fields)
-    response = _base_route_response(summary or _missing_route_field_question(_missing_route_field(session, fields)), fields)
-    response["phase"] = CONFIRMATION_PHASE
-    return response
-
-
-def _enforce_confirmation_step(session: dict, ai_response: dict, fields: dict, previous_phase: str, user_message: str) -> dict:
-    """Antes de registrar una orden completa, mostrar el resumen y pedir
-    confirmación (Sí / Corregir). Solo deja cerrar cuando el usuario ya confirmó."""
-    if ai_response.get("intent") != "route_scheduling":
-        return ai_response
-    if ai_response.get("message_mode") == "cancellation":
-        return ai_response
-
-    if previous_phase == CONFIRMATION_PHASE:
-        adjusted = _confirmation_analysis_adjustment(
-            session, fields, user_message, ai_response.get("user_intent_signal")
-        )
-        if adjusted:
-            return adjusted
-
-    # Cierre DETERMINÍSTICO: si venimos del resumen (fase_4) y el usuario confirma
-    # con la orden completa, cerrar SIEMPRE acá, sin depender de que el modelo emita
-    # la fase terminal. Antes el cierre quedaba a criterio del AI y, si no devolvía
-    # fase_6_cierre, la orden se quedaba trabada en la confirmación sin registrarse.
-    if (previous_phase == CONFIRMATION_PHASE
-            and _confirms_order_now(ai_response, user_message)
-            and not _missing_route_field(session, fields)):
-        operational_answer = _operational_side_question_answer(user_message)
-        # Si confirmó y a la vez preguntó el precio, respondemos el valor REAL del análisis
-        # ya elegido (no la respuesta genérica) antes del "Quedó registrado".
-        price_answer = _price_answer_for_order(fields, user_message)
-        if fields.get("payment_method") == "pago_linea":
-            ai_response["phase"] = "fase_7_escalado"
-            ai_response["requires_handoff"] = True
-            ai_response["handoff_area"] = "contabilidad"
-            ai_response["reply"] = PAYMENT_ONLINE_HANDOFF_MESSAGE
-        else:
-            ai_response["phase"] = "fase_6_cierre"
-            ai_response["requires_handoff"] = False
-            ai_response["handoff_area"] = None
-            summary = _route_closure_summary(fields)
-            if summary:
-                ai_response["reply"] = summary
-        prefix = price_answer or operational_answer
-        if prefix:
-            ai_response["reply"] = f"{prefix}\n\n{ai_response['reply']}"
-        fields.pop("_correction_pending", None)
-        ai_response["service_area"] = "route_scheduling"
-        ai_response["message_mode"] = "flow_progress"
-        return ai_response
-
-    if _missing_route_field(session, fields):
-        return ai_response
-    # Ya estábamos en confirmación: el cierre lo maneja el bloque determinístico de
-    # arriba y las correcciones su propio handler; cualquier otra respuesta la deja
-    # pasar al modelo. No re-disparamos el resumen acá.
-    if previous_phase == CONFIRMATION_PHASE:
-        # Excepción: tras una corrección, cuando el dato nuevo llegó y la orden quedó
-        # completa, re-mostrar el resumen para que el cliente vea el cambio antes del "sí".
-        if fields.get("_correction_pending") and not _is_order_confirmation(user_message):
-            fields.pop("_correction_pending", None)
-            summary = _route_confirmation_summary(fields)
-            if summary:
-                ai_response["reply"] = summary
-                ai_response["phase"] = CONFIRMATION_PHASE
-                ai_response["requires_handoff"] = False
-                ai_response["handoff_area"] = None
-                ai_response["message_mode"] = "flow_progress"
-                ai_response["captured_fields"] = fields
-        return ai_response
-
-    # Orden completa por primera vez: mostrar SIEMPRE el resumen determinístico, sin
-    # depender de que el modelo haya devuelto una fase terminal. Antes, si el modelo
-    # improvisaba la confirmación en fase_4 (no terminal), el sistema no tomaba control
-    # y el bot daba vueltas con respuestas raras en vez de un resumen claro.
-    summary = _route_confirmation_summary(fields)
-    if not summary:
-        return ai_response
-    operational_answer = _operational_side_question_answer(user_message)
-    if operational_answer:
-        summary = f"{operational_answer}\n\n{summary}"
-    ai_response["reply"] = summary
-    ai_response["phase"] = CONFIRMATION_PHASE
-    ai_response["requires_handoff"] = False
-    ai_response["handoff_area"] = None
-    ai_response["message_mode"] = "flow_progress"
-    return ai_response
+# _confirmation_analysis_adjustment y _enforce_confirmation_step -> app/enforcers/confirmacion.py (3.4a).
 
 
 def _apply_route_closure_summary(ai_response: dict) -> dict:
