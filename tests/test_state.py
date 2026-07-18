@@ -159,3 +159,61 @@ def test_heal_resolves_known_incoherences():
     st.assert_valid()                                   # tras reparar, el estado es coherente
     assert st.get("_address_confirmed") is True         # gana la confirmación
     assert ConversationState({"_client_found": True}).heal() == []   # sano: no toca nada
+
+
+def test_catalog_covers_flags_used_in_whole_app():
+    """Tanda B (3.2): el catálogo cubre TODA flag _* referenciada en app/** (no solo
+    agent.py — los enforcers/orders también setean flags). Un typo de flag se vuelve
+    fallo de suite acá, no un borrado silencioso en producción."""
+    import re
+    from pathlib import Path
+    app_dir = Path(__file__).resolve().parents[1] / "app"
+    used = set()
+    for py in app_dir.rglob("*.py"):
+        if "__pycache__" in str(py) or py.parts[-2] in ("portal", "static", "templates"):
+            continue
+        for name in re.findall(r'"(_[a-z_]+)"', py.read_text(encoding="utf-8")):
+            used.add(name)
+    uncatalogued = {f for f in used
+                    if f not in state.KNOWN_FLAGS
+                    and not f.startswith("_nc_") and not f.startswith("__")}
+    assert not uncatalogued, f"flags sin catalogar en state.py: {sorted(uncatalogued)}"
+
+
+def test_persist_turn_heals_under_enforce(monkeypatch):
+    """Tanda B (3.2, modo BLOQUEO): con FSM_ENFORCE activo, un par de flags pegadas
+    llega REPARADO a db.update_session — el estado enfermo no envenena los turnos
+    siguientes. (agent importa FSM_ENFORCE por valor: se patchea agent.FSM_ENFORCE.)"""
+    from unittest.mock import MagicMock
+    from app import agent
+    monkeypatch.setattr(agent, "FSM_ENFORCE", True)
+    monkeypatch.setattr(agent, "db", MagicMock())
+    ai_response = {
+        "reply": "ok", "phase": "fase_2_recogida_datos", "intent": "route_scheduling",
+        "service_area": "route_scheduling", "requires_handoff": False, "handoff_area": None,
+        "captured_fields": {"_address_confirmed": True, "_address_confirmation_pending": True},
+        "pending_intents": [],
+    }
+    agent._persist_turn("chat-test", "hola", ai_response)
+    persisted = agent.db.update_session.call_args[0][1]["captured_fields"]
+    assert persisted["_address_confirmed"] is True
+    assert not persisted.get("_address_confirmation_pending")   # reparado: gana la confirmación
+    ConversationState(persisted).assert_valid()
+
+
+def test_persist_turn_detection_only_without_enforce(monkeypatch):
+    """Sin FSM_ENFORCE el observador solo loguea: el par pegado se persiste igual
+    (comportamiento actual en producción, base de comparación del flip)."""
+    from unittest.mock import MagicMock
+    from app import agent
+    monkeypatch.setattr(agent, "FSM_ENFORCE", False)
+    monkeypatch.setattr(agent, "db", MagicMock())
+    ai_response = {
+        "reply": "ok", "phase": "fase_2_recogida_datos", "intent": "route_scheduling",
+        "service_area": "route_scheduling", "requires_handoff": False, "handoff_area": None,
+        "captured_fields": {"_address_confirmed": True, "_address_confirmation_pending": True},
+        "pending_intents": [],
+    }
+    agent._persist_turn("chat-test", "hola", ai_response)
+    persisted = agent.db.update_session.call_args[0][1]["captured_fields"]
+    assert persisted.get("_address_confirmation_pending") is True   # sin bloqueo, queda pegado
