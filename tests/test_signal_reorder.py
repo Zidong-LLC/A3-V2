@@ -162,3 +162,59 @@ def test_c2_extra_offer_lane_yields_on_client_change():
     out = eorden._handle_extra_analysis_answer({"client_id": "c"}, fields,
                                                "necesito cambiar de veterinaria")
     assert out is None
+
+
+# ── C3: "no estoy registrado" señal-primero + bypass ERR-037 ─────────────────────────
+
+def _run_unidentified_turn(msg, signal):
+    session = {
+        "external_chat_id": "c9", "client_id": None, "channel": "telegram",
+        "phase_current": "fase_1_clasificacion", "intent_current": "route_scheduling",
+        "captured_fields": {}, "status": "in_progress",
+    }
+    fake_db = MagicMock()
+    fake_db.get_or_create_session.return_value = session
+    fake_db.get_recent_messages.return_value = [
+        {"role": "user", "content": "1"},
+        {"role": "bot", "content": "¿Me compartes el NIT o el nombre de la veterinaria?"},
+    ]
+    fake_db.find_client.return_value = None
+    fake_db.find_clients_matching.return_value = []
+    fake_db.get_client_memory.return_value = None
+    fake_db.list_catalog_tests.return_value = []
+    fake_db.find_tests_by_area.return_value = (None, [])
+    with patch.object(agent, "db", fake_db), \
+         patch.object(agent.ai, "generate_turn", return_value=_neutral_ai_response(signal)):
+        reply = agent.process_turn("c9", msg)
+    persisted = (fake_db.update_session.call_args[0][1]
+                 if fake_db.update_session.call_args else {})
+    return reply, persisted
+
+
+def test_c3_tokens_are_the_net_for_unregistered():
+    """Red de tokens: 'no estamos registrados con ustedes' escala a recepción aunque el
+    modelo no emita la señal. El atajo pre-LLM degradado no pierde el caso conocido."""
+    reply, persisted = _run_unidentified_turn("no estamos registrados con ustedes", "unclear")
+    assert "atención al cliente" in (reply or "").lower()
+    assert persisted.get("requires_handoff") is True
+
+
+def test_c3_signal_covers_unknown_phrasing():
+    """Señal-primero: 'la verdad nunca hemos trabajado con el laboratorio' no matchea los
+    tokens — la señal new_or_unregistered_client escala igual."""
+    msg = "la verdad nunca hemos trabajado con el laboratorio"
+    from app.detectors import _claims_unregistered_client
+    assert not _claims_unregistered_client(msg)
+    reply, persisted = _run_unidentified_turn(msg, "new_or_unregistered_client")
+    assert "atención al cliente" in (reply or "").lower()
+    assert persisted.get("requires_handoff") is True
+
+
+def test_c3_err037_service_question_does_not_swallow_unregistered():
+    """ERR-037 (bypass portado): 'no estamos registrados, ¿ustedes recogen las muestras?'
+    NO se responde con la frase fija del motorizado — escala a recepción."""
+    reply, persisted = _run_unidentified_turn(
+        "no estamos registrados, ustedes recogen las muestras?", "new_or_unregistered_client")
+    assert "recogemos muestras con motorizado" not in (reply or "").lower()
+    assert "atención al cliente" in (reply or "").lower()
+    assert persisted.get("requires_handoff") is True

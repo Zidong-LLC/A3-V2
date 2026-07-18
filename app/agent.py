@@ -2067,21 +2067,11 @@ def process_turn(
         reply = "Sí, lo tengo. " + _client_match_options_reply(query, prev_captured.get("_client_match_options") or [])
         return _persist_turn(chat_id, user_message, _base_route_response(reply, dict(prev_captured)))
 
-    # Cliente que declara EXPLÍCITAMENTE no estar registrado: escalar a recepción de
-    # inmediato (regla de negocio invariante), aunque el mensaje mencione un nombre o
-    # pida "que me programen la recogida". Sin esto, las respuestas de preventa/servicio
-    # (frase del motorizado) interceptaban y metían bucle de "compárteme el NIT" (ERR-037).
-    if not session.get("client_id") and _claims_unregistered_client(user_message):
-        fields = dict(prev_captured)
-        fields["clinic_name"] = None
-        fields["tax_id"] = None
-        fields.pop("_client_found", None)
-        fields.pop("_client_not_found", None)
-        _clear_client_match_options(fields)
-        return _escalate_new_client_turn(
-            chat_id, session, user_message, fields,
-            started_from_escalation, CLIENT_NEW_REGISTRATION_MESSAGE,
-        )
+    # Reorden 3.3 (C3): el atajo pre-LLM de "no estoy registrado" se DEGRADÓ — el turno
+    # llega al modelo y el handler post-modelo escala señal-primero
+    # (new_or_unregistered_client OR _claims_unregistered_client, paridad completa con
+    # guards de lista de coincidencias). La protección ERR-037 queda como BYPASS abajo:
+    # el atajo de servicio no intercepta a quien declara no estar registrado.
 
     if (
         not session.get("client_id")
@@ -2091,6 +2081,10 @@ def process_turn(
         # LLM lea el mensaje COMPLETO (no que un token suelto como "Colombia" lo desvíe a
         # una respuesta de cortesía). El atajo de servicio solo aplica al contacto inicial.
         and not _awaiting_client_identifier(history)
+        # ERR-037 (bypass del reorden C3): "no estamos registrados, ¿recogen muestras?"
+        # NO se responde con la frase del motorizado — va al modelo para que el handler
+        # de cliente nuevo escale a recepción (regla de negocio invariante).
+        and not _claims_unregistered_client(user_message)
     ):
         info_response = _pre_identification_service_info_response(user_message, dict(prev_captured))
         if info_response:
