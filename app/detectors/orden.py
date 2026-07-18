@@ -52,6 +52,38 @@ def _is_correction_request(text: str) -> bool:
     return bool(set(_tokenize(text)) & _CORRECTION_TOKENS)
 
 
+# Campo de la orden al que apunta una corrección ('la raza es tobiano' → breed).
+# Movido de agent.py (ERR-069) para que los enforcers puedan consultarlo sin ciclo.
+_CORRECTION_FIELD_KEYWORDS = (
+    (("direccion", "dirección", "domicilio", "retiro"), "pickup_address"),
+    (("medico", "médico", "solicitante", "doctor", "doctora"), "requesting_doctor"),
+    (("paciente", "perro", "perra", "gato", "gata", "animal", "mascota"), "patient_name"),
+    (("especie",), "species"),
+    (("raza",), "breed"),
+    (("sexo", "macho", "hembra"), "sex"),
+    (("edad",), "patient_age"),
+    (("propietario", "dueño", "dueno", "dueña", "duena"), "owner_name"),
+    (("observacion", "observación", "observaciones"), "observations"),
+    (("analisis", "análisis", "examen", "examenes", "exámenes", "perfil", "prueba", "pruebas"), "exam_type"),
+    (("pago",), "payment_method"),
+)
+
+# Datos ESTABLES de la orden (paciente/médico/dirección): una corrección de estos campos
+# no pertenece a ningún carril de análisis/pago — el carril debe ceder el turno (ERR-069).
+_STABLE_ORDER_FIELDS = frozenset({
+    "requesting_doctor", "patient_name", "species", "breed", "sex",
+    "patient_age", "owner_name", "pickup_address",
+})
+
+
+def _detect_correction_field(text: str) -> str | None:
+    tokens = set(_tokenize(text))
+    for keywords, field in _CORRECTION_FIELD_KEYWORDS:
+        if tokens & set(keywords):
+            return field
+    return None
+
+
 def _expresses_order_request(text: str) -> bool:
     """¿El mensaje PIDE/ordena análisis (no solo consulta el precio)? 'quiero cuadro
     hemático y creatinina, ¿cuánto sale?' es un pedido con consulta — la elección debe

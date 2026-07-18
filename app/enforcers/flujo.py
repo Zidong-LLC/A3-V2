@@ -5,13 +5,14 @@ from app import catalog, state
 
 CONFIRMATION_PHASE = state.Phase.CONFIRMACION.value
 from app.flow import (
+    FIELD_LABELS as _FIELD_LABELS,
     ROUTE_REQUIRED_FIELDS as _ROUTE_REQUIRED_FIELDS,
     base_route_response as _base_route_response,
     missing_route_field as _missing_route_field,
     missing_route_field_question as _missing_route_field_question,
     route_ready_for_payment as _route_ready_for_payment,
 )
-from app.detectors import _detect_which_field_is_being_asked, _last_bot_message, _looks_off_topic_smalltalk, _wants_partial_analysis_change
+from app.detectors import _STABLE_ORDER_FIELDS, _detect_which_field_is_being_asked, _last_bot_message, _looks_off_topic_smalltalk, _wants_partial_analysis_change
 from app.menus import _reply_asks_missing_field
 from app.messages import PAYMENT_METHOD_QUESTION, EXTRA_ANALYSIS_OFFER
 
@@ -68,6 +69,18 @@ def _enforce_field_coherence(
 
 
 
+def _corrected_stable_fields(fields: dict, prev_fields: dict) -> list[str]:
+    """Campos ESTABLES de la orden cuyo valor CAMBIÓ en este turno (había uno y ahora hay
+    otro distinto): eso es una corrección del cliente, no progreso normal (ERR-069)."""
+    return [f for f in _STABLE_ORDER_FIELDS
+            if prev_fields.get(f) and fields.get(f) and fields.get(f) != prev_fields.get(f)]
+
+
+def _correction_ack_text(corrected: list[str], fields: dict) -> str:
+    parts = [f"{_FIELD_LABELS.get(f, f)}: {fields.get(f)}" for f in corrected]
+    return f"Listo, corrijo {' y '.join(parts)}."
+
+
 def _enforce_first_missing_after_progress(session: dict, ai_response: dict, prev_fields: dict) -> dict:
     if ai_response.get("intent") != "route_scheduling" or ai_response.get("requires_handoff"):
         return ai_response
@@ -78,7 +91,13 @@ def _enforce_first_missing_after_progress(session: dict, ai_response: dict, prev
     if fields.get("_client_match_options") or fields.get("_client_not_found"):
         return ai_response
     # Oferta de agregar otro análisis activa (Parte B): no pisarla con la pregunta de pago.
+    # PERO si el turno fue una CORRECCIÓN de un dato estable (el carril la cedió al modelo,
+    # ERR-069), el acuse + la re-oferta se arman determinísticos: el cliente ve que su
+    # cambio quedó tomado y el flujo retoma el paso donde estaba.
     if fields.get("_offering_extra_analysis"):
+        corrected = _corrected_stable_fields(fields, prev_fields)
+        if corrected and not (fields.get("_test_menu_options") or fields.get("_profile_menu_options")):
+            ai_response["reply"] = f"{_correction_ack_text(corrected, fields)} {EXTRA_ANALYSIS_OFFER}"
         return ai_response
     # Un menú recién ofrecido (análisis o perfiles) ES la pregunta del análisis: no
     # pisarlo con la plantilla del dato faltante (ERR-048: "Perfecto, lo anoto. ¿qué
@@ -96,7 +115,12 @@ def _enforce_first_missing_after_progress(session: dict, ai_response: dict, prev
     if missing == "pickup_address" and fields.get("_address_confirmation_pending"):
         return ai_response
 
-    ai_response["reply"] = f"Perfecto, lo anoto. {_missing_route_field_question(missing)}"
+    # Acuse explícito de una corrección (ERR-069: 'me confundí con la raza es un tobiano'
+    # se guardaba bien pero el acuse genérico no lo decía — el cliente insistió 3 veces):
+    # nombrar QUÉ se corrigió y a QUÉ valor, y recién ahí empujar el paso pendiente.
+    corrected = _corrected_stable_fields(fields, prev_fields)
+    ack = _correction_ack_text(corrected, fields) if corrected else "Perfecto, lo anoto."
+    ai_response["reply"] = f"{ack} {_missing_route_field_question(missing)}"
     return ai_response
 
 

@@ -104,6 +104,7 @@ from app.detectors import (
     _HANDOFF_ACCEPT_TOKENS,
     _is_order_confirmation,
     _is_correction_request,
+    _detect_correction_field,
     _expresses_order_request,
     _wants_to_reconsider_option,
     _accepts_handoff_offer,
@@ -111,6 +112,7 @@ from app.detectors import (
 )
 from app.flow import (
     AGE_UNIT_TOKENS as _AGE_UNIT_TOKENS,
+    FIELD_LABELS as _flow_FIELD_LABELS,
     age_has_unit as _age_has_unit,
     ROUTE_ORDER_FIELDS_BEFORE_PAYMENT as _ROUTE_ORDER_FIELDS_BEFORE_PAYMENT,
     ROUTE_REQUIRED_FIELDS as _ROUTE_REQUIRED_FIELDS,
@@ -320,19 +322,7 @@ _SAME_AS_FIELD_KEYWORDS = (
     (("pago", "forma de pago"), "payment_method"),
 )
 
-_FIELD_LABELS = {
-    "requesting_doctor": "médico solicitante",
-    "patient_name": "nombre del paciente",
-    "species": "especie",
-    "breed": "raza",
-    "sex": "sexo",
-    "patient_age": "edad",
-    "owner_name": "nombre del propietario",
-    "pickup_address": "dirección de retiro",
-    "exam_type": "análisis o perfil",
-    "observations": "observaciones",
-    "payment_method": "forma de pago",
-}
+_FIELD_LABELS = _flow_FIELD_LABELS  # fuente única en app/flow.py (ERR-069)
 
 # Concordancia de género para armar frases con los labels ("la dirección de retiro es
 # la misma", no "el dirección... es el mismo"). Default: masculino.
@@ -344,19 +334,7 @@ _FIELD_GRAMMAR = {
     "patient_age": ("la", "la misma"),
 }
 
-_CORRECTION_FIELD_KEYWORDS = (
-    (("direccion", "dirección", "domicilio", "retiro"), "pickup_address"),
-    (("medico", "médico", "solicitante", "doctor", "doctora"), "requesting_doctor"),
-    (("paciente", "perro", "perra", "gato", "gata", "animal", "mascota"), "patient_name"),
-    (("especie",), "species"),
-    (("raza",), "breed"),
-    (("sexo", "macho", "hembra"), "sex"),
-    (("edad",), "patient_age"),
-    (("propietario", "dueño", "dueno", "dueña", "duena"), "owner_name"),
-    (("observacion", "observación", "observaciones"), "observations"),
-    (("analisis", "análisis", "examen", "examenes", "exámenes", "perfil", "prueba", "pruebas"), "exam_type"),
-    (("pago",), "payment_method"),
-)
+# _CORRECTION_FIELD_KEYWORDS y _detect_correction_field viven en detectors/orden.py (ERR-069).
 MAX_CLIENT_MATCH_OPTIONS = 5
 # Datos estables del cliente que el agente recuerda a largo plazo (entre órdenes
 # y sesiones del mismo chat). NO incluye datos del paciente: esos cambian en cada
@@ -2028,14 +2006,6 @@ def _prevent_incomplete_route_closure(session: dict, ai_response: dict, fields: 
 # creer que el cliente dio la unidad. La edad en días/semanas se dice en plural.
 # Enforcers de anclaje → app/enforcers/grounding.py (importados abajo con alias).
 # _enforce_selected_tests_are_catalog_codes → app/enforcers/dinero.py (importado abajo como alias).
-
-def _detect_correction_field(text: str) -> str | None:
-    tokens = set(_tokenize(text))
-    for keywords, field in _CORRECTION_FIELD_KEYWORDS:
-        if tokens & set(keywords):
-            return field
-    return None
-
 
 def _extract_correction_value(field: str, text: str) -> str | None:
     if field != "patient_name":

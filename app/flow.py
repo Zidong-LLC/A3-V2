@@ -28,6 +28,23 @@ ROUTE_ORDER_FIELDS_BEFORE_PAYMENT = (
 ROUTE_REQUIRED_FIELDS = ROUTE_ORDER_FIELDS_BEFORE_PAYMENT + ("payment_method",)
 
 
+# Etiquetas en español de los campos de la orden (movidas de agent.py, ERR-069: los
+# enforcers las necesitan para el acuse de correcciones sin import circular).
+FIELD_LABELS = {
+    "requesting_doctor": "médico solicitante",
+    "patient_name": "nombre del paciente",
+    "species": "especie",
+    "breed": "raza",
+    "sex": "sexo",
+    "patient_age": "edad",
+    "owner_name": "nombre del propietario",
+    "pickup_address": "dirección de retiro",
+    "exam_type": "análisis o perfil",
+    "observations": "observaciones",
+    "payment_method": "forma de pago",
+}
+
+
 def base_route_response(reply: str, fields: dict) -> dict:
     return {
         "reply": reply,

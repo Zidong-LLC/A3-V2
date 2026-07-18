@@ -13,6 +13,8 @@ from app.flow import (
 from app.detectors import (
     _AFFIRMATIVE_TOKENS,
     _REMOVE_TOKENS,
+    _STABLE_ORDER_FIELDS,
+    _detect_correction_field,
     _detect_which_field_is_being_asked,
     _doesnt_know_what_to_ask,
     _is_affirmative_text,
@@ -66,6 +68,14 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
     """Interpreta la respuesta del cliente a la oferta '¿agregar otro análisis o seguimos con
     el pago?'. Devuelve la respuesta del bot, o None si dio el método de pago (que el pipeline
     normal capture). Se repite tras cada agregado hasta que el cliente decida seguir."""
+    # 0) CORRECCIÓN de un dato estable de la orden ('quiero cambiar la raza es un tobiano'):
+    # no es un asunto de este carril — ceder el turno COMPLETO al modelo, que captura el
+    # cambio; el acuse determinístico lo arma _enforce_first_missing_after_progress
+    # (ERR-069: el carril devoraba la corrección y respondía '¿qué análisis agregas?' en
+    # bucle — chat real 2026-07-17, 3 intentos del cliente sin acuse).
+    correction_field = _detect_correction_field(user_message)
+    if correction_field in _STABLE_ORDER_FIELDS:
+        return None
     # 1) Sigue al pago: dio el método o dijo que ya está. Un atajo solo traga el mensaje si
     # NO trae más que eso (L49): un 'no' incidental dentro de otra intención ('...esta orden
     # va a nombre de otra clínica, no de animal pets') no debe cerrar la oferta y saltar al
@@ -291,6 +301,13 @@ def _enforce_multiple_tests_capture(session: dict, ai_response: dict, prev_field
         f"Listo, registro estos {len(rows)} análisis: {_format_test_items(rows)}. "
         f"{_estimated_total_text(totals)}"
     )
+    # Pedido MIXTO en la PRIMERA captura (ERR-067d, chat real 'sodio potasio y orina'): los
+    # de opción única (sodio, potasio) se absorben acá; los términos con OPCIONES de la misma
+    # frase (orina, un prequirúrgico…) NO se pierden — se encolan en orden de pedido y
+    # `_analysis_settled_response` los ofrece uno por uno vía `_offer_next_pending`.
+    ambiguous = _scan_ambiguous_terms(fields, candidate)
+    if ambiguous:
+        fields["_pending_ambiguous_items"] = ambiguous
     return _analysis_settled_response(session, fields, intro)
 
 
@@ -316,8 +333,19 @@ def _enforce_loose_exam_catalog_resolution(ai_response: dict, prev_fields: dict)
         if clean and clean != exam:
             fields["exam_type"] = clean
         return ai_response
-    # Un perfil del catálogo se resuelve por su propio camino (_resolve_profile_base_if_missing).
+    # Un perfil ESPECÍFICO ('Prequirúrgico I', '152') se resuelve por su propio camino
+    # (_resolve_profile_base_if_missing). Pero una CATEGORÍA genérica ('un perfil
+    # prequirúrgico', 6 variantes) NO ancla a un perfil único: si se dejaba pasar, el texto
+    # quedaba suelto sin código ni precio y se perdía del resumen (chat real 2026-07-17,
+    # ERR-067e). Se ofrecen las variantes reales para que el cliente elija.
     if _looks_like_catalog_profile(clean):
+        if not _looks_like_specific_profile_query(clean):
+            try:
+                menu_response = _category_profiles_menu_response(fields, clean)
+            except Exception:
+                menu_response = None
+            if menu_response:
+                return menu_response
         if clean != exam:
             fields["exam_type"] = clean
         return ai_response

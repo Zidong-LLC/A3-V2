@@ -27,6 +27,68 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### ERR-069 — La corrección de un dato del paciente se guardaba SIN acuse y los carriles la devoraban (prueba en vivo Chatwoot #4, 2026-07-17)
+**Síntoma:** "Me confundí con la raza es un tobiano" → el modelo capturó bien (breed=Tobiano
+desde el PRIMER intento) pero la respuesta fue la plantilla genérica "Perfecto, lo anoto.
+¿propietario?" — el cliente no supo si su corrección fue tomada. Insistió 3 veces; con la
+oferta de agregar análisis activa, cada intento respondía "¿Qué análisis quieres agregarle?"
+(bucle). No fue pérdida de dato: fue falta de ACUSE + carriles que no ceden.
+**Causa raíz (clase): empuje determinístico que no cede ante una corrección.**
+- `_handle_extra_analysis_answer` (PRE-modelo) interceptaba todo turno del carril; "modificar"
+  incluso matchea `_wants_partial_analysis_change` → el mensaje ni llegaba a la IA.
+- `_enforce_first_missing_after_progress` (POST-modelo) pisaba la reply del modelo con
+  "Perfecto, lo anoto. {faltante}" sin distinguir corrección de progreso.
+- La política correcta YA existía formulada en `_enforce_payment_step` (LÓGICA DE RETROCESO
+  L50: señal correction → el empuje cede) pero solo estaba aplicada ahí.
+**Solución (diseño pedido por el usuario: acusar el cambio + retomar el paso):**
+- Carril PRE-modelo: si `_detect_correction_field` apunta a un campo ESTABLE de la orden
+  (`_STABLE_ORDER_FIELDS`: paciente/médico/dirección), el carril devuelve None y la IA lee
+  el turno ("la IA lee todo, el código verifica").
+- POST-modelo: `_corrected_stable_fields` (había valor y cambió = corrección) → reply
+  determinística "Listo, corrijo raza: Tobiano." + el paso pendiente (pregunta del faltante,
+  o la re-oferta `EXTRA_ANALYSIS_OFFER` si el carril está activo). Progreso normal conserva
+  "Perfecto, lo anoto.".
+- Movidos a capa correcta (fuente única, sin ciclos): `_detect_correction_field` +
+  `_CORRECTION_FIELD_KEYWORDS` → `detectors/orden.py`; `FIELD_LABELS` → `flow.py`.
+**Límite conocido:** re-enviar el MISMO valor ya guardado (2º intento idéntico) no genera
+acuse determinístico (no hay cambio) — responde el modelo con historial. El acuse del primer
+intento previene la insistencia.
+**Pendiente (clase, tarea aparte):** auditar los demás empujes que reescriben `reply` o
+interceptan pre-modelo y aplicarles la misma guarda L50.
+**Tests:** `tests/test_correction_ack.py` (5, mensajes reales). Suite: 311 passed (6 fallos
+preexistentes de red, ajenos).
+**Estado:** RESUELTO en código — pendiente prueba en vivo del usuario.
+
+### ERR-067d/e — El pedido MIXTO en la PRIMERA captura de análisis perdía datos (prueba en vivo Chatwoot #4, 2026-07-17)
+**Origen:** análisis del historial real (conversación Chatwoot #4). Dos órdenes seguidas
+perdieron análisis. ERR-067 arregló el camino "agregar a un perfil YA anclado"; estos son los
+HUECOS GEMELOS en la PRIMERA captura, que no pasaban por ese camino.
+**Síntoma:**
+- **ERR-067d:** "Sodio potasio y orina" como primer pedido → `_enforce_multiple_tests_capture`
+  absorbía Sodio(1405) y Potasio(1404) pero SE TRAGABA orina: ni la ofrecía ni la encolaba.
+- **ERR-067e:** "un perfil prequirúrgico" dado por NOMBRE (categoría con 6 variantes) → el
+  early-return de `_looks_like_catalog_profile` en `_enforce_loose_exam_catalog_resolution`
+  ("lo resuelve su propio camino") lo dejaba como texto suelto sin código ni precio; el camino
+  propio solo ancla perfiles ÚNICOS, así que se perdía del resumen. "prequirúrgico" PELADO
+  (sin "perfil") sí funcionaba — de ahí la diferencia.
+**Causa raíz (clase):** la lógica paso-a-paso (absorber lo de opción única + encolar lo de
+opciones múltiples: `_scan_ambiguous_terms` + `_pending_ambiguous_items` + `_offer_next_pending`)
+vivía SOLO en el camino de agregado a perfil. La primera captura tenía su propia resolución que
+no descomponía el pedido mixto.
+**Solución (mínima, reusa lo existente):**
+- `_enforce_multiple_tests_capture`: tras absorber los de opción única, `_scan_ambiguous_terms`
+  sobre el texto capturado → los términos con OPCIONES quedan en `_pending_ambiguous_items` y
+  `_analysis_settled_response` los ofrece uno por uno (paso a paso, en orden de pedido).
+- `_enforce_loose_exam_catalog_resolution`: si el texto parece perfil PERO no es específico
+  (`not _looks_like_specific_profile_query`), ofrecer `_category_profiles_menu_response` (las
+  variantes reales) antes del early-return. Un perfil específico ('...I', '152') sigue su camino.
+**Nota de deploy:** el síntoma EN VIVO (ofreció orina y perdió sodio/potasio) es de código
+VIEJO — el código actual de la branch ya no lo produce (reproducción determinística). El bot que
+se probó a las 15:17 corría sin los commits ERR-067 de las 13:32–14:00 → **redesplegar la branch**.
+**Tests:** `tests/test_first_capture_mixed.py` (4, mensajes reales del chat). Suite: 306 passed
+(6 fallos preexistentes de dashboard/portal_auth por red a Supabase, ajenos).
+**Estado:** RESUELTO en código — pendiente redeploy y prueba en vivo del usuario.
+
 ### ERR-067 — El pedido MIXTO (área + tests nombrados) perdía los nombrados; el compuesto dependía del verbo (prueba en vivo, 2026-07-17)
 **Síntoma:** "le quiero agregar un análisis de ORINA, SODIO y POTASIO" mostró el menú de
 orina pero PERDIÓ sodio y potasio (pedidos DOS veces, ausentes de la orden final). Y el

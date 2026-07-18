@@ -42,14 +42,17 @@ from app.detectors.direccion import (  # noqa: F401
 )
 from app.detectors.orden import (  # noqa: F401
     _CONFIRM_ORDER_TOKENS,
+    _CORRECTION_FIELD_KEYWORDS,
     _CORRECTION_TOKENS,
     _HANDOFF_ACCEPT_TOKENS,
     _OPTION_CORRECTION_TOKENS,
     _OPTION_WORDS,
     _ORDER_REQUEST_TOKENS,
     _RECONSIDER_HINT_TOKENS,
+    _STABLE_ORDER_FIELDS,
     _accepts_handoff_offer,
     _confirms_order_now,
+    _detect_correction_field,
     _expresses_order_request,
     _is_correction_request,
     _is_order_confirmation,
