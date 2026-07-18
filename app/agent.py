@@ -2153,19 +2153,11 @@ def process_turn(
                 )
             return _persist_turn(chat_id, user_message, _catalog_overview_response(fields))
 
-    # Cambio de cliente/sede con cliente ya identificado ('esta orden es para la otra sede'):
-    # reiniciar la identificación ANTES de consumir menús o llamar al modelo, para no registrar
-    # una selección espuria (QA extremo: un menú de perfiles pegado inducía al modelo a 'elegir'
-    # un perfil ante el cambio de sede). Confirmación/terminal tienen su propio manejo.
-    if (session.get("client_id")
-            and session.get("phase_current") not in TERMINAL_PHASES
-            and session.get("phase_current") != CONFIRMATION_PHASE
-            and _wants_to_change_client(user_message)):
-        # Cambio de SEDE (misma orden, otra sucursal) mantiene el paciente y análisis; cambio
-        # de CLIENTE (otra veterinaria) reinicia la orden entera.
-        is_branch = bool(set(_tokenize(user_message)) & _BRANCH_NOUN_TOKENS)
-        switch = _switch_branch_keep_order if is_branch else _restart_identification_for_new_client
-        return _persist_turn(chat_id, user_message, switch(chat_id, session, dict(prev_captured)))
+    # Reorden 3.3 (C2): el atajo pre-LLM de cambio de cliente/sede por tokens se DEGRADÓ —
+    # el turno llega al modelo y el handler post-modelo actúa señal-primero (change_client)
+    # con los mismos tokens de red y guards. La protección contra la selección espuria por
+    # menú pegado vive ahora en el handler: la acción parte de prev_captured con menús
+    # limpios, así lo que el modelo 'capture' inducido por el menú no sobrevive al turno.
 
     # Selección de un perfil de la lista recomendada ('no sé / qué me recomiendas'): el
     # cliente elige por número, ordinal, código o nombre. Se captura el perfil REAL con su
@@ -2547,26 +2539,31 @@ def process_turn(
         )
         return _persist_turn(chat_id, user_message, ai_response)
 
-    # 3.3 — SEÑAL como fuente primaria (cambio de cliente): los atajos por tokens del
-    # pre-LLM cubren los fraseos conocidos en sus contextos (confirmación, reoferta);
-    # acá la lectura semántica del modelo cubre TODOS los demás fraseos y contextos
-    # ("esta orden en realidad va a nombre de otra clínica"). Misma acción determinística
-    # que la vía por tokens: con orden en curso se conserva TODO y solo se re-verifica
-    # identidad + dirección (L50); tras una orden registrada, reset completo.
+    # 3.3 — change_client SEÑAL-PRIMERO (reorden C2): el atajo pre-LLM por tokens se
+    # degradó a este handler; la señal cubre todos los fraseos ("esta cuenta es de otra
+    # clínica") y los tokens quedan de RED. Guards portados del atajo: confirmación y
+    # terminal tienen manejo propio. La acción parte de PREV_CAPTURED con menús limpios
+    # (no de fields): un menú pegado inducía al modelo a 'elegir' un perfil espurio en
+    # el mismo turno del cambio (QA extremo) — nada capturado en este turno sobrevive.
+    # Cambio de SEDE (misma orden, otra sucursal) mantiene paciente y análisis; cambio
+    # de CLIENTE con orden en curso conserva la orden y re-verifica identidad (L50).
     if (
-        signal == "change_client"
+        (signal == "change_client" or _wants_to_change_client(user_message))
         and ai_response.get("intent") == "route_scheduling"
         and not ai_response.get("requires_handoff")
+        and session.get("phase_current") not in TERMINAL_PHASES
+        and session.get("phase_current") != CONFIRMATION_PHASE
         and (session.get("client_id") or fields.get("_client_found"))
         and not prev_captured.get("_client_match_options")
     ):
+        base_fields = dict(prev_captured)
+        state.ConversationState(base_fields).clear_menus()
         # El cambio de cliente resuelve cualquier oferta/espera abierta de análisis.
-        fields.pop("_offering_extra_analysis", None)
-        fields.pop("_awaiting_additional_test", None)
-        return _persist_turn(
-            chat_id, user_message,
-            _restart_identification_for_new_client(chat_id, session, fields),
-        )
+        base_fields.pop("_offering_extra_analysis", None)
+        base_fields.pop("_awaiting_additional_test", None)
+        is_branch = bool(set(_tokenize(user_message)) & _BRANCH_NOUN_TOKENS)
+        switch = _switch_branch_keep_order if is_branch else _restart_identification_for_new_client
+        return _persist_turn(chat_id, user_message, switch(chat_id, session, base_fields))
 
     # 3.3 — another_order SEÑAL-PRIMERO (reorden C1): tras una orden registrada, cualquier
     # fraseo de "necesito otra orden" lo lee el modelo; los tokens quedan de RED para

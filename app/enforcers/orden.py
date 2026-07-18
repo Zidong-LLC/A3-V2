@@ -16,6 +16,7 @@ from app.detectors import (
     _STABLE_ORDER_FIELDS,
     _detect_correction_field,
     _detect_which_field_is_being_asked,
+    _wants_to_change_client,
     _doesnt_know_what_to_ask,
     _is_affirmative_text,
     _is_ambiguous_profile_change,
@@ -75,6 +76,11 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
     # bucle — chat real 2026-07-17, 3 intentos del cliente sin acuse).
     correction_field = _detect_correction_field(user_message)
     if correction_field in _STABLE_ORDER_FIELDS:
+        return None
+    # Cambio de cliente/sede ('necesito cambiar de veterinaria') tampoco es de este carril:
+    # con el reorden C2 el atajo pre-LLM ya no intercepta antes — sin esta cesión, el paso
+    # genérico se lo tragaba con '¿qué análisis agregas?' (mensaje corto, <8 tokens).
+    if _wants_to_change_client(user_message):
         return None
     # 1) Sigue al pago: dio el método o dijo que ya está. Un atajo solo traga el mensaje si
     # NO trae más que eso (L49): un 'no' incidental dentro de otra intención ('...esta orden
