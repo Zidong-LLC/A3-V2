@@ -10,6 +10,14 @@ _CLIENT_CHANGE_SIGNAL_TOKENS = frozenset({
     "otra", "otras", "otro", "otros", "cambiar", "cambia", "cambio", "cambió", "distinta", "distinto",
     "diferente", "no", "equivoque", "equivoqué", "equivoco", "equivocado", "equivocada",
     "nueva", "nuevo",
+    # Formas verbales flexivas de cambiar/poner/facturar/mandar aplicadas al cliente (QA de
+    # estrés 2026-07-20: 'cambiala/cambiemos/ponela a nombre de otra clínica' no matcheaban
+    # y el turno no llegaba al modelo que sí clasifica change_client). La ventana de
+    # adyacencia (ver _wants_to_change_client) exige un sustantivo de cliente/sede CERCA,
+    # así 'pasa el hemograma' no dispara — solo 'pasala a la otra clínica'.
+    "cambiala", "cámbiala", "cambiale", "cámbiale", "cambiemos", "cambien", "cambienla", "cambiénla",
+    "ponela", "ponla", "pónla", "póngala", "pongala", "pasala", "pásala", "pasala",
+    "mandala", "mándala", "factura", "facturala", "factúrala", "facturá",
 })
 
 

@@ -322,3 +322,18 @@ def test_qa_el_de_siempre_still_works_for_real_reuse():
     excluye los cambios de cliente, no los 'el de siempre' reales."""
     assert agent._is_same_as_previous("el mismo")
     assert not agent._wants_to_change_client("el mismo")   # no es cambio de cliente
+
+
+def test_qa_change_client_flexive_verbs_reach_the_model():
+    """QA estrés 2026-07-20 (ERR-073): las formas 'cambiala/cambiemos/ponela/pasala/
+    facturala' + sustantivo de cliente cercano ahora matchean → los atajos pre-LLM ceden
+    y el turno llega al modelo (que clasifica change_client). Antes se colaban a un
+    fallback. La ventana de adyacencia evita falsos positivos."""
+    yes = ["cambiala a la otra veterinaria", "cambiemos el cliente antes de seguir",
+           "pasala a la otra clinica", "facturala a otra veterinaria"]
+    no = ["pasa el hemograma", "ponme una glucosa", "cambia la edad a 5 años",
+          "cambiar el analisis", "no ninguna observacion"]
+    for m in yes:
+        assert agent._wants_to_change_client(m), f"debería ser cambio de cliente: {m!r}"
+    for m in no:
+        assert not agent._wants_to_change_client(m), f"NO debería ser cambio de cliente: {m!r}"

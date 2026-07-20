@@ -27,6 +27,36 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### ERR-073 — QA de ESTRÉS (8 baterías, modelo+base real): hallazgo de fondo del reorden 3.3 (2026-07-20)
+**Método:** batería adversarial cubriendo la mayoría de etapas (identificación, captura de
+paciente, análisis, confirmación/retroceso, pago, multi-orden, combos en una frase).
+**Resultado por etapa:** identificación 4/4 OK; captura de paciente 3/4 (C2 corrección
+especie+nombre sin acuse claro); análisis 3/4; pago/cierre OK salvo fraseos; **cambio de
+cliente (C2) fue el más frágil**.
+**HALLAZGO DE FONDO (la causa raíz común):** el reorden 3.3 asume que la señal del modelo
+manda, pero los atajos determinísticos PRE-LLM (carril de oferta de análisis, bloque "el de
+siempre", corrección en confirmación, recomendación de perfil) interceptan el turno ANTES de
+que el modelo lo lea. Verificado con spy + llamada directa: el modelo clasifica BIEN
+("cambiemos el cliente…" → change_client; "cambia la edad a 5 años…" → correction), pero el
+atajo responde primero porque su guard de cesión depende de una red de tokens INCOMPLETA. Es
+la misma clase de ERR-072, repetida en varios atajos. El reorden C degradó los 3 atajos de
+intención de alto nivel, pero quedaron atajos de conveniencia/corrección que no ceden.
+**Solución aplicada (alto impacto, bajo riesgo):** ampliar `_CLIENT_CHANGE_SIGNAL_TOKENS` con
+las formas verbales flexivas (cambiala/cambiemos/ponela/pasala/facturala…). La ventana de
+adyacencia (ERR-070) evita falsos positivos ('pasa el hemograma' no dispara). Con esto, los
+guards de cesión de los atajos SÍ disparan → el turno llega al modelo. Re-QA batería A: de
+3/6 fallando a 4/6 OK (+1 defendible como new_branch, +1 flaky del modelo).
+**PENDIENTE (misma clase, para la Tanda D / reorden más profundo — NO parchear apresurado):**
+- E4: "cambia la edad a 5 años y confirmo" → el atajo de corrección en confirmación limpia el
+  campo y repregunta, ignorando el valor "5 años" que el modelo SÍ capturó.
+- H1: "ponme un hemograma pero cambiá el paciente a Rocky" (combo análisis+corrección) → el
+  atajo de recomendación intercepta; el modelo emite correction pero no se aprovecha.
+- Captura: corrección de especie+nombre en un turno sin acuse explícito.
+Estos exigen que los atajos de corrección/confirmación CEDAN al modelo (cirugía del pipeline,
+Tanda D). Un parche de tokens más no alcanza y arriesga regresiones (lección ERR-072).
+**Tests:** test_signal_reorder.py (verbos flexivos + no-falsos-positivos). Suite: 330 passed.
+**Estado:** PARCIAL — C2 reforzado; el resto de la clase queda anotado para la Tanda D.
+
 ### ERR-072 — Regresión C2: "Antes quiero cambiar el cliente" caía en el bloque "el de siempre" (prueba en vivo del usuario, 2026-07-20)
 **Síntoma:** con perfil 152 + sodio/potasio ya cargados y la oferta de análisis activa,
 "Antes quiero cambiar el cliente" respondió "Por último, ¿qué análisis o perfil desean?"
