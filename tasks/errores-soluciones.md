@@ -27,6 +27,25 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### ERR-072 — Regresión C2: "Antes quiero cambiar el cliente" caía en el bloque "el de siempre" (prueba en vivo del usuario, 2026-07-20)
+**Síntoma:** con perfil 152 + sodio/potasio ya cargados y la oferta de análisis activa,
+"Antes quiero cambiar el cliente" respondió "Por último, ¿qué análisis o perfil desean?"
+en vez de cambiar de cliente. El cambio de cliente funcionaba con otros fraseos ("esta
+cuenta va a otra clínica") — de ahí que el QA del 07-18 no lo cazara.
+**Causa raíz (efecto colateral del reorden C2):** al degradar el atajo pre-LLM de cambio de
+cliente (que corría temprano y ESCUDABA los bloques siguientes), el mensaje llegó al bloque
+"el de siempre" (agent.py ~2283). "Antes quiero cambiar el cliente" matchea
+`_is_same_as_previous` por la palabra **"antes"** (∈ _SAME_AS_PREVIOUS_TOKENS = "el de
+antes") → respondió la re-pregunta del campo. NO llegó al modelo (interceptado pre-LLM).
+Es exactamente el riesgo que anota el plan del reorden: al degradar un atajo, verificar que
+ningún atajo intermedio agarre mal el mensaje.
+**Solución (clase L50, mínima):** guard `and not _wants_to_change_client(user_message)` en
+el bloque "el de siempre" — cede ante un cambio de cliente para que la señal del modelo
+mande. Verificado con MODELO REAL: "Claro, cambiamos de cliente… mantengo el resto de la
+orden". "el mismo" genuino sigue funcionando (no es cambio de cliente).
+**Tests:** test_signal_reorder.py (regresión + no-regresión de "el de siempre" real).
+**Estado:** RESUELTO. Suite: 330 passed.
+
 ### ERR-070 — QA real post-Fase 3: la red de tokens de change_client robaba el turno de another_order (2026-07-18)
 **Origen:** QA adversarial con MODELO REAL y base real (5 escenarios, sesiones qa-*),
 tratando de romper el agente tras el cierre de Fase 3.

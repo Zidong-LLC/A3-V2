@@ -300,3 +300,25 @@ def test_qa_pure_area_request_still_offers_plain_menu():
     assert fields.get("selected_tests") == []            # sin exactos: comportamiento clásico
     assert fields.get("_test_menu_options")
     assert "registro" not in out["reply"].lower()
+
+
+def test_qa_change_client_starting_with_antes_is_not_el_de_siempre():
+    """ERR-072 (regresión C2, prueba en vivo del usuario): 'Antes quiero cambiar el cliente'
+    matchea _is_same_as_previous por 'antes' y, sin el atajo pre-LLM de cambio de cliente,
+    caía en el bloque 'el de siempre' respondiendo '¿qué análisis?'. El guard hace que ese
+    bloque ceda ante un cambio de cliente → el handler post-modelo actúa."""
+    assert agent._is_same_as_previous("Antes quiero cambiar el cliente")   # el falso positivo
+    assert agent._wants_to_change_client("Antes quiero cambiar el cliente")
+    reply, persisted, _ = _run_turn("Antes quiero cambiar el cliente", "change_client",
+                                    captured=IN_PROGRESS)
+    fields = persisted.get("captured_fields", {})
+    assert "cambiamos de cliente" in (reply or "").lower()
+    assert "análisis o perfil desean" not in (reply or "").lower()
+    assert fields.get("patient_name") == "Lolo"          # la orden se conserva
+
+
+def test_qa_el_de_siempre_still_works_for_real_reuse():
+    """No-regresión: 'el mismo' genuino (reusar un dato) sigue funcionando — el guard solo
+    excluye los cambios de cliente, no los 'el de siempre' reales."""
+    assert agent._is_same_as_previous("el mismo")
+    assert not agent._wants_to_change_client("el mismo")   # no es cambio de cliente

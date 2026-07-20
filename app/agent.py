@@ -2285,6 +2285,11 @@ def process_turn(
         and session.get("phase_current") not in TERMINAL_PHASES
         and (session.get("client_id") or prev_captured.get("_client_found"))
         and _is_same_as_previous(user_message)
+        # 'Antes quiero cambiar el cliente' matchea _is_same_as_previous por la palabra
+        # 'antes' (= 'el de antes'), pero es un CAMBIO DE CLIENTE, no un 'el de siempre'.
+        # Al degradar el atajo pre-LLM de cambio de cliente (reorden C2), este bloque quedó
+        # expuesto a esos mensajes: ceder para que la señal del modelo mande (ERR-072).
+        and not _wants_to_change_client(user_message)
         # Solo para un "el de siempre / el mismo" CORTO: si la frase es larga, puede traer
         # el dato concreto (ej. "...soy el Dr. Gastón") — dejar que el LLM y los fallbacks lo
         # capturen en vez de cortar acá y repreguntar.
