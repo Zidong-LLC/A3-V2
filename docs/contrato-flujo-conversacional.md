@@ -65,6 +65,17 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
   `_enforce_first_missing_after_progress`, `_merge_existing_route_fields`.
 - **Estado:** ✅ APROBADO (usuario, 2026-06-22)
 
+### B4b · Raza reconocida contra el catálogo (aporta la especie)
+- **Qué hace:** normaliza la grafía de la raza contra `catalog_breeds` (323 razas del cliente)
+  y, si la raza pertenece a una sola especie, **llena la especie y no la pregunta**
+  ("pastor aleman" → raza `Pastor Alemán`, especie `Canino`, y sigue al sexo).
+  Si la raza es ambigua entre especies (Criollo, Mestizo, Angora, Hampshire…), es una palabra
+  de especie (Conejo, Gallina, Cebú) o no está en el catálogo ("tobiano", "no sé"), **no infiere
+  nada y el flujo pregunta la especie igual que antes**. Nunca vacía la raza ni toca la respuesta.
+- **Dónde:** `app/breeds.py` (`resolve_breed`), `agent._recover_breed_and_species`, invocado en
+  el pipeline después de `_clarify_ambiguous_species`.
+- **Estado:** ✅ APROBADO (usuario, 2026-07-20)
+
 ### B5 · Confirmación de dirección de retiro
 - **Qué hace:** si el cliente tiene dirección registrada, la propone y pide confirmar
   ("¿esa dirección está bien?"). Acepta confirmaciones coloquiales ("sí", "esa", "sisi").

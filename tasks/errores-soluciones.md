@@ -57,6 +57,109 @@ Tanda D). Un parche de tokens más no alcanza y arriesga regresiones (lección E
 **Tests:** test_signal_reorder.py (verbos flexivos + no-falsos-positivos). Suite: 330 passed.
 **Estado:** PARCIAL — C2 reforzado; el resto de la clase queda anotado para la Tanda D.
 
+### ERR-076 — PERFIL + análisis sueltos en un mensaje: el perfil se pierde (QA real del usuario, 2026-07-21)
+**Síntoma:** el cliente pide un PERFIL y análisis INDIVIDUALES en la misma frase
+("necesitamos un pre quirúrgico, un análisis de sodio y uno de potasio") y la orden queda
+SOLO con los análisis sueltos. Verificado con modelo real:
+`exam_type='Perfil personalizado (2 análisis)'  selected_tests=['1404','1405']` — el Perfil
+Prequirúrgico I ($24.000) NO está. El bot incluso responde *"Listo, registro estos 2 análisis…
+Ahora vamos con lo siguiente que pediste:"* y la frase queda truncada: ANUNCIA que sigue con
+el resto y no sigue.
+**Es NO DETERMINÍSTICO.** Tres corridas del mismo guion (flujo QA8 de `validate_flows.py`):
+(1) registra solo sodio+potasio y pierde el perfil; (2) ofrece el menú de perfiles y entra en
+BUCLE 3 veces, sin crear la orden; (3) igual que (1).
+**Impacto: es un bug de DINERO.** La orden sale sin un perfil que el cliente pidió
+explícitamente, y el resumen previo a confirmar tampoco lo muestra, así que el cliente
+confirma una orden incompleta sin notarlo.
+**Origen:** apareció en el QA real del usuario (conversación de Chatwoot 1, 07-21 14:10), donde
+el acuse fue todavía más vago: *"Listo, lo anoto"*, sin nombrar análisis ni precios.
+**Causa raíz (hipótesis, sin confirmar):** es la clase ya documentada en
+`docs/estado-agente-qa.md` — dos intenciones en un mensaje, donde un atajo interno
+(`_enforce_multiple_tests_capture`, que mapea ítem→código 1:1) responde antes de que el modelo
+resuelva el turno completo. El perfil no mapea 1:1 a un código de análisis individual y se cae
+del racimo. NO está causado por el catálogo de razas ni por los cambios de datos de esta sesión.
+**Causa raíz CONFIRMADA — un bug de nombre de parámetro, más un ítem que se evaporaba:**
+1. `_enforce_multiple_tests_capture` llamaba `_scan_ambiguous_terms(fields, candidate)` con
+   `candidate = fields["exam_type"]` (enforcers/orden.py:314), y el parámetro receptor se llama
+   literalmente `user_message` (orders.py:305). Si el modelo normalizaba `exam_type` a
+   "Sodio, Potasio", el prequirúrgico de la misma frase no estaba en ese texto. El comentario
+   inmediatamente anterior decía "los términos con OPCIONES… NO se pierden": la intención era
+   correcta y TODA la maquinaria ya existía (`_pending_ambiguous_items` → `_offer_next_pending`
+   → `list_catalog_profiles_matching_category`); solo recibía el texto equivocado.
+2. `catalog.resolve_tests` caía al fallback sobre el texto completo (catalog.py:257) cuando
+   algún ítem no resolvía, y el ítem desaparecía SIN señal de estado.
+3. Al elegir el perfil del menú llega solo "el 1": los análisis sueltos del pedido original se
+   perdían al fijarse el perfil (la pérdida INVERSA, que apareció al arreglar la primera).
+**Solución (Etapas 0-2 del plan, con OK del usuario):**
+- `catalog.ResolveResult.unresolved` — campo ADITIVO que reporta los ítems no representados. No
+  se tocó la semántica del fallback de :257 (hace funcionar nombres multi-palabra y está cubierto
+  por test_catalog_module.py); cambiarlo habría sido repetir ERR-072.
+- `_enforce_multiple_tests_capture` recibe `user_message` (default vacío para no romper llamadas
+  posicionales) y prioriza `result.unresolved`, con el escaneo de texto como red.
+- `_category_profiles_menu_response` (embudo único de los 8 call sites del menú de categoría)
+  guarda `_mixed_request_text` cuando el pedido traía varios ítems; `_capture_profile_menu_selection`
+  lo reaplica con `_profile_addition_if_mentioned`, que ya sabía descomponer un pedido mixto.
+- **Garantía de dinero:** `_prevent_incomplete_route_closure` no deja cerrar la orden con
+  `_pending_ambiguous_items`, con tope de 3 ofertas y descarte con acuse (lección de ERR-074:
+  un campo obligatorio sin salida de emergencia es un bucle infinito).
+**Tests:** `tests/test_first_capture_mixed.py` (+5, incluye el control de que sin residuo la orden
+SÍ cierra y el tope de reintentos) y `tests/test_pipeline_invariants.py` (4 invariantes nuevos).
+Los 18 de catálogo pasan SIN editar una línea — era el criterio de aceptación.
+**Verificado con MODELO REAL y DATOS REALES:** `validate_flows.py QA8` → los tres pedidos quedan
+en la orden (`exam_type='Perfil Prequirúrgico I'`, `selected_tests=['1405','1404']`). De paso el
+validador dejó de usar una lista de análisis inventada: ahora carga el catálogo real (159 filas),
+igual que ya hacía con las razas — ajustar el mock para que un flujo diera verde habría sido
+fabricar el resultado.
+**Estado:** RESUELTO. Suite: 455 passed.
+**Reproducción:** `python tools/scripts/validate_flows.py QA8`
+
+### ERR-074 — "No sé la raza" traba la orden para siempre (QA adversarial de razas, 2026-07-20)
+**Síntoma:** el cliente responde "no sé la raza" y el bot NUNCA cierra la orden. El modelo
+entiende y decide seguir ("Entiendo, no pasa nada. Para Axolote no manejo una raza específica,
+lo dejamos pendiente. ¿Qué edad tiene el paciente?"), pero desde el turno siguiente todas las
+respuestas se contestan con "¿Cuál es la raza del paciente?", en bucle infinito. Reproducido en
+el flujo QA3 de `validate_flows.py` contra el modelo real.
+**Causa raíz:** `breed` está en `ROUTE_REQUIRED_FIELDS` y `missing_route_field` (flow.py:100)
+solo comprueba truthiness — no existe forma de decir "no aplica". Cuando el modelo deja el campo
+vacío a propósito, `_enforce_first_missing_after_progress` (agent.py) lo vuelve a pedir en cada
+turno. El guardrail determinístico le gana al modelo y no hay salida de emergencia.
+**Alcance:** NO es exclusivo de especies exóticas. Afecta a todo cliente que no sepa la raza —
+mestizos de la calle y rescatados, que son mayoría en varias clínicas. Es la misma clase que los
+bugs abiertos en `docs/estado-agente-qa.md`: un atajo interno responde antes que el modelo.
+**Solución (con OK del usuario):** `_recover_unknown_breed` en agent.py — si el bot pidió la
+raza y el cliente dice que no la sabe, se registra `BREED_UNKNOWN = "Sin determinar"` y el flujo
+avanza. No se toca `flow.py` ni el orden de campos del paso B4; una raza real nunca se pisa.
+**Detalle que costó el primer intento:** el guard usaba `_detect_which_field_is_being_asked`,
+que hace match por substring y evalúa `"especie"` ANTES que `"raza"` (detectors/analisis.py:218).
+Un cierre como *"anoto Axolote como especie. ¿Cuál es la raza del paciente?"* resolvía a
+`species` y el guard no disparaba nunca. Se cambió a `_reply_asks_for_route_field(..., "breed")`,
+que exige la frase completa "raza del paciente".
+**Tests:** `tests/test_unknown_field_answers.py` (9 fraseos de "no sé", no pisar una raza real,
+solo actuar cuando se preguntó la raza) + flujo E2E QA3 en `validate_flows.py`.
+**Estado:** RESUELTO. Verificado con MODELO REAL: la orden cierra. Suite: 437 passed.
+
+### ERR-075 — Paciente con nombre de animal ("Toro") nunca se captura (QA adversarial, 2026-07-20)
+**Síntoma:** paciente llamado "Toro". El bot responde "Perfecto, lo anoto. ¿Cuál es el nombre del
+paciente?" y repite esa pregunta indefinidamente; la orden nunca avanza. Reproducido en el flujo
+QA1 de `validate_flows.py` contra el modelo real.
+**Causa raíz:** el prompt (prompt.py:74) instruye explícitamente que "toro", "vaca", "cerdo" son
+la ESPECIE y nunca la raza, para evitar que se confundan. Con esa instrucción el modelo lee
+"Toro" como especie (Bovino + Macho vía `apply_implied_animal_fields`) y deja `patient_name`
+vacío, con el mismo bucle de campo obligatorio del ERR-074.
+**Alcance:** nombres de mascota que coinciden con palabras del dominio animal — Toro, Oso, Lobo,
+Gato, Puma, Perla. Frecuente en Colombia.
+**Solución (con OK del usuario):** `_recover_patient_name_answer` en agent.py — si el bot pidió
+el NOMBRE del paciente y la respuesta es UNA sola palabra del dominio animal, se toma como nombre.
+La especie no se infiere de esa respuesta puntual; *"es un toro de 3 años"* (varias palabras)
+sigue infiriendo Bovino como antes.
+**Tests:** `tests/test_unknown_field_answers.py` (Toro/gato/conejo se capturan; la especie queda
+libre; no pisa un nombre ya capturado; una frase larga no cuenta) + flujo E2E QA1.
+**Estado:** RESUELTO en cuanto al bucle del nombre (verificado con modelo real: "Toro" se captura
+y el flujo avanza). El flujo QA1 sigue marcando problemas por OTRA causa ya conocida y abierta:
+tres correcciones de raza encadenadas ("no perdón, es criollo" / "me equivoqué, es un Holstein"),
+que es la clase documentada en `docs/estado-agente-qa.md` — corrección con el valor nuevo en el
+mismo mensaje, pendiente de la reorganización de `process_turn` (Tanda D).
+
 ### ERR-072 — Regresión C2: "Antes quiero cambiar el cliente" caía en el bloque "el de siempre" (prueba en vivo del usuario, 2026-07-20)
 **Síntoma:** con perfil 152 + sodio/potasio ya cargados y la oferta de análisis activa,
 "Antes quiero cambiar el cliente" respondió "Por último, ¿qué análisis o perfil desean?"

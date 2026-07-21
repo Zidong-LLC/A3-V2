@@ -366,3 +366,28 @@ del contexto, no solo los flags de `captured_fields` (que persisten varios turno
 - Hay tres tipos de "mock" y solo uno es inútil: (A) fingir la respuesta del modelo → **eliminar**; (B) lógica pura con el texto REAL del cliente (`_confirms_address("sisi")`, `resolve_tests("cuadro hematico")`, un validador con un código inválido) → **es la red buena, mantener**; (C) mock de infraestructura (Supabase/Telegram) → necesario, no es "dato de comportamiento".
 - La cobertura de un escenario conversacional end-to-end va al **modelo real** (`validate_flows.py`, QA adversarial con OpenAI + Supabase real). Un test determinista solo prueba la función determinista, con el dato tal como se cuela.
 - Al escribir un test, preguntar: "¿estoy fijando lo que el modelo devuelve?". Si sí, o lo paso a lógica pura sobre la función que hace cumplir la regla, o lo muevo al QA de modelo real. Refuerza [[feedback_real_model_validation]].
+
+## L52 — Un campo del schema que nadie lee es cobertura falsa (ERR-076, 2026-07-21)
+
+`pending_intents` está en el schema, lo llena el modelo, se persiste y se reinyecta al prompt…
+y aparece **0 veces en `prompt.py`**: al modelo nunca se le explicó qué poner ahí. Su único
+consumidor con efecto es `enforcers/resultados.py`. Lo mismo con 3 valores del enum
+`user_intent_signal` (`provides_requested_data`, `same_as_previous`, `farewell`), que el código
+resuelve por listas de tokens en atajos pre-LLM mientras descarta la señal que ya tiene.
+
+**Regla:** un campo del schema necesita las tres patas — el prompt lo documenta, algún código lo
+consume, y un test exige que siga consumiéndose. Sin las tres, es código muerto que aparenta
+cobertura. `tests/test_pipeline_invariants.py` ahora lo hace cumplir.
+
+## L53 — Ajustar el mock para que el test pase verde es fabricar el resultado (2026-07-21)
+
+Al verificar ERR-076 el flujo E2E daba rojo porque la lista de análisis del validador estaba
+hecha a mano y no tenía Sodio/Potasio, aunque el agente sí los registraba (resuelve contra
+`list_catalog_tests`, que nunca estuvo mockeado). La salida fácil —agregarlos al mock— la frenó
+el usuario: *"no tienes que hacer nada con datos mock, no sirven"*.
+
+**Regla:** cuando un mock y la realidad se contradicen, el que se corrige es el mock, cargando
+los datos reales — no ajustando valores a mano hasta que dé verde. `validate_flows.py` ahora
+carga el catálogo real de análisis (159) y de razas (332), con la lista mínima solo como fallback
+sin red. Es la misma lección que L51, un escalón más abajo: no alcanza con usar el modelo real
+si los datos con los que se lo evalúa son inventados.
