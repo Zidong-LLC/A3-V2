@@ -257,7 +257,7 @@ def find_clients_by_tax_id(tax_id: str | None = None) -> list[dict]:
     if not tax_id:
         return []
 
-    select_fields = "id, clinic_name, tax_id, phone, address, zone"
+    select_fields = "id, clinic_name, tax_id, phone, address, zone, email"
     matches: list[dict] = []
     seen: set[str] = set()
 
@@ -335,7 +335,7 @@ def find_client_matches(name: str | None = None, limit: int = 5) -> list[dict]:
         return []
 
     scored: list[tuple[float, str, dict]] = []
-    for c in _fetch_all_active_clients("id, clinic_name, tax_id, phone, address, zone"):
+    for c in _fetch_all_active_clients("id, clinic_name, tax_id, phone, address, zone, email"):
         score = _name_match_score(q_tokens, q_compact, c.get("clinic_name"))
         if score > 0:
             scored.append((score, c.get("clinic_name") or "", c))
@@ -354,7 +354,7 @@ def find_client_exact(name: str | None = None) -> dict | None:
     key = _compact_lookup_key(name)
     if not key:
         return None
-    for c in _fetch_all_active_clients("id, clinic_name, tax_id, phone, address, zone"):
+    for c in _fetch_all_active_clients("id, clinic_name, tax_id, phone, address, zone, email"):
         if _compact_lookup_key(c.get("clinic_name")) == key:
             return c
     return None
@@ -536,6 +536,18 @@ def get_catalog_context(species: str | None = None) -> str:
     for cat, items in by_cat.items():
         lines.append(f"[{cat}] " + ", ".join(items))
     return "\n".join(lines)
+
+
+def list_catalog_breeds() -> list[dict]:
+    """Catálogo completo de razas (breed_key, name, species). Lo cachea `app/breeds.py`."""
+    result = (
+        _client.table("catalog_breeds")
+        .select("breed_key, name, species")
+        .eq("is_active", True)
+        .limit(5000)
+        .execute()
+    )
+    return result.data or []
 
 
 def find_catalog_profile(value: str | None, species: str | None = None) -> dict | None:
@@ -1304,27 +1316,123 @@ def update_client_profile(client_id: str, payload: dict) -> bool:
     return bool(result.data)
 
 
-def list_a3_knowledge_index(limit: int = 5000) -> list[dict]:
-    result = _client.table("clients_a3_knowledge").select("*").limit(limit).execute()
-    return result.data or []
+def list_a3_knowledge_index(limit: int = 20000) -> list[dict]:
+    """Fichas de knowledge, paginando de a 1000 (tope por request de Supabase).
+
+    Con `.limit(5000)` a secas devolvía 1000 de 1427 y al dashboard le faltaban 427 fichas
+    (correo, nombre comercial, régimen) sin ningún error visible.
+    """
+    PAGE = 1000
+    rows: list[dict] = []
+    while len(rows) < limit:
+        batch = (
+            _client.table("clients_a3_knowledge")
+            .select("*")
+            .range(len(rows), min(len(rows) + PAGE, limit) - 1)
+            .execute()
+            .data
+        ) or []
+        rows.extend(batch)
+        if len(batch) < PAGE:
+            break
+    return rows
+
+
+def find_clients_by_professional(name: str | None, limit: int = 5) -> list[dict]:
+    """Clientes donde trabaja el médico buscado, para identificar por el nombre del veterinario.
+
+    El agente identifica CLIENTES (clínicas) contra `clients`, así que un veterinario que dice
+    su propio nombre no se encontraba nunca aunque estuviera cargado: vive en
+    `clients_a3_professionals`. Devuelve las clínicas del médico que SÍ son clientes activos,
+    con la misma forma que `find_client_matches` para reusar el menú de selección.
+    """
+    query = _normalize_lookup_key(name)
+    if not query or len(query) < 4:
+        return []
+    q_tokens = [t for t in query.split("_") if t and t not in _CLIENT_QUERY_STOPWORDS]
+    if not q_tokens:
+        return []
+    q_compact = "".join(q_tokens)
+
+    scored: list[tuple[float, str]] = []
+    for row in list_client_professionals():
+        score = _name_match_score(q_tokens, q_compact, row.get("professional_name"))
+        if score:
+            scored.append((score, _normalize_lookup_key(row.get("clinic_key"))))
+    if not scored:
+        return []
+
+    best_by_clinic: dict[str, float] = {}
+    for score, clinic_key in scored:
+        if clinic_key and score > best_by_clinic.get(clinic_key, 0.0):
+            best_by_clinic[clinic_key] = score
+
+    clients_by_key = {
+        _normalize_lookup_key(c["clinic_name"]): c
+        for c in _fetch_all_active_clients("id, clinic_name, tax_id, phone, address, zone, email")
+    }
+    matches = [
+        (score, clients_by_key[clinic_key])
+        for clinic_key, score in best_by_clinic.items()
+        if clinic_key in clients_by_key
+    ]
+    matches.sort(key=lambda pair: (-pair[0], pair[1]["clinic_name"]))
+    return [client for _score, client in matches[:limit]]
+
+
+def list_client_professionals(limit: int = 20000) -> list[dict]:
+    """Médicos por clínica (clinic_key → profesional), paginando de a 1000.
+
+    Supabase corta cada request en 1000 filas: con `.limit(5000)` a secas devolvía 1000 de
+    1554 y los médicos del último tramo no se encontraban nunca (ni en la identificación por
+    nombre del veterinario, ni en la ficha del dashboard).
+    """
+    PAGE = 1000
+    rows: list[dict] = []
+    while len(rows) < limit:
+        batch = (
+            _client.table("clients_a3_professionals")
+            .select("clinic_key, professional_name, professional_card")
+            .order("professional_name")
+            .range(len(rows), min(len(rows) + PAGE, limit) - 1)
+            .execute()
+            .data
+        ) or []
+        rows.extend(batch)
+        if len(batch) < PAGE:
+            break
+    return rows
 
 
 def upsert_client_profile(payload: dict) -> None:
     _client.table("clients_a3_knowledge").upsert(payload, on_conflict="clinic_key").execute()
 
 
-def list_clients_with_assignment(limit: int = 500) -> list[dict]:
-    result = (
-        _client.table("clients")
-        .select(
-            "id, clinic_name, tax_id, phone, address, zone, billing_type, is_active, "
-            "client_courier_assignment(courier_id, couriers(id, name, phone, availability, is_active))"
-        )
-        .order("clinic_name")
-        .limit(limit)
-        .execute()
-    )
-    return result.data or []
+def list_clients_with_assignment(limit: int = 5000) -> list[dict]:
+    """Todos los clientes con su motorizado, paginando de a 1000 (tope por request de Supabase).
+
+    Antes traía solo `limit=500` de 804 clientes: el dashboard no mostraba a los 304 que caían
+    después de la "L" por orden alfabético, y con ellos quedaban invisibles altas pendientes
+    que recepción no podía aprobar.
+    """
+    PAGE = 1000
+    rows: list[dict] = []
+    while len(rows) < limit:
+        batch = (
+            _client.table("clients")
+            .select(
+                "id, clinic_name, tax_id, phone, address, zone, billing_type, is_active, email, "
+                "client_courier_assignment(courier_id, couriers(id, name, phone, availability, is_active))"
+            )
+            .order("clinic_name")
+            .range(len(rows), min(len(rows) + PAGE, limit) - 1)
+            .execute()
+            .data
+        ) or []
+        rows.extend(batch)
+        if len(batch) < PAGE:
+            break
+    return rows
 
 
 def list_requests(limit: int = 500, status: str | None = None) -> list[dict]:

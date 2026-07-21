@@ -1126,3 +1126,152 @@ def test_client_name_edit_updates_client_table_and_knowledge(monkeypatch):
     profile_payload = upsert_profile.call_args.args[0]
     assert profile_payload["clinic_key"] == "clinica_norte"
     assert profile_payload["clinic_name"] == "Clinica Norte Renombrada"
+
+
+def test_client_profile_endpoint_accepts_email(monkeypatch):
+    """El input de correo existía en el HTML y el JS lo posteaba, pero `email` no estaba en
+    allowed_profile_fields: el endpoint devolvía 400 y el campo era imposible de corregir.
+    Importa ahora que la limpieza dejó 237 fichas con el correo vacío para completar a mano."""
+    monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_USER", "admin")
+    monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_PASSWORD", "secret")
+
+    with patch("app.dashboard.db.upsert_client_profile", return_value=None) as upsert_profile:
+        client = _get_test_client()
+        client.post("/login", data={"username": "admin", "password": "secret"})
+        response = client.post("/api/dashboard/client-profile", json={
+            "clinic_key": "veterinaria_san_roque",
+            "clinic_name": "Veterinaria San Roque",
+            "field": "email",
+            "value": "contacto@sanroque.test",
+        })
+
+    assert response.status_code == 200
+    upsert_profile.assert_called_once()
+    assert upsert_profile.call_args.args[0]["email"] == "contacto@sanroque.test"
+
+
+def test_client_profile_endpoint_still_rejects_unknown_fields():
+    """La lista blanca sigue cerrada: agregar `email` no abrió la puerta a cualquier campo."""
+    client = _get_test_client()
+    with patch("app.dashboard.DASHBOARD_ADMIN_USER", "admin"), \
+         patch("app.dashboard.DASHBOARD_ADMIN_PASSWORD", "secret"):
+        client.post("/login", data={"username": "admin", "password": "secret"})
+        response = client.post("/api/dashboard/client-profile", json={
+            "clinic_key": "x", "field": "is_superuser", "value": "1",
+        })
+    assert response.status_code == 400
+
+
+def test_client_rows_group_doctors_by_clinic():
+    """`clients_a3_professionals` tenía 1.828 filas pero ningún template las mostraba:
+    `affiliation_rows` se pasaba como [] y nadie lo consumía. Ahora cuelgan de cada cliente."""
+    clients = [
+        {"id": "c1", "clinic_name": "Veterinaria San Roque", "phone": "3001111111", "is_active": True},
+        {"id": "c2", "clinic_name": "Vet Sin Medicos", "phone": "3002222222", "is_active": True},
+    ]
+    knowledge = [{"clinic_key": "veterinaria_san_roque", "clinic_name": "Veterinaria San Roque"}]
+    professionals = [
+        {"clinic_key": "veterinaria_san_roque", "professional_name": "Dra Laura Méndez", "professional_card": "MV-123"},
+        {"clinic_key": "veterinaria_san_roque", "professional_name": "Dr Carlos Ruiz", "professional_card": None},
+        # el mismo médico llega de varias importaciones: no debe duplicarse en la ficha
+        {"clinic_key": "veterinaria_san_roque", "professional_name": "Dra Laura Méndez", "professional_card": "MV-123"},
+    ]
+
+    from app import dashboard
+
+    rows = dashboard._build_client_rows(clients, [], [], knowledge, None, professionals)
+    by_name = {r["clinic_name"]: r for r in rows}
+
+    san_roque = by_name["Veterinaria San Roque"]
+    assert [d["name"] for d in san_roque["doctors"]] == ["Dra Laura Méndez", "Dr Carlos Ruiz"]
+    assert san_roque["doctors"][0]["card"] == "MV-123"
+    assert "Laura" in san_roque["doctors_label"]
+
+    sin_medicos = by_name["Vet Sin Medicos"]
+    assert sin_medicos["doctors"] == []
+    assert sin_medicos["doctors_label"] == "-"
+
+
+def test_client_row_falls_back_to_clients_email():
+    """El correo cargado en `clients` (el que se manda a Alegra) tiene que verse en el dashboard
+    aunque la ficha de knowledge no tenga ninguno."""
+    clients = [{"id": "c1", "clinic_name": "Vet Con Correo", "phone": "3003333333",
+                "email": "facturacion@vet.test", "is_active": True}]
+    from app import dashboard
+
+    rows = dashboard._build_client_rows(clients, [], [], [], None, [])
+    assert rows[0]["email"] == "facturacion@vet.test"
+
+
+def test_all_clients_are_reachable_through_pagination():
+    """`limit=500` sobre 804 clientes dejaba 304 invisibles en el dashboard, y con ellos
+    altas pendientes que recepción no podía aprobar. La query ahora pagina; la vista sigue
+    mostrando 15 por página."""
+    from app import dashboard
+
+    clients = [{"id": f"c{i}", "clinic_name": f"Vet {i:04d}", "phone": f"300{i:07d}",
+                "is_active": True} for i in range(804)]
+    rows = dashboard._build_client_rows(clients, [], [], [], None, [])
+    assert len(rows) == 804
+    assert len({r["client_id"] for r in rows}) == 804
+
+
+def test_client_query_pages_beyond_the_supabase_batch(monkeypatch):
+    """Supabase corta en 1000 filas por request: la query tiene que pedir varias tandas."""
+    from app.services import db
+
+    calls = []
+
+    class _Chain:
+        def __init__(self, start, end):
+            calls.append((start, end))
+            self.start, self.end = start, end
+
+        def select(self, *_a, **_k):
+            return self
+
+        def order(self, *_a, **_k):
+            return self
+
+        def range(self, start, end):
+            return _Chain(start, end)
+
+        def execute(self):
+            total = 1500
+            rows = [{"id": f"c{i}"} for i in range(self.start, min(self.end + 1, total))]
+            return type("R", (), {"data": rows})()
+
+    monkeypatch.setattr(db, "_client", type("C", (), {"table": lambda self, _n: _Chain(0, 0)})())
+    result = db.list_clients_with_assignment()
+    assert len(result) == 1500, "debe traer las dos tandas, no solo la primera"
+
+
+@pytest.mark.parametrize("fn,table,total", [
+    ("list_client_professionals", "clients_a3_professionals", 1554),
+    ("list_a3_knowledge_index", "clients_a3_knowledge", 1427),
+])
+def test_queries_page_past_the_supabase_cap(monkeypatch, fn, table, total):
+    """Supabase corta cada request en 1000 filas: `.limit(5000)` devolvía 1000 en silencio.
+    Por eso un médico del último tramo (Paola Andrea Cardenas Celis) no se encontraba nunca."""
+    from app.services import db
+
+    class _Chain:
+        def __init__(self, start=0, end=0):
+            self.start, self.end = start, end
+
+        def select(self, *_a, **_k):
+            return self
+
+        def order(self, *_a, **_k):
+            return self
+
+        def range(self, start, end):
+            return _Chain(start, end)
+
+        def execute(self):
+            rows = [{"clinic_key": f"c{i}", "professional_name": f"Doc {i}"}
+                    for i in range(self.start, min(self.end + 1, total))]
+            return type("R", (), {"data": rows})()
+
+    monkeypatch.setattr(db, "_client", type("C", (), {"table": lambda self, _n: _Chain()})())
+    assert len(getattr(db, fn)()) == total, f"{fn} debe traer las {total} filas, no solo la primera tanda"
