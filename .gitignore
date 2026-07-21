@@ -16,3 +16,9 @@ tools/scripts/ngrok_url.txt
 UsersArtelDownloadsCONVERSACIONAL_temp/
 .opencode/
 opencode.json
+
+# Excel del cliente con datos de terceros (NIT, correos, telefonos de ~800 clientes y
+# nombres de 777 medicos). El repo es PUBLICO: estos datos no se publican. Ya estan
+# cargados en Supabase y los scripts que los procesan si estan versionados, asi que el
+# trabajo es reproducible sin exponer datos personales.
+Documentos de actualizacion/

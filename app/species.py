@@ -54,6 +54,10 @@ ANIMAL_DOMAIN: dict[str, tuple[str, str | None]] = {
     # Reptiles
     "reptil": ("Reptil", None), "reptiles": ("Reptil", None), "tortuga": ("Reptil", None),
     "iguana": ("Reptil", None), "serpiente": ("Reptil", None), "culebra": ("Reptil", None),
+    # Exóticos: cada uno es su propia especie (la lista del cliente los trae sueltos, sin raza).
+    "erizo": ("Erizo", None), "chinchilla": ("Chinchilla", None),
+    "glider": ("Sugar Glider", None), "petauro": ("Sugar Glider", None),
+    "degu": ("Degú", None), "axolote": ("Axolote", None), "ajolote": ("Axolote", None),
 }
 # Derivados: recuperación de especie (palabra → especie canónica) y campos implícitos.
 RECOVERABLE_SPECIES = {word: spec for word, (spec, _sex) in ANIMAL_DOMAIN.items()}
