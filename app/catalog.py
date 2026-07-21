@@ -68,6 +68,11 @@ class ResolveResult:
     status: str
     tests: list = field(default_factory=list)   # EXACT: a agregar; AMBIGUOUS: opciones a ofrecer
     area: str | None = None                      # nombre del área cuando el match es por categoría
+    # Ítems del pedido que NO quedaron representados en `tests` (ERR-076). Un PERFIL vive en
+    # `catalog_profiles`, no acá, así que "un pre quirúrgico" no resuelve y desaparecía en
+    # silencio: el que pide debe poder ofrecerlo en vez de perderlo. Campo informativo — no
+    # cambia `status` ni `tests`, así que ningún consumidor existente se entera.
+    unresolved: list = field(default_factory=list)
 
 
 def _norm(s) -> str:
@@ -244,14 +249,19 @@ def resolve_tests(text: str, rows: list[dict], species: str | None = None,
     if len(items) <= 1:
         return _resolve_one(text, rows, species)
 
-    collected, all_exact = [], True
+    collected, all_exact, unresolved = [], True, []
     for item in items:
         r = _resolve_one(item, rows, species)
         if r.status == EXACT:
             collected.extend(r.tests)
         else:
             all_exact = False
+            unresolved.append(item)
     if collected and (all_exact or collect_partial):
-        return ResolveResult(EXACT, _dedupe(collected))
+        return ResolveResult(EXACT, _dedupe(collected), unresolved=unresolved)
     # Mezcla ambigua: intentar el texto completo como un único término antes de rendirse.
-    return _resolve_one(text, rows, species)
+    # Este fallback hace funcionar los nombres multi-palabra que el splitter parte mal, así que
+    # su semántica no se toca; pero es donde un ítem que no resuelve (un perfil) se evaporaba sin
+    # dejar rastro. Se reporta en `unresolved` para que el que llama pueda ofrecerlo (ERR-076).
+    whole = _resolve_one(text, rows, species)
+    return ResolveResult(whole.status, whole.tests, whole.area, unresolved)

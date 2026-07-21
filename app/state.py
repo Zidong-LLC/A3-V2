@@ -81,6 +81,12 @@ FLAGS_ANALISIS = frozenset({
     "_custom_profile_summary", "_test_menu_options", "_test_menu_adds_to_profile",
     "_profile_menu_options", "_offering_extra_analysis", "_awaiting_additional_test",
     "_awaiting_exact_name", "_pending_ambiguous_items",
+    # Cuántas veces se re-ofreció el término pendiente: tope de reintentos para que un pedido
+    # que el cliente nunca resuelve no trabe la orden para siempre (ERR-076).
+    "_pending_offer_count",
+    # Texto original de un pedido MIXTO ("un prequirúrgico, sodio y potasio"): al elegir el
+    # cliente una opción llega solo "el 1", y sin esto los sueltos de la frase se perdían.
+    "_mixed_request_text",
 })
 FLAGS_DIRECCION = frozenset({"_address_confirmation_pending", "_address_confirmed"})
 FLAGS_CIERRE = frozenset({

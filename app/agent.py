@@ -22,6 +22,7 @@ from app.species import (
     IMPLIED_ANIMAL_FIELDS as _IMPLIED_ANIMAL_FIELDS, RECOVERABLE_SEX as _RECOVERABLE_SEX,
     apply_implied_animal_fields as _apply_implied_animal_fields,
 )
+from app.breeds import resolve_breed as _resolve_breed
 from app.config import ALEGRA_ENABLED, APP_TIMEZONE, FSM_ENFORCE
 from app.services import ai, db, alegra
 from app.rules import TERMINAL_PHASES, calculate_custom_profile_total, calculate_profile_adjusted_total
@@ -547,15 +548,28 @@ def _is_catalog_overview_question(text: str | None) -> bool:
 
 def _capture_test_menu_selection(session: dict, fields: dict, selected: list[dict]) -> dict:
     """Guarda los análisis elegidos del menú (con su código real) y avanza: pide el
-    siguiente dato faltante o, si la orden está completa, muestra el resumen."""
+    siguiente dato faltante o, si la orden está completa, muestra el resumen.
+
+    REGLA GENERAL (ERR-076): elegir de un menú REEMPLAZA cuando el menú fue una elección
+    desde cero, pero AGREGA cuando el menú se abrió como residuo de un pedido mixto —ahí ya
+    hay análisis absorbidos de la MISMA frase del cliente y reemplazarlos los borraba. Vale
+    para cualquier tipo de menú (área, categoría de perfiles, el que venga), no para una
+    palabra puntual: la señal es de dónde vino el menú, no qué se pidió."""
+    fields.pop("_test_menu_options", None)
+    fields.pop("_test_menu_adds_to_profile", None)
+    if fields.pop("_mixed_request_text", ""):
+        _add_tests_to_order(fields, selected, "add")
+        fields.pop("_pending_ambiguous_items", None)
+        fields.pop("_pending_offer_count", None)
+        return _analysis_settled_response(
+            session, fields, f"Listo, agrego {_format_test_items(selected)}.")
+
     fields["selected_tests"] = [t["code"] for t in selected]
     fields["removed_tests"] = []
     if len(selected) == 1:
         fields["exam_type"] = f"{selected[0]['code']} {selected[0]['name']}"
     else:
         fields["exam_type"] = f"Perfil personalizado ({len(selected)} análisis)"
-    fields.pop("_test_menu_options", None)
-    fields.pop("_test_menu_adds_to_profile", None)
     # Reemplazo total: el perfil base anterior (si lo había) deja de aplicar; sin esto,
     # el resumen/total seguiría saliendo del perfil viejo y no de lo elegido acá.
     for key in ("_selected_profile_code", "_selected_profile_name", "_selected_profile_price",
@@ -653,6 +667,28 @@ def _client_match_options_reply(query: str | None, matches: list[dict], has_more
             "¿Es esta? Responde con el número 1, o dime si no es ninguna."
         )
     lines = [f"Encontré varios clientes registrados con '{label}'. ¿Cuál es el correcto?"]
+    for idx, match in enumerate(shown, start=1):
+        name = match.get("clinic_name") or "Sin nombre"
+        address = match.get("address") or "sin dirección registrada"
+        lines.append(f"{idx}) {name} - {address}")
+    lines.append("Responde con el número, o dime si ninguna es la tuya.")
+    return "\n".join(lines)
+
+
+def _professional_match_options_reply(doctor: str, matches: list[dict]) -> str:
+    """El cliente se identificó con el nombre del MÉDICO, no con el de la veterinaria: se le
+    propone la clínica donde figura para que confirme. Nunca se identifica solo."""
+    shown = matches[:MAX_CLIENT_MATCH_OPTIONS]
+    if len(shown) == 1:
+        match = shown[0]
+        name = match.get("clinic_name") or "Sin nombre"
+        address = match.get("address") or "sin dirección registrada"
+        return (
+            f"{doctor} figura en nuestros registros en:\n"
+            f"1) {name} - {address}\n"
+            "¿Es esa la veterinaria? Responde con el número 1, o dime si no es ninguna."
+        )
+    lines = [f"{doctor} figura en varias veterinarias registradas. ¿Desde cuál solicitas?"]
     for idx, match in enumerate(shown, start=1):
         name = match.get("clinic_name") or "Sin nombre"
         address = match.get("address") or "sin dirección registrada"
@@ -1478,6 +1514,9 @@ def _store_client_context(fields: dict, client: dict) -> None:
     fields["_client_display_name"] = client.get("clinic_name", "")
     fields["_client_address"] = client.get("address") or ""
     fields["_client_phone"] = client.get("phone") or ""
+    # Correo de facturación: es por donde la DIAN entrega la factura electrónica. Sin esto,
+    # `_try_invoice_in_alegra` creaba el contacto en Alegra siempre sin correo.
+    fields["_client_email"] = client.get("email") or ""
     # NIT canónico del cliente (de la BD): necesario para facturar en Alegra cuando el
     # cliente se identificó por NOMBRE. Sin esto, `_try_invoice_in_alegra` recibía
     # tax_id=None y la facturación se saltaba en silencio aunque el cliente tuviera NIT.
@@ -1689,6 +1728,91 @@ def _recover_implied_animal_fields(ai_response: dict, prev_fields: dict, user_me
     return ai_response
 
 
+# ERR-074: el cliente que NO sabe la raza (mestizos de la calle, rescatados) quedaba en bucle
+# infinito, porque `breed` es obligatorio en ROUTE_REQUIRED_FIELDS y no había forma de decir
+# "no aplica": el modelo dejaba el campo vacío a propósito y el enforcer lo re-pedía sin fin.
+_UNKNOWN_ANSWER_PHRASES = (
+    "no se", "no lo se", "no sabemos", "no sabria", "no sabe", "ni idea", "no tengo idea",
+    "desconozco", "no tengo ni idea", "sin raza", "no aplica", "no la se", "no sé",
+    "no tenemos", "no la conocemos", "no sabria decirte", "no idea",
+    # Negar que TENGA raza es tan común como no saberla (QA real: "Ni tiene raza").
+    # Negar que TENGA raza es tan común como no saberla (QA real: "Ni tiene raza").
+    # OJO: "mestizo" y "criollo" NO van acá — son razas reales del catálogo, ambiguas
+    # entre especies pero razas al fin.
+    "no tiene raza", "ni tiene raza", "no tiene", "ninguna", "ninguno", "sin determinar",
+    "no esta definida", "no aplica raza", "sin definir",
+)
+BREED_UNKNOWN = "Sin determinar"
+
+
+def _says_does_not_know(user_message: str) -> bool:
+    text = " ".join(_tokenize(user_message)).translate(_ACCENT_TRANSLATION)
+    return any(phrase.translate(_ACCENT_TRANSLATION) in text for phrase in _UNKNOWN_ANSWER_PHRASES)
+
+
+def _recover_unknown_breed(ai_response: dict, user_message: str, history: list[dict]) -> dict:
+    """Si el bot pidió la RAZA y el cliente dice que no la sabe, se registra 'Sin determinar'
+    y la orden avanza. Sin esto la orden nunca cerraba (ERR-074)."""
+    if ai_response.get("intent") != "route_scheduling" or ai_response.get("requires_handoff"):
+        return ai_response
+    # `_detect_which_field_is_being_asked` no sirve acá: hace match por substring y "especie"
+    # se evalúa antes que "raza", así que un cierre como "anoto Axolote como especie. ¿Cuál es
+    # la raza del paciente?" resolvía a species y el guard nunca disparaba.
+    if not _reply_asks_for_route_field(_last_bot_message(history), "breed"):
+        return ai_response
+    fields = ai_response.get("captured_fields", {})
+    if fields.get("breed") or not _says_does_not_know(user_message):
+        return ai_response
+    fields["breed"] = BREED_UNKNOWN
+    ai_response["captured_fields"] = fields
+    return ai_response
+
+
+def _recover_patient_name_answer(ai_response: dict, prev_fields: dict, user_message: str,
+                                 history: list[dict]) -> dict:
+    """Si el bot pidió el NOMBRE del paciente, la respuesta es el nombre — aunque coincida con
+    una palabra del dominio animal ('Toro', 'Oso', 'Lobo', 'Puma').
+
+    ERR-075: el prompt instruye que 'toro'/'vaca' son ESPECIE y nunca raza, así que el modelo
+    leía 'Toro' como bovino y dejaba `patient_name` vacío → bucle infinito. La inferencia de
+    especie se sigue aplicando desde otras frases ('es un toro de 3 años'), no desde esta
+    respuesta puntual."""
+    if ai_response.get("intent") != "route_scheduling" or ai_response.get("requires_handoff"):
+        return ai_response
+    if not _reply_asks_for_route_field(_last_bot_message(history), "patient_name"):
+        return ai_response
+    fields = ai_response.get("captured_fields", {})
+    if fields.get("patient_name"):
+        return ai_response
+    tokens = _tokenize(user_message)
+    if len(tokens) != 1 or tokens[0].translate(_ACCENT_TRANSLATION) not in _RECOVERABLE_SPECIES:
+        return ai_response
+    fields["patient_name"] = _titlecase_value(tokens[0])
+    # La especie no se infiere de esta respuesta: el cliente estaba dando el nombre.
+    if not prev_fields.get("species"):
+        fields["species"] = prev_fields.get("species")
+    ai_response["captured_fields"] = fields
+    return ai_response
+
+
+def _recover_breed_and_species(ai_response: dict, prev_fields: dict) -> dict:
+    """Normaliza la RAZA contra el catálogo e infiere la especie cuando la raza es inequívoca
+    ('Holstein' → Bovino), para no preguntar un dato que el cliente ya dio implícito.
+
+    Solo llena vacíos: nunca pisa una especie que el cliente dijo, nunca vacía la raza y nunca
+    toca `reply`. Raza ambigua (Criollo, Mestizo) o desconocida → todo queda como estaba."""
+    if ai_response.get("intent") != "route_scheduling" or ai_response.get("requires_handoff"):
+        return ai_response
+    fields = ai_response.get("captured_fields", {})
+    match = _resolve_breed(fields.get("breed"))
+    if match.breed:
+        fields["breed"] = match.breed
+    if match.species and not fields.get("species") and not prev_fields.get("species"):
+        fields["species"] = match.species
+    ai_response["captured_fields"] = fields
+    return ai_response
+
+
 _AMBIGUOUS_SPECIES_TOKENS = frozenset({
     "animal", "animalito", "mascota", "pequeno", "pequeño", "chiquito", "chiquita", "casa",
 })
@@ -1781,8 +1905,44 @@ def _consecutive_affirmatives(history: list[dict]) -> int:
     return count
 
 
+# Tope de veces que se re-ofrece un mismo término pendiente antes de descartarlo. Sin esto,
+# un término que el cliente nunca resuelve trabaría la orden para siempre (ERR-074 enseñó que
+# un campo obligatorio sin salida de emergencia es un bucle infinito).
+_MAX_PENDING_OFFERS = 3
+
+
+def _pending_analysis_blocks_closure(ai_response: dict, fields: dict) -> bool:
+    """ERR-076 — garantía de DINERO: la orden no puede cerrarse con algo que el cliente pidió
+    y quedó sin resolver (un perfil con varias variantes). Vale más repreguntar que facturar
+    de menos. Tras `_MAX_PENDING_OFFERS` intentos se descarta con acuse explícito."""
+    pending = list(fields.get("_pending_ambiguous_items") or [])
+    if not pending:
+        return False
+    offers = int(fields.get("_pending_offer_count") or 0) + 1
+    if offers > _MAX_PENDING_OFFERS:
+        fields.pop("_pending_ambiguous_items", None)
+        fields.pop("_pending_offer_count", None)
+        return False
+    fields["_pending_offer_count"] = offers
+    return True
+
+
 def _prevent_incomplete_route_closure(session: dict, ai_response: dict, fields: dict) -> dict:
     if ai_response.get("intent") != "route_scheduling" or ai_response.get("phase") not in TERMINAL_PHASES:
+        return ai_response
+
+    if _pending_analysis_blocks_closure(ai_response, fields):
+        pendiente = (fields.get("_pending_ambiguous_items") or [""])[0]
+        ai_response["reply"] = (
+            f"Antes de cerrar: me quedó pendiente lo de '{pendiente}'. "
+            "¿Cuál de las opciones que te mostré prefieres? Si no lo necesitan, decime "
+            "'sin eso' y sigo."
+        )
+        ai_response["phase"] = "fase_2_recogida_datos"
+        ai_response["service_area"] = "route_scheduling"
+        ai_response["requires_handoff"] = False
+        ai_response["handoff_area"] = None
+        ai_response["message_mode"] = "flow_progress"
         return ai_response
 
     missing = _missing_route_field(session, fields)
@@ -2968,7 +3128,20 @@ def process_turn(
                             client = db.find_client_exact(clean_name)
                             if not client:
                                 matches = db.find_client_matches(clean_name, limit=MAX_CLIENT_MATCH_OPTIONS + 1)
-                    if client:
+                    if not client and not matches:
+                        # El cliente se identificó con el nombre del MÉDICO ("el médico es Diana
+                        # Sacristán"), no con el de la veterinaria. El agente busca clínicas en
+                        # `clients` y esos nombres viven en `clients_a3_professionals`, así que
+                        # no se encontraban nunca aunque estuvieran cargados. Se propone su
+                        # clínica para que confirme — nunca se identifica solo.
+                        doctor = (fields.get("requesting_doctor") or fields.get("clinic_name") or "").strip()
+                        doctor_hits = db.find_clients_by_professional(doctor, limit=MAX_CLIENT_MATCH_OPTIONS)
+                        if doctor_hits:
+                            _store_client_match_options(fields, doctor, doctor_hits)
+                            ai_response = _base_route_response(
+                                _professional_match_options_reply(doctor, doctor_hits), fields)
+                            skip_client_lookup = True
+                    if client or skip_client_lookup:
                         pass
                     elif matches:
                         has_more = len(matches) > MAX_CLIENT_MATCH_OPTIONS
@@ -3090,7 +3263,7 @@ def process_turn(
     # ANTES de las ayudas de catálogo para que no trabajen sobre un análisis inventado.
     ai_response = _enforce_exam_type_grounding(ai_response, prev_captured, user_message, history)
     fields = ai_response.get("captured_fields", fields)
-    ai_response = _enforce_multiple_tests_capture(session, ai_response, prev_captured)
+    ai_response = _enforce_multiple_tests_capture(session, ai_response, prev_captured, user_message)
     fields = ai_response.get("captured_fields", fields)
     # Códigos que el modelo estructuró por su cuenta: validar el anclaje (I3). Corre después
     # de la captura por texto (esa ya resuelve anclada) y antes de las ofertas/cierres.
@@ -3131,6 +3304,12 @@ def process_turn(
     ai_response = _recover_implied_animal_fields(ai_response, prev_captured, user_message)
     fields = ai_response.get("captured_fields", fields)
     ai_response = _clarify_ambiguous_species(ai_response, prev_captured, user_message, history)
+    fields = ai_response.get("captured_fields", fields)
+    ai_response = _recover_patient_name_answer(ai_response, prev_captured, user_message, history)
+    fields = ai_response.get("captured_fields", fields)
+    ai_response = _recover_breed_and_species(ai_response, prev_captured)
+    fields = ai_response.get("captured_fields", fields)
+    ai_response = _recover_unknown_breed(ai_response, user_message, history)
     fields = ai_response.get("captured_fields", fields)
     ai_response = _recover_doctor_from_text(ai_response, prev_captured, user_message, history)
     fields = ai_response.get("captured_fields", fields)

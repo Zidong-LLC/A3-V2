@@ -268,11 +268,15 @@ def _enforce_extra_analysis_offer(session: dict, ai_response: dict, prev_fields:
 
 
 
-def _enforce_multiple_tests_capture(session: dict, ai_response: dict, prev_fields: dict) -> dict:
+def _enforce_multiple_tests_capture(session: dict, ai_response: dict, prev_fields: dict,
+                                    user_message: str = "") -> dict:
     """Si el cliente pidió varios análisis en un mismo mensaje y cada uno mapea
     1:1 a un test del catálogo, los registra de una vez como perfil personalizado
     en lugar de repreguntar el tipo de análisis (evita el bucle reportado). Si
-    algún ítem es ambiguo o no existe, no toca nada: deja el flujo normal."""
+    algún ítem es ambiguo o no existe, no toca nada: deja el flujo normal.
+
+    `user_message` es el texto CRUDO del cliente y se usa para rescatar lo que el modelo dejó
+    fuera de `exam_type` (ERR-076). Tiene default para no romper llamadas posicionales viejas."""
     if ai_response.get("intent") != "route_scheduling":
         return ai_response
     fields = ai_response.get("captured_fields", {})
@@ -311,7 +315,16 @@ def _enforce_multiple_tests_capture(session: dict, ai_response: dict, prev_field
     # de opción única (sodio, potasio) se absorben acá; los términos con OPCIONES de la misma
     # frase (orina, un prequirúrgico…) NO se pierden — se encolan en orden de pedido y
     # `_analysis_settled_response` los ofrece uno por uno vía `_offer_next_pending`.
-    ambiguous = _scan_ambiguous_terms(fields, candidate)
+    # ERR-076: acá se pasaba `candidate` (= exam_type, el texto NORMALIZADO por el modelo) a un
+    # parámetro que se llama `user_message`. Si el modelo resumía exam_type a "Sodio, Potasio",
+    # el prequirúrgico que el cliente había pedido en la misma frase no estaba en ese texto y se
+    # perdía en silencio — con plata de por medio. Ahora manda el mensaje real del cliente.
+    # `result.unresolved` (señal dura del resolvedor) tiene prioridad; el escaneo queda de red,
+    # mismo molde señal-primero/tokens-de-red de C1/C2/C3.
+    ambiguous = _scan_ambiguous_terms(fields, user_message or candidate)
+    for item in result.unresolved:
+        if item not in ambiguous:
+            ambiguous.append(item)
     if ambiguous:
         fields["_pending_ambiguous_items"] = ambiguous
     return _analysis_settled_response(session, fields, intro)

@@ -275,6 +275,11 @@ def _category_profiles_menu_response(fields: dict, category_text: str) -> dict |
     _clear_field_for_correction(fields, "exam_type")
     fields.pop("_diagnostic_label", None)
     fields.pop("_correction_pending", None)
+    # ERR-076: este es el embudo por el que pasan TODOS los menús de categoría de perfiles.
+    # Si el pedido traía varios ítems ("un prequirúrgico, sodio y potasio"), se guarda entero:
+    # cuando el cliente elija el perfil llegará solo "el 1" y los sueltos se perderían.
+    if len(catalog.split_items(category_text)) > 1:
+        fields["_mixed_request_text"] = category_text
     _store_profile_menu_options(fields, profiles)
     category = profiles[0].get("category") or "ese perfil"
     return _base_route_response(_format_category_profile_menu(category, profiles), fields)
@@ -307,6 +312,11 @@ def _scan_ambiguous_terms(fields: dict, user_message: str) -> list[str]:
     en el ORDEN en que el cliente los dijo. Ignora lo ya resuelto inequívoco."""
     added_names = " ".join(str(t) for t in (fields.get("selected_tests") or []))
     terms = []
+    # ERR-076: si el pedido trae VARIOS ítems y alguno abre opciones, se guarda el texto
+    # original. Al elegir el cliente una opción llega "el 1", y sin el pedido completo los
+    # análisis sueltos de la misma frase (sodio, potasio) se perdían al fijarse el perfil.
+    if len(catalog.split_items(user_message)) > 1:
+        fields["_mixed_request_text"] = user_message
     for item in catalog.split_items(user_message):
         area, tests = db.find_tests_by_area(item, fields.get("species"), limit=3)
         if area and tests:
@@ -402,6 +412,29 @@ def _capture_profile_menu_selection(session: dict, fields: dict, option: dict, u
     fields.pop("_test_menu_options", None)
     fields.pop("_correction_pending", None)
     intro = f"Listo, registro {profile.get('code')} {profile.get('name')} ({_money(profile.get('price'))})."
+    # ERR-076: el perfil venía de un pedido MIXTO ("un prequirúrgico, sodio y potasio"). El
+    # mensaje de ahora es solo la elección ("el 1"), así que los sueltos de la frase original
+    # se aplican acá, ya sobre el perfil base — que es el camino que sí funciona (flujo X).
+    pedido_original = fields.pop("_mixed_request_text", "")
+    if pedido_original:
+        # Solo los análisis INEQUÍVOCOS del pedido original. NO se re-escanean los términos
+        # ambiguos: el que abrió este menú es el perfil que el cliente acaba de elegir, y
+        # volver a encolarlo dejaba la orden trabada pidiendo algo ya resuelto.
+        try:
+            res = catalog.resolve_tests(pedido_original, db.list_catalog_tests(limit=5000),
+                                        fields.get("species"), collect_partial=True)
+        except Exception:
+            res = None
+        pendientes = [t for t in (fields.get("_pending_ambiguous_items") or [])
+                      if not db.list_catalog_profiles_matching_category(t, fields.get("species"))]
+        if pendientes:
+            fields["_pending_ambiguous_items"] = pendientes
+        else:
+            fields.pop("_pending_ambiguous_items", None)
+        fields.pop("_pending_offer_count", None)
+        if res is not None and res.status == catalog.EXACT and res.tests:
+            _add_tests_to_order(fields, res.tests, "add")
+            intro = f"{intro} Agrego {_format_test_items(res.tests)}."
     if user_message:
         # CONTENIDO primero (no el verbo): 'el 152 y arrestar aparte orina sodio y potasio'
         # agrega/ofrece aunque el verbo venga con typo. Un '152' pelado no menciona nada

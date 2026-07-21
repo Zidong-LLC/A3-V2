@@ -28,23 +28,67 @@ COURIER = {"id": "courier-01", "name": "Carlos", "phone": "300111", "availabilit
 # Mini-catálogo realista para ejercitar el RACIMO DE ANÁLISIS con el modelo real
 # (perfil por necesidad diagnóstica, análisis por área y selección "el primero").
 # Sin estos datos los mocks devolvían vacío y el racimo nunca se probaba de verdad.
-URO_TESTS = [
-    {"code": "1601", "name": "Uroanálisis Completo", "category": "Uroanálisis", "sample": "Orina Fresca", "price": 35000},
-    {"code": "1602", "name": "Relación Proteína Orina", "category": "Uroanálisis", "sample": "Orina Fresca", "price": 48000},
-    {"code": "1603", "name": "Urocultivo", "category": "Uroanálisis", "sample": "Orina Fresca", "price": 52000},
-]
+def _load_real_tests() -> list[dict]:
+    """El catálogo REAL de análisis (159 filas). Nada de listas a mano.
+
+    Antes había tres listas inventadas (URO/RENAL/EXTRA) cuyos códigos CHOCABAN con los reales:
+    1603 era "Urocultivo $52k" a mano y "Estudio de Cálculo $83k" en la base, así que el bot
+    anunciaba un precio y el resumen mostraba otro. Un harness incoherente hace fallar flujos
+    que no tienen nada roto — y peor, puede tapar los que sí. Se valida contra la base."""
+    try:
+        from app.services import db as _db
+        rows = _db.list_catalog_tests(limit=5000)
+        if rows:
+            print(f"[catálogo de análisis REAL: {len(rows)} filas]")
+            return rows
+    except Exception as exc:  # noqa: BLE001
+        print(f"[sin catálogo real ({type(exc).__name__}): los flujos de análisis no son válidos]")
+    return []
+
+
+ALL_TESTS = _load_real_tests()
+
+
+def _by_category(needle: str) -> list[dict]:
+    return [r for r in ALL_TESTS if needle.lower() in str(r.get("category") or "").lower()]
+
+
+URO_TESTS = _by_category("uro")[:3]
 RENAL_LABEL = "RENAL"
-RENAL_TESTS = [
-    {"code": "0101", "name": "Creatinina", "price": 22000, "category": "Química"},
-    {"code": "0102", "name": "BUN", "price": 22000, "category": "Química"},
+# Etiqueta diagnóstica renal: los análisis reales que la componen.
+RENAL_TESTS = [r for r in ALL_TESTS
+               if str(r.get("name", "")).lower().startswith("creatinina")
+               or "bun" in str(r.get("name", "")).lower()][:2]
+EXTRA_TESTS = [r for r in ALL_TESTS
+               if str(r.get("name", "")).lower().startswith(("cuadro hem", "glucosa"))][:2]
+
+# Catálogo de razas: se trae el REAL de Supabase (323 razas / 332 filas) porque los casos que
+# importan —las 8 ambiguas, las que chocan con palabras de especie, el par boer/boxer— solo
+# existen en el catálogo completo. Si no hay red, cae a una muestra mínima y los flujos de raza
+# quedan sin valor pero el resto del validador sigue corriendo.
+_FALLBACK_BREEDS = [
+    {"breed_key": "pastor_aleman", "name": "Pastor Alemán", "species": "Canino"},
+    {"breed_key": "labrador", "name": "Labrador", "species": "Canino"},
+    {"breed_key": "pitbull", "name": "Pitbull", "species": "Canino"},
+    {"breed_key": "siames", "name": "Siamés", "species": "Felino"},
+    {"breed_key": "mestizo", "name": "Mestizo", "species": "Canino"},
+    {"breed_key": "mestizo", "name": "Mestizo", "species": "Felino"},
 ]
-# Catálogo combinado de análisis individuales para resolver get_tests_by_codes_or_names
-# (lo usan _enforce_multiple_tests_capture y _enforce_profile_customization_changes).
-EXTRA_TESTS = [
-    {"code": "0001", "name": "Hemograma Completo", "price": 30000, "category": "Hematología"},
-    {"code": "0201", "name": "Glucosa", "price": 18000, "category": "Química"},
-]
-ALL_TESTS = URO_TESTS + RENAL_TESTS + EXTRA_TESTS
+
+
+def _load_real_breeds() -> list[dict]:
+    try:
+        from app.services import db as _db
+        rows = _db.list_catalog_breeds()
+        if rows:
+            print(f"[catálogo de razas REAL: {len(rows)} filas]")
+            return rows
+    except Exception as exc:  # noqa: BLE001
+        print(f"[sin catálogo real ({type(exc).__name__}), usando muestra mínima]")
+    return _FALLBACK_BREEDS
+
+
+BREEDS = _load_real_breeds()
 
 # Perfiles de catálogo para la recomendación por especie ('no sé / qué me recomiendas')
 # y para resolver la selección con código y precio reales.
@@ -173,6 +217,7 @@ _PATCHES = {
                                         "order_number": f"A3-2026-00{len(_state['requests'])}"})[1]),
     "create_pending_client_review": dict(side_effect=lambda cl, rv: _state["pending_clients"].append((cl, rv))),
     "get_last_order_for_client": dict(return_value={"order_number": "A3-2026-001", "exam_type": "hemograma"}),
+    "list_catalog_breeds": dict(return_value=BREEDS),
     "get_catalog_context": dict(return_value=""),
     "get_individual_tests_context": dict(return_value=""),
     "list_diagnostic_labels": dict(return_value=[RENAL_LABEL]),
@@ -509,7 +554,7 @@ def main():
         results.append(_run_conversation(
             "Q. Estrés racimo 1 — perfil renal + personalización", "val-q",
             ["Hola", "1", "Somos la Veterinaria San Roque", "sí, esa está bien",
-             "necesito un perfil renal", "quiero agregarle un urocultivo",
+             "necesito un perfil renal", "quiero agregarle un parcial de orina",
              "mejor quita la creatinina", "listo, cerramos así"],
             lambda replies: [],
         ))
@@ -697,16 +742,22 @@ def main():
                 out.append(f"'agregarle un análisis más' ofreció perfiles nuevos: '{ask_which[:90]}'")
             if "agregar" not in ask_which.lower():
                 out.append(f"no preguntó cuál análisis agregar: '{ask_which[:90]}'")
+            # El agregado se valida contra el catálogo REAL: el menú de orina ofrece
+            # Uroanálisis (1601 Parcial de Orina …), no el "urocultivo" del mock viejo.
+            esperado = URO_TESTS[0] if URO_TESTS else {"code": "1601", "name": "Parcial de Orina", "price": 16000}
+            base, agregado = 24000, int(esperado.get("price") or 0)
+            total = f"${base + agregado:,} COP"
+            clave = _norm(esperado["name"].split("(")[0])
             area_menu = replies[15] or ""
-            if "1603" not in area_menu and "urocultivo" not in _norm(area_menu):
+            if esperado["code"] not in area_menu and clave not in _norm(area_menu):
                 out.append(f"'un análisis de orina' no desplegó el menú del área: '{area_menu[:90]}'")
             added = replies[16] or ""
-            if "1603" not in added and "urocultivo" not in _norm(added):
-                out.append(f"la selección del menú no agregó el urocultivo: '{added[:90]}'")
+            if esperado["code"] not in added and clave not in _norm(added):
+                out.append(f"la selección del menú no agregó {esperado['name']}: '{added[:90]}'")
             summary = replies[17] or ""
-            if "$76,000 COP" not in summary:
-                out.append(f"el resumen no trae el total ajustado ($76,000): '{summary[:120]}'")
-            if "urocultivo" not in _norm(summary):
+            if total not in summary:
+                out.append(f"el resumen no trae el total ajustado ({total}): '{summary[:120]}'")
+            if clave not in _norm(summary):
                 out.append(f"el resumen no lista el agregado: '{summary[:120]}'")
             if len(_state["requests"]) != 1:
                 out.append(f"esperaba 1 orden creada, hay {len(_state['requests'])}")
@@ -715,7 +766,7 @@ def main():
             if str(f.get("_selected_profile_code")) != "701":
                 out.append(f"perfil base perdido: {f.get('_selected_profile_code')!r}")
             sel = [str(t) for t in (f.get("selected_tests") or [])]
-            if "1603" not in "".join(sel):
+            if esperado["code"] not in "".join(sel):
                 out.append(f"el agregado no quedó ESTRUCTURADO en selected_tests: {sel}")
             if f.get("exam_type") != "Perfil Prequirúrgico I":
                 out.append(f"exam_type no es el nombre limpio del perfil: {f.get('exam_type')!r}")
@@ -730,9 +781,313 @@ def main():
              "el 1",
              "quiero agregarle un analisis mas a este perfil",
              "quiero agregarle un analisis de orina al perfil",
-             "el urocultivo está bien",
+             "el parcial de orina está bien",
              "contraentrega", "sí, confirmo"],
             checks_x,
+        ))
+
+        # Y — La raza inequívoca aporta la especie: el bot NO debe preguntarla
+        def checks_y(replies):
+            out = []
+            # La especie se pregunta ANTES que la raza: esa pregunta es legítima. Lo que no
+            # debe pasar es que la vuelva a preguntar una vez que la raza ya la aportó.
+            for r in [x for x in replies[7:] if x]:
+                low = r.lower()
+                if "especie" in low or "canino, felino" in low or "¿es canino" in low:
+                    out.append(f"re-preguntó la especie teniendo la raza: '{r[:80]}'")
+            if not _state["requests"]:
+                out.append("no se creó la orden")
+            else:
+                captured = _state["requests"][-1]["captured_fields"]
+                if captured.get("species") != "Canino":
+                    out.append(f"species esperada 'Canino', quedó '{captured.get('species')}'")
+                if captured.get("breed") != "Pastor Alemán":
+                    out.append(f"breed esperada 'Pastor Alemán', quedó '{captured.get('breed')}'")
+            return out
+
+        results.append(_run_conversation(
+            "Y. Raza inequívoca infiere la especie", "val-y",
+            ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
+             "Dra. Laura Méndez", "Rocky", "pastor aleman", "macho",
+             "4 años", "Pedro Gómez", "sin observaciones", "hemograma",
+             "contraentrega", "sí, confirmo", "sí, confirmo"],
+            checks_y,
+        ))
+
+        # Z — Raza ambigua (Mestizo): NO debe inferir especie, tiene que preguntarla
+        def checks_z(replies):
+            out = []
+            asked = any("especie" in (r or "").lower() or "canino" in (r or "").lower()
+                        for r in replies)
+            if not asked:
+                out.append("no preguntó la especie con una raza ambigua ('mestizo')")
+            if _state["requests"]:
+                captured = _state["requests"][-1]["captured_fields"]
+                if not captured.get("species"):
+                    out.append("la orden quedó sin especie")
+            return out
+
+        results.append(_run_conversation(
+            "Z. Raza ambigua sigue preguntando la especie", "val-z",
+            ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
+             "Dra. Laura Méndez", "Luna", "mestizo", "felino", "hembra",
+             "2 años", "Ana Ruiz", "sin observaciones", "hemograma",
+             "contraentrega", "sí, confirmo", "sí, confirmo"],
+            checks_z,
+        ))
+
+        # ── QA adversarial de razas/especies (catálogo real) ──────────────────────
+        def _order():
+            return _state["requests"][-1]["captured_fields"] if _state["requests"] else {}
+
+        # QA1 — Cadena de correcciones donde la ÚLTIMA raza cambia la especie inferida.
+        # Riesgo: que quede la especie de una raza corregida (Canino de "mestizo") con la
+        # raza nueva (Holstein, bovina), o que se pierda la corrección.
+        def checks_qa1(replies):
+            out = []
+            captured = _order()
+            if not captured:
+                out.append("no se creó la orden")
+                return out
+            breed = (captured.get("breed") or "").lower()
+            species = captured.get("species")
+            if "holstein" not in breed:
+                out.append(f"la última corrección de raza se perdió: breed='{captured.get('breed')}'")
+            if species and species != "Bovino":
+                out.append(f"raza Holstein con especie '{species}': incoherente")
+            return out
+
+        results.append(_run_conversation(
+            "QA1. Correcciones encadenadas de raza (cambia la especie)", "qa-1",
+            ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
+             "Dra. Laura Méndez", "Toro", "mestizo", "no perdón, es criollo",
+             "me equivoqué, es un Holstein", "macho", "5 años", "Pedro Gómez",
+             "sin observaciones", "hemograma", "contraentrega", "sí, confirmo", "sí, confirmo"],
+            checks_qa1,
+        ))
+
+        # QA2 — Al pedir la RAZA el cliente responde una palabra de ESPECIE ("conejo").
+        # Riesgo: que se registre "Conejo" como raza y quede sin especie, o que entre en bucle.
+        def checks_qa2(replies):
+            out = []
+            captured = _order()
+            if not captured:
+                out.append("no se creó la orden")
+                return out
+            if not captured.get("species"):
+                out.append("la orden quedó sin especie")
+            if (captured.get("species") or "").lower() not in ("conejo", "lagomorfo"):
+                out.append(f"esperaba especie Conejo, quedó '{captured.get('species')}'")
+            return out
+
+        results.append(_run_conversation(
+            "QA2. Palabra de especie como respuesta a la raza", "qa-2",
+            ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
+             "Dra. Laura Méndez", "Pelusa", "conejo", "holland lop", "hembra",
+             "1 año", "Ana Ruiz", "sin observaciones", "hemograma",
+             "contraentrega", "sí, confirmo", "sí, confirmo"],
+            checks_qa2,
+        ))
+
+        # QA3 — Especies exóticas nuevas (axolote, erizo, sugar glider) que antes no existían.
+        def checks_qa3(replies):
+            out = []
+            captured = _order()
+            if not captured:
+                out.append("no se creó la orden")
+                return out
+            if not captured.get("species"):
+                out.append("la orden quedó sin especie")
+            for reply in [r for r in replies if r]:
+                if "no atendemos" in reply.lower() or "no trabajamos" in reply.lower():
+                    out.append(f"rechazó una especie que A3 sí atiende: '{reply[:70]}'")
+            return out
+
+        results.append(_run_conversation(
+            "QA3. Especie exótica nueva (axolote)", "qa-3",
+            ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
+             "Dra. Laura Méndez", "Nemo", "es un axolote", "no sé la raza", "macho",
+             "2 años", "Ana Ruiz", "sin observaciones", "hemograma",
+             "contraentrega", "sí, confirmo", "sí, confirmo"],
+            checks_qa3,
+        ))
+
+        # QA4 — Especie declarada y raza de OTRA especie. El catálogo no debe pisar
+        # lo que el cliente dijo explícitamente.
+        def checks_qa4(replies):
+            out = []
+            captured = _order()
+            if not captured:
+                out.append("no se creó la orden")
+                return out
+            if captured.get("species") != "Felino":
+                out.append(f"pisó la especie que dio el cliente: quedó '{captured.get('species')}'")
+            return out
+
+        results.append(_run_conversation(
+            "QA4. Especie declarada + raza de otra especie", "qa-4",
+            ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
+             "Dra. Laura Méndez", "Michi", "felino", "holstein", "hembra",
+             "3 años", "Ana Ruiz", "sin observaciones", "hemograma",
+             "contraentrega", "sí, confirmo", "sí, confirmo"],
+            checks_qa4,
+        ))
+
+        # QA5 — Typos severos encadenados. 'doverman' debe recuperarse; 'chiwawa' no llega
+        # al umbral y queda como texto libre: lo que NO puede pasar es que se pierda el dato.
+        def checks_qa5(replies):
+            out = []
+            captured = _order()
+            if not captured:
+                out.append("no se creó la orden")
+                return out
+            if not captured.get("breed"):
+                out.append("se perdió la raza")
+            if not captured.get("species"):
+                out.append("la orden quedó sin especie")
+            return out
+
+        results.append(_run_conversation(
+            "QA5. Typos severos en la raza", "qa-5",
+            ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
+             "Dra. Laura Méndez", "Rocky", "es un doverman", "macho",
+             "4 años", "Pedro Gómez", "sin observaciones", "hemograma",
+             "contraentrega", "sí, confirmo", "sí, confirmo"],
+            checks_qa5,
+        ))
+
+        # QA6 — Todo el paciente en un solo mensaje, con la raza aportando la especie.
+        def checks_qa6(replies):
+            out = []
+            captured = _order()
+            if not captured:
+                out.append("no se creó la orden")
+                return out
+            for field in ("patient_name", "breed", "sex", "patient_age", "owner_name"):
+                if not captured.get(field):
+                    out.append(f"perdió {field} del mensaje en bloque")
+            if captured.get("species") != "Canino":
+                out.append(f"no infirió Canino del pastor alemán: '{captured.get('species')}'")
+            return out
+
+        results.append(_run_conversation(
+            "QA6. Paciente completo en un mensaje", "qa-6",
+            ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
+             "Dra. Laura Méndez",
+             "el paciente es Rocky, un pastor alemán macho de 4 años, del señor Pedro Gómez",
+             "sin observaciones", "hemograma", "contraentrega", "sí, confirmo", "sí, confirmo"],
+            checks_qa6,
+        ))
+
+        # QA7 — R29: al confirmar, el bot debe nombrar la especie CANÓNICA, no la palabra
+        # del cliente ("cabra" → "anoto Caprino", no "anoto Cabra"). Reporte real del usuario.
+        def checks_qa7(replies):
+            out = []
+            confirm = " ".join(r for r in replies if r).lower()
+            if "cabra como especie" in confirm:
+                out.append("confirmó con la palabra del cliente ('Cabra') en vez de 'Caprino'")
+            if "caprino" not in confirm:
+                out.append("nunca nombró la especie canónica 'Caprino' en la conversación")
+            captured = _state["requests"][-1]["captured_fields"] if _state["requests"] else {}
+            if captured and captured.get("species") != "Caprino":
+                out.append(f"species esperada 'Caprino', quedó '{captured.get('species')}'")
+            if captured and captured.get("sex") != "Hembra":
+                out.append(f"sex esperado 'Hembra', quedó '{captured.get('sex')}'")
+            return out
+
+        results.append(_run_conversation(
+            "QA7. Especie normalizada se confirma con el nombre canónico", "qa-7",
+            ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
+             "Dra. Laura Méndez", "Pepe", "es una cabra", "ni tiene raza",
+             "3 años", "Ana Ruiz", "sin observaciones", "hemograma",
+             "contraentrega", "sí, confirmo", "sí, confirmo"],
+            checks_qa7,
+        ))
+
+        # QA8 — reproduce la conversación REAL del QA del usuario (chat 1, 07-21 14:05):
+        # cuatro datos en un mensaje y luego VARIOS análisis juntos. Lo que se vio: el bot
+        # respondió "Listo, lo anoto" sin nombrar qué análisis registró ni su precio.
+        def checks_qa8(replies):
+            out = []
+            captured = _state["requests"][-1]["captured_fields"] if _state["requests"] else {}
+            if not captured:
+                out.append("no se creó la orden")
+                return out
+            esperado = {"requesting_doctor": "Jorge", "owner_name": "Pepito",
+                        "patient_name": "Luisa", "species": "Caprino"}
+            for field, valor in esperado.items():
+                real = str(captured.get(field) or "")
+                if valor.lower() not in real.lower():
+                    out.append(f"{field}: esperaba '{valor}', quedó '{real}'")
+            # ERR-076. Pidió TRES cosas: perfil prequirúrgico + sodio + potasio.
+            exam = str(captured.get("exam_type") or "")
+            tests = captured.get("selected_tests") or []
+            blob = (exam + " " + " ".join(str(x) for x in tests)).lower()
+            print(f"      [exam_type={exam!r} selected_tests={tests}]")
+            hablado = " ".join(r for r in replies if r).lower()
+            # `selected_tests` guarda CÓDIGOS: se traducen contra el catálogo REAL (ALL_TESTS).
+            for code in tests:
+                for row in ALL_TESTS:
+                    if str(row.get("code")) == str(code):
+                        blob += " " + str(row.get("name", "")).lower()
+            for pedido in ("prequir", "sodio", "potasio"):
+                if pedido in blob:
+                    continue
+                # (b) INVARIANTE DURO: si algo pedido no quedó en la orden, el bot TENÍA que
+                # haberlo ofrecido. Perderlo en silencio es el bug de dinero.
+                if pedido not in hablado:
+                    out.append(f"se PERDIO en silencio: '{pedido}' ni en la orden ni ofrecido")
+                else:
+                    out.append(f"(aviso) '{pedido}' se ofreció pero no quedó en la orden")
+            return out
+
+        results.append(_run_conversation(
+            "QA8. Cuatro datos en un mensaje + varios análisis juntos (QA real)", "qa-8",
+            ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
+             "El nombre de del médico es Jorge, el dueño del paciente se llama Pepito y es una cabra que se llama a Luisa",
+             "No tiene razón o desconozco, la encontré en la calle papi",
+             "Creo que tiene tres años",
+             "Sí, quiero dejar una observación que es medio urgente es para caridad",
+             "Sí, mira, necesitamos un pre quirúrgico, un análisis de sodio y uno de potasio",
+             "el 1",  # elige el perfil que el bot ofrece: sin esto la orden NO debe cerrar
+             "contraentrega", "sí, confirmo", "sí, confirmo"],
+            checks_qa8,
+        ))
+
+        # QA9 — ERR-076 AISLADO. QA8 arranca con una frase real enredada ("es una cabra que se
+        # llama a Luisa") que el modelo a veces no descompone; cuando falla, el flujo ni llega
+        # al turno de los análisis y el resultado no dice nada del pedido mixto. Este flujo da
+        # los datos de a uno para medir SOLO la regla del pedido mixto.
+        def checks_qa9(replies):
+            out = []
+            captured = _state["requests"][-1]["captured_fields"] if _state["requests"] else {}
+            if not captured:
+                out.append("no se creó la orden")
+                return out
+            blob = str(captured.get("exam_type") or "").lower()
+            for code in (captured.get("selected_tests") or []):
+                for row in ALL_TESTS:
+                    if str(row.get("code")) == str(code):
+                        blob += " " + str(row.get("name", "")).lower()
+            hablado = " ".join(r for r in replies if r).lower()
+            for pedido in ("prequir", "sodio", "potasio"):
+                if pedido in blob:
+                    continue
+                if pedido not in hablado:
+                    out.append(f"se PERDIO en silencio: '{pedido}'")
+                else:
+                    out.append(f"'{pedido}' se ofreció pero no quedó en la orden")
+            return out
+
+        results.append(_run_conversation(
+            "QA9. Pedido mixto aislado: perfil con opciones + análisis sueltos", "qa-9",
+            ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
+             "Dra. Laura Méndez", "Luisa", "canino", "criollo", "hembra",
+             "3 años", "Pepito", "sin observaciones",
+             "necesitamos un pre quirúrgico, un análisis de sodio y uno de potasio",
+             "el 1",
+             "contraentrega", "sí, confirmo", "sí, confirmo"],
+            checks_qa9,
         ))
     finally:
         for p in patchers:
