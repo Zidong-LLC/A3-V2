@@ -197,7 +197,6 @@ def _empty_context(error: str | None = None) -> dict:
         "sample_requirements": [],
         "approval_rows": [],
         "reviewed_approval_rows": [],
-        "affiliation_rows": [],
         "client_type_options": CLIENT_TYPE_OPTIONS,
         "vat_regime_options": VAT_REGIME_OPTIONS,
         "request_priority_options": [{"value": key, "label": value} for key, value in REQUEST_PRIORITY_LABELS.items()],
@@ -359,7 +358,21 @@ def _bool_option(value) -> str:
     return "sin_dato"
 
 
-def _build_client_rows(clients: list[dict], requests_rows: list[dict], samples: list[dict], knowledge_rows: list[dict] | None = None, pending_request_by_client: dict | None = None) -> list[dict]:
+def _index_professionals(professional_rows: list[dict] | None) -> dict[str, list[dict]]:
+    """Agrupa los médicos por clinic_key para colgarlos de la ficha de cada cliente."""
+    grouped: dict[str, list[dict]] = {}
+    for row in professional_rows or []:
+        key = str(row.get("clinic_key") or "").strip()
+        name = str(row.get("professional_name") or "").strip()
+        if not key or not name:
+            continue
+        bucket = grouped.setdefault(key, [])
+        if not any(item["name"] == name for item in bucket):  # el mismo médico llega de varios Excel
+            bucket.append({"name": name, "card": row.get("professional_card") or ""})
+    return grouped
+
+
+def _build_client_rows(clients: list[dict], requests_rows: list[dict], samples: list[dict], knowledge_rows: list[dict] | None = None, pending_request_by_client: dict | None = None, professional_rows: list[dict] | None = None) -> list[dict]:
     request_count = Counter(str(row.get("client_id")) for row in requests_rows if row.get("client_id"))
     sample_count = Counter(str(row.get("client_id")) for row in samples if row.get("client_id"))
     latest_request = {}
@@ -386,6 +399,8 @@ def _build_client_rows(clients: list[dict], requests_rows: list[dict], samples: 
         if phone_key:
             knowledge_by_phone.setdefault(phone_key, item)
 
+    professionals_by_clinic = _index_professionals(professional_rows)
+
     rows = []
     for client in clients:
         assignment = _assignment_from_client(client)
@@ -401,9 +416,13 @@ def _build_client_rows(clients: list[dict], requests_rows: list[dict], samples: 
         entered_option = _bool_option(knowledge.get("entered_flag"))
         raw_zone = client.get("zone") or ""
         zone_display = _resolve_zone_display(raw_zone)
+        row_clinic_key = knowledge.get("clinic_key") or _normalize_lookup_key(clinic_name)
+        doctors = professionals_by_clinic.get(row_clinic_key, [])
         rows.append({
             "client_id": client_id,
-            "clinic_key": knowledge.get("clinic_key") or _normalize_lookup_key(clinic_name),
+            "clinic_key": row_clinic_key,
+            "doctors": doctors,
+            "doctors_label": ", ".join(d["name"] for d in doctors) if doctors else "-",
             "clinic_name": clinic_name,
             "display_name": display_name,
             "secondary_name": secondary_name,
@@ -412,7 +431,8 @@ def _build_client_rows(clients: list[dict], requests_rows: list[dict], samples: 
             "client_type": knowledge.get("client_type") or "",
             "tax_id": client.get("tax_id") or "-",
             "phone": client.get("phone") or "-",
-            "email": knowledge.get("email") or knowledge.get("contact_email") or "-",
+            # `clients.email` es el que se manda a Alegra al facturar; knowledge es el anexo.
+            "email": knowledge.get("email") or client.get("email") or knowledge.get("contact_email") or "-",
             "billing_email": knowledge.get("billing_email") or "-",
             "vat_regime": knowledge.get("vat_regime") or "",
             "electronic_invoicing_option": electronic_option,
@@ -1314,7 +1334,7 @@ def _build_executive_panel(requests_rows: list, request_events: list) -> dict:
 
 def build_dashboard_context() -> dict:
     try:
-        clients = db.list_clients_with_assignment(limit=500)
+        clients = db.list_clients_with_assignment()
         requests_rows = db.list_requests(limit=500)
         sessions_rows = db.list_sessions(limit=500)
     except Exception as exc:
@@ -1331,6 +1351,7 @@ def build_dashboard_context() -> dict:
     catalog = _safe_fetch(lambda: db.list_catalog_tests(limit=4000), [])
     profiles = _safe_fetch(lambda: db.list_catalog_profiles(limit=4000), [])
     knowledge = _safe_fetch(lambda: db.list_a3_knowledge_index(limit=5000), [])
+    professionals = _safe_fetch(lambda: db.list_client_professionals(limit=5000), [])
     samples = _safe_fetch(
         lambda: db.fetch_rows(
             "lab_samples",
@@ -1405,7 +1426,7 @@ def build_dashboard_context() -> dict:
         "samples": [{**s, "dropdown_status": _DROPDOWN_STATUS_MAP.get(s.get("status"), s.get("status"))} for s in samples],
         "sample_process_lanes": _build_sample_process_lanes_with_orders(samples, sample_events, service_order_rows),
         "service_order_rows": service_order_rows,
-        "clients_rows": _build_client_rows(clients, requests_rows, samples, knowledge, pending_request_by_client),
+        "clients_rows": _build_client_rows(clients, requests_rows, samples, knowledge, pending_request_by_client, professionals),
         "catalog_rows": _build_catalog_rows(catalog),
         "profile_catalog_rows": profile_rows,
         "profile_analysis_rows": analysis_rows,
@@ -1417,7 +1438,6 @@ def build_dashboard_context() -> dict:
         "approval_rows": approval_rows,
         "reviewed_approval_rows": reviewed_rows,
         "operation_center": operation_center,
-        "affiliation_rows": [],
         "client_type_options": CLIENT_TYPE_OPTIONS,
         "vat_regime_options": VAT_REGIME_OPTIONS,
         "request_priority_options": [{"value": key, "label": value} for key, value in REQUEST_PRIORITY_LABELS.items()],
@@ -1838,7 +1858,7 @@ def update_client_profile():
     field = str(payload.get("field") or "").strip()
     value = payload.get("value")
     allowed_client_fields = {"clinic_name", "phone", "address", "zone", "billing_type", "tax_id", "is_active"}
-    allowed_profile_fields = {"client_code", "commercial_name", "client_type", "billing_email", "vat_regime", "electronic_invoicing", "invoicing_rut_url", "observations", "entered_flag"}
+    allowed_profile_fields = {"client_code", "commercial_name", "client_type", "email", "billing_email", "vat_regime", "electronic_invoicing", "invoicing_rut_url", "observations", "entered_flag"}
     if not client_id and not clinic_key:
         return jsonify({"error": "Missing client_id"}), 400
     if field not in allowed_client_fields and field not in allowed_profile_fields:
@@ -2230,7 +2250,7 @@ def _resolve_client_zone(
 @dashboard.post("/api/dashboard/suggest-couriers")
 @_login_required
 def suggest_couriers():
-    clients = db.list_clients_with_assignment(limit=500)
+    clients = db.list_clients_with_assignment()
     couriers = db.list_active_couriers(limit=500)
     courier_by_name = {_normalize_lookup_key(c["name"]): c for c in couriers if c.get("id") and c.get("name")}
     knowledge = _safe_fetch(lambda: db.list_a3_knowledge_index(limit=5000), [])
