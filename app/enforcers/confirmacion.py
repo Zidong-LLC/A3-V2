@@ -13,8 +13,10 @@ from app.detectors import (
     _confirms_order_now,
     _is_order_confirmation,
     _named_analysis_terms,
+    _profile_codes_from_text,
     _wants_partial_analysis_change,
 )
+from app.menus import _store_selected_profile_fields
 from app.laterales import _operational_side_question_answer
 from app.orders import (
     _add_tests_to_order,
@@ -27,6 +29,52 @@ from app.messages import PAYMENT_ONLINE_HANDOFF_MESSAGE
 from app.services import db
 
 CONFIRMATION_PHASE = state.Phase.CONFIRMACION.value
+
+
+def _add_profile_in_confirmation(fields: dict, user_message: str) -> dict | None:
+    """ERR-080 (segunda capa): un código de PERFIL ("1331") no resuelve como análisis
+    (`get_tests_by_codes_or_names` no ve perfiles), así que agregar un perfil durante la
+    confirmación repreguntaba para siempre (chat 10). Resuelve el perfil por código primero
+    (determinístico) y por nombre como fallback; si hay perfil base lo suma como perfil
+    adicional (mecanismo de ERR-077, el resumen ya lo muestra y suma), si no, lo fija de base."""
+    species = fields.get("species")
+    profile = None
+    codes = _profile_codes_from_text(user_message)
+    if codes:
+        try:
+            matches = db.get_catalog_profiles_by_codes(codes[:1], species)
+        except Exception:
+            matches = []
+        profile = matches[0] if matches else None
+    if not profile:
+        try:
+            profile = db.find_catalog_profile(user_message, species)
+        except Exception:
+            profile = None
+    if not profile:
+        return None
+
+    code = str(profile.get("code"))
+    if fields.get("_selected_profile_code"):
+        extras = list(fields.get("_extra_profiles") or [])
+        already = code == str(fields.get("_selected_profile_code")) or any(
+            str(p.get("code")) == code for p in extras
+        )
+        if not already:
+            extras.append({"code": profile.get("code"), "name": profile.get("name"),
+                           "price": int(profile.get("price") or 0)})
+            fields["_extra_profiles"] = extras
+    else:
+        _store_selected_profile_fields(fields, profile)
+
+    fields.pop("_awaiting_additional_test", None)
+    fields.pop("_correction_pending", None)
+    summary = _route_confirmation_summary(fields)
+    response = _base_route_response(
+        summary or f"Listo, agrego {profile.get('code')} {profile.get('name')}.", fields
+    )
+    response["phase"] = CONFIRMATION_PHASE
+    return response
 
 
 def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message: str, signal: str | None) -> dict | None:
@@ -59,6 +107,12 @@ def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message:
         if area_response:
             area_response["phase"] = CONFIRMATION_PHASE
             return area_response
+        # ERR-080: si lo que nombró es un PERFIL del catálogo ("1331"), agregarlo acá;
+        # sin esta rama el mensaje no resolvía nunca y la repregunta era un bucle sin salida.
+        if action == "add":
+            profile_response = _add_profile_in_confirmation(fields, user_message)
+            if profile_response:
+                return profile_response
         fields["_awaiting_additional_test"] = action
         ask = "¿Qué análisis quieres quitar?" if action == "remove" else "¿Qué análisis quieres agregar?"
         response = _base_route_response(f"Claro. {ask}", fields)
@@ -148,6 +202,10 @@ def _enforce_confirmation_step(session: dict, ai_response: dict, fields: dict, p
     summary = _route_confirmation_summary(fields)
     if not summary:
         return ai_response
+    # ERR-080: el resumen supersede cualquier "¿quieres agregar?" que haya quedado abierto
+    # en fases previas. Si el flag sobrevive, el "Sí" del cliente se intenta resolver como
+    # análisis, falla, y el cierre determinístico nunca corre (chat 10: orden nunca registrada).
+    fields.pop("_awaiting_additional_test", None)
     operational_answer = _operational_side_question_answer(user_message)
     if operational_answer:
         summary = f"{operational_answer}\n\n{summary}"

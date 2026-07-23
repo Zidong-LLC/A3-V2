@@ -109,11 +109,18 @@ def _order_summary_lines(fields: dict, header: str) -> list[str] | None:
         added_rows = db.get_tests_by_codes_or_names(_as_text_items(fields.get("selected_tests")))
         removed_rows = db.get_tests_by_codes_or_names(_as_text_items(fields.get("removed_tests")))
         base_price = int(fields.get("_selected_profile_price") or 0)
+        # ERR-077: el cliente eligió VARIOS perfiles del menú ("1, 3 y 6"). El primero es el
+        # base; los demás viajan en _extra_profiles con su precio de catálogo. No pueden ir
+        # en selected_tests: un código de perfil (103) NO resuelve como análisis, así que el
+        # resumen los perdería y el total volvería a quedar corto.
+        extra_profiles = fields.get("_extra_profiles") or []
         totals = calculate_profile_adjusted_total(
             base_price,
-            [row["price"] for row in added_rows],
+            [row["price"] for row in added_rows] + [int(p.get("price") or 0) for p in extra_profiles],
             [row["price"] for row in removed_rows],
         )
+        if extra_profiles:
+            lines.append(f"- Perfiles adicionales: {_format_test_items(extra_profiles)}")
         if added_rows:
             lines.append(f"- Agregados: {_format_test_items(added_rows)}")
         if removed_rows:
@@ -401,9 +408,14 @@ def _selected_profile_addition_response(session: dict, fields: dict, user_messag
 
 
 
-def _capture_profile_menu_selection(session: dict, fields: dict, option: dict, user_message: str = "") -> dict:
+def _capture_profile_menu_selection(session: dict, fields: dict, option: dict, user_message: str = "",
+                                    extra_profiles: list[dict] | None = None) -> dict:
     """Guarda el perfil elegido del menú de recomendación con su código, nombre y precio
-    reales (para que el resumen muestre el valor) y avanza al siguiente dato faltante."""
+    reales (para que el resumen muestre el valor) y avanza al siguiente dato faltante.
+
+    ERR-077: `extra_profiles` son los OTROS perfiles del mismo menú que el cliente eligió en
+    la misma frase ("1, 3 y 6"). Antes se descartaban en silencio y la orden se confirmaba
+    por el precio de uno solo."""
     species = fields.get("species")
     full = db.get_catalog_profiles_by_codes([option["code"]], species)
     profile = full[0] if full else option
@@ -411,7 +423,18 @@ def _capture_profile_menu_selection(session: dict, fields: dict, option: dict, u
     fields.pop("_profile_menu_options", None)
     fields.pop("_test_menu_options", None)
     fields.pop("_correction_pending", None)
+    # Siempre se reescribe: fijar un perfil base nuevo no puede arrastrar los adicionales de
+    # una orden anterior (multiorden).
+    fields.pop("_extra_profiles", None)
     intro = f"Listo, registro {profile.get('code')} {profile.get('name')} ({_money(profile.get('price'))})."
+    if extra_profiles:
+        codes = [str(p.get("code")) for p in extra_profiles]
+        rows = db.get_catalog_profiles_by_codes(codes, species) or extra_profiles
+        fields["_extra_profiles"] = [
+            {"code": r.get("code"), "name": r.get("name"), "price": int(r.get("price") or 0)}
+            for r in rows
+        ]
+        intro = f"{intro} También registro {_format_test_items(fields['_extra_profiles'])}."
     # ERR-076: el perfil venía de un pedido MIXTO ("un prequirúrgico, sodio y potasio"). El
     # mensaje de ahora es solo la elección ("el 1"), así que los sueltos de la frase original
     # se aplican acá, ya sobre el perfil base — que es el camino que sí funciona (flujo X).

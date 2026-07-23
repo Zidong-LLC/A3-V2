@@ -37,8 +37,11 @@ def test_portal_session_without_client_id_is_forbidden():
 
 
 def test_login_client_stores_session_client_id():
+    # PORTAL_DEMO_MODE del .env local saltea el login real y pega a Supabase:
+    # apagarlo para probar el flujo de autenticación de verdad.
     identity = {"user_id": "u-2", "email": "vet@x.test", "client_id": CLIENT_A}
-    with patch("app.portal.auth.portal_auth.sign_in", return_value=identity), \
+    with patch("app.portal.auth.PORTAL_DEMO_MODE", False), \
+         patch("app.portal.auth.portal_auth.sign_in", return_value=identity), \
          patch("app.portal.auth.get_client_by_id", return_value={"id": CLIENT_A}):
         client = _get_test_client()
         response = client.post(
@@ -51,7 +54,7 @@ def test_login_client_stores_session_client_id():
 
 
 def test_login_rejected_shows_error():
-    with patch(
+    with patch("app.portal.auth.PORTAL_DEMO_MODE", False), patch(
         "app.portal.auth.portal_auth.sign_in",
         side_effect=PortalAuthError("La cuenta no tiene acceso al portal de clientes"),
     ):

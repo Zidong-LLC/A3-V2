@@ -529,7 +529,7 @@ def get_catalog_context(species: str | None = None) -> str:
     by_cat: dict[str, list[str]] = defaultdict(list)
     for r in rows:
         description = r.get("description") or "sin detalle"
-        by_cat[r["category"]].append(f"{r['code']}-{r['name']}: {description} ${r['price']//1000}k")
+        by_cat[r["category"]].append(f"{r['code']}-{r['name']}: {description} ${r['price']:,} COP")
 
     label = f" ({species})" if species else ""
     lines = [f"Catálogo A3{label}:"]
@@ -630,7 +630,7 @@ def get_individual_tests_context(species: str | None = None) -> str:
     from collections import defaultdict
     by_cat: dict[str, list[str]] = defaultdict(list)
     for r in rows:
-        by_cat[r["category"]].append(f"{r['code']}-{r['name']} ${r['price']//1000}k")
+        by_cat[r["category"]].append(f"{r['code']}-{r['name']} ${r['price']:,} COP")
 
     label = f" ({species})" if species else ""
     lines = [f"Análisis individuales A3{label}:"]

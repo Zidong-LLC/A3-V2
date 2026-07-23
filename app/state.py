@@ -87,6 +87,9 @@ FLAGS_ANALISIS = frozenset({
     # Texto original de un pedido MIXTO ("un prequirúrgico, sodio y potasio"): al elegir el
     # cliente una opción llega solo "el 1", y sin esto los sueltos de la frase se perdían.
     "_mixed_request_text",
+    # Perfiles ADICIONALES elegidos en la misma frase que el base ("1, 3 y 6"): van con su
+    # precio de catálogo porque un código de perfil no resuelve como análisis (ERR-077).
+    "_extra_profiles",
 })
 FLAGS_DIRECCION = frozenset({"_address_confirmation_pending", "_address_confirmed"})
 FLAGS_CIERRE = frozenset({

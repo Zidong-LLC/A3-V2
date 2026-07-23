@@ -64,7 +64,9 @@ def base_route_response(reply: str, fields: dict) -> dict:
 def format_test_items(rows: list[dict]) -> str:
     if not rows:
         return "ninguno"
-    return ", ".join(f"{r['code']}-{r['name']} ${int(r.get('price') or 0)//1000}k" for r in rows)
+    # Precio siempre en formato completo "$12,000 COP" (pedido del usuario 2026-07-22:
+    # nada de abreviar "$12k" en lo que ve el cliente).
+    return ", ".join(f"{r['code']}-{r['name']} {_money(r.get('price'))}" for r in rows)
 
 
 def estimated_total_text(totals: dict) -> str:

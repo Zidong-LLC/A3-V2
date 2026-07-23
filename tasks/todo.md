@@ -2,6 +2,32 @@
 
 ---
 
+## Fix: ERR-080/081/082 — chat real 10, errores no registrados (2026-07-22) — EN CURSO
+
+Plan aprobado: `~/.claude/plans/pod-s-detectar-qu-pas-replicated-cosmos.md`.
+Del QA en vivo del 2026-07-21 (chat 10) quedaron 3 errores sin registrar además de
+ERR-077/078/079: el "Si" final cayó en bucle y la orden nunca se registró
+(`request_id=None`), la identidad quedó cruzada entre dos clientes (La Uribe con la
+dirección del Centro Médico Veterinario), y el batch "1/1/2" solo atendió el último.
+
+- [x] ERR-080: limpiar `_awaiting_additional_test` al mostrar el resumen + resolver
+      perfiles al agregar en confirmación (`app/enforcers/confirmacion.py`)
+- [x] ERR-080: tests `tests/test_confirmation_close_not_looped.py` (5 passed)
+- [x] ERR-081: re-identificar cliente cuando responde con nombre de sede a la pregunta
+      de dirección (`app/agent.py`, bloque de dirección)
+- [x] ERR-081: tests `tests/test_address_reject_with_clinic_name.py` (4 passed)
+- [x] ERR-082: registrar en bitácora (batch + latencia; sin cambio de código)
+- [x] Suite completa verde + bitácora ERR-080/081/082 + lección L55
+
+**Resultados (2026-07-22):** 483 passed, 2 skipped, 1 xfailed. Los 6 fallos restantes son
+`test_dashboard`/`test_portal_auth` por red (`httpx.ConnectError`), pre-existentes.
+Verificado con stash que el subconjunto del agente pasa 425/425 sin los tests nuevos → cero
+regresiones. PENDIENTE: validación con modelo real (`validate_flows.py`/Telegram) replicando
+el chat 10 punta a punta (junto con la de ERR-077/078/079, que sigue pendiente) y la
+investigación de latencia de ERR-082.
+
+---
+
 ## Refactor de raíz: atacar la causa core, no la fascia (2026-07-07) — EN CURSO
 
 Plan aprobado: `~/.claude/plans/podemos-hacer-podemos-hacer-lively-waterfall.md`.

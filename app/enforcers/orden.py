@@ -293,13 +293,30 @@ def _enforce_multiple_tests_capture(session: dict, ai_response: dict, prev_field
     if not candidate or candidate == prev_fields.get("exam_type"):
         return ai_response
 
-    if len(_split_multiple_exam_items(candidate)) < 2:
-        return ai_response
+    catalog_tests = db.list_catalog_tests(limit=5000)
     # Resolvedor unívoco: cada ítem debe resolver 1:1 a un test del catálogo (EXACT). Si
     # alguno es ambiguo/inexistente, resolve_tests no devuelve EXACT y se deja el flujo normal.
-    result = catalog.resolve_tests(candidate, db.list_catalog_tests(limit=5000), fields.get("species"))
-    if result.status != catalog.EXACT or len(result.tests) < 2:
-        return ai_response
+    result = None
+    if len(_split_multiple_exam_items(candidate)) >= 2:
+        exact = catalog.resolve_tests(candidate, catalog_tests, fields.get("species"))
+        if exact.status == catalog.EXACT and len(exact.tests) >= 2:
+            result = exact
+    if result is None:
+        # ERR-087 (chat real 'análisis de sangre u orina, sodio y potasio'): el modelo
+        # resumió el pedido MIXTO a UN término vago en exam_type y la compuerta de arriba
+        # ni miraba el mensaje real — sodio/potasio se perdían y el cliente tenía que
+        # repetir todo. Si el exam_type no da 2+ ítems, se resuelve el MENSAJE CRUDO:
+        # 2+ exactos (o 1+ exacto con términos de área pendientes) siguen el mismo camino
+        # de ERR-076 (registrar los unívocos + encolar los ambiguos). Un análisis suelto
+        # sin pendientes ('quiero un hemograma') queda en el flujo normal.
+        raw = (user_message or "").strip()
+        if not raw:
+            return ai_response
+        raw_result = catalog.resolve_tests(raw, catalog_tests, fields.get("species"),
+                                           collect_partial=True)
+        if not raw_result.tests or (len(raw_result.tests) < 2 and not raw_result.unresolved):
+            return ai_response
+        result = raw_result
     rows = result.tests
 
     totals = calculate_custom_profile_total(rows)
@@ -308,6 +325,8 @@ def _enforce_multiple_tests_capture(session: dict, ai_response: dict, prev_field
     fields["exam_type"] = f"Perfil personalizado ({len(rows)} análisis)"
 
     intro = (
+        f"Listo, registro {_format_test_items(rows)}. {_estimated_total_text(totals)}"
+        if len(rows) == 1 else
         f"Listo, registro estos {len(rows)} análisis: {_format_test_items(rows)}. "
         f"{_estimated_total_text(totals)}"
     )

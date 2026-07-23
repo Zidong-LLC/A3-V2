@@ -1,5 +1,29 @@
+import re
+from pathlib import Path
+
 import pytest
 from unittest.mock import patch
+
+
+def _base_context(**overrides) -> dict:
+    """Contexto mínimo que el template exige, derivado del propio dashboard.html.
+    El template evoluciona (panel ejecutivo, facturación…) y cada clave nueva rompía
+    estos tests con UndefinedError aunque producción sí la provea (build_dashboard_context).
+    Acá se extraen TODAS las `context.X` usadas y se llenan con defaults falsy."""
+    template = (Path(__file__).resolve().parents[1] / "app" / "templates" / "dashboard.html").read_text(encoding="utf-8")
+    keys = set(re.findall(r"context\.([a-z_]+)", template))
+    context = {key: [] for key in keys}
+    for key in keys & {"summary", "requests_by_status", "request_status", "sample_status",
+                       "operation_center", "motorizados_summary", "exec_billing",
+                       "client_type_options", "vat_regime_options"}:
+        context[key] = {}
+    for key in keys & {"exec_alerts_count", "exec_processed_week", "exec_cancel_rate",
+                       "clients_page", "clients_pages", "clients_total", "sample_demo_total"}:
+        context[key] = 0
+    for key in keys & {"error", "demo_mode", "alegra_enabled", "invoices_actions_locked"}:
+        context[key] = False
+    context.update(overrides)
+    return context
 
 
 def _get_test_client():
@@ -36,8 +60,8 @@ def test_dashboard_renders_operational_overview_after_login(monkeypatch):
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_USER", "admin")
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_PASSWORD", "secret")
 
-    overview = {
-        "summary": {
+    overview = _base_context(
+        summary={
             "total_clients": 2,
             "clients_with_courier": 1,
             "clients_without_courier": 1,
@@ -45,22 +69,14 @@ def test_dashboard_renders_operational_overview_after_login(monkeypatch):
             "unassigned_requests": 1,
             "sessions_tracked": 4,
         },
-        "requests_by_status": {"assigned": 2, "error_pending_assignment": 1},
-        "service_area_counts": {"route_scheduling": 3},
-        "flow_stage_counts": [{"stage_key": "fase_2_recogida_datos", "count": 2, "order": 2}],
-        "unassigned_request_rows": [
+        requests_by_status={"assigned": 2, "error_pending_assignment": 1},
+        service_area_counts={"route_scheduling": 3},
+        flow_stage_counts=[{"stage_key": "fase_2_recogida_datos", "count": 2, "order": 2}],
+        unassigned_request_rows=[
             {"id": "r-1", "clinic_name": "Clinica Dos", "status": "error_pending_assignment"}
         ],
-        "request_status": {"assigned": 2, "cancelled": 0},
-        "samples": [],
-        "messages": [],
-        "clients_rows": [],
-        "catalog_rows": [],
-        "flow_kanban_lanes": [],
-        "approval_rows": [],
-        "reviewed_approval_rows": [],
-        "affiliation_rows": [],
-    }
+        request_status={"assigned": 2, "cancelled": 0},
+    )
 
     with patch("app.dashboard.build_dashboard_context", return_value=overview):
         client = _get_test_client()
@@ -92,18 +108,23 @@ def test_dashboard_api_returns_context_for_authenticated_user(monkeypatch):
 def test_operation_center_page_renders_daily_workbench(monkeypatch):
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_USER", "admin")
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_PASSWORD", "secret")
-    context = {
-        "summary": {"active_requests": 2, "pending_manual_approvals": 1},
-        "requests": [],
-        "operation_center": {
-            "kpis": {"active_routes": 2, "pending_approvals": 1, "pending_samples": 3, "critical_alerts": 1},
+    # UI actual (rediseño "médicos en el dashboard"): el centro operativo muestra KPIs,
+    # alertas, "Ordenes del dia" (service_order_rows) y "Agenda operativa" (courier_agenda).
+    # Las aprobaciones ya no viven en esta pestaña.
+    context = _base_context(
+        summary={"active_requests": 2, "pending_manual_approvals": 1},
+        operation_center={
+            "kpis": {"active_routes": 2, "pending_approvals": 1, "pending_samples": 3,
+                     "critical_alerts": 1, "assigned_total": 2, "received_total": 1,
+                     "results_emitted": 0, "total_orders": 1},
             "alerts": [{"level": "warning", "title": "Ruta sin asignar", "detail": "Clinica Norte requiere motorizado."}],
-            "route_rows": [{"clinic_name": "Clinica Norte", "status_label": "Recibida", "courier_name": "Sin asignar", "address": "Calle 1", "scheduled_pickup_date": "2026-05-15"}],
+            "unassigned_orders": [{"clinic_name": "Clinica Norte", "status_label": "Recibida", "address": "Calle 1"}],
             "courier_agenda": [{"courier_name": "Sin asignar", "count": 1, "routes": [{"clinic_name": "Clinica Norte", "status_label": "Recibida", "address": "Calle 1"}]}],
-            "approval_rows": [{"clinic_name": "Nueva Vet", "contact_phone": "301", "zone": "Kennedy"}],
-            "sample_lanes": [{"label": "A retirar", "count": 3}],
+            "service_order_rows": [{"order_number": "OS-77", "clinic_name": "Clinica Norte",
+                                    "patient_name": "Toby", "exam_type": "Hemograma",
+                                    "service_order_date": "2026-05-24", "status_label": "Asignada"}],
         },
-    }
+    )
 
     with patch("app.dashboard.build_dashboard_context", return_value=context):
         client = _get_test_client()
@@ -114,8 +135,9 @@ def test_operation_center_page_renders_daily_workbench(monkeypatch):
     body = response.get_data(as_text=True)
     assert "Centro Operativo Diario" in body
     assert "Clinica Norte" in body
-    assert "Nueva Vet" in body
-    assert "Agenda por motorizado" in body
+    assert "Ordenes del dia" in body
+    assert "OS-77" in body and "Toby" in body
+    assert "Agenda operativa" in body
 
 
 def test_operation_center_groups_active_routes_by_courier():
@@ -179,44 +201,19 @@ def test_service_order_event_is_visible_in_operation_center():
 
 
 def test_samples_page_renders_service_order_sheet(monkeypatch):
+    """UI actual: las órdenes de servicio se movieron a /operacion ('Ordenes del dia',
+    cubierto arriba); /muestras hoy muestra el proceso de muestras y el catálogo."""
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_USER", "admin")
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_PASSWORD", "secret")
-    service_order = {
-        "request_id": "req-os-1",
-        "service_order_date": "2026-05-24",
-        "requesting_doctor": "Dr. Luis Mora",
-        "clinic_name": "Clinica Norte",
-        "clinic_phone": "3102223344",
-        "pickup_address": "Calle 1",
-        "patient_name": "Toby",
-        "species": "canino",
-        "breed": "criollo",
-        "sex": "macho",
-        "patient_age": "5 anos",
-        "owner_name": "Maria Lopez",
-        "exam_type": "Hemograma",
-        "observations": "muestra refrigerada",
-        "payment_method": "contraentrega",
-        "status_label": "Asignada",
-        "courier_name": "Diego",
-        "scheduled_pickup_date": "2026-05-24",
-    }
-    context = {
-        "summary": {},
-        "request_status": {},
-        "requests": [],
-        "messages": [],
-        "samples": [],
-        "clients_rows": [],
-        "profile_catalog_rows": [],
-        "profile_analysis_rows": [],
-        "profile_builder_items": [],
-        "profile_categories": [],
-        "profile_species": [],
-        "sample_requirements": [],
-        "sample_process_lanes": [],
-        "service_order_rows": [service_order],
-    }
+    context = _base_context(
+        sample_process_lanes=[{"status_key": "a_retirar", "label": "A retirar", "count": 1,
+                               "cards": [{"status_label": "A retirar", "created_at": "2026-05-24T10:00",
+                                          "profile_name": "Hemograma", "client_name": "Clinica Norte",
+                                          "profile_code": "0301", "sample_type": "Sangre",
+                                          "sample_requirements": [], "sample_id": "s-1",
+                                          "dropdown_status": "a_retirar", "is_demo": False,
+                                          "selected_items": []}]}],
+    )
 
     with patch("app.dashboard.build_dashboard_context", return_value=context):
         client = _get_test_client()
@@ -225,12 +222,9 @@ def test_samples_page_renders_service_order_sheet(monkeypatch):
 
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "Ordenes de servicio agendadas" in body
-    assert "Orden de Servicio" in body
-    assert "Dr. Luis Mora" in body
-    assert "Toby" in body
+    assert "Proceso de muestras" in body
+    assert "Clinica Norte" in body
     assert "Hemograma" in body
-    assert "muestra refrigerada" in body
 
 
 def test_service_order_print_page_renders_pdf_ready_form(monkeypatch):
@@ -351,13 +345,7 @@ def test_clients_page_renders_total_delete_action(monkeypatch):
 def test_new_client_button_only_renders_on_clients_page(monkeypatch):
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_USER", "admin")
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_PASSWORD", "secret")
-    context = {
-        "summary": {},
-        "request_status": {},
-        "requests": [],
-        "messages": [],
-        "clients_rows": [],
-    }
+    context = _base_context()
 
     with patch("app.dashboard.build_dashboard_context", return_value=context):
         client = _get_test_client()

@@ -62,7 +62,7 @@ def test_model_guess_becomes_area_menu_and_grounded_stay():
     assert agent._as_text_items(f.get("selected_tests")) == ["1404", "1405"]   # 1601 fuera
     assert f.get("_test_menu_options")                                          # menú del área
     assert f.get("_test_menu_adds_to_profile") is True                          # elegir AGREGA
-    assert "Potasio $12k" in out["reply"] and "Sodio $12k" in out["reply"]      # con precios
+    assert "Potasio $12,000 COP" in out["reply"] and "Sodio $12,000 COP" in out["reply"]      # con precios
     assert "1601" in out["reply"] and "1507" in out["reply"]                    # opciones visibles
 
 

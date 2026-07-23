@@ -391,3 +391,68 @@ los datos reales — no ajustando valores a mano hasta que dé verde. `validate_
 carga el catálogo real de análisis (159) y de razas (332), con la lista mínima solo como fallback
 sin red. Es la misma lección que L51, un escalón más abajo: no alcanza con usar el modelo real
 si los datos con los que se lo evalúa son inventados.
+
+## L54 — Un docstring que declara una regla de negocio es una decisión, no una descripción (2026-07-21)
+
+Tres bugs de la misma sesión, todos de DINERO o de datos, vivían en una línea de código cuyo
+comentario los justificaba:
+
+- `_select_profile_from_menu`: *"Un perfil es una sola elección: devuelve el primero que
+  matchee"* → `picks[0]` tiraba el 3 y el 6 de "1, 3 y 6" (ERR-077). El parser ya los resolvía
+  bien; la pérdida estaba una capa más arriba, escrita a propósito.
+- `apply_implied_animal_fields`: *"sin pisar un dato que el cliente ya dio de forma explícita"*
+  → la condición hacía exactamente lo contrario y "Jorge Toro" volvía Bovino a un Equino
+  (ERR-078).
+- El filtro `1 <= n <= len(options)` no distinguía cantidad de opción; con menús cortos el
+  número caía fuera de rango y el bug quedaba tapado por casualidad (ERR-079).
+
+**Regla:** cuando un docstring afirma una regla de negocio ("un perfil es una sola elección",
+"una orden es de un paciente"), tratarla como una decisión que hay que VERIFICAR contra el
+negocio, no como documentación de lo que el código hace. Dos de las tres se contradecían con su
+propia implementación. Al leer el código de un bug, comparar SIEMPRE lo que promete el
+comentario con lo que ejecuta la línea siguiente.
+
+**Corolario de método (funcionó):** aislar la capa antes de fijar la causa. Correr el parser
+solo, con las opciones reales del menú, mostró que devolvía los 3 códigos correctos y movió la
+búsqueda a la capa de arriba en un paso. Y verificar contra la base ANTES de elegir el enfoque
+evitó "arreglar" el bug metiendo códigos de perfil en `selected_tests`, donde no resuelven y el
+total habría vuelto a quedar corto — el mismo bug con otra cara.
+
+## L55 — Un flag pendiente de una fase debe morir cuando la conversación cambia de pregunta (2026-07-22)
+
+ERR-080: `_awaiting_additional_test` quedó armado en la fase de análisis ("Si 3" → "¿qué
+análisis quieres agregar?"), sobrevivió al paso de pago y al resumen, y cuando el cliente
+confirmó con "Si" el handler del flag interceptó el turno ANTES del cierre determinístico.
+Resultado: bucle infinito y una orden confirmada que nunca se registró (`request_id=None`).
+El flag era legítimo cuando se armó; el bug fue que nadie lo bajó al cambiar de pregunta.
+
+**Regla:** cada flag de "estoy esperando X" tiene que limpiarse en el punto donde el bot hace
+una pregunta NUEVA que lo supersede (el resumen supersede "¿qué agrego?"; un menú nuevo
+supersede el menú viejo — mismo patrón que `_store_test_menu_options` con menús mutuamente
+excluyentes). Al agregar un flag de espera, buscar en el mismo commit TODOS los puntos del
+flujo que cambian la pregunta activa y bajarlo ahí. Un flag pegado convierte la respuesta
+correcta del cliente en un mensaje irresoluble.
+
+**Corolario (ERR-081, mismo chat):** las ventanas donde el flujo espera UN dato ("la dirección
+correcta") tienen que contemplar que el cliente responda con OTRO tipo de dato (un nombre de
+sede). Si el modelo lo captura en un campo que el pipeline ya no mira (la identificación vive
+tras `if not client_id`), el dato entra como texto suelto y cruza identidades. La señal de
+alerta: un campo capturado por el modelo que ningún código vuelve a validar contra la base.
+
+## L56 — Una carga de datos no está completa hasta que un verificador punta a punta dé cero (2026-07-22)
+
+ERR-085: la carga del roster dejó los médicos en `professionals` pero 188 veterinarias sin
+fila en `clients` — una decisión de diseño del script ("solo con NIT, e inactivas") que nadie
+volvió a mirar desde lo que el BOT puede hacer: identificar al cliente. El usuario lo descubrió
+en un test en vivo ("Agrocolombia no aparece"). Dos agravantes: la lectura de verificación
+truncaba en 1.000 filas (tope de PostgREST) y daba números falsos, y el matching laxo de
+1 token casi le asigna el NIT de otra veterinaria a "Tu Vet Friend".
+
+**Regla:** cada actualización de "Documentos de actualizacion" termina con
+`tools/scripts/verify_update_documents.py` en cero — el verificador compara el documento
+contra lo que el BOT consulta (no contra tablas intermedias). Y en Supabase, TODA lectura
+de tabla completa se pagina con `.range()`: un `.limit(10000)` devuelve 1.000 en silencio.
+
+**Corolario de NITs:** un NIT es identidad de facturación (DIAN). Nunca se asigna por
+parecido de 1 token, y nunca se pisa uno existente sin decisión del usuario (conflicto
+Club Animals: quedó reportado, no adivinado).

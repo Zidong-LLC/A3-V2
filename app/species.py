@@ -77,9 +77,14 @@ def apply_implied_animal_fields(fields: dict, user_message: str) -> None:
             continue
         species, sex = implied
         current_species = str(fields.get("species") or "").lower().translate(ACCENT_TRANSLATION)
-        if not fields.get("species") or current_species in RECOVERABLE_SPECIES:
+        # ERR-078: normalizar SÍ ('perro' → 'Canino'), reemplazar NO. La condición anterior
+        # pisaba cualquier especie ya reconocible, así que el apellido del propietario
+        # ('Jorge Toro' → Bovino) convertía un Equino confirmado en bovino. Solo se escribe
+        # si la especie actual apunta a la MISMA canónica. Una corrección real del cliente
+        # llega con el campo ya limpio, y entra por la rama de vacío.
+        if not fields.get("species") or RECOVERABLE_SPECIES.get(current_species) == species:
             fields["species"] = species
         current_sex = str(fields.get("sex") or "").lower().translate(ACCENT_TRANSLATION)
-        if sex and (not fields.get("sex") or current_sex in RECOVERABLE_SEX):
+        if sex and (not fields.get("sex") or RECOVERABLE_SEX.get(current_sex) == sex):
             fields["sex"] = sex
         break

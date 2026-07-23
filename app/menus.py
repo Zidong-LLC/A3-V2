@@ -18,7 +18,7 @@ def _test_area_suggestion_reply(query: str, tests: list[dict]) -> str:
     lines = [f"Para {query.lower().strip()} tenemos estas opciones:"]
     for idx, t in enumerate(tests, start=1):
         price = t.get("price")
-        suffix = f" (${int(price)//1000}k)" if price else ""
+        suffix = f" ({_money(price)})" if price else ""
         lines.append(f"{idx}. {t.get('code')} {t.get('name')}{suffix}")
     lines.append("Decime el número (o el nombre) del que necesitas. Puedes elegir varios.")
     return "\n".join(lines)
@@ -111,7 +111,7 @@ def _diagnostic_label_suggestion_reply(label: str, tests: list[dict]) -> str:
     lines = [f"Para un perfil {label.title()} suelo sugerir estas pruebas:"]
     for t in tests:
         price = t.get("price")
-        suffix = f" (${int(price)//1000}k)" if price else ""
+        suffix = f" ({_money(price)})" if price else ""
         lines.append(f"- {t.get('code')} {t.get('name')}{suffix}")
     lines.append(
         "¿Cuáles quieres incluir? Dime las que necesites y puedes agregar otras que no estén en la lista."
@@ -234,12 +234,33 @@ _MAGNITUDE_UNITS = frozenset({
     "semana", "semanas", "kilo", "kilos", "kg", "gramos", "libras",
 })
 
+# ERR-079: CANTIDAD sobre un menú ("5 del 1", "tres de la 2", "2 x 4"). El número de la
+# izquierda es cuántos quiere, NO el número de opción: leerlo como opción metía análisis
+# que el cliente nunca pidió, y se cobraban. Manejar la cantidad en sí (registrar N veces un
+# análisis) es lógica que por ahora NO se hace (decisión del usuario, 2026-07-21): se ignora
+# el cuantificador y se absorben solo las opciones. Esta red evita el cobro erróneo; requiere
+# el conector ('N del/de la/x M') para no confundir una SELECCIÓN ('el 1 y el 3') con cantidad.
+_QUANTITY_WORDS = r"\d+|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez"
+_QUANTITY_BEFORE_OPTION = re.compile(
+    rf"(?i)\b(?:{_QUANTITY_WORDS})\s+(?:del?\s+(?:la|los|las)?\s*|x\s*)(?=\d|primer|segund|tercer|cuart|quint)"
+)
+
+
+def _strip_quantities(text: str) -> str:
+    """Quita el cuantificador y deja la referencia a la opción ('5 del 1' → 'del 1'), para
+    que el 5 no se lea como la opción 5. La cantidad como tal no se registra."""
+    return _QUANTITY_BEFORE_OPTION.sub("", text or "")
+
 
 def _select_tests_from_menu(text: str, options: list[dict]) -> list[dict]:
     """Resuelve qué análisis eligió el cliente de la lista mostrada: por número de
-    opción (1..N), ordinal ('el primero'), código de catálogo (1601) o nombre."""
+    opción (1..N), ordinal ('el primero'), código de catálogo (1601) o nombre.
+
+    ERR-079: una cantidad ('5 del 1') se limpia antes de parsear, para no leer el 5 como
+    la opción 5. No se registra la cantidad: solo se absorbe la opción."""
     if not options:
         return []
+    text = _strip_quantities(text)
     codes = {str(o.get("code")): o for o in options}
     selected: list[dict] = []
     seen: set = set()

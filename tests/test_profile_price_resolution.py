@@ -142,7 +142,7 @@ def test_confirmation_adds_analysis_to_profile_instead_of_closing_order():
 
     assert out["phase"] == agent.CONFIRMATION_PHASE
     assert out["captured_fields"]["selected_tests"] == ["0201"]
-    assert "- Agregados: 0201-Glucosa $18k" in out["reply"]
+    assert "- Agregados: 0201-Glucosa $18,000 COP" in out["reply"]
     assert "¿Confirmas estos datos?" in out["reply"]
     assert "Quedó registrado" not in out["reply"]
 

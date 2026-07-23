@@ -102,13 +102,27 @@ def _expresses_order_request(text: str) -> bool:
 
 def _wants_to_reconsider_option(text: str) -> bool:
     """El usuario indica que se confundió de opción o quiere volver a elegir
-    (ej. 'perdón, me confundí de opción'). No es un dato a capturar."""
-    words = set(_tokenize(text))
+    (ej. 'perdón, me confundí de opción'). No es un dato a capturar.
+
+    ERR-086: la muletilla de duda 'si no me equivoco' / 'no me confundo' NO es una
+    equivocación — el token NEGADO (un 'no' hasta 2 palabras antes) no dispara. Sin esto,
+    'Agrocol estamos registrados si no me equivoco' reseteaba al menú y tiraba el nombre."""
+    toks = _tokenize(text)
+    words = set(toks)
     if not words:
         return False
-    if words & _OPTION_CORRECTION_TOKENS:
-        return True
-    return bool(words & _OPTION_WORDS and words & _RECONSIDER_HINT_TOKENS)
+    negated_correction = False
+    for i, tok in enumerate(toks):
+        if tok in _OPTION_CORRECTION_TOKENS:
+            if "no" in toks[max(0, i - 2):i]:
+                negated_correction = True
+            else:
+                return True
+    hints = words & _RECONSIDER_HINT_TOKENS
+    if negated_correction:
+        # El 'no' que NIEGA la equivocación no cuenta también como pista de volver al menú.
+        hints -= {"no"}
+    return bool(words & _OPTION_WORDS and hints)
 
 
 def _accepts_handoff_offer(text: str, signal: str | None) -> bool:

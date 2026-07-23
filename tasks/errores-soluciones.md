@@ -27,6 +27,246 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### ERR-087 — Pedido mixto resumido a UN término vago por el modelo: se pierde todo lo demás (QA en vivo, 2026-07-22, chat 4)
+**Síntoma:** primer pedido de análisis "Necesito análisis de sangre u orina, sodio y
+potasio" → el bot respondió "Listo, queda análisis de sangre": sodio, potasio y orina se
+perdieron y el cliente tuvo que REPETIR el pedido completo (el segundo intento sí funcionó
+porque entró por el carril de la oferta, que resuelve el mensaje crudo).
+**Causa raíz CONFIRMADA (verificada contra el catálogo real):** el modelo resumió
+`exam_type` a "análisis de sangre" (UN término vago) y la compuerta de
+`_enforce_multiple_tests_capture` (`len(_split_multiple_exam_items(candidate)) < 2`)
+devolvía el turno sin mirar el MENSAJE REAL. El rescate del mensaje crudo de ERR-076
+existía pero quedaba DESPUÉS de esa compuerta — inalcanzable. El mensaje crudo resolvía
+perfecto: EXACT [1405-Sodio, 1404-Potasio] + pendiente ["análisis de sangre u orina"].
+**Hermano de ERR-076:** aquel cubrió "el modelo resume pero deja 2+ ítems"; este es "el
+modelo resume a 1 solo término vago".
+**Solución:** si el `exam_type` no da 2+ ítems (o no resuelve EXACT), se resuelve el
+mensaje crudo con `collect_partial=True`; con 2+ exactos, o 1+ exacto y términos de área
+pendientes, sigue el camino de ERR-076 (registrar los unívocos + encolar los ambiguos).
+"Quiero un hemograma" (1 exacto sin pendientes) sigue el flujo normal.
+**Tests:** 3 nuevos en `tests/test_first_capture_mixed.py` (caso real, control de análisis
+suelto, 1 exacto + área). Suite: 443 passed.
+**Hallazgos menores del mismo chat (anotados, SIN arreglar por decisión de alcance):**
+- Raza en bucle MUDO: "Toro" como respuesta a la raza se rechaza en silencio y se
+  repregunta idéntico (el cliente insistió 2 veces); debería explicar y ofrecer "sin
+  determinar". Familia ERR-074/075.
+- Especie re-preguntada al armar perfil personalizado teniendo `species='Bovino'` ya
+  capturada.
+- Observación "urgente" guardada BIEN pero sin acuse en la respuesta.
+**Estado:** RESUELTO en tests. PENDIENTE validación en vivo.
+
+### ERR-086 — "si no me equivoco" resetea al menú y tira el nombre del cliente (QA en vivo, 2026-07-22, chat 4)
+**Síntoma:** el bot pidió NIT/nombre; el cliente respondió "Agrocol estamos registrados si
+no me equivoco" y el bot contestó "Tranquilo, sin problema 🙂" + menú de bienvenida,
+descartando el "Agrocol" del mismo mensaje. La identificación volvía a cero.
+**Causa raíz:** `_wants_to_reconsider_option` (detectors/orden.py) disparaba con el token
+"equivoco" de `_OPTION_CORRECTION_TOKENS` sin mirar la NEGACIÓN: "si NO me equivoco" es
+muletilla de duda, no "me confundí de opción". El atajo corre PRE-LLM (agent.py:2225) —
+misma clase que ERR-067/070/072/073: tokens sueltos deciden antes de que el modelo lea.
+**Solución:** el token de equivocación con un "no" hasta 2 palabras antes no dispara, y ese
+mismo "no" negador deja de contar como pista en el fallback (`opción` + hints). "Me
+equivoqué de opción" y "quiero cambiar de opción" siguen reconduciendo al menú.
+**Tests:** `tests/test_reconsider_not_hedging.py` (3: muletillas no disparan, equivocación
+real sí, turno completo del chat real busca Agrocol en vez de resetear).
+**Estado:** RESUELTO en tests (440 passed). PENDIENTE validación en vivo.
+
+### ERR-085 — 188 veterinarias del roster invisibles para el bot: carga parcial de datos (QA en vivo, 2026-07-22)
+**Síntoma:** el usuario probó identificarse como "Agrocolombia" (está en el Excel de
+actualización) y el bot no la encontró. Auditoría completa: **188 veterinarias** de
+"Clientes y Doctores A3.xlsx" (Hoja1, 663 únicas) no tenían fila en `clients`, aunque SÍ
+estaban en `clients_a3_knowledge`/`clients_a3_professionals` (sus médicos cargados).
+**Causa raíz:** `import_client_roster.py` por diseño solo insertaba en `clients` a las que
+tenían NIT (y como `is_active=False`, invisibles igual); las de solo-nombre quedaban en
+knowledge. La identificación del bot busca en `clients` → 188 clientas reales del roster
+resultaban "no registradas" y escalaban como cliente nuevo.
+**Además:** la primera lectura de `clients_a3_professionals` truncó en 1.000 filas (tope de
+PostgREST) y distorsionaba el diagnóstico — la tabla tiene 1.554. Paginar SIEMPRE.
+**Solución aplicada (autorizada por el usuario):**
+- `tools/scripts/load_missing_clients_2026_07.py`: insertó las 188 como clientes ACTIVOS;
+  18 con NIT/dirección/teléfono de "Alegra - Terceros v2" (solo matches de 2+ tokens — se
+  descartó un falso positivo de 1 token que le daba a "Tu Vet Friend" el NIT de "My Best
+  Friend"). Teléfonos sin dato: placeholder único '5700...' (columna UNIQUE).
+- 4 fichas completadas después (VeroPets, Animalbog, Dr. Jhon, Pet House) y 2 terceros de
+  Alegra insertados (Gaitan Burgos, Gutierrez Ramirez). 1 duplicado con typo del Excel
+  ("Venencia") borrado. Total clients: 804 → 993.
+- **Anti-recurrencia:** `tools/scripts/verify_update_documents.py` — 4 checks (veterinarias,
+  razas, NITs Alegra, médicos) con exit code; ninguna actualización de documentos se cierra
+  sin este verificador en cero. Estado actual: veterinarias 0, razas 0 (332/332), médicos 0.
+**PENDIENTE (decisión del usuario):** conflicto Club Animals — la base tiene las 3 sedes
+con NIT 23784139(-2) y duplicados viejos sin NIT; Alegra v2 trae NIT nuevo 1055126168
+(Nicolas Aguirre). No se pisó el NIT existente sin confirmación.
+**Verificación bot:** `find_client_exact('AgrocolombiaSA')` ✓; 'Agrocolombia', 'Fun
+Animals', 'VeroPets', 'Citycan', 'Maxivet', 'Kennel Dog' ✓. Motorizado: cliente sin
+asignación registra la orden y escala a operaciones (agent.py:2056) — sin acción.
+**Estado:** RESUELTO salvo el conflicto Club Animals.
+
+### ERR-083 — "Nose" escrito junto repregunta la raza (QA en vivo del usuario, 2026-07-22, chat 4)
+**Síntoma:** el bot preguntó la raza; el cliente respondió "Nose" y el bot repreguntó la
+raza. Al escribir "No se" (separado) sí funcionó: `breed='Sin Determinar'` y la orden siguió.
+Es el único síntoma que el usuario notó en un test que por lo demás cerró bien (orden
+registrada, perfil personalizado con sodio/potasio, pago en línea escalado).
+**Causa raíz:** `_says_does_not_know` une los tokens con espacios y busca las frases de
+`_UNKNOWN_ANSWER_PHRASES` como substring; "nose" es UN token y "no se" no es substring de
+"nose" (ERR-074 cubría las formas separadas).
+**Solución:** agregar "nose" y "nolose" a `_UNKNOWN_ANSWER_PHRASES` (agent.py).
+**Tests:** 3 casos nuevos en `tests/test_unknown_field_answers.py` ("Nose"/"nose"/"nolose").
+**Estado:** RESUELTO en tests (437 passed en la suite del agente). Validado el patrón contra
+el chat real.
+
+### ERR-084 — "José Toro" (MÉDICO) rellena especie=Bovino y sexo=Macho sin preguntar (mismo test, 2026-07-22)
+**Síntoma:** el cliente dio el médico "José toro"; el bot NUNCA preguntó especie ni sexo
+(saltó de paciente directo a raza) y la orden quedó registrada con `species='Bovino'` y
+`sex='Macho'` para el paciente "Pipo" — datos inventados que el cliente no notó. Verificado
+en la sesión real del chat 4.
+**Causa raíz CONFIRMADA:** tercera cara de la familia "Toro" (ERR-075 paciente, ERR-078
+propietario). El fix de ERR-078 impide REEMPLAZAR una especie explícita, pero
+`_recover_implied_animal_fields` (agent.py) corre en todos los turnos de route_scheduling y
+la rama de campo VACÍO sigue llenando especie/sexo desde cualquier token del mensaje —
+incluido un apellido respondiendo la pregunta del médico. Con especie y sexo llenos,
+`missing_route_field` salta esas preguntas y nadie valida el dato.
+**Riesgo:** la muestra se procesa con especie/sexo incorrectos (los rangos de referencia
+del laboratorio dependen de la especie).
+**Fix propuesto (NO aplicado):** la inferencia implícita no debe correr cuando el mensaje
+responde una pregunta de nombre de PERSONA (médico/propietario/paciente/veterinaria), usando
+`_detect_which_field_is_being_asked`/`_reply_asks_for_route_field` como ya hace
+`_recover_patient_name_answer` (ERR-075). "Tengo un toro para hemograma" seguiría funcionando.
+**Decisión del usuario (2026-07-22):** por ahora solo registrar; no tocar la captura de
+especie/sexo en esta sesión.
+**Estado:** ABIERTO — pendiente de decisión para aplicar el fix.
+
+### ERR-080 — El "Si" de confirmación cae en bucle y la orden NUNCA se registra (mismo chat 10, 2026-07-21)
+**Síntoma:** el cliente confirmó el resumen con "Si" (22:18) y el bot respondió "Claro.
+¿Qué análisis quieres agregar?" en bucle: "El perfil 1331" → misma pregunta; "1331" →
+misma pregunta; hasta que escribió "Exit". Verificado en la sesión real: `request_id=None`
+— la orden confirmada jamás se creó. **El peor bug del chat: el cliente hizo todo bien y
+se fue sin orden.**
+**Causa raíz CONFIRMADA (dos capas):**
+1. `_awaiting_additional_test` quedó pegado desde ANTES de la confirmación (turno "Si 3"
+   de 22:13, seteado en `orders.py:406`). En `_enforce_confirmation_step`
+   (`enforcers/confirmacion.py`), `_confirmation_analysis_adjustment` corre ANTES del
+   cierre determinístico, así que el "Si" se intentaba resolver como análisis, fallaba,
+   re-armaba el flag y repreguntaba. El cierre era inalcanzable.
+2. "1331" es código de PERFIL: `get_tests_by_codes_or_names` no resuelve perfiles
+   (hallazgo de diseño ya documentado en ERR-077), así que ni nombrando el código exacto
+   había salida del bucle.
+**Solución (2 cambios mínimos en `app/enforcers/confirmacion.py`):**
+- Al mostrar el resumen por primera vez se hace `pop("_awaiting_additional_test")`: el
+  resumen ("¿Confirmas?") supersede cualquier pregunta de agregar abierta en fases previas.
+- `_add_profile_in_confirmation` (nueva): si lo que nombró el cliente es un PERFIL del
+  catálogo (código primero, nombre de fallback), se suma a `_extra_profiles` (mecanismo de
+  ERR-077, el resumen ya lo muestra y suma) o se fija de base si no había; sin duplicar.
+**Tests:** `tests/test_confirmation_close_not_looped.py` (5: el escenario real completo
+resumen→"Si"→cierre, perfil por código sin bucle, no-duplicado, análisis normal intacto,
+"si" tras pregunta legítima no cierra en falso).
+**Estado:** RESUELTO en tests (483 passed). PENDIENTE validación con modelo real.
+
+### ERR-081 — Nombre de sede como respuesta a la dirección: identidad cruzada entre dos clientes (mismo chat 10, 2026-07-21)
+**Síntoma:** el bot preguntó "¿Cuál es la dirección correcta?" y el cliente respondió
+"Centro veterinario La Uribe" (un NOMBRE). El bot solo cambió el texto de la veterinaria:
+la orden quedó con `clinic_name='Centro Veterinario La Uribe'` pero `client_id` y
+dirección del Centro Médico Veterinario (AV CL 32 19-26). **La sede correcta SÍ existe en
+la base** ("Centro Medico Veterinario La Uribe", CL 172A 21A-28): el motorizado habría ido
+a la dirección equivocada y la orden se facturaría al cliente equivocado.
+**Causa raíz CONFIRMADA:** toda la identificación vive bajo `if not session.get("client_id")`
+(agent.py). Con la sesión ya identificada, un `clinic_name` nuevo capturado por el modelo
+no dispara ninguna búsqueda: queda como texto suelto encima del cliente viejo.
+**Solución (rama nueva y acotada en `app/agent.py`, tras el bloque de dirección):** en la
+ventana "dirección rechazada y aún sin respuesta", si el modelo captura un `clinic_name`
+distinto al previo: match único → re-vincular (`link_client_to_session` +
+`_store_client_context`) y confirmar la dirección de la sede NUEVA (mismo paso aprobado);
+varias coincidencias → limpiar la identificación y reusar la lista de selección existente;
+ninguna → NO pisar al cliente identificado y repreguntar la dirección.
+**Tests:** `tests/test_address_reject_with_clinic_name.py` (4: el caso real re-identifica y
+ofrece la dirección nueva, nombre inexistente no pisa nada, varias sedes listan opciones,
+responder con una dirección sigue el flujo normal).
+**Estado:** RESUELTO en tests. PENDIENTE validación con modelo real.
+
+### ERR-082 — Batch "1 / 1 / 2" atendió solo el último + latencia de ~2 min por turno (mismo chat 10, 2026-07-21)
+**Síntoma:** el cliente envió "1" (18:36), no vio respuesta, reenvió "1" y probó "2"; los
+tres llegaron CONCATENADOS en un solo mensaje ("1 / 1 / 2") y el bot respondió solo a la
+última señal (resultados). Además la latencia general fue de ~1.5–2 min por turno — el
+propio cliente se quejó en el chat ("si cada pregunta dura 2 minutos... son 20 min").
+**Análisis:** el comportamiento de responder a la última señal del batch es defendible (el
+cliente cambió de opción precisamente porque no veía respuesta); la CAUSA fue la latencia.
+**Decisión:** sin cambio de código en la lógica de batcheo. Queda como comportamiento
+conocido documentado.
+**PENDIENTE (tarea de investigación aparte):** medir dónde se van los ~90–120s por turno
+(logs de Render: cold start vs latencia del modelo vs queries) y decidir si hace falta un
+acuse inmediato ("dame un momentico") o ajuste de infraestructura.
+**Estado:** ABIERTO — investigación de latencia pendiente.
+
+### ERR-077 — Menú de perfiles: elige "1, 3 y 6" y solo queda el 1 (QA en vivo del usuario, 2026-07-21)
+**Síntoma:** el bot ofreció 6 perfiles recomendados; el cliente respondió "1, 3 y 6" y la
+orden quedó SOLO con `101 Perfil Parasitológico I` ($30.000). El 103 ($40.000) y el 1331
+($90.000) se perdieron sin ninguna señal. Al insistir ("Te pedí el 1, 3 y 6") el bot
+respondió con la oferta genérica de agregar análisis, y a "3 / 6" repitió lo mismo.
+**Evidencia:** chat real `external_chat_id=10`, 2026-07-21 22:09–22:12.
+**Impacto: bug de DINERO.** La orden se confirma por $30.000 en vez de $160.000, y el
+resumen previo tampoco muestra lo que falta, así que el cliente confirma sin notarlo.
+**Causa raíz CONFIRMADA (dos capas):**
+1. `_select_profile_from_menu` (agent.py:444) hacía `picks[0]` sobre una selección que el
+   parser YA resolvía completa. El docstring lo decía explícito: "un perfil es una sola
+   elección". El parser NUNCA fue el problema — verificado aislado: `_select_tests_from_menu`
+   devuelve `['101','103','1331']` para "1, 3 y 6".
+2. `_capture_profile_menu_selection` hace `fields.pop("_profile_menu_options")`, así que la
+   insistencia del cliente ya no tenía menú contra el cual matchear.
+**NO es ERR-076** (aquel era perfil + sueltos en TEXTO LIBRE en la primera captura, y sigue
+resuelto). Esta es la selección NUMÉRICA sobre el menú ya mostrado: otra ruta.
+**Hallazgo de diseño:** los perfiles extra NO pueden ir en `selected_tests` — un código de
+perfil (103) no resuelve como análisis (`get_tests_by_codes_or_names(['103']) -> []`), así
+que el resumen los perdería y el total volvería a quedar corto. Se verificó contra la base
+real ANTES de elegir el enfoque.
+**Solución (enfoque aprobado por el usuario: primero como base + resto adicional):**
+- `_select_profiles_from_menu` (nueva, plural) devuelve todos; `_select_profile_from_menu`
+  queda como envoltorio para los call sites que sí fijan un único perfil base.
+- `_capture_profile_menu_selection(..., extra_profiles=[...])` guarda `_extra_profiles` con
+  código/nombre/precio de catálogo, y los nombra en el acuse. Se limpia SIEMPRE al fijar un
+  perfil base nuevo (multiorden: no arrastrar adicionales de la orden anterior).
+- `_order_summary_lines` muestra "- Perfiles adicionales:" y los suma al total.
+- `_extra_profiles` catalogado en `state.py` (lo exigió `test_state.py`).
+**Tests:** `tests/test_multi_profile_menu_selection.py` (5, incluye control de selección
+simple y de no-arrastre en multiorden).
+**Estado:** RESUELTO en tests (475 passed). PENDIENTE validación con modelo real en Telegram.
+
+### ERR-078 — "Jorge Toro" (propietario) convierte un Equino en Bovino (mismo chat, 2026-07-21)
+**Síntoma:** el cliente confirmó "Equino" y su Cuarto de Milla; más tarde dio el propietario
+"Jorge Toro". La sesión quedó en `species='Bovino'` y el menú de perfiles llegó a decir
+"Para bovino te puedo recomendar". Verificado en la sesión real: `species = 'Bovino'`.
+**Causa raíz CONFIRMADA:** `apply_implied_animal_fields` (species.py:80) escribía la especie
+siempre que la actual estuviera en `RECOVERABLE_SPECIES`:
+`if not fields.get("species") or current_species in RECOVERABLE_SPECIES`. La intención era
+NORMALIZAR ('perro' → 'Canino'), pero la condición también permitía REEMPLAZAR una especie
+por otra distinta. `"toro"` está mapeado a `("Bovino","Macho")` y aparece como APELLIDO.
+El docstring prometía "sin pisar un dato que el cliente ya dio de forma explícita" — hacía
+exactamente lo contrario. **También pisaba el SEXO** (Hembra → Macho), descubierto al testear.
+**Primo de ERR-075** ("Toro" como nombre de paciente): el mismo apellido, otra ruta.
+**Solución:** solo se escribe si la especie actual apunta a la MISMA canónica
+(`RECOVERABLE_SPECIES.get(current) == species`), idem sexo. Una corrección real del cliente
+llega con el campo ya limpio y entra por la rama de vacío, así que sigue funcionando.
+**Tests:** `tests/test_species_not_overwritten.py` (5, incluye normalización y corrección).
+**Estado:** RESUELTO en tests. PENDIENTE validación con modelo real.
+
+### ERR-079 — Cantidades sobre un menú cobran análisis no pedidos (hallazgo al revisar ERR-077, 2026-07-21)
+**Síntoma:** con un menú de 6 opciones, "5 del 1 y 6 del 3" se leía como las opciones
+**5, 1, 6 y 3**: dos análisis intrusos, cobrados. "quiero 3 del 2" → opciones 3 y 2.
+No estaba reportado: apareció al probar el pedido del usuario de soportar cantidades.
+**Por qué no había explotado antes:** con menús cortos el número de cantidad caía fuera de
+rango (`1 <= n <= len(options)`) y se descartaba por casualidad. Con 6 opciones sí entra.
+**Decisión del usuario (2026-07-21, revisada):** manejar la cantidad por análisis (registrar
+N veces el mismo, "5 del primero") es lógica compleja que POR AHORA no se hace. El bot no
+pregunta ni intenta interpretar cantidades: ignora el cuantificador y absorbe solo las
+opciones ("5 del 1 y 6 del 3" → opciones 1 y 3). Lo innegociable es no cobrar análisis no
+pedidos ni confundir una selección con una cantidad.
+**Solución (final):** una sola red defensiva, `_strip_quantities`, limpia el cuantificador
+antes de parsear ("5 del 1" → "del 1"). Exige el CONECTOR ("N del/de la/x M"), así "el
+primero, el segundo y el tercero" sigue siendo selección múltiple normal (preocupación del
+usuario). Se descartó la primera versión que además preguntaba "¿son varios pacientes?"
+(`_quantity_note`/`_mentions_quantities`): el usuario pidió no agregar esa lógica
+conversacional, así que se quitó para no dejar código muerto (lección L52).
+**Tests:** `tests/test_menu_quantity_not_option.py` (6: absorbe opciones, no cobra intrusos,
+ordinales no se confunden, selección normal intacta).
+**Estado:** RESUELTO en tests. PENDIENTE validación con modelo real.
+
 ### ERR-073 — QA de ESTRÉS (8 baterías, modelo+base real): hallazgo de fondo del reorden 3.3 (2026-07-20)
 **Método:** batería adversarial cubriendo la mayoría de etapas (identificación, captura de
 paciente, análisis, confirmación/retroceso, pago, multi-orden, combos en una frase).

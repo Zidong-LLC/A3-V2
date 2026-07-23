@@ -38,6 +38,8 @@ def _order(**fields) -> dict:
     "no sabría decirte", "la verdad no sé la raza", "no sabemos",
     # Negar que TENGA raza es tan común como no saberla (QA real del usuario).
     "Ni tiene raza", "no tiene raza", "ninguna", "sin determinar",
+    # ERR-083 (QA en vivo 2026-07-22): "Nose" escrito JUNTO repreguntaba la raza.
+    "Nose", "nose", "nolose",
 ])
 def test_unknown_breed_unblocks_the_order(answer):
     response = _recover = agent._recover_unknown_breed(

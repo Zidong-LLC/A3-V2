@@ -441,10 +441,18 @@ def _extract_phone_candidate(text: str, allow_unlabeled: bool = False) -> str | 
 
 
 # Armado/resumen de la orden → app/orders.py (importados arriba).
+def _select_profiles_from_menu(text: str, options: list[dict]) -> list[dict]:
+    """Resuelve TODOS los perfiles que el cliente eligió de la lista recomendada (número,
+    ordinal, código o nombre), en el orden en que los dijo.
+
+    ERR-077: el parser ya resolvía "1, 3 y 6" completo; era esta capa la que se quedaba
+    con el primero y tiraba el resto sin avisar."""
+    return _select_tests_from_menu(text, options)
+
+
 def _select_profile_from_menu(text: str, options: list[dict]) -> dict | None:
-    """Resuelve qué perfil eligió el cliente de la lista recomendada (número, ordinal,
-    código o nombre). Un perfil es una sola elección: devuelve el primero que matchee."""
-    picks = _select_tests_from_menu(text, options)
+    """Primer perfil elegido, para los call sites que fijan un único perfil base."""
+    picks = _select_profiles_from_menu(text, options)
     return picks[0] if picks else None
 
 
@@ -528,8 +536,7 @@ def _test_catalog_overview_reply(tests: list[dict]) -> str:
     lines = ["Tenemos varias áreas de análisis. Algunas opciones del catálogo son:"]
     for idx, row in enumerate(tests, start=1):
         category = row.get("category") or ""
-        price = int(row.get("price") or 0) // 1000
-        lines.append(f"{idx}. {row.get('code')} {row.get('name')} ({category}) (${price}k)")
+        lines.append(f"{idx}. {row.get('code')} {row.get('name')} ({category}) ({_money(row.get('price'))})")
     lines.append("Dime el número, el nombre o el área que necesitas revisar.")
     return "\n".join(lines)
 
@@ -1735,6 +1742,9 @@ _UNKNOWN_ANSWER_PHRASES = (
     "no se", "no lo se", "no sabemos", "no sabria", "no sabe", "ni idea", "no tengo idea",
     "desconozco", "no tengo ni idea", "sin raza", "no aplica", "no la se", "no sé",
     "no tenemos", "no la conocemos", "no sabria decirte", "no idea",
+    # ERR-083 (QA en vivo 2026-07-22): "Nose" escrito JUNTO es un solo token y el
+    # substring "no se" no lo cubre — el bot repreguntaba la raza.
+    "nose", "nolose",
     # Negar que TENGA raza es tan común como no saberla (QA real: "Ni tiene raza").
     # Negar que TENGA raza es tan común como no saberla (QA real: "Ni tiene raza").
     # OJO: "mestizo" y "criollo" NO van acá — son razas reales del catálogo, ambiguas
@@ -2317,11 +2327,16 @@ def process_turn(
     # cliente elige por número, ordinal, código o nombre. Se captura el perfil REAL con su
     # código y precio (para que el resumen muestre el valor), sin depender del modelo.
     if prev_captured.get("_profile_menu_options"):
-        chosen_profile = _select_profile_from_menu(user_message, prev_captured["_profile_menu_options"])
-        if chosen_profile:
+        chosen_profiles = _select_profiles_from_menu(user_message, prev_captured["_profile_menu_options"])
+        if chosen_profiles:
+            # ERR-077: puede elegir VARIOS ("1, 3 y 6"). El primero es el perfil base y los
+            # demás se registran como adicionales, con su precio, en el mismo turno.
             return _persist_turn(
                 chat_id, user_message,
-                _capture_profile_menu_selection(session, prev_captured, chosen_profile, user_message),
+                _capture_profile_menu_selection(
+                    session, prev_captured, chosen_profiles[0], user_message,
+                    extra_profiles=chosen_profiles[1:],
+                ),
             )
         # Sin selección clara: seguir el pipeline normal (puede haber preguntado otra cosa).
 
@@ -3039,6 +3054,58 @@ def process_turn(
             # menú/sugerencia no la pise.
             fields["_address_confirmation_pending"] = True
             address_reask_needed = registered_address
+
+    # ERR-081 (chat real 10): el bot preguntó "¿cuál es la dirección correcta?" y el cliente
+    # respondió con el NOMBRE de otra sede ("Centro veterinario La Uribe"). El modelo lo
+    # capturó como clinic_name, pero con client_id ya en sesión nada volvía a buscar: la
+    # orden quedaba con el nombre nuevo y el client_id/dirección del cliente VIEJO
+    # (identidad cruzada: retiro y facturación al cliente equivocado). En esa ventana
+    # —dirección rechazada y aún sin respuesta— un nombre de veterinaria distinto se
+    # re-identifica contra la base antes de seguir.
+    if (not skip_client_lookup and session.get("client_id")
+            and prev_captured.get("_client_found")
+            and not fields.get("pickup_address") and not prev_captured.get("pickup_address")
+            and fields.get("clinic_name")
+            and fields.get("clinic_name") != prev_captured.get("clinic_name")):
+        new_name = fields.get("clinic_name")
+        if on_progress is not None:
+            on_progress(CLIENT_LOOKUP_PROGRESS_MESSAGE)
+        exact = db.find_client_exact(new_name)
+        matches = [exact] if exact else db.find_client_matches(new_name, limit=MAX_CLIENT_MATCH_OPTIONS + 1)
+        if len(matches) == 1:
+            new_client = matches[0]
+            db.link_client_to_session(chat_id, new_client["id"])
+            session["client_id"] = new_client["id"]
+            _store_client_context(fields, new_client)
+            fields["clinic_name"] = new_client.get("clinic_name") or new_name
+            if fields.get("_client_address"):
+                # Confirmar la dirección de la sede NUEVA (mismo paso aprobado del flujo).
+                fields["pickup_address"] = fields.get("_client_address")
+                fields["_address_confirmation_pending"] = True
+                fields["_address_confirmed"] = False
+            ai_response = _base_route_response(_client_found_reply(fields), fields)
+            skip_client_lookup = True
+        elif matches:
+            # Varias sedes posibles: se limpia la identificación y se reusa el flujo de
+            # selección existente (el cliente elige y el próximo turno re-vincula).
+            db.clear_client_from_session(chat_id)
+            session["client_id"] = None
+            has_more = len(matches) > MAX_CLIENT_MATCH_OPTIONS
+            shown = matches[:MAX_CLIENT_MATCH_OPTIONS]
+            _store_client_match_options(fields, new_name, shown)
+            ai_response = _base_route_response(
+                _client_match_options_reply(new_name, shown, has_more=has_more), fields)
+            skip_client_lookup = True
+        else:
+            # No existe una sede con ese nombre: NO se pisa el cliente identificado; se
+            # aclara y se vuelve a pedir la dirección pendiente.
+            fields["clinic_name"] = prev_captured.get("clinic_name")
+            ai_response = _base_route_response(
+                "No encuentro una sede registrada con ese nombre. "
+                "¿Me confirmas la dirección donde debemos retirar la muestra?",
+                fields,
+            )
+            skip_client_lookup = True
 
     # Buscar cliente cuando el AI capturó nombre o NIT por primera vez
     client_status_changed = False

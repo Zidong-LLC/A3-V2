@@ -235,3 +235,57 @@ def test_menu_chosen_from_scratch_still_replaces():
         agent._capture_test_menu_selection(SESSION, cf, [URO[0]])
     assert cf.get("selected_tests") == ["1601"], "elección desde cero reemplaza"
     assert "9999" not in (cf.get("selected_tests") or [])
+
+
+# ── ERR-087 (chat real 2026-07-22, conversación Chatwoot #4) ─────────────────────────
+# 'Necesito análisis de sangre u orina, sodio y potasio' → el MODELO resumió exam_type a
+# "análisis de sangre" (UN término vago) y la compuerta `< 2 ítems` devolvía el turno sin
+# mirar el mensaje real: sodio/potasio se perdían y el cliente tenía que repetir todo.
+
+HEMO = {"code": "0301", "name": "Hemograma", "price": 25000, "category": "Hematología"}
+
+
+def test_err087_modelo_resume_a_termino_vago_no_pierde_el_pedido():
+    """El caso real: exam_type vago de 1 ítem, pero el mensaje CRUDO trae 2 exactos + área
+    → sodio y potasio quedan registrados y el área pendiente se ofrece (no se pierde nada)."""
+    ai = {"intent": "route_scheduling",
+          "captured_fields": {"_client_found": True, "exam_type": "análisis de sangre"}}
+    with patch.object(eorden.db, "list_catalog_tests", return_value=CATALOGO + [HEMO]), \
+         patch.object(eorden.db, "find_tests_by_area", side_effect=_area), \
+         patch.object(eorden.db, "list_catalog_profiles_matching_category", return_value=[]):
+        out = eorden._enforce_multiple_tests_capture(
+            SESSION, ai, {}, "Necesito análisis de sangre u orina , sodio y potasio")
+    cf = out["captured_fields"]
+    assert {"1404", "1405"} <= set(cf.get("selected_tests") or []), "sodio/potasio se perdieron"
+    resto = (out.get("reply") or "").lower()
+    assert cf.get("_pending_ambiguous_items") or "uroanálisis" in resto or "1601" in resto, \
+        "el término de área del pedido se tragó en silencio"
+
+
+def test_err087_un_analisis_suelto_sigue_el_flujo_normal():
+    """Control: 'quiero un hemograma' (1 exacto, sin pendientes) NO dispara el carril
+    mixto — sigue el flujo normal de análisis suelto."""
+    ai = {"intent": "route_scheduling",
+          "captured_fields": {"_client_found": True, "exam_type": "Hemograma"}}
+    with patch.object(eorden.db, "list_catalog_tests", return_value=CATALOGO + [HEMO]), \
+         patch.object(eorden.db, "find_tests_by_area", side_effect=_area), \
+         patch.object(eorden.db, "list_catalog_profiles_matching_category", return_value=[]):
+        out = eorden._enforce_multiple_tests_capture(SESSION, ai, {}, "quiero un hemograma")
+    assert not out["captured_fields"].get("selected_tests"), \
+        "un análisis suelto no debe convertirse en perfil personalizado acá"
+
+
+def test_err087_un_exacto_mas_area_tambien_se_rescata():
+    """'un hemograma y algo de orina' con exam_type resumido: el exacto se registra y el
+    área queda ofrecida/encolada."""
+    ai = {"intent": "route_scheduling",
+          "captured_fields": {"_client_found": True, "exam_type": "hemograma"}}
+    with patch.object(eorden.db, "list_catalog_tests", return_value=CATALOGO + [HEMO]), \
+         patch.object(eorden.db, "find_tests_by_area", side_effect=_area), \
+         patch.object(eorden.db, "list_catalog_profiles_matching_category", return_value=[]):
+        out = eorden._enforce_multiple_tests_capture(
+            SESSION, ai, {}, "necesito un hemograma y algo de orina")
+    cf = out["captured_fields"]
+    resto = (out.get("reply") or "").lower()
+    assert "0301" in set(cf.get("selected_tests") or []), "el hemograma no quedó registrado"
+    assert cf.get("_pending_ambiguous_items") or "uroanálisis" in resto or "1601" in resto
