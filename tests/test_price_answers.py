@@ -38,17 +38,17 @@ def test_specific_analysis_price():
     """'¿cuánto sale el hemograma?' responde con el valor real del catálogo."""
     ans = _answer({}, "¿cuánto sale el hemograma?")
     assert ans is not None
-    assert "30,000" in ans and "Hemograma" in ans
+    assert "30.000" in ans and "Hemograma" in ans
 
 
 def test_total_of_selected_tests():
     """'¿cuánto serían todos esos análisis?' suma los elegidos y muestra el total con el
-    descuento por volumen explícito (subtotal $48k − 12% = $42,240)."""
+    descuento por volumen explícito (subtotal $48k − 12% = $42.240)."""
     fields = {"selected_tests": ["0001", "0201"]}
     ans = _answer(fields, "¿cuánto serían todos esos análisis?")
     assert ans is not None
-    assert "48,000" in ans          # subtotal visible
-    assert "42,240" in ans          # total con descuento por volumen
+    assert "48.000" in ans          # subtotal visible
+    assert "42.240" in ans          # total con descuento por volumen
     assert "descuento" in ans.lower()
 
 
@@ -56,7 +56,7 @@ def test_selected_profile_price_when_no_named_analysis():
     """Si no nombra análisis y hay un perfil elegido, responde su precio."""
     fields = {"_selected_profile_name": "Perfil Canino I", "_selected_profile_price": 40000}
     ans = _answer(fields, "¿y cuánto cuesta?")
-    assert ans is not None and "40,000" in ans
+    assert ans is not None and "40.000" in ans
 
 
 def test_non_price_question_returns_none():
@@ -70,4 +70,4 @@ def test_price_from_menu_options_selection():
     with patch.object(agent.db, "get_tests_by_codes_or_names", return_value=[]), \
          patch.object(agent.db, "list_catalog_tests", return_value=[]):
         ans = agent._catalog_price_answer(fields, "¿cuánto el primero?")
-    assert ans is not None and "35,000" in ans
+    assert ans is not None and "35.000" in ans

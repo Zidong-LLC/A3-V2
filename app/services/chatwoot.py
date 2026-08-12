@@ -1,9 +1,12 @@
 import json
+import logging
 import urllib.request
 from app.config import (
     CHATWOOT_URL, CHATWOOT_ACCOUNT_ID, CHATWOOT_API_TOKEN,
     CHATWOOT_TEAM_CONTABILIDAD, CHATWOOT_TEAM_OPERACIONES,
 )
+
+logger = logging.getLogger(__name__)
 
 _BASE = f"{CHATWOOT_URL}/api/v1/accounts/{CHATWOOT_ACCOUNT_ID}"
 _HEADERS = {
@@ -14,6 +17,10 @@ _HEADERS = {
 _TEAM_MAP = {
     "contabilidad": CHATWOOT_TEAM_CONTABILIDAD,
     "operaciones": CHATWOOT_TEAM_OPERACIONES,
+    # `tecnico` es un handoff_area válido del schema pero A3 no tiene equipo propio para él:
+    # por decisión del triage (ítem 2) se redirige a operaciones. Antes no estaba mapeado y
+    # el escalado técnico se descartaba en silencio.
+    "tecnico": CHATWOOT_TEAM_OPERACIONES,
 }
 
 
@@ -44,8 +51,17 @@ def send_typing(conversation_id: str) -> None:
 
 
 def assign_team(conversation_id: str, handoff_area: str) -> None:
+    """Asigna la conversación al equipo del área. Si no hay equipo configurado NO se asigna,
+    pero queda registrado: antes retornaba mudo y la conversación se quedaba sin dueño sin
+    que nadie se enterara (regla de app/services/CLAUDE.md — nunca fallar en silencio)."""
     team_id = _TEAM_MAP.get(handoff_area)
     if not team_id:
+        logger.warning(
+            "Chatwoot: escalado sin asignar — conversación %s, área %r (%s). "
+            "La conversación queda sin equipo.",
+            conversation_id, handoff_area,
+            "área desconocida" if handoff_area not in _TEAM_MAP else "equipo sin configurar en el .env",
+        )
         return
     _post(f"/conversations/{conversation_id}/assignments", {
         "team_id": int(team_id),

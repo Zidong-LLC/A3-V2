@@ -479,6 +479,49 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### CAMBIO-A3-01 — Cuatro ajustes pedidos por A3 en las reuniones (Etapa 1 de Fase 1, 2026-08-12)
+No son bugs: son cambios de alcance pedidos por el cliente y verificados como faltantes
+contra el código. Se agrupan acá para que la bitácora sea la única fuente de verdad.
+
+**1. Formato de precios (llamada 7).** `money()` devolvía `$18,000 COP` —coma inglesa—
+donde A3 pide `$18.000`. Cambiado en `app/text.py`. El costo real no fue la función sino el
+arrastre: 25 assertions literales en 8 archivos de test. Además había **cinco sitios que
+formateaban el precio a mano** sin pasar por `money()`; los dos de `app/services/db.py`
+(538, 639) son el catálogo que se inyecta al MODELO, así que el modelo imitaba el formato
+viejo al escribir texto libre y el precio salía distinto según quién lo redactara. Todos
+unificados.
+
+**2. Escalado que fallaba en silencio (triage ítem 2).** `chatwoot.assign_team` retornaba
+mudo cuando el área no tenía equipo, y `tecnico` —que es un `handoff_area` válido del schema
+(`app/schema.py:102`)— no estaba en `_TEAM_MAP`: todo escalado técnico se descartaba sin
+rastro. Ahora `tecnico` se mapea a operaciones (decisión del triage) y el caso sin equipo
+deja un warning con el área y la conversación. Regla de `app/services/CLAUDE.md`: nunca
+fallar en silencio.
+*Corrección a un hallazgo previo:* se había reportado que "por Telegram nunca se llama
+`assign_team`". **No es un hueco**: `assign_team` opera sobre un `conversation_id` de
+Chatwoot y en Telegram directo el ID es de Telegram; además el flujo de producción es
+Telegram → Chatwoot → Flask, donde sí se asigna (`app/main.py:157-159`).
+
+**3. Mensaje único de asignación de asesor (llamada 3).** Había cinco frases distintas para
+lo mismo ("te comunico con ellos", "con una persona del equipo", "con el equipo
+correspondiente"), así que el cliente no sabía si quedaba alguien a cargo. Se unificó en
+`ADVISOR_ASSIGNMENT_LINE` (`app/messages.py`), usada por los escalados de cliente no
+encontrado, alta de cliente nuevo y handoff genérico.
+
+**4. Observaciones DESPUÉS del análisis (reunión del 28/07).** La observación suele referirse
+al análisis pedido ("el hemograma que sea en ayunas") y preguntarla antes obligaba al cliente
+a anticiparse. Se invirtieron los dos campos en `ROUTE_ORDER_FIELDS_BEFORE_PAYMENT`
+(`app/flow.py`), se movió el "Por último…" del análisis a las observaciones, y se sincronizó
+`app/prompt.py` (pasos 8-9, PASO 4 y R12) para que el modelo no empuje el orden viejo.
+Toca **B4**, marcado ✅ APROBADO — autorizado por el usuario.
+*Efecto secundario esperado:* la oferta de "¿agregar otro análisis?" (B9.5) ahora llega
+después de las observaciones, porque `route_ready_for_payment` exige todos los campos.
+
+**Verificación:** suite 599 passed, 2 skipped, 1 xfailed. Secuencia determinística de las 11
+preguntas confirmada en el orden nuevo. Simulador con cliente humano y datos reales: orden
+cerrada con el formato `$14.000` y veredicto BIEN.
+**Estado:** HECHO y verificado (2026-08-12).
+
 ### ERR-103 — Un PERFIL pedido por su código se pierde en la ventana "¿agregar otro análisis?" (simulación con datos reales, 2026-08-12)
 **Síntoma:** con un análisis ya registrado, el bot ofrece "¿Quieres agregar otro **análisis o
 perfil**…?". El cliente responde "perfil 903" y el bot contesta "Claro. ¿Qué análisis quieres

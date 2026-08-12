@@ -9,7 +9,7 @@ Cinco fallos reproducidos en la conversación real (perfil 152 seleccionado, fal
    ("Listo, agrego 1507-Cortisol en Orina $33k") sin confirmar, en vez del menú del área.
 4. "que analisis de orina hacen?" → muestrario mixto de todas las áreas que además
    BORRABA selected_tests y exam_type (el Cortisol desapareció en silencio).
-5. Resumen final: "Perfil Prequirúrgico I — $24,000" — el Parcial de Orina agregado
+5. Resumen final: "Perfil Prequirúrgico I — $24.000" — el Parcial de Orina agregado
    quedó solo como texto en exam_type, selected_tests vacío, y el total perdió $16.000.
 
 Invariante que estos tests protegen: todo agregado vive en selected_tests (estructurado)
@@ -192,7 +192,7 @@ def test_exam_type_restored_when_wiped_with_profile_active():
 
 
 def test_summary_total_includes_structured_addition():
-    """La plata: resumen con perfil 152 + Parcial de Orina estructurado = $40,000 COP."""
+    """La plata: resumen con perfil 152 + Parcial de Orina estructurado = $40.000."""
     fields = dict(BASE_FIELDS, selected_tests=["1601"], removed_tests=[],
                   payment_method="contraentrega")
     with patch.object(agent.db, "get_tests_by_codes_or_names", side_effect=_fake_tests_lookup), \
@@ -200,7 +200,7 @@ def test_summary_total_includes_structured_addition():
         summary = agent._route_confirmation_summary(fields)
     assert summary is not None
     assert "Parcial de Orina" in summary
-    assert "$40,000 COP" in summary
+    assert "$40.000" in summary
 
 
 def test_catalog_question_never_wipes_order_in_progress():

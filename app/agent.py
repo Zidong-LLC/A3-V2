@@ -220,6 +220,7 @@ from app.messages import (
     CLOSING_PROMPT, PAYMENT_METHOD_QUESTION, PAYMENT_ONLINE_HANDOFF_MESSAGE,
     EXTRA_ANALYSIS_OFFER, EXTRA_ANALYSIS_AMBIGUOUS_QUESTION,
     NO_COURIER_HANDOFF_MESSAGE, AGE_QUESTION, CORRECTION_PROMPT,
+    ADVISOR_ASSIGNMENT_LINE,
 )
 
 logger = logging.getLogger(__name__)
@@ -389,10 +390,10 @@ _IDENTIFICATION_RETRY_RESET_FIELDS = frozenset({
 
 def _default_handoff_reply(handoff_area: str | None) -> str:
     if handoff_area == "contabilidad":
-        return "Para este tema te voy a comunicar con contabilidad para que te ayuden."
+        return f"Para este tema te derivamos a contabilidad. {ADVISOR_ASSIGNMENT_LINE}"
     if handoff_area == "operaciones":
-        return "Te voy a comunicar con atención al cliente para ayudarte con este proceso."
-    return "Te voy a comunicar con el equipo correspondiente para ayudarte mejor."
+        return f"Para este tema te derivamos a atención al cliente. {ADVISOR_ASSIGNMENT_LINE}"
+    return ADVISOR_ASSIGNMENT_LINE
 
 
 # Armadores de menús/replies → app/menus.py (importados arriba).
@@ -1332,7 +1333,7 @@ def _escalate_new_client_turn(
 
 def _unknown_handoff_response(fields: dict | None = None) -> dict:
     return {
-        "reply": "Te voy a comunicar con una persona del equipo para que te ayude con eso.",
+        "reply": ADVISOR_ASSIGNMENT_LINE,
         "phase": "fase_7_escalado",
         "intent": "unknown",
         "service_area": "unknown",
@@ -2773,17 +2774,17 @@ def process_turn(
                 )
                 session["_custom_profile_summary"] = (
                     f"PERFIL BASE EN PERSONALIZACIÓN: {prev_fields.get('_selected_profile_name')}. "
-                    f"Base ${totals['base']:,} COP. "
+                    f"Base {_money(totals['base'])}. "
                     f"Agregados: {_format_test_items(added_rows)}. "
                     f"Quitados: {_format_test_items(removed_rows)}. "
-                    f"Total ${totals['total']:,} COP."
+                    f"Total {_money(totals['total'])}."
                 )
             elif selected:
                 added_rows = db.get_tests_by_codes(selected)
                 totals = calculate_custom_profile_total(added_rows)
                 session["_custom_profile_summary"] = (
                     f"PERFIL PERSONALIZADO EN CONSTRUCCIÓN ({totals['count']} análisis): {_format_test_items(added_rows)}. "
-                    f"Subtotal ${totals['subtotal']:,} COP. Total ${totals['total']:,} COP."
+                    f"Subtotal {_money(totals['subtotal'])}. Total {_money(totals['total'])}."
                 )
         elif not prev_fields.get("exam_type"):
             catalog_ctx = db.get_catalog_context(prev_fields.get("species"))

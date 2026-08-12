@@ -18,10 +18,13 @@ def age_has_unit(value: str | None) -> bool:
     return bool(set(_tokenize(value or "")) & AGE_UNIT_TOKENS)
 
 
+# El análisis va ANTES que las observaciones: A3 lo pidió en la reunión del 28/07 porque la
+# observación suele referirse al análisis pedido ("el hemograma que sea en ayunas"), y
+# preguntarla antes obliga al cliente a anticiparse a algo que todavía no eligió.
 ROUTE_ORDER_FIELDS_BEFORE_PAYMENT = (
     "pickup_address", "requesting_doctor",
     "patient_name", "species", "breed", "sex", "patient_age",
-    "owner_name", "observations", "exam_type",
+    "owner_name", "exam_type", "observations",
 )
 
 
@@ -64,8 +67,8 @@ def base_route_response(reply: str, fields: dict) -> dict:
 def format_test_items(rows: list[dict]) -> str:
     if not rows:
         return "ninguno"
-    # Precio siempre en formato completo "$12,000 COP" (pedido del usuario 2026-07-22:
-    # nada de abreviar "$12k" en lo que ve el cliente).
+    # Precio siempre en formato completo "$12.000" (pedido del usuario 2026-07-22: nada de
+    # abreviar "$12k" en lo que ve el cliente). El formato lo decide `money()`.
     return ", ".join(f"{r['code']}-{r['name']} {_money(r.get('price'))}" for r in rows)
 
 
@@ -137,7 +140,7 @@ def missing_route_field_question(field: str) -> str:
     if field == "requesting_doctor":
         return "¿Cuál es el médico solicitante?"
     if field == "exam_type":
-        return "Por último, ¿qué análisis o perfil desean?"
+        return "¿Qué análisis o perfil desean?"
     if field == "patient_name":
         return "¿Cuál es el nombre del paciente?"
     if field == "species":
@@ -151,5 +154,5 @@ def missing_route_field_question(field: str) -> str:
     if field == "owner_name":
         return "¿Cuál es el nombre del propietario?"
     if field == "observations":
-        return "¿Quieres dejar alguna observación para la orden o la registramos sin observaciones?"
+        return "Por último, ¿quieres dejar alguna observación para la orden o la registramos sin observaciones?"
     return PAYMENT_METHOD_QUESTION

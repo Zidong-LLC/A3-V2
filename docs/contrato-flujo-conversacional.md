@@ -69,11 +69,19 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
 
 ### B4 · Recolección de datos de la orden de recogida
 - **Qué hace:** pide en orden los campos faltantes: dirección de retiro, médico solicitante,
-  paciente (nombre, especie, raza, sexo, edad), propietario, observaciones, análisis/perfil,
-  forma de pago. Pregunta de a un dato por turno.
+  paciente (nombre, especie, raza, sexo, edad), propietario, **análisis/perfil,
+  observaciones**, forma de pago. Pregunta de a un dato por turno.
 - **Dónde:** `_ROUTE_REQUIRED_FIELDS`, `_missing_route_field`,
   `_enforce_first_missing_after_progress`, `_merge_existing_route_fields`.
-- **Estado:** ✅ APROBADO (usuario, 2026-06-22)
+- **Orden de análisis y observaciones (2026-08-12):** el análisis va ANTES que las
+  observaciones. A3 lo pidió en la reunión del 28/07: la observación suele referirse al
+  análisis pedido ("el hemograma que sea en ayunas"), y preguntarla antes obligaba al
+  cliente a anticiparse a algo que todavía no había elegido. El "Por último…" se movió del
+  análisis a las observaciones. Se sincronizó `app/prompt.py` (pasos 8-9, PASO 4 y R12) para
+  que el modelo no empuje el orden viejo.
+- **Estado:** ✅ APROBADO (usuario, 2026-06-22) · reordenamiento de análisis/observaciones
+  autorizado por el usuario el 2026-08-12, verificado con la secuencia determinística y con
+  cliente simulado sobre datos reales.
 
 ### B4b · Raza reconocida contra el catálogo (aporta la especie)
 - **Qué hace:** normaliza la grafía de la raza contra `catalog_breeds` (323 razas del cliente)

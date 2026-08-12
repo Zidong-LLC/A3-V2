@@ -51,7 +51,9 @@ def test_correction_ack_in_normal_intake():
           "phase": "fase_2_recogida_datos", "reply": "(reply del modelo)"}
     out = eflujo._enforce_first_missing_after_progress(SESSION, ai, prev)
     assert "corrijo raza: Tobiano" in out["reply"]
-    assert "observaci" in out["reply"].lower()      # empuja el paso pendiente
+    # Empuja el siguiente faltante. Desde 2026-08-12 el análisis va antes que las
+    # observaciones (pedido de A3, reunión del 28/07), así que el pendiente es el análisis.
+    assert "análisis o perfil" in out["reply"].lower()
 
 
 def test_correction_ack_in_extra_offer_lane_resumes_offer():

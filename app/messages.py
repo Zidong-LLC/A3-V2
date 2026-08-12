@@ -29,15 +29,20 @@ CLIENT_IDENTIFICATION_REQUIRED_MESSAGE = (
     "Para continuar necesito una de estas dos opciones: 1) el NIT, o 2) el nombre exacto de la veterinaria o médico veterinario."
 )
 
+# A3 pidió (llamada 3) que al escalar se diga explícitamente que se asigna un asesor. Antes
+# cada camino tenía su propia frase ("te comunico con ellos", "con una persona del equipo",
+# "con el equipo correspondiente"), así que el cliente no sabía si quedaba alguien a cargo.
+ADVISOR_ASSIGNMENT_LINE = "Te asignaremos un asesor que se comunicará contigo para ayudarte."
+
 CLIENT_NOT_FOUND_MESSAGE = (
     "En este momento no encuentro el cliente registrado en nuestra base de datos.\n"
     "Para poder coordinar el retiro de muestras, primero necesitamos realizar el registro del cliente.\n"
-    "Te voy a comunicar con atención al cliente para que puedan ayudarte con este proceso."
+    f"{ADVISOR_ASSIGNMENT_LINE}"
 )
 
 CLIENT_NEW_REGISTRATION_MESSAGE = (
     "Como aún no estás registrado, el alta la debe hacer atención al cliente. "
-    "Te voy a comunicar con ellos para que puedan ayudarte con ese proceso."
+    f"{ADVISOR_ASSIGNMENT_LINE}"
 )
 
 CLIENT_SEARCH_FAILED_MESSAGE = (

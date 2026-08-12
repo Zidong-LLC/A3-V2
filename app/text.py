@@ -15,7 +15,9 @@ def tokenize(text: str) -> list[str]:
 
 
 def money(value: int | None) -> str:
-    return f"${int(value or 0):,} COP"
+    """Formato colombiano: separador de miles con PUNTO y sin sufijo de moneda ($18.000).
+    Antes salía "$18,000 COP" —coma inglesa—, que A3 pidió corregir (llamada 7)."""
+    return f"${int(value or 0):,}".replace(",", ".")
 
 
 def catalog_item_key(value) -> str:

@@ -8,6 +8,10 @@ from app.rules import (
     INTENT_TO_SERVICE_AREA, calculate_custom_profile_total,
     calculate_profile_adjusted_total, get_scheduled_pickup_date,
 )
+# El catálogo que se inyecta al modelo debe traer el precio en el MISMO formato que usa el
+# flujo determinístico: si acá dijera "$14,000 COP", el modelo imitaría ese formato al
+# escribir texto libre y el precio saldría distinto según quién lo redacte.
+from app.text import money
 
 _client: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
@@ -535,7 +539,7 @@ def get_catalog_context(species: str | None = None) -> str:
     by_cat: dict[str, list[str]] = defaultdict(list)
     for r in rows:
         description = r.get("description") or "sin detalle"
-        by_cat[r["category"]].append(f"{r['code']}-{r['name']}: {description} ${r['price']:,} COP")
+        by_cat[r["category"]].append(f"{r['code']}-{r['name']}: {description} {money(r['price'])}")
 
     label = f" ({species})" if species else ""
     lines = [f"Catálogo A3{label}:"]
@@ -636,7 +640,7 @@ def get_individual_tests_context(species: str | None = None) -> str:
     from collections import defaultdict
     by_cat: dict[str, list[str]] = defaultdict(list)
     for r in rows:
-        by_cat[r["category"]].append(f"{r['code']}-{r['name']} ${r['price']:,} COP")
+        by_cat[r["category"]].append(f"{r['code']}-{r['name']} {money(r['price'])}")
 
     label = f" ({species})" if species else ""
     lines = [f"Análisis individuales A3{label}:"]

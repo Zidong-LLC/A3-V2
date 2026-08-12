@@ -228,7 +228,7 @@ def test_price_answer_single_test_still_works():
          patch.object(agent.db, "list_catalog_tests", return_value=[COPRO, CUADRO] + URO_TESTS), \
          patch.object(agent.db, "find_tests_by_area", return_value=(None, [])):
         answer = agent._catalog_price_answer({}, "¿cuánto sale el coprológico?")
-    assert answer is not None and "12,000" in answer
+    assert answer is not None and "12.000" in answer
 
 
 # ── QA-6: pedido + consulta de precio en el mismo mensaje ────────────────────────
@@ -282,7 +282,7 @@ def test_age_unchanged_from_previous_turn_is_untouched():
 
 
 def test_summary_shows_volume_discount_breakdown():
-    """2 análisis ($14k + $8k) mostraban 'Valor estimado: $19,360' sin explicar el 12%
+    """2 análisis ($14k + $8k) mostraban 'Valor estimado: $19.360' sin explicar el 12%
     de descuento — parecía un cálculo mal hecho. El resumen desglosa subtotal →
     descuento → total."""
     retic = {"code": "1104", "name": "Recuento de Reticulocitos", "price": 8000,
@@ -312,9 +312,9 @@ def test_summary_shows_volume_discount_breakdown():
          patch.object(agent.db, "get_tests_by_codes_or_names", side_effect=lookup):
         summary = agent._route_confirmation_summary(fields)
     assert summary is not None
-    assert "Subtotal: $22,000 COP" in summary
-    assert "Descuento por volumen: -$2,640 COP" in summary
-    assert "Valor estimado: $19,360 COP" in summary
+    assert "Subtotal: $22.000" in summary
+    assert "Descuento por volumen: -$2.640" in summary
+    assert "Valor estimado: $19.360" in summary
 
 
 def test_menu_selection_intro_shows_discount_breakdown():
@@ -323,15 +323,15 @@ def test_menu_selection_intro_shows_discount_breakdown():
     text = agent._estimated_total_text(
         agent.calculate_custom_profile_total([dict(CUADRO), retic])
     )
-    assert "Subtotal $22,000 COP" in text
-    assert "descuento por volumen -$2,640 COP" in text
-    assert "$19,360 COP" in text
+    assert "Subtotal $22.000" in text
+    assert "descuento por volumen -$2.640" in text
+    assert "$19.360" in text
 
 
 def test_single_test_total_has_no_discount_breakdown():
     """Un solo análisis no tiene descuento: el texto sigue simple."""
     text = agent._estimated_total_text(agent.calculate_custom_profile_total([dict(CUADRO)]))
-    assert text == "Valor estimado: $14,000 COP."
+    assert text == "Valor estimado: $14.000."
 
 
 # ── Prueba real chat 4 (2026-07-08): tres fallos del 20% restante ────────────────

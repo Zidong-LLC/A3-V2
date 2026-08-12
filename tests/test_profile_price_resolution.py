@@ -106,9 +106,9 @@ def test_summary_puts_catalog_profile_price_on_analysis_line_without_duplicate_b
     with patch.object(agent.db, "get_tests_by_codes_or_names", return_value=[]):
         summary = agent._route_confirmation_summary(fields)
 
-    assert "- Análisis: Perfil General — $32,000 COP" in summary
+    assert "- Análisis: Perfil General — $32.000" in summary
     assert "- Perfil base:" not in summary
-    assert "- Valor estimado: $32,000 COP" in summary
+    assert "- Valor estimado: $32.000" in summary
 
 
 def test_confirmation_adds_analysis_to_profile_instead_of_closing_order():
@@ -142,7 +142,7 @@ def test_confirmation_adds_analysis_to_profile_instead_of_closing_order():
 
     assert out["phase"] == agent.CONFIRMATION_PHASE
     assert out["captured_fields"]["selected_tests"] == ["0201"]
-    assert "- Agregados: 0201-Glucosa $18,000 COP" in out["reply"]
+    assert "- Agregados: 0201-Glucosa $18.000" in out["reply"]
     assert "¿Confirmas estos datos?" in out["reply"]
     assert "Quedó registrado" not in out["reply"]
 

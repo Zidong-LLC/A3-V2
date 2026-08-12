@@ -162,7 +162,7 @@ def test_offer_intro_shows_new_tests_with_prices():
           "captured_fields": fields}
     with patch.object(agent.db, "get_tests_by_codes", return_value=[POTASIO, SODIO]):
         out = agent._enforce_extra_analysis_offer(SESSION, ai, base)
-    assert "Potasio $12,000 COP" in out["reply"] and "Sodio $12,000 COP" in out["reply"]
+    assert "Potasio $12.000" in out["reply"] and "Sodio $12.000" in out["reply"]
     assert "agregar otro análisis" in out["reply"]
 
 
