@@ -91,6 +91,40 @@ def _muestra(filas: list[dict], n: int, especie: str) -> list[dict]:
     return otra[:max(n - 1, 1)] + generales[:1]
 
 
+def _bloque_multiples(perfiles: list[dict], analisis: list[dict], especie: str,
+                      base_i: int) -> list[tuple]:
+    """Pedidos con VARIOS códigos: análisis juntos, perfiles juntos y la mezcla.
+
+    Es el caso real: el cliente rara vez pide de a uno. Se verifica que la respuesta
+    mencione TODOS los códigos pedidos — perder uno en silencio es un error de dinero
+    (misma clase que ERR-077 y ERR-103)."""
+    random.shuffle(analisis)
+    random.shuffle(perfiles)
+    a1, a2, a3 = analisis[0], analisis[1], analisis[2]
+    p1, p2 = perfiles[0], perfiles[1]
+
+    casos = [
+        ("2 análisis", f"necesito el {a1['code']} y el {a2['code']}", [a1, a2]),
+        ("3 análisis", f"{a1['code']}, {a2['code']} y {a3['code']}", [a1, a2, a3]),
+        ("2 perfiles", f"quiero el perfil {p1['code']} y el perfil {p2['code']}", [p1, p2]),
+        ("mezcla", f"el {a1['code']} y el perfil {p1['code']}", [a1, p1]),
+        ("mezcla 3", f"perfil {p1['code']}, {a1['code']} y {a2['code']}", [p1, a1, a2]),
+    ]
+    resultados = []
+    print("\n--- PEDIDOS MÚLTIPLES (todos los códigos deben quedar) ---")
+    for j, (etiqueta, frase, esperados) in enumerate(casos):
+        reply = _turno(frase, especie, base_i + j)
+        faltantes = [e["code"] for e in esperados if str(e["code"]) not in reply]
+        negacion = _niega(reply)
+        bien = not faltantes and not negacion
+        print(f"  [{'OK' if bien else 'XX'}] {etiqueta:<11} {frase[:44]:<46} "
+              f"{'todos' if not faltantes else 'FALTAN ' + ','.join(faltantes)}")
+        if not bien:
+            print(f"       bot: {reply[:120].strip()}")
+        resultados.append((bien, etiqueta, frase, faltantes, reply))
+    return resultados
+
+
 def main() -> int:
     n = 4
     especie = "Felino"
@@ -135,18 +169,25 @@ def main() -> int:
                     print(f"  [{marca}] ({etiq:<7}) {frase[:46]:<48} {reply[:60].strip()}")
                     if negacion:
                         fallos.append((frase, fila, negacion, reply))
+
+        multiples = _bloque_multiples(list(perfiles), list(analisis), especie, 9000)
     finally:
         for p in patchers:
             p.stop()
 
+    mult_ok = sum(1 for r in multiples if r[0])
     print("\n" + "=" * 78)
-    print(f"  {total - len(fallos)}/{total} sin negar")
+    print(f"  individuales: {total - len(fallos)}/{total} sin negar")
+    print(f"  múltiples:    {mult_ok}/{len(multiples)} con todos los códigos")
+    for bien, etiqueta, frase, faltantes, reply in multiples:
+        if not bien:
+            print(f"   · {etiqueta}: {frase!r} perdió {faltantes or '(negó)'}")
     if fallos:
         print("\n  NEGÓ algo que SÍ está en la base:")
         for frase, fila, negacion, reply in fallos:
             print(f"   · {frase!r} → {fila['code']} {fila['name']} ({fila.get('species')})")
             print(f"     dijo {negacion!r}: {reply[:110].strip()}")
-    return 0 if not fallos else 1
+    return 0 if not fallos and mult_ok == len(multiples) else 1
 
 
 if __name__ == "__main__":
