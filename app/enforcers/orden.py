@@ -680,6 +680,13 @@ def _enforce_diagnostic_label_help(session: dict, ai_response: dict, user_messag
     # Ya se está armando un perfil o ya se sugirió una etiqueta en este flujo.
     if fields.get("selected_tests") is not None or fields.get("_diagnostic_label"):
         return ai_response
+    # Y si el turno YA resolvió un perfil concreto del catálogo, la ayuda por etiqueta
+    # diagnóstica no tiene nada que hacer: el cliente dijo exactamente qué quería. Sin este
+    # guard, "perfil 956" resolvía el perfil y acto seguido esto lo borraba para ofrecer la
+    # lista de la etiqueta FELINOS (el nombre del perfil contiene "felinos", y las etiquetas
+    # se recorren alfabéticamente).
+    if fields.get("_selected_profile_code"):
+        return ai_response
 
     # Lo que el AI capturó en exam_type o, si lo dejó vacío y el bot acaba de pedir el
     # análisis, el propio mensaje del usuario (la lista no debe depender del modelo).
@@ -721,6 +728,44 @@ def _enforce_diagnostic_label_help(session: dict, ai_response: dict, user_messag
 
 
 
+def _capture_mixed_codes(session: dict, fields: dict, ai_response: dict,
+                         user_message: str, codigos_sueltos: list[str]) -> dict:
+    """Registra en un solo turno los PERFILES y los ANÁLISIS que el cliente nombró por código.
+
+    Reusa `_attach_profiles_by_code` (ERR-103), que ya sabe enganchar varios perfiles
+    distinguiendo el base de los adicionales y —clave acá— **sin tocar los análisis ya
+    registrados**. Los códigos que no son perfil se resuelven contra `catalog_tests` y se
+    suman con el mismo mecanismo del pedido mixto de la ventana de oferta.
+    """
+    perfiles, repetidos = _attach_profiles_by_code(fields, user_message)
+    if not perfiles and not repetidos:
+        return ai_response
+
+    partes = []
+    if perfiles:
+        partes.append(_format_profile_items(perfiles))
+
+    tests = []
+    if codigos_sueltos:
+        try:
+            tests = db.get_tests_by_codes(codigos_sueltos) or []
+        except Exception:
+            tests = []
+        if tests:
+            _add_tests_to_order(fields, tests, "add")
+            partes.append(_format_test_items(tests))
+
+    if not partes:
+        return ai_response
+
+    # La etiqueta diagnóstica ya no aplica: el cliente dijo exactamente qué quería.
+    fields.pop("_diagnostic_label", None)
+    fields.pop("_profile_menu_options", None)
+    fields.pop("_test_menu_options", None)
+    fields.pop("_awaiting_additional_test", None)
+    return _analysis_settled_response(session, fields, f"Listo, registro {' y '.join(partes)}.")
+
+
 def _enforce_catalog_profile_code_selection(session: dict, ai_response: dict, user_message: str) -> dict:
     if ai_response.get("intent") != "route_scheduling" or _is_profile_detail_question(user_message):
         return ai_response
@@ -734,8 +779,19 @@ def _enforce_catalog_profile_code_selection(session: dict, ai_response: dict, us
         profiles = db.get_catalog_profiles_by_codes(codes, fields.get("species"))
     except Exception:
         return ai_response
-    if len(profiles) != 1:
+    if not profiles:
         return ai_response
+
+    # PEDIDO MIXTO en la primera captura: "perfil 956, 2016 y 1901" — un perfil y dos
+    # análisis en la misma frase. Antes esto se perdía ENTERO: la rama de abajo resolvía el
+    # perfil y hacía `selected_tests = None`, borrando los análisis del turno; después el
+    # guard de la etiqueta diagnóstica borraba también el perfil. El cliente terminaba viendo
+    # una lista de sugerencias y sin nada registrado (error de dinero, familia ERR-077/103).
+    codigos_de_perfil = {str(p.get("code")) for p in profiles}
+    codigos_sueltos = [c for c in codes if c not in codigos_de_perfil]
+    if len(profiles) > 1 or codigos_sueltos:
+        return _capture_mixed_codes(session, fields, ai_response, user_message, codigos_sueltos)
+
     fields["selected_tests"] = None
     fields["removed_tests"] = None
     fields.pop("_diagnostic_label", None)
