@@ -136,6 +136,12 @@ def _enforce_confirmation_step(session: dict, ai_response: dict, fields: dict, p
         return ai_response
     if ai_response.get("message_mode") == "cancellation":
         return ai_response
+    # La orden YA está registrada y tiene su número: no hay nada que confirmar. Sin este
+    # guard, cualquier turno posterior con los campos completos volvía a mostrar el resumen
+    # y el "Quedó registrado" — el cliente veía su orden cerrarse dos veces. Se limpia al
+    # empezar otra orden (`_begin_followup_order`), así que el multi-orden no se ve afectado.
+    if fields.get("_order_registered"):
+        return ai_response
 
     if previous_phase == CONFIRMATION_PHASE:
         adjusted = _confirmation_analysis_adjustment(

@@ -2156,6 +2156,15 @@ def _finalize_request(chat_id: str, session: dict, ai_response: dict, started_fr
         # El cierre de un PEDIDO llega a fase terminal pero no es una orden nueva: sus
         # órdenes ya se registraron al confirmarlas una por una (decisión 011).
         and not ai_response.get(_SKIP_REQUEST_CREATION)
+        # EL HECHO, no el movimiento: si esta orden YA tiene su registro, no se vuelve a
+        # crear, diga lo que diga la fase. Las condiciones de arriba deducen "es una orden
+        # nueva" de una transición de fase, y la fase la propone el modelo: alcanza con que
+        # rebote (cierre → confirmación → cierre) para que la misma orden se guarde otra vez.
+        # Con datos reales llegó a duplicarse cinco veces (A3-2026-901 a 905). Estuvo tapado
+        # mientras los atajos de palabras fijas congelaban la conversación en fase terminal;
+        # al liberarlos para que el bot entienda a la gente, quedó a la vista.
+        # `_begin_followup_order` limpia esta marca, así que "otra orden" sigue funcionando.
+        and not (ai_response.get("captured_fields") or {}).get("_order_registered")
     )
     if not should_create_request:
         return ai_response
