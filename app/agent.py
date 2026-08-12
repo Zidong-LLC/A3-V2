@@ -217,7 +217,7 @@ from app.messages import (
     CLIENT_RETRY_NOT_FOUND_MESSAGE, CLIENT_IDENTIFIER_RETRY_MESSAGE,
     POST_TERMINAL_GREETING_REPLY, RESULTS_PENDING_MESSAGE, OPTION_RECONSIDER_MESSAGE,
     ORDER_NUMBER_NEEDS_CLIENT_MESSAGE, ORDER_NUMBER_NOT_FOUND_MESSAGE, FAREWELL_REPLY,
-    CLOSING_PROMPT, PEDIDO_CLOSING_PROMPT, PAYMENT_METHOD_QUESTION, PAYMENT_ONLINE_HANDOFF_MESSAGE,
+    CLOSING_PROMPT, PEDIDO_CLOSING_PROMPT, PEDIDO_CLOSING_QUESTION, PAYMENT_METHOD_QUESTION, PAYMENT_ONLINE_HANDOFF_MESSAGE,
     EXTRA_ANALYSIS_OFFER, EXTRA_ANALYSIS_AMBIGUOUS_QUESTION,
     NO_COURIER_HANDOFF_MESSAGE, AGE_QUESTION, CORRECTION_PROMPT,
     ADVISOR_ASSIGNMENT_LINE,
@@ -2226,6 +2226,20 @@ def _finalize_request(chat_id: str, session: dict, ai_response: dict, started_fr
                 acumulado = list(campos.get("_pedido_profiles") or [])
                 acumulado.append(perfil)
                 campos["_pedido_profiles"] = acumulado
+            # Y una ficha de la orden para el resumen final. Se arma acá porque es el único
+            # momento con TODO junto: `requests` no guarda `requesting_doctor` (vive en el
+            # evento) y los precios ya vienen resueltos en `perfil`. Releerlo después
+            # obligaría a cruzar `requests` con `request_events`.
+            ordenes = list(campos.get("_pedido_ordenes") or [])
+            ordenes.append({
+                "order_number": (order_info or {}).get("order_number"),
+                "patient_name": campos.get("patient_name"),
+                "species": campos.get("species"),
+                "requesting_doctor": campos.get("requesting_doctor"),
+                "exam_type": campos.get("exam_type"),
+                "total": int((perfil or {}).get("total_estimated") or 0),
+            })
+            campos["_pedido_ordenes"] = ordenes
     return ai_response
 
 
@@ -2268,7 +2282,10 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
         fields["_pedido_awaiting_payment"] = True
         return {
             **ai_response,
-            "reply": PAYMENT_METHOD_QUESTION,
+            # A3 pidió (reunión 28/07) poder dejar una observación del PEDIDO antes de cerrar.
+            # Va en el mismo turno que el pago para no agregar un paso más: el cliente que no
+            # tiene nada que observar responde solo la forma de pago y sigue de largo.
+            "reply": PEDIDO_CLOSING_QUESTION,
             # NO es fase terminal: la orden ya está registrada y lo único que falta es cobrar
             # el pedido. Con `fase_6_cierre` acá, `_finalize_request` leía "entró a cierre" y
             # registraba OTRA orden con los mismos datos — en la prueba con sinónimos llegó a
@@ -2285,31 +2302,62 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
     return ai_response
 
 
+def _pedido_summary(ordenes: list[dict], fields: dict, payment_method: str) -> str:
+    """Resumen del PEDIDO completo: cada orden con su paciente, médico y análisis, y el
+    TOTAL consolidado (decisión 011).
+
+    A3 lo pidió así en la reunión del 28/07: con tres pacientes en una sola factura, un
+    renglón por orden no alcanza — la veterinaria necesita ver qué se le está cobrando por
+    cada uno antes de confirmar.
+
+    Se usan las fichas de `_pedido_ordenes`, que `_finalize_request` arma al cerrar cada
+    orden: es el único momento con todo junto, porque `requests` no guarda
+    `requesting_doctor` (vive en el evento) y los precios ya vienen resueltos ahí. Si esas
+    fichas faltan, se cae a las filas de `requests`, que al menos tienen paciente y análisis.
+    """
+    fichas = list(fields.get("_pedido_ordenes") or [])
+    filas = fichas or ordenes
+    lineas, total = [], 0
+
+    for orden in filas:
+        etiqueta = orden.get("order_number") or "(sin número)"
+        paciente = orden.get("patient_name") or "paciente"
+        especie = orden.get("species")
+        lineas.append(f"\n{etiqueta} · {paciente}" + (f" ({especie})" if especie else ""))
+        if orden.get("requesting_doctor"):
+            lineas.append(f"  Médico: {orden['requesting_doctor']}")
+        lineas.append(f"  Análisis: {orden.get('exam_type') or 'sin especificar'}")
+        subtotal = int(orden.get("total") or 0)
+        total += subtotal
+        if subtotal:
+            lineas.append(f"  Subtotal: {_money(subtotal)}")
+
+    encabezado = (f"Listo, cerramos el pedido con {len(ordenes)} "
+                  f"{'orden' if len(ordenes) == 1 else 'órdenes'}:")
+    cierre = [f"\nForma de pago: {payment_method}"]
+    if total:
+        cierre.append(f"TOTAL DEL PEDIDO: {_money(total)}")
+    return "\n".join([encabezado, *lineas, *cierre])
+
+
 def _close_pedido_turn(session: dict, fields: dict, payment_method: str) -> dict:
     """Cierra el pedido: registra la forma de pago, emite UNA factura con todas sus órdenes
     y devuelve el resumen del pedido. Es el final del camino de la decisión 011."""
     pedido_id = fields.get("_pedido_id")
-    resumen = []
-    total = 0
     try:
         db.close_pedido(pedido_id, payment_method)
         ordenes = db.list_pedido_requests(pedido_id)
     except Exception as exc:  # noqa: BLE001
         logger.warning("pedidos: no se pudo cerrar el pedido %s: %s", pedido_id, exc)
         ordenes = []
-    for orden in ordenes:
-        etiqueta = orden.get("order_number") or orden.get("id")
-        resumen.append(f"- {etiqueta} · {orden.get('patient_name') or 'paciente'}"
-                       f" · {orden.get('exam_type') or 'análisis'}")
-    encabezado = (f"Listo, cerramos el pedido con {len(ordenes)} "
-                  f"{'orden' if len(ordenes) == 1 else 'órdenes'}:")
-    cuerpo = "\n".join([encabezado, *resumen, f"- Forma de pago: {payment_method}"])
+    cuerpo = _pedido_summary(ordenes, fields, payment_method)
 
     if ALEGRA_ENABLED:
         _try_invoice_pedido(pedido_id, fields)
 
     fields.pop("_pedido_id", None)
     fields.pop("_pedido_profiles", None)
+    fields.pop("_pedido_ordenes", None)
     fields.pop("_pedido_awaiting_payment", None)
     fields["_pedido_cerrado"] = True
     return {

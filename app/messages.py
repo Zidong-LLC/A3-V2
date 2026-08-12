@@ -108,6 +108,14 @@ PEDIDO_CLOSING_PROMPT = (
     "Si eso es todo, seguimos con la forma de pago y cerramos el pedido."
 )
 
+# Último turno antes de cerrar: observación del PEDIDO (opcional) + forma de pago. Van
+# juntas a propósito — A3 pidió poder dejar una observación general (reunión 28/07), y
+# preguntarla en un turno aparte le agregaba un paso a quien no tiene nada que observar.
+PEDIDO_CLOSING_QUESTION = (
+    "Listo. ¿Alguna observación para el pedido? Y decime cómo prefieres el pago: "
+    "contraentrega con el motorizado o pago en línea."
+)
+
 # ── Pago ────────────────────────────────────────────────────────────────────────
 PAYMENT_METHOD_QUESTION = "Antes de cerrar, ¿cómo prefieres el pago: contraentrega con el motorizado o pago en línea?"
 PAYMENT_ONLINE_HANDOFF_MESSAGE = (
