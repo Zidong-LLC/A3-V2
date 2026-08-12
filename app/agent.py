@@ -2931,7 +2931,14 @@ def process_turn(
         return _persist_turn(chat_id, user_message, ai_response)
 
     if session.get("phase_current") in TERMINAL_PHASES and session.get("intent_current") == "route_scheduling":
-        operational_answer = _operational_side_question_answer(user_message)
+        # Con un PEDIDO abierto, un mensaje que trae la forma de pago NO es una pregunta
+        # lateral aunque la mencione: "les pagamos cuando pasen a recoger" describe CUÁNDO
+        # paga, no pregunta el horario. Este atajo lo leía como consulta de logística y
+        # respondía sobre la hora, dejando el pedido sin cobrar (QA de pago 6/7).
+        if not (_pedido_abierto and _payment_method_from_text(user_message)):
+            operational_answer = _operational_side_question_answer(user_message)
+        else:
+            operational_answer = None
         if operational_answer:
             ai_response = _base_route_response(f"{operational_answer}\n\n{CLOSING_PROMPT}", dict(prev_captured))
             ai_response["phase"] = session.get("phase_current")
