@@ -211,7 +211,8 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
         profiles = db.list_catalog_profiles_for_species(species, limit=6)
         if profiles:
             _store_profile_menu_options(fields, profiles)
-            return _base_route_response(_format_profile_recommendation(species, profiles), fields)
+            return _base_route_response(_format_profile_recommendation(
+                species, profiles, fields.get("_client_favorite_profiles")), fields)
 
     # 3b) Nombró una CATEGORÍA de perfiles armados ('un prequirúrgico', 'un renal') mientras
     #     agrega: ofrecer esos perfiles para elegir, en vez de tratarlo como análisis suelto
@@ -663,7 +664,8 @@ def _enforce_profile_recommendation_help(session: dict, ai_response: dict, user_
                 "_selected_profile_description", "_profile_detail_offered", "_correction_pending"):
         fields.pop(key, None)
     _store_profile_menu_options(fields, profiles)
-    return _base_route_response(_format_profile_recommendation(species, profiles), fields)
+    return _base_route_response(_format_profile_recommendation(
+                species, profiles, fields.get("_client_favorite_profiles")), fields)
 
 
 

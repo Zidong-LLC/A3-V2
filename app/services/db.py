@@ -1116,6 +1116,75 @@ def delete_custom_profile(profile_id: str) -> bool:
     return bool(result.data)
 
 
+# ── Perfiles favoritos por clínica (decisión 012 / pedido de A3 del 06/05) ──────
+# El agente registra qué pide cada clínica y se lo reofrece la próxima vez. Todas estas
+# funciones son DEFENSIVAS: corren dentro del cierre de una orden y de la identificación del
+# cliente, así que un fallo no puede tumbar el turno.
+
+def _items_signature(items: list[dict]) -> str:
+    """Huella del conjunto de análisis, independiente del orden en que los pidió.
+    Permite reconocer que la clínica volvió a pedir LO MISMO y sumar al contador en vez de
+    duplicar la fila (`save_custom_profile` es un INSERT puro)."""
+    codigos = sorted({str(i.get("code") or "").strip() for i in (items or []) if i.get("code")})
+    return "|".join(codigos)
+
+
+def record_custom_profile_use(client_id: str | None, items: list[dict], name: str) -> None:
+    """Suma un uso al favorito de esta clínica, o lo crea si es la primera vez."""
+    firma = _items_signature(items)
+    if not client_id or not firma:
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    try:
+        existente = (
+            _client.table("client_custom_profiles")
+            .select("id, usage_count")
+            .eq("client_id", client_id)
+            .eq("items_signature", firma)
+            .limit(1)
+            .execute()
+        ).data or []
+        if existente:
+            fila = existente[0]
+            _client.table("client_custom_profiles").update({
+                "usage_count": int(fila.get("usage_count") or 1) + 1,
+                "last_used_at": now,
+            }).eq("id", fila["id"]).execute()
+            return
+        _client.table("client_custom_profiles").insert({
+            "client_id": client_id,
+            "name": name,
+            "items_json": items,
+            "items_signature": firma,
+            "usage_count": 1,
+            "last_used_at": now,
+            "created_by": "agente",
+        }).execute()
+    except Exception:
+        # Puede faltar la migración 019 (columnas nuevas) o caerse la red: registrar el
+        # favorito es un extra, nunca puede romper el cierre de una orden.
+        return
+
+
+def list_favorite_profiles(client_id: str | None, limit: int = 3) -> list[dict]:
+    """Los que esta clínica más pide, primero. Vacío si no hay o si algo falla."""
+    if not client_id:
+        return []
+    try:
+        result = (
+            _client.table("client_custom_profiles")
+            .select("id, name, items_json, usage_count")
+            .eq("client_id", client_id)
+            .order("usage_count", desc=True)
+            .order("last_used_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return result.data or []
+    except Exception:
+        return []
+
+
 def update_request(request_id: str, payload: dict) -> bool:
     result = _client.table("requests").update(payload).eq("id", request_id).execute()
     return bool(result.data)

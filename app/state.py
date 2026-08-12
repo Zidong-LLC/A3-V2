@@ -77,6 +77,8 @@ FLAGS_IDENTIFICACION = frozenset({
     # definitivo del cliente particular): este se deshace si el cliente da un identificador
     # que existe en la base.
     "_escalated_unfound_client",
+    # Perfiles que la clínica más pide, precargados al identificarla (A3, 06/05).
+    "_client_favorite_profiles",
 })
 FLAGS_ANALISIS = frozenset({
     "_selected_profile_code", "_selected_profile_name", "_selected_profile_price",

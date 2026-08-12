@@ -380,6 +380,9 @@ _IDENTIFICATION_RETRY_RESET_FIELDS = frozenset({
     "_handoff_announced", "_asked_if_new_client",
     "_address_confirmation_pending", "_address_confirmed",
     "_client_match_query", "_client_match_options",
+    # Los favoritos son POR CLÍNICA: al cambiar de cliente hay que soltarlos o se le
+    # ofrecerían a una veterinaria los perfiles de otra.
+    "_client_favorite_profiles",
 })
 
 # _PROFILE_CUSTOMIZE_TOKENS, _PROFILE_CONFIRM_TOKENS, _CLOSE_PROFILE_TOKENS,
@@ -1583,6 +1586,15 @@ def _store_client_context(fields: dict, client: dict) -> None:
     # tax_id=None y la facturación se saltaba en silencio aunque el cliente tuviera NIT.
     if client.get("tax_id"):
         fields["tax_id"] = client.get("tax_id")
+    # Perfiles que esta clínica más pide, precargados UNA vez por conversación. Se guardan en
+    # el estado en vez de consultarse en cada turno para no agregar I/O al camino caliente, y
+    # para que `flow.py` siga sin tocar la base. Se limpian al cambiar de cliente, junto con
+    # el resto del contexto (pedido de A3 del 06/05).
+    favoritos = db.list_favorite_profiles(client.get("id"))
+    if favoritos:
+        fields["_client_favorite_profiles"] = favoritos
+    else:
+        fields.pop("_client_favorite_profiles", None)
 
 
 def _limit_to_single_question(text: str) -> str:
@@ -2241,7 +2253,37 @@ def _finalize_request(chat_id: str, session: dict, ai_response: dict, started_fr
                 "total": int((perfil or {}).get("total_estimated") or 0),
             })
             campos["_pedido_ordenes"] = ordenes
+    _record_favorite_profile(session, order_info, ai_response.get("captured_fields", {}))
     return ai_response
+
+
+def _record_favorite_profile(session: dict, order_info: dict | None, fields: dict) -> None:
+    """Registra qué pidió esta clínica, para reofrecérselo la próxima vez.
+
+    Pedido de A3 del 06/05. Se hace acá porque el `event_payload["profile"]` ya viene
+    resuelto contra el catálogo (códigos, nombres y precios reales) y corre una sola vez por
+    orden gracias al guard de `_order_registered`. Nunca lanza: es un extra sobre el cierre.
+    """
+    client_id = session.get("client_id")
+    perfil = (order_info or {}).get("event_payload", {}).get("profile") or {}
+    if not client_id or not perfil:
+        return
+    # Los ítems del favorito: el perfil base (si lo hay) más los análisis agregados.
+    items = []
+    base = perfil.get("base_profile") or {}
+    if base.get("code"):
+        items.append({"code": base.get("code"), "name": base.get("name"),
+                      "price": base.get("price"), "item_type": "profile"})
+    for test in (perfil.get("added_tests") or []):
+        items.append({"code": test.get("code"), "name": test.get("name"),
+                      "price": test.get("price"), "item_type": "analysis"})
+    if not items:
+        return
+    nombre = base.get("name") or fields.get("exam_type") or "Perfil frecuente"
+    try:
+        db.record_custom_profile_use(client_id, items, str(nombre)[:120])
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("favoritos: no se pudo registrar el uso del cliente %s: %s", client_id, exc)
 
 
 def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: dict,
@@ -2841,7 +2883,8 @@ def process_turn(
             return _persist_turn(
                 chat_id, user_message,
                 _base_route_response(
-                    _format_profile_recommendation(prev_captured.get("species"), rec_profiles),
+                    _format_profile_recommendation(prev_captured.get("species"), rec_profiles,
+                                                   prev_captured.get("_client_favorite_profiles")),
                     prev_captured,
                 ),
             )

@@ -186,10 +186,39 @@ def _catalog_row_matches_item(item: str, row: dict) -> bool:
 
 
 
-def _format_profile_recommendation(species: str, profiles: list[dict]) -> str:
+def _favorite_profiles_lines(favoritos: list[dict]) -> list[str]:
+    """Los perfiles que esta clínica más pide, con sus códigos (pedido de A3 del 06/05).
+
+    Se muestran con el código de cada ítem en vez de como opción numerada porque un favorito
+    no tiene código de `catalog_profiles`, y el carril de selección por número exige uno. Con
+    los códigos a la vista el cliente los pide directo ("el 1101 y el 0201") y los resuelve
+    el mismo resolvedor que atiende cualquier pedido por código.
+    """
+    if not favoritos:
+        return []
+    lines = ["Lo que sueles pedir:"]
+    for fav in favoritos[:3]:
+        items = fav.get("items_json") or []
+        codigos = " + ".join(str(i.get("code")) for i in items if i.get("code"))
+        if not codigos:
+            continue
+        veces = int(fav.get("usage_count") or 1)
+        detalle = f" ({veces} veces)" if veces > 1 else ""
+        lines.append(f"- {fav.get('name') or 'Perfil frecuente'}: {codigos}{detalle}")
+    return lines if len(lines) > 1 else []
+
+
+def _format_profile_recommendation(species: str, profiles: list[dict],
+                                   favoritos: list[dict] | None = None) -> str:
     """Lista de perfiles recomendados para la especie en formato legible: una línea por
-    perfil con código, análisis incluidos y precio. Seleccionable por número o nombre."""
-    lines = [f"Para {species.lower()} te puedo recomendar estos perfiles:"]
+    perfil con código, análisis incluidos y precio. Seleccionable por número o nombre.
+
+    Si la clínica tiene favoritos, van PRIMERO: es más probable que quiera repetir lo suyo
+    que elegir del catálogo general."""
+    lines = list(_favorite_profiles_lines(favoritos or []))
+    if lines:
+        lines.append("")
+    lines.append(f"Para {species.lower()} te puedo recomendar estos perfiles:")
     lines.extend(_profile_menu_option_lines(profiles))
     lines.append("Decime el número o el nombre del que prefieras y lo registro.")
     return "\n".join(lines)

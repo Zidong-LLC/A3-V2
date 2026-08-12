@@ -51,7 +51,8 @@ def _enforce_analysis_help_fallback(session: dict, ai_response: dict, prev_field
     fields["selected_tests"] = None
     fields["removed_tests"] = None
     _store_profile_menu_options(fields, profiles)
-    return _base_route_response(_format_profile_recommendation(species, profiles), fields)
+    return _base_route_response(_format_profile_recommendation(
+        species, profiles, fields.get("_client_favorite_profiles")), fields)
 
 
 
