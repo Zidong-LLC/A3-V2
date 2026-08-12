@@ -2098,7 +2098,20 @@ def _apply_route_closure_summary(ai_response: dict) -> dict:
         return ai_response
     if ai_response.get("intent") != "route_scheduling" or ai_response.get("phase") != "fase_6_cierre":
         return ai_response
-    summary = _route_closure_summary(ai_response.get("captured_fields", {}))
+    # La orden YA está registrada: este turno no es su cierre. Sin este guard, la función
+    # regeneraba el bloque "Quedó registrado…" en CUALQUIER turno posterior que siguiera en
+    # fase de cierre con los campos completos, y como corre casi al final del pipeline PISA
+    # el reply que hubieran puesto el modelo o los enforcers.
+    # Con PEDIDOS_ENABLED es peor: `payment_method` deja de ser requerido, así que "campos
+    # completos" se cumple siempre, y el mensaje del cierre del PEDIDO ("Listo, cerramos el
+    # pedido con N órdenes…") terminaba sobrescrito por el cierre de la orden vieja.
+    # Es el tercer sitio del mismo guard: los otros dos son `_finalize_request` y
+    # `_enforce_confirmation_step`. `_begin_followup_order` limpia la marca, así que el
+    # cierre de la orden SIGUIENTE se muestra normalmente.
+    fields = ai_response.get("captured_fields", {})
+    if fields.get("_order_registered") or ai_response.get(_SKIP_REQUEST_CREATION):
+        return ai_response
+    summary = _route_closure_summary(fields)
     if summary:
         ai_response["reply"] = summary
     return ai_response
