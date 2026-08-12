@@ -1,4 +1,5 @@
 import re
+import time
 import logging
 import contextvars
 from typing import Callable
@@ -2302,6 +2303,47 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
     return ai_response
 
 
+_PEDIDO_STALE_HOURS = 1
+_ultimo_barrido: list[float] = []
+
+
+def _sweep_stale_pedidos() -> None:
+    """Cierra y factura los pedidos abandonados (decisión 011).
+
+    Disparo OPORTUNISTA: se ejecuta al inicio de un turno, no por cron — el proyecto no tiene
+    scheduler y el laboratorio tiene tráfico durante el día, así que alcanza. Si no hay
+    tráfico, el pedido queda visible en el dashboard igual, que es la red.
+
+    Nunca lanza: un fallo acá no puede tumbar el turno de un cliente que está escribiendo.
+    """
+    ahora = time.time()
+    # Como mucho una vez cada 10 minutos, para no consultar en cada mensaje.
+    if _ultimo_barrido and ahora - _ultimo_barrido[-1] < 600:
+        return
+    _ultimo_barrido.append(ahora)
+    del _ultimo_barrido[:-1]
+    try:
+        pendientes = db.list_stale_pedidos(_PEDIDO_STALE_HOURS)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("pedidos: falló el barrido de abandonados: %s", exc)
+        return
+    for pedido in pendientes:
+        pedido_id = pedido.get("id")
+        try:
+            ordenes = db.list_pedido_requests(pedido_id)
+            db.close_pedido(pedido_id, pedido.get("payment_method"))
+            # Se avisa SIEMPRE, con o sin factura: operaciones tiene que saber que este
+            # pedido se cerró solo, porque el cliente nunca confirmó la forma de pago.
+            logger.warning(
+                "pedidos: %s (%s) cerrado por inactividad tras %sh con %s orden(es) — "
+                "revisar con operaciones: el cliente no confirmó el cierre",
+                pedido.get("pedido_number") or pedido_id, pedido.get("external_chat_id"),
+                _PEDIDO_STALE_HOURS, len(ordenes),
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("pedidos: no se pudo cerrar el abandonado %s: %s", pedido_id, exc)
+
+
 def _pedido_summary(ordenes: list[dict], fields: dict, payment_method: str) -> str:
     """Resumen del PEDIDO completo: cada orden con su paciente, médico y análisis, y el
     TOTAL consolidado (decisión 011).
@@ -2529,6 +2571,11 @@ def process_turn(
 
     # Cliente final/particular ya identificado: A3 no le presta servicio y el
     # agente deja de responder (sin saludo, sin procesar el turno).
+    # Barrido oportunista de pedidos abandonados (decisión 011). Va acá porque es el
+    # único punto que se ejecuta seguro con tráfico; se autolimita a una vez cada 10 min.
+    if PEDIDOS_ENABLED:
+        _sweep_stale_pedidos()
+
     prev_fields = session.get("captured_fields") or {}
     if prev_fields.get("_blocked"):
         return None

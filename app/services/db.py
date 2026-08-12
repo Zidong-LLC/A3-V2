@@ -1,7 +1,7 @@
 import re
 import difflib
 import unicodedata
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from supabase import create_client, Client
 from app.config import SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 from app.rules import (
@@ -1700,6 +1700,29 @@ def mark_pedido_invoiced(pedido_id: str, alegra_invoice_id: str | None) -> None:
         "alegra_invoice_id": alegra_invoice_id,
         "updated_at":        datetime.now(timezone.utc).isoformat(),
     }).eq("id", pedido_id).execute()
+
+
+def list_stale_pedidos(horas: int = 1, limit: int = 20) -> list[dict]:
+    """Pedidos ABIERTOS sin actividad hace más de `horas`.
+
+    El cliente que carga órdenes y se va sin cerrar deja el pedido abierto y sin facturar.
+    Decisión del usuario (2026-08-12): pasada una hora se cierra y se factura como si hubiera
+    terminado, y se avisa a operaciones. `touch_pedido` mantiene `updated_at` al día, así que
+    un pedido con órdenes agregadas no se considera abandonado desde que nació."""
+    corte = (datetime.now(timezone.utc) - timedelta(hours=horas)).isoformat()
+    try:
+        result = (
+            _client.table("pedidos")
+            .select("*")
+            .eq("status", "abierto")
+            .lt("updated_at", corte)
+            .order("updated_at")
+            .limit(limit)
+            .execute()
+        )
+        return result.data or []
+    except Exception:
+        return []
 
 
 def list_pedido_requests(pedido_id: str) -> list[dict]:
