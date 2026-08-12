@@ -479,6 +479,80 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-104 — El agente le decía "no existe" a un cliente sobre algo que SÍ está en la base (2026-08-12)
+**Síntoma (conversación real EVI, 28/07):** paciente felino, el cliente pidió el "Perfil 653"
+y el bot respondió *"No encuentro el Perfil 653 en el catálogo"*. El 653 EXISTE: Perfil Senior
+Canino III, $58.000. El cliente se resignó y pidió otra cosa.
+**Regla del negocio que lo enmarca (usuario, 2026-08-12):** *"si te piden algo que está en esa
+base de datos, ya sea por número, por nombre o lo que sea, que lo ofrezca — que no diga que no
+existe"*.
+**Causa raíz DOBLE (las dos medidas):**
+1. *Filtro por especie como veto.* `get_catalog_profiles_by_codes`, `find_catalog_profile(s)` y
+   `list_catalog_profiles_matching_category` filtraban por especie, escondiendo 73 perfiles.
+   Pedir por código o por nombre es EXPLÍCITO: no puede filtrarse. La recomendación
+   (`list_catalog_profiles_for_species`) sí sigue filtrando — no tiene sentido sugerirle
+   perfiles caninos a un gato. La etiqueta pasó de veto a guía (decisión 012).
+2. *La causa mayor NO era de especie.* Al pedir el análisis solo se le inyectaba al modelo el
+   catálogo de PERFILES; los análisis sueltos aparecían únicamente en el modo "perfil
+   personalizado". Por eso negaba códigos de análisis existentes, incluido el **2110, que está
+   etiquetado `ambos`** y ninguna corrección de especie habría arreglado.
+**Solución:** los tres resolvedores dejan de filtrar; `get_catalog_context` y
+`get_individual_tests_context` van completos (+1.300 tokens/turno, medido) y ambos se inyectan
+cuando falta `exam_type`. El prompt prohíbe explícitamente decir que algo no existe cuando el
+sistema lo resolvió.
+**Tests:** `tests/test_species_is_label_not_veto.py` (5 casos).
+**Verificación:** `tools/scripts/qa_cobertura_catalogo.py` — individuales 12/12.
+**Estado:** RESUELTO y verificado (2026-08-12). Commits `8aa5152`, `444286b`.
+
+### ERR-105 — El pedido MIXTO por código en la primera captura perdía los tres códigos (2026-08-12)
+**Síntoma:** "perfil 956, 2016 y 1901" (un perfil + dos análisis) → el bot respondía con una
+lista de sugerencias de la etiqueta FELINOS y **no registraba nada**.
+**Causa raíz — dos borrados en cadena:**
+1. `_enforce_catalog_profile_code_selection` resolvía el perfil y hacía `selected_tests = None`,
+   matando los análisis del mismo turno. Además se rendía con 2+ perfiles.
+2. `_enforce_diagnostic_label_help` no miraba `_selected_profile_code`, así que después borraba
+   también el perfil: el nombre "Perfil Toxicológico **Felinos**" contiene "felinos" y las
+   etiquetas se recorren alfabéticamente, con lo que FELINOS le ganaba a TOXICOLÓGICO FELINOS.
+**Solución:** reusar `_attach_profiles_by_code` (escrita para ERR-103), que ya sabía enganchar
+varios perfiles sin tocar los análisis registrados. Los códigos que no son perfil se resuelven
+contra `catalog_tests`. El caso de UN perfil sin códigos sueltos sigue por el carril de siempre.
+**Tests:** `tests/test_mixed_codes_first_capture.py` (5 casos).
+**Verificación:** QA de cobertura, bloque múltiples 4/5 → **5/5**.
+**Estado:** RESUELTO y verificado (2026-08-12). Commit `9b7c422`.
+
+### CAMBIO-A3-02 — Jerarquía pedido → órdenes: cierre, resumen, barrido y favoritos (2026-08-12)
+No son bugs: es lo que A3 pidió en la reunión del 28/07 y en la llamada 3 del 06/05. Todo el
+bloque de pedidos vive detrás de `PEDIDOS_ENABLED`, **apagado por defecto**.
+
+**1. El cierre se re-mostraba (bloqueante).** El guard de `_order_registered` estaba en dos de
+los tres lugares que lo necesitaban; faltaba `_apply_route_closure_summary`, que corre casi al
+final del pipeline y PISA el reply. Con pedidos era peor: `payment_method` deja de ser
+requerido, así que "campos completos" se cumple siempre y el mensaje del cierre del PEDIDO
+quedaba sobrescrito por el de la orden vieja. Efecto medido: QA semántico 23/25 → 24/25 y
+cobertura 9/10 → 10/10. Commit `7449e57`.
+
+**2. Resumen final del pedido y observación antes del pago.** El cierre pasa a listar cada
+orden con paciente, especie, médico, análisis y subtotal, más el TOTAL. Los datos salen de
+`_pedido_ordenes`, una ficha que se arma al cerrar cada orden: es el único momento con todo
+junto, porque `requests` NO guarda `requesting_doctor` (vive en el evento). Commit `32cf7c1`.
+
+**3. "les pagamos cuando pasen a recoger" no cerraba.** El atajo pre-LLM de preguntas laterales
+lo leía como consulta de horario. Es el **cuarto** atajo de la misma clase que hubo que abrir
+con pedidos activos. QA de pago 6/7 → **7/7**. Commit `77fb05c`.
+
+**4. Barrido de pedidos abandonados a 1 hora** + aviso a operaciones, con disparo oportunista
+al inicio del turno (el proyecto no tiene scheduler) y autolimitado a una vez cada 10 minutos.
+Nunca lanza: está en el camino de un cliente que escribe. Commit `815d0a6`.
+
+**5. Perfiles favoritos por clínica.** Migración 019 (`usage_count`, `last_used_at`,
+`items_signature`). Se registra el uso al cerrar la orden, se precargan al identificar al
+cliente y se ofrecen antes del catálogo. Verificado contra la base real: mismo conjunto en
+otro orden suma al contador en vez de duplicar. Commit `5caeb10`.
+
+**Estado:** HECHO. **PENDIENTE de verificación en vivo** — ver `tasks/checklist-telegram.md`,
+en particular el punto 4.6: que el resumen final liste TODAS las órdenes de un pedido de 2+.
+En simulación el cliente corrigió a mitad y quedó una sola orden, así que no quedó demostrado.
+
 ### CAMBIO-A3-01 — Cuatro ajustes pedidos por A3 en las reuniones (Etapa 1 de Fase 1, 2026-08-12)
 No son bugs: son cambios de alcance pedidos por el cliente y verificados como faltantes
 contra el código. Se agrupan acá para que la bitácora sea la única fuente de verdad.

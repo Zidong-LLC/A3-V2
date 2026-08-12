@@ -544,3 +544,31 @@ declarar un bug.
 ERR-080 describía el agujero con precisión ("un código de PERFIL no resuelve como análisis")
 pero el parche se aplicó a un solo carril. Cuando una ficha explica una causa de fondo,
 buscar TODOS los lugares donde esa causa aplica, no solo donde se manifestó.
+
+---
+
+## L61 — Un QA que mide con lista de frases exactas miente igual que el bot (2026-08-12)
+
+Escribí `qa_cobertura_catalogo.py` para verificar que el agente nunca niegue algo que está en
+la base. Primera corrida: **16/16 verde**. Mientras tanto, en la misma pantalla, el bot decía
+*"No ubico ese código"*, *"No tengo el 2211 en el catálogo"* y *"No alcanzo a identificar ese
+código"*.
+
+Mi detector buscaba frases exactas —"no encuentro", "no existe"— y esas tres no estaban en la
+lista. **Cometí en la herramienta de medición el mismo error que venía corrigiendo en el
+agente**, y por poco le reporto al usuario que estaba todo bien con el bug vivo.
+
+Al cambiarlo por un patrón (un "no" cerca de un verbo de tener/hallar/identificar) aparecieron
+4 fallos reales, y uno de ellos —el código 2110, etiquetado `ambos`— destapó que la causa
+principal **no era la que veníamos persiguiendo**: al modelo no se le inyectaba el catálogo de
+análisis, y eso fallaba para cualquier especie.
+
+**Regla:** un verificador que busca coincidencias literales hereda el punto ciego de quien lo
+escribió. Antes de confiar en un QA nuevo, **validarlo contra fallos conocidos**: darle de
+comer respuestas que SÍ son fallas y confirmar que las marca. Un QA en verde que nunca vio un
+rojo no prueba nada.
+
+**Corolario:** el mismo día, tres atajos pre-LLM distintos y una cuarta pregunta lateral
+tuvieron que ceder para que el bot entendiera al cliente. Cada uno estaba "protegiendo" algo
+con una lista de palabras, y cada uno tapaba un problema real debajo. Cuando un atajo decide
+por lista de tokens antes de que el modelo lea el turno, no está resolviendo: está escondiendo.
