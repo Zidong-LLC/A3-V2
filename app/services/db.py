@@ -561,6 +561,8 @@ def list_catalog_breeds() -> list[dict]:
 
 
 def find_catalog_profile(value: str | None, species: str | None = None) -> dict | None:
+    """Perfil por NOMBRE. Igual que por código, no filtra por especie (decisión 012):
+    nombrar un perfil es pedirlo, no pedir una sugerencia."""
     lookup = _normalize_lookup_key(value)
     if not lookup:
         return None
@@ -571,9 +573,6 @@ def find_catalog_profile(value: str | None, species: str | None = None) -> dict 
         .eq("is_active", True)
         .limit(5000)
     )
-    species_key = (species or "").strip().lower()
-    if species_key in ("canino", "felino"):
-        query = query.in_("species", [species_key, "ambos"])
 
     rows = query.execute().data or []
     for row in rows:
@@ -583,6 +582,7 @@ def find_catalog_profile(value: str | None, species: str | None = None) -> dict 
 
 
 def find_catalog_profiles(value: str | None, species: str | None = None, limit: int = 20) -> list[dict]:
+    """Búsqueda de perfiles por nombre/categoría. Sin filtro de especie (decisión 012)."""
     lookup = _normalize_lookup_key(value)
     if not lookup:
         return []
@@ -593,9 +593,6 @@ def find_catalog_profiles(value: str | None, species: str | None = None, limit: 
         .eq("is_active", True)
         .limit(5000)
     )
-    species_key = (species or "").strip().lower()
-    if species_key in ("canino", "felino"):
-        query = query.in_("species", [species_key, "ambos"])
 
     rows = query.execute().data or []
     matches = []
@@ -609,6 +606,15 @@ def find_catalog_profiles(value: str | None, species: str | None = None, limit: 
 
 
 def get_catalog_profiles_by_codes(codes: list[str], species: str | None = None) -> list[dict]:
+    """Perfiles por CÓDIGO. NO filtra por especie a propósito (decisión 012).
+
+    Un código es una petición explícita del cliente, no una sugerencia nuestra. El filtro
+    hacía que el bot respondiera "no encuentro el Perfil 653 en el catálogo" a un cliente que
+    pedía el 653 para un gato — el 653 existe (Perfil Senior Canino III) y A3 confirmó que en
+    su operación un perfil de una especie se pide para otra sin problema. Quien decide es el
+    veterinario; el `species` del catálogo queda como ETIQUETA informativa, no como veto.
+    El parámetro se conserva para no romper los ~10 call sites.
+    """
     clean_codes = [str(code).strip() for code in codes if str(code or "").strip()]
     if not clean_codes:
         return []
@@ -619,9 +625,6 @@ def get_catalog_profiles_by_codes(codes: list[str], species: str | None = None) 
         .in_("code", clean_codes)
         .eq("is_active", True)
     )
-    species_key = (species or "").strip().lower()
-    if species_key in ("canino", "felino"):
-        query = query.in_("species", [species_key, "ambos"])
 
     rows = query.execute().data or []
     by_code = {str(row.get("code")): row for row in rows}
@@ -947,13 +950,19 @@ def list_catalog_profiles_matching_category(text: str, species: str | None = Non
             .eq("is_active", True)
             .limit(5000)
         )
-        species_key = (species or "").strip().lower()
-        if species_key in ("canino", "felino"):
-            query = query.in_("species", [species_key, "ambos"])
         rows = query.execute().data or []
     except Exception:
         return []
-    return filter_profiles_by_category_mention(rows, text)[:limit]
+    matched = filter_profiles_by_category_mention(rows, text)
+    # Nombrar una categoría ("prequirúrgico") también es explícito, así que no se esconde
+    # nada por especie (decisión 012). Pero los del paciente van PRIMERO: el menú sigue
+    # siendo útil y los de otra especie quedan al final, disponibles si los pide.
+    # El sort es estable, así que dentro de cada grupo se conserva el orden por código.
+    species_key = (species or "").strip().lower()
+    if species_key:
+        matched.sort(key=lambda r: 0 if str(r.get("species") or "ambos").lower()
+                     in (species_key, "ambos") else 1)
+    return matched[:limit]
 
 
 def list_conversation_messages(limit: int = 500) -> list[dict]:
