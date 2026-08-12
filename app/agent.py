@@ -649,11 +649,39 @@ def _apply_no_owner_shortcut(
         fields["owner_name"] = "Sin propietario"
 
 
+def _reidentifies_after_escalation(user_message: str) -> bool:
+    """¿El cliente escalado por 'no te encuentro' está dando un identificador que SÍ existe?
+
+    Se consulta la BASE: solo un match real reabre la conversación. Un detector de texto no
+    alcanza — `_provides_new_identifier` exige la palabra 'veterinaria' o un NIT, y el caso
+    real es "sí estamos, somos Maxivet", que no tiene ninguna de las dos. Ante cualquier
+    duda o error se devuelve False, que mantiene el silencio: falla del lado seguro.
+    """
+    tax_id = _extract_tax_id_candidate(user_message, allow_unlabeled=True)
+    if tax_id:
+        try:
+            if db.find_clients_by_tax_id(tax_id):
+                return True
+        except Exception:
+            return False
+    name = _extract_clinic_name_candidate(user_message)
+    if not name:
+        return False
+    try:
+        return bool(db.find_client_matches(name, limit=3))
+    except Exception:
+        return False
+
+
 def _escalate_unfound_client(fields: dict, reply: str = CLIENT_NOT_FOUND_MESSAGE) -> dict:
     # El cliente dice no ser nuevo pero no aparece en la base: derivar a un humano
     # en vez de seguir pidiendo el identificador en bucle.
     fields["_handoff_announced"] = True
-    fields["_blocked"] = True
+    # ERR-088: este escalado NO usa `_blocked` (que es el silencio definitivo del cliente
+    # particular). Reusarlo lo volvía irreversible: si el cliente se corregía al turno
+    # siguiente dando un nombre real, el bot ya no volvía a hablar nunca. En el corpus hay
+    # rachas de 9, 6 y 10 turnos al vacío, con el cliente escribiendo "El bot no esta activo".
+    fields["_escalated_unfound_client"] = True
     return {
         "reply": reply,
         "phase": "fase_7_escalado",
@@ -1114,6 +1142,9 @@ def _resolve_same_as_previous(fields: dict, user_message: str, history: list[dic
 
     for assigned_field, value in assigned:
         fields[assigned_field] = value
+    # ERR-084 no aplica acá: este es el carril de "lo mismo que la orden anterior", donde el
+    # nombre sale del snapshot y `user_message` es la frase de referencia ("el mismo"), no un
+    # nombre propio que pueda confundirse con una especie.
     _apply_implied_animal_fields(fields, user_message)
 
     next_missing = None
@@ -1747,8 +1778,23 @@ def _recover_enumerated_answer(
     return ai_response
 
 
-def _recover_implied_animal_fields(ai_response: dict, prev_fields: dict, user_message: str) -> dict:
+# ERR-084: campos cuya respuesta es el nombre de una PERSONA (o de una mascota). Si el bot
+# preguntó uno de estos, lo que llega es un nombre — nunca una declaración de especie.
+_PERSON_NAME_FIELDS = ("requesting_doctor", "owner_name", "patient_name")
+
+
+def _recover_implied_animal_fields(ai_response: dict, prev_fields: dict, user_message: str,
+                                   history: list[dict]) -> dict:
     if ai_response.get("intent") != "route_scheduling" or ai_response.get("requires_handoff"):
+        return ai_response
+    # ERR-084: la inferencia corría en TODOS los turnos, así que un apellido que además es
+    # palabra de animal inventaba especie y sexo y salteaba esas dos preguntas. Casos reales:
+    # "José Toro" como médico (orden A3-2026-169: paciente registrado Bovino Macho sin que
+    # nadie lo dijera) y "Jorge Toro" como propietario, que convirtió en Bovino un Equino
+    # que el cliente YA había declarado. Impacto clínico: los rangos de referencia del
+    # laboratorio dependen de la especie.
+    last_bot = _last_bot_message(history)
+    if any(_reply_asks_for_route_field(last_bot, field) for field in _PERSON_NAME_FIELDS):
         return ai_response
     fields = ai_response.get("captured_fields", {})
     _apply_implied_animal_fields(fields, user_message)
@@ -2232,8 +2278,21 @@ def process_turn(
 
     # Cliente final/particular ya identificado: A3 no le presta servicio y el
     # agente deja de responder (sin saludo, sin procesar el turno).
-    if (session.get("captured_fields") or {}).get("_blocked"):
+    prev_fields = session.get("captured_fields") or {}
+    if prev_fields.get("_blocked"):
         return None
+
+    # ERR-088: el escalado por "no encuentro tu registro" SÍ se puede deshacer, pero solo
+    # con un identificador que exista en la base. Cualquier otro mensaje mantiene el
+    # silencio, para no pisar al humano que ya tomó la conversación tras el handoff.
+    if prev_fields.get("_escalated_unfound_client"):
+        if not _reidentifies_after_escalation(user_message):
+            return None
+        reopened = {k: v for k, v in prev_fields.items()
+                    if k not in ("_escalated_unfound_client", "_handoff_announced")}
+        reopened.pop("_client_not_found", None)
+        reopened.pop("_asked_if_new_client", None)
+        session["captured_fields"] = reopened
 
     # Primer mensaje: saludo exacto, sin llamar al AI
     if len(history) == 0:
@@ -3458,7 +3517,7 @@ def process_turn(
     ai_response["captured_fields"] = fields
     ai_response = _recover_enumerated_answer(ai_response, prev_captured, user_message, history)
     fields = ai_response.get("captured_fields", fields)
-    ai_response = _recover_implied_animal_fields(ai_response, prev_captured, user_message)
+    ai_response = _recover_implied_animal_fields(ai_response, prev_captured, user_message, history)
     fields = ai_response.get("captured_fields", fields)
     ai_response = _clarify_ambiguous_species(ai_response, prev_captured, user_message, history)
     fields = ai_response.get("captured_fields", fields)

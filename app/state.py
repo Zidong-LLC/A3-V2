@@ -73,6 +73,10 @@ FLAGS_IDENTIFICACION = frozenset({
     "_client_found", "_client_not_found", "_client_display_name", "_client_address",
     "_client_phone", "_client_email", "_client_match_query", "_client_match_options",
     "_client_memory", "_client_memory_hint", "_asked_if_new_client", "_blocked",
+    # ERR-088: escalado por "no encuentro tu registro". Distinto de `_blocked` (silencio
+    # definitivo del cliente particular): este se deshace si el cliente da un identificador
+    # que existe en la base.
+    "_escalated_unfound_client",
 })
 FLAGS_ANALISIS = frozenset({
     "_selected_profile_code", "_selected_profile_name", "_selected_profile_price",

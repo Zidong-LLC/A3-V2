@@ -24,7 +24,15 @@ AGENT = APP / "agent.py"
 # retornaban pre-LLM en TODAS sus ramas (la corrección en fase terminal y la corrección en
 # la confirmación), y usan el mismo patrón que _wants_to_change_client dos líneas más
 # arriba. Lo que cambia es a dónde va el turno, no si el modelo lo ve.
-PRE_LLM_RETURNS_BASELINE = 42
+#
+# 42 → 43 el 2026-08-12 (ERR-088, ficha en tasks/errores-soluciones.md). El `return` nuevo
+# NO vuelve invisible ningún turno: parte en dos el guard de `_blocked`, que ya retornaba
+# pre-LLM sin excepción. Al contrario, deja pasar al modelo turnos que antes morían acá —
+# los del cliente escalado que se re-identifica con un nombre que sí existe en la base.
+# El guard tiene que ser pre-LLM porque decide si el turno se procesa, igual que el que
+# reemplaza; convertirlo en handler post-modelo significaría llamar al modelo para todos
+# los mensajes de una conversación que un humano ya tomó.
+PRE_LLM_RETURNS_BASELINE = 43
 
 
 def _process_turn_ast() -> tuple[ast.FunctionDef, int]:

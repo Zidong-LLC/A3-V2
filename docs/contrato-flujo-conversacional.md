@@ -55,7 +55,17 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
 - **Qué hace:** si no está en la base, el bot NUNCA da de alta; escala a una persona.
 - **Dónde:** `_apply_handoff_guardrails` (intent `new_client`).
 - **Regla de negocio:** el alta de cliente siempre la hace una persona.
-- **Estado:** ✅ APROBADO (usuario, 2026-06-22)
+- **El escalado es REVERSIBLE (ERR-088, 2026-08-12):** el escalado por "no encuentro tu
+  registro" usa su propio flag `_escalated_unfound_client`, no `_blocked`. Si en el turno
+  siguiente el cliente se corrige con un identificador que **existe en la base** ("ah no, sí
+  estamos, somos Animal Pets"), la conversación se reabre y sigue con normalidad. Cualquier
+  otro mensaje mantiene el silencio, para no pisar al humano que ya tomó el caso.
+  `_blocked` queda reservado al cliente particular/final, donde el silencio sí es definitivo.
+  Antes ambos compartían flag y el bot no volvía a hablar NUNCA: en el corpus real hay
+  rachas de 9, 6 y 10 turnos al vacío, con el cliente escribiendo "El bot no esta activo".
+- **Estado:** ✅ APROBADO (usuario, 2026-06-22) · recuperación tras escalar autorizada
+  explícitamente por el usuario el 2026-08-12 y verificada con cliente simulado sobre datos
+  reales. Tests: `tests/test_unfound_client_escalation_is_reversible.py`.
 
 ### B4 · Recolección de datos de la orden de recogida
 - **Qué hace:** pide en orden los campos faltantes: dirección de retiro, médico solicitante,
@@ -133,8 +143,21 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
 - **Dónde:** `_analysis_settled_response`, `_handle_extra_analysis_answer`,
   `_enforce_extra_analysis_offer`, `_wants_to_proceed_to_payment`, `EXTRA_ANALYSIS_OFFER`,
   flag `_offering_extra_analysis`.
+- **Acepta también un PERFIL por su CÓDIGO (2026-08-12):** "perfil 903", "903" o mezclado con
+  un análisis ("el 1101 y el perfil 701"). Los perfiles viven en `catalog_profiles` y el
+  resolvedor de este carril solo miraba `catalog_tests`, así que el código no resolvía nada
+  y el perfil se perdía en silencio: en la simulación con datos reales el cliente lo pidió
+  dos veces y la orden cerró sin él. El código explícito se resuelve ANTES que la heurística
+  de recomendación ("otro/más"), que lo tapaba con una lista genérica. Si el perfil ya está
+  en la orden, se acusa ("Ese ya está en la orden: …") en vez de re-ofrecer.
+  `_attach_profiles_by_code` en `app/enforcers/orden.py`; con perfil base ya elegido el nuevo
+  se suma como adicional (mecanismo de ERR-077). Es el mismo agujero que ERR-080 cerró para
+  la confirmación, en el carril que había quedado sin cubrir.
 - **Estado:** ✅ IMPLEMENTADO Y VERIFICADO (2026-06-22, RESUELTO-017) — pedido del usuario;
   pendiente aprobación visual. Salida robusta para no reabrir el bucle histórico.
+  Ajuste del perfil por código autorizado por el usuario el 2026-08-12; verificado con
+  cliente simulado sobre datos reales (orden A3-2026-901: perfil $55.000 + análisis $14.000).
+  Tests: `tests/test_profile_by_code_in_offer.py`.
 
 ### B10 · Resumen de la orden y confirmación (fase_4_confirmacion)
 - **Qué hace:** con la orden completa, muestra SIEMPRE un resumen determinístico

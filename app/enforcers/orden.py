@@ -67,6 +67,47 @@ _ADD_ANALYSIS_TOKENS = frozenset({"poner", "pon", "ponme", "ponle", "poné", "ag
 
 
 
+def _format_profile_items(profiles: list[dict]) -> str:
+    return ", ".join(f"{p.get('code')} {p.get('name')} {_money(p.get('price'))}" for p in profiles)
+
+
+def _attach_profiles_by_code(fields: dict, user_message: str) -> tuple[list[dict], list[dict]]:
+    """Engancha a la orden los PERFILES que el cliente nombró por su CÓDIGO.
+
+    Los perfiles viven en `catalog_profiles`, no en `catalog_tests`, así que el resolvedor de
+    análisis nunca los ve. Se consultan TODOS los códigos del mensaje —no solo el primero—
+    porque el pedido mixto real trae análisis y perfil juntos ('el 1101 y el perfil 701') y
+    quedarse con el primero perdía el perfil. Con perfil base ya elegido, el nuevo se suma
+    como perfil adicional (mecanismo de ERR-077, que el resumen ya muestra y suma).
+
+    Devuelve (enganchados, ya_estaban): el segundo grupo permite acusar "ese ya lo tenés"
+    en vez de tratar la repetición como un pedido nuevo y caer a la lista de recomendaciones.
+    """
+    codes = _profile_codes_from_text(user_message)
+    if not codes:
+        return [], []
+    try:
+        profiles = db.get_catalog_profiles_by_codes(codes, fields.get("species"))
+    except Exception:
+        return [], []
+    attached, already = [], []
+    for profile in profiles:
+        code = str(profile.get("code"))
+        if fields.get("_selected_profile_code"):
+            extras = list(fields.get("_extra_profiles") or [])
+            if code == str(fields.get("_selected_profile_code")) or any(
+                    str(p.get("code")) == code for p in extras):
+                already.append(profile)
+                continue
+            extras.append({"code": profile.get("code"), "name": profile.get("name"),
+                           "price": int(profile.get("price") or 0)})
+            fields["_extra_profiles"] = extras
+        else:
+            _store_selected_profile_fields(fields, profile)
+        attached.append(profile)
+    return attached, already
+
+
 def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str) -> dict | None:
     """Interpreta la respuesta del cliente a la oferta '¿agregar otro análisis o seguimos con
     el pago?'. Devuelve la respuesta del bot, o None si dio el método de pago (que el pipeline
@@ -143,6 +184,26 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
                  if name else "Claro, seguimos con tu perfil.")
         return _selected_profile_addition_response(session, fields, user_message, intro)
 
+    # 2c) Nombró un PERFIL por su CÓDIGO ('perfil 903', '903', 'otro más: el 903'). Va ANTES
+    #     de la recomendación y del resolvedor de análisis por dos razones: `resolve_tests`
+    #     solo mira `catalog_tests` (un código de perfil no resuelve nada y el turno caía a
+    #     "¿qué análisis querés agregar?"), y la heurística de 'otro/más' del paso 3 tapaba el
+    #     código explícito con una lista genérica. Un código concreto es la señal más fuerte
+    #     que puede dar el cliente: gana. ERR-080 ya cubrió esto para la confirmación; acá se
+    #     cierra el carril de la oferta, donde el cliente pidió el 903 dos veces y la orden
+    #     cerró sin él (simulación con cliente humano sobre datos reales, 2026-08-12).
+    if not (tokens & _REMOVE_TOKENS):
+        added_profiles, repeated_profiles = _attach_profiles_by_code(fields, user_message)
+        if added_profiles:
+            fields.pop("_awaiting_additional_test", None)
+            return _analysis_settled_response(
+                session, fields, f"Listo, agrego {_format_profile_items(added_profiles)}.")
+        if repeated_profiles:
+            fields.pop("_awaiting_additional_test", None)
+            return _analysis_settled_response(
+                session, fields,
+                f"Ese ya está en la orden: {_format_profile_items(repeated_profiles)}.")
+
     # 3) Pide recomendación / no sabe / 'otro perfil' -> lista de perfiles por especie.
     species = fields.get("species")
     if species and (_wants_profile_recommendation(user_message) or _doesnt_know_what_to_ask(user_message)
@@ -191,6 +252,12 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
             _add_tests_to_order(fields, result.tests, "add")
             fields.pop("_awaiting_additional_test", None)
             intro = f"Listo, agrego {_format_test_items(result.tests)}."
+            # Pedido MIXTO análisis + PERFIL en la misma frase ('el 1101 y el perfil 701'):
+            # el análisis resolvía y el turno retornaba acá, así que el perfil se perdía en
+            # silencio (sim con datos reales: el 701 nunca llegó al resumen).
+            mixed_profiles, _ = _attach_profiles_by_code(fields, user_message)
+            if mixed_profiles:
+                intro += f" Y sumo {_format_profile_items(mixed_profiles)}."
             # Pedido MIXTO (ERR-067): los términos con OPCIONES de la misma frase se
             # ofrecen en ORDEN de pedido — el primero ya, el resto en cola paso a paso.
             ambiguous = _scan_ambiguous_terms(fields, user_message)

@@ -231,8 +231,9 @@ sale de texto libre), por la vía más simple.
 perfil + extras, códigos inexistentes descartados, selección vacía rechazada). Se reforzó
 `tests/test_portal_client.py::test_new_request_uses_session_client_id` para verificar que el
 análisis viaja con su código.
-**Estado:** RESUELTO.
-**Estado:** ABIERTO — el portal es demostrativo, así que no bloquea la presentación.
+**Estado:** RESUELTO (2026-08-02) — el fix está aplicado y con tests. La ficha arrastraba una
+segunda línea de estado contradictoria ("ABIERTO — el portal es demostrativo, así que no
+bloquea la presentación"), que era la nota previa a aplicar el fix; se retiró el 2026-08-12.
 
 ### ERR-096 — Bucle en "¿qué análisis o perfil desean?": el fallo más frecuente del corpus real (QA e2e 2026-07-28) — ABIERTO
 **Síntoma:** el bot repite literalmente `"Por último, ¿qué análisis o perfil desean?"` turno
@@ -477,6 +478,117 @@ B17 no cubre.
 **Impacto:** UX, no correctitud — la orden no se corrompe ni se pierde. Visible en una
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
+
+### ERR-103 — Un PERFIL pedido por su código se pierde en la ventana "¿agregar otro análisis?" (simulación con datos reales, 2026-08-12)
+**Síntoma:** con un análisis ya registrado, el bot ofrece "¿Quieres agregar otro **análisis o
+perfil**…?". El cliente responde "perfil 903" y el bot contesta "Claro. ¿Qué análisis quieres
+agregar?"; insiste con "903" y recibe "¿Quieres agregar algún análisis más…?". La orden cerró
+SIN el perfil. **El bot ofrece algo que no sabe recibir.**
+**Cómo se detectó:** `tools/scripts/sim_cliente_real.py` (nuevo) — una IA hace de cliente
+humano contra lecturas REALES de Supabase. Un guion perfecto no lo mostraba: con datos
+mockeados la orden al menos cerraba (mal); con un cliente real no cerraba nada. Es la
+corrección de método del usuario ese día: *"crea un perfil y vaya respondiendo como un ser
+humano normal, no con datos moqueados que son respuestas perfectas"*.
+**Causa raíz CONFIRMADA:** análisis y perfiles viven en tablas distintas. En este carril todo
+resuelve contra `catalog_tests` (`catalog.resolve_tests`, `get_tests_by_codes_or_names`,
+`list_catalog_tests` — `app/enforcers/orden.py:176,182,189`), nunca contra `catalog_profiles`.
+Un código de perfil no resuelve nada, y el turno cae al paso 5 ("¿qué análisis querés
+agregar?", porque "Sí, perfil 903" es afirmativo) o a la pregunta genérica.
+**Es ERR-080 arreglado a medias:** aquella ficha documentó exactamente esto para la
+CONFIRMACIÓN y agregó `_add_profile_in_confirmation`, cuyo docstring dice "un código de PERFIL
+('1331') no resuelve como análisis". El parche se aplicó solo a la confirmación; la ventana de
+la oferta quedó con el agujero original.
+**Segunda cara:** el pedido mixto "el 1101 y el perfil 701" resolvía el análisis, retornaba, y
+el perfil se perdía en silencio (el juez-IA: "no incorporó el 701 que el cliente pidió varias
+veces").
+**Solución:** `_attach_profiles_by_code` en `app/enforcers/orden.py`, ubicada ANTES de la
+recomendación por "otro/más" (que tapaba el código explícito con una lista genérica) y del
+resolvedor de análisis. Consulta TODOS los códigos del mensaje, no solo el primero, porque el
+pedido mixto trae análisis y perfil juntos. Con perfil base ya elegido, el nuevo se suma como
+adicional (mecanismo ERR-077). Si ya estaba, se acusa "Ese ya está en la orden: …".
+**Tests:** `tests/test_profile_by_code_in_offer.py` (7 casos). Suite: 594 passed.
+**Verificación en vivo:** simulador con cliente humano y datos reales — orden **A3-2026-901**
+para Animal Pets con Perfil Cardiaco III $55.000 + Cuadro Hemático $14.000 = **$69.000**, los
+dos ítems presentes. `codigos_mezclados` pasó de MAL a BIEN.
+**Autorización:** toca B9.5 (marcado IMPLEMENTADO Y VERIFICADO); OK explícito del usuario.
+**Estado:** RESUELTO y verificado en vivo (2026-08-12).
+
+### ERR-088 (bis) — El escalado a "cliente nuevo" era IRREVERSIBLE: el bot quedaba mudo — RESUELTO 2026-08-12
+> Nota de numeración: esta ficha es el ERR-088 abierto el 2026-07-26 (escalado irreversible).
+> Hay otro ERR-088 más abajo, del 2026-08-03, sobre la cuenta Alegra de Argentina — colisión
+> de ID que quedó en la bitácora. Se conservan ambos IDs para no romper referencias previas.
+
+**Síntoma:** si el cliente *declaraba* no estar registrado, el bot escalaba a Recepción y no
+volvía a hablar NUNCA, aunque al turno siguiente se corrigiera con un nombre real de la base.
+En el corpus real (conv 10, Gusmery Ruiz) hay tres rachas de silencio de 9, 6 y 10 turnos;
+el cliente terminó escribiendo *"El bot no esta activo"*.
+**Causa raíz CONFIRMADA:** `_escalate_unfound_client` (`app/agent.py:652`) marcaba
+`fields["_blocked"] = True` — el MISMO flag del cliente particular/final, donde el silencio sí
+es definitivo. Ese flag corta el turno al principio de `process_turn` antes de procesar nada.
+**Por qué estuvo abierto tanto tiempo:** no era dificultad técnica sino gobernanza — el fix
+cae sobre B3, marcado ✅ APROBADO. El usuario dio OK explícito el 2026-08-12.
+**Solución:** el escalado usa su propio flag `_escalated_unfound_client`. La conversación se
+reabre SOLO si el cliente aporta un identificador que **existe en la base**
+(`_reidentifies_after_escalation` consulta `find_clients_by_tax_id` / `find_client_matches`);
+cualquier otro mensaje mantiene el silencio, para no pisar al humano que ya tomó el caso. Ante
+error de red devuelve False: falla del lado seguro. Un detector de texto no alcanzaba —
+`_provides_new_identifier` exige la palabra "veterinaria" o un NIT, y el caso real es "sí
+estamos, somos Maxivet", que no tiene ninguna de las dos.
+**Invariantes tocados (ambos en este mismo commit, como exige el test):**
+- `PRE_LLM_RETURNS_BASELINE` 42 → 43 en `tests/test_pipeline_invariants.py`. El `return` nuevo
+  NO vuelve invisible ningún turno: parte en dos un guard que ya retornaba pre-LLM siempre, y
+  al contrario deja pasar al modelo turnos que antes morían ahí.
+- `_escalated_unfound_client` catalogado en `FLAGS_IDENTIFICACION` (`app/state.py`).
+**Tests:** `tests/test_unfound_client_escalation_is_reversible.py` (5 casos). Suite: 599 passed.
+**Verificación en vivo:** simulador con datos reales — "Uy, creo que no estamos registrados"
+→ escala; "Ah no, sí estamos, somos Animal Pets" → **"Perfecto, encontramos Animal Pets"** y la
+orden sigue. Antes ese turno era silencio.
+**Estado:** RESUELTO y verificado en vivo (2026-08-12).
+
+### ERR-084 — "José Toro" (médico) rellena especie=Bovino y sexo=Macho sin preguntar — RESUELTO 2026-08-12
+**Síntoma:** un apellido que además es palabra de animal definía la especie y el sexo del
+paciente, salteando ambas preguntas. Casos reales: orden **A3-2026-169** cerrada con
+"Pipo (Bovino, Sin Determinar, Macho, 5 años)" tras escribir "José toro" como médico; y en la
+conv 10 un Equino declarado con raza "Cuarto de Milla" terminó "Fifi (**Bovino**, Cuarto de
+Milla, Macho)" porque el propietario se llamaba "Jorge Toro".
+**Impacto:** el único de los abiertos con consecuencia CLÍNICA — los rangos de referencia del
+laboratorio dependen de la especie, así que la muestra se informa contra los valores normales
+de otro animal, y el cliente no lo nota porque el resumen pasa entre otros ocho campos.
+**Causa raíz CONFIRMADA:** `_recover_implied_animal_fields` (`app/agent.py:1750`) llamaba a
+`apply_implied_animal_fields(fields, user_message)` en TODOS los turnos, sin mirar qué se
+había preguntado. La protección de ERR-078 no alcanzaba: si el modelo no re-emite `species` en
+ese turno, el campo llega vacío y la inferencia lo escribe igual.
+**Solución:** si el último mensaje del bot pedía el nombre de una PERSONA o de la mascota
+(`requesting_doctor`, `owner_name`, `patient_name`), la inferencia cede el turno. Reusa
+`_reply_asks_for_route_field`, el mismo patrón que ya aplicaban sus dos funciones vecinas
+(`_recover_unknown_breed`, `_recover_patient_name_answer`). Requirió pasarle `history`.
+El segundo punto de entrada (`_resolve_same_as_previous`, `agent.py:1117`) NO se tocó: ahí el
+nombre sale del snapshot de la orden anterior y `user_message` es la frase de referencia
+("el mismo"), no un nombre propio — queda documentado en el código.
+**Tests:** `tests/test_species_not_inferred_from_person_name.py` (5 casos, incluidos los dos
+reales y el camino legítimo "es un toro" al preguntar la especie). Suite: 587 passed.
+**Estado:** RESUELTO en tests. Pendiente de aparecer en una conversación real por Telegram.
+
+### ERR-096 — Bucle en "¿qué análisis o perfil desean?" — CERRADO: no reproduce (2026-08-12)
+**Resultado de la reproducción que pedía la ficha.** Se aislaron las 3 respuestas del corpus y
+se corrieron contra el modelo real. Ninguna reproduce el bucle:
+
+| Respuesta del cliente (corpus) | Comportamiento hoy |
+|---|---|
+| "Armarlo a medida" | arma el perfil personalizado y sigue |
+| "Cuadro hemático, CK NAC, coprológico, coproscópico" | ofrece el menú con los 5 análisis |
+| "Tienes perfiles pre quirúrgico?" | ofrece los perfiles armados 701 y 702 |
+
+**Por qué la ficha lo veía:** lo advertía ella misma en su "salvedad de método" — el replay usa
+turnos que respondían a versiones anteriores del agente. Los fixes de ERR-045 (categoría),
+ERR-076 y ERR-087 (pedido mixto / término vago) ya lo cubrieron.
+**Lo que sí salió de esta reproducción:** ERR-103 (perfil por código perdido), que el bucle
+original tapaba. La hipótesis de la ficha —"vuelve a `missing_route_field_question` sin acusar"—
+resultó FALSA; el problema real era de resolución de catálogo, no de flujo.
+**Residuo menor (no arreglado):** responder el menú de perfiles con la categoría
+("el prequirurgico") re-muestra el mismo menú idéntico en vez de preguntar cuál de los dos.
+Se sale al turno siguiente eligiendo el número.
+**Estado:** CERRADO — no reproducible con el agente actual. Reabrir solo con evidencia nueva.
 
 ### ERR-088 — La cuenta Alegra nueva es de ARGENTINA: ningún contacto ni ítem se podía crear (preparación de demo, 2026-08-03)
 **Síntoma:** al vencer la prueba de Alegra se cargaron credenciales nuevas y

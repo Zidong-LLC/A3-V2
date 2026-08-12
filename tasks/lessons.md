@@ -513,3 +513,34 @@ falta, no el caso que falla.
 que ningún código vuelve a validar contra la base, ahí hay un bug esperando. `clinic_name`
 era exactamente eso. Cuando un campo identifica algo (cliente, NIT, sede), cambiarlo tiene
 que **re-resolverlo contra la base**, nunca solo reescribir el texto.
+
+---
+
+## L60 — Un guion perfecto prueba el guion, no el producto (2026-08-12)
+
+Para reproducir ERR-096 armé una conversación con el cliente mock "Veterinaria San Roque" y
+respuestas ideales ("canino", "labrador", "macho"). Dio verde y casi cierro la ficha. El
+usuario lo frenó: *"crea un perfil y vaya respondiendo como un ser humano normal, no con
+datos moqueados que son respuestas perfectas a las preguntas, porque si no se va a
+solucionar nunca nada"*.
+
+Con un cliente real de la base y una IA respondiendo como persona apareció en el primer
+intento un bug que el guion perfecto no mostraba (ERR-103: un perfil pedido por su código se
+perdía). Y la diferencia de gravedad fue enorme: con el guion la orden cerraba mal —sin el
+perfil—, con el cliente real **no cerraba ninguna orden**.
+
+**Regla:** validar el agente exige las tres cosas juntas — **modelo real + datos reales de la
+base + respuestas humanas imperfectas**. Falta una y la prueba mide otra cosa. Extiende L51
+(que ya prohibía mockear la respuesta del modelo): el mock del DATO es tan engañoso como el
+mock del modelo. Herramienta: `tools/scripts/sim_cliente_real.py` (lecturas contra Supabase,
+solo escrituras mockeadas, cliente actuado por IA).
+
+**Corolario sobre el juez-IA:** dos de los tres veredictos "MAL" de ese día eran del guion,
+no del bot — la persona simulada tenía instrucciones de quejarse aunque el dato estuviera
+bien. Un veredicto automático se lee, no se acata: hay que mirar la transcripción antes de
+declarar un bug.
+
+**Corolario de arqueología:** ERR-103 era ERR-080 arreglado a medias. El docstring del fix de
+ERR-080 describía el agujero con precisión ("un código de PERFIL no resuelve como análisis")
+pero el parche se aplicó a un solo carril. Cuando una ficha explica una causa de fondo,
+buscar TODOS los lugares donde esa causa aplica, no solo donde se manifestó.
