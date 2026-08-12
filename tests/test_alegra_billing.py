@@ -124,6 +124,12 @@ def test_hook_factura_y_guarda_evento(monkeypatch):
 
 
 def test_hook_no_rompe_si_alegra_falla(monkeypatch):
+    """Un fallo de Alegra no tumba el cierre, pero SÍ deja rastro.
+
+    Antes acá se afirmaba `eventos == []`: el fallo se perdía y nadie podía
+    saber qué órdenes habían quedado sin facturar. Lo que no debe romperse es
+    el cierre de la orden; el registro del fallo es justamente lo que faltaba.
+    """
     eventos = []
     def boom(*a, **k):
         raise alegra.AlegraError("Alegra POST /invoices -> HTTP 400")
@@ -131,7 +137,11 @@ def test_hook_no_rompe_si_alegra_falla(monkeypatch):
     monkeypatch.setattr(agent.db, "create_request_event", lambda *a, **k: eventos.append(a))
     order_info, ai_response = _order_and_response()
     agent._try_invoice_in_alegra(order_info, ai_response)  # no debe lanzar
-    assert eventos == []  # no se guarda evento si falló
+
+    assert len(eventos) == 1
+    rid, etype, payload = eventos[0]
+    assert (rid, etype) == ("req-1", "alegra_failed")
+    assert payload["reason"] == "error_alegra"
 
 
 def test_hook_no_factura_orden_sin_perfil(monkeypatch):

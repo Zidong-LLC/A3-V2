@@ -456,3 +456,60 @@ de tabla completa se pagina con `.range()`: un `.limit(10000)` devuelve 1.000 en
 **Corolario de NITs:** un NIT es identidad de facturación (DIAN). Nunca se asigna por
 parecido de 1 token, y nunca se pisa uno existente sin decisión del usuario (conflicto
 Club Animals: quedó reportado, no adivinado).
+
+## L57 — Un default que abre en vez de cerrar convierte la falta de configuración en un agujero (ERR-098, 2026-07-28)
+
+`_auth_required` de `app/platform_api.py` exige el token **solo si `PLATFORM_API_TOKEN`
+existe**. Como la variable no está en el `.env` y `.env.example` la rotula "opcional", la
+API que expone los 992 clientes quedó abierta a internet — verificado por la URL pública de
+ngrok durante el QA. Nada falla, nada avisa: la API responde 200 con normalidad. El fallo se
+manifiesta **por ausencia**, que es el caso que más fácil llega a producción, porque desplegar
+sin definir una variable "opcional" es lo normal.
+
+**Regla:** un control de acceso nunca se condiciona a que su propia configuración exista. Si
+falta el secreto, se cierra y se grita — no se abre en silencio. Al revisar un decorador de
+auth, la pregunta es: *"¿qué pasa si la variable está vacía?"*; si la respuesta es "pasa
+todo", está mal escrito.
+
+**Corolario de QA:** los guardias de seguridad hay que medirlos con la configuración real,
+no leyendo el código. Aquí el código "tiene autenticación" y la instalación no la tiene.
+
+## L58 — Una pieza sin cobertura no es una pieza rota: hay que medirla antes de opinar (2026-07-28)
+
+Entramos a este QA asumiendo que el portal y el dashboard eran la zona de riesgo, porque no
+tenían ninguna cobertura de UI y `dashboard.py` son 2.364 líneas con 33 KB de JS sin probar.
+El primer recorrido HTTP dio **10/10 en el portal y 14/14 en el dashboard**, sin un solo 500
+ni una traza de Jinja. El riesgo real estaba en otro lado: en una variable de entorno
+ausente y en el flujo conversacional, que sí tiene 537 tests.
+
+**Regla:** "no está probado" y "está roto" son afirmaciones distintas; confundirlas hace
+gastar el esfuerzo de QA en el lugar equivocado. Antes de priorizar por intuición, correr un
+smoke barato sobre cada pieza — un recorrido de 35 rutas costó minutos y reordenó las
+prioridades de toda la sesión.
+
+**Corolario:** el mismo QA cometió el error en chico. Se marcó "/solicitudes no muestra la
+orden" como fallo cuando la pestaña simplemente no tiene esa columna: el dato estaba ahí.
+Antes de reportar una ausencia, verificar que el lugar donde se busca sea el correcto.
+
+## L59 — El QA automático mide lo que alguien pensó en medir (ERR-099, 2026-07-28)
+
+La sesión de QA end-to-end corrió 551 tests, 105 flujos contra el modelo real y 8
+conversaciones del corpus de Chatwoot. El bug más grave del día —cambiar de cliente en la
+confirmación dejaba el NIT, la dirección y el motorizado del cliente anterior, o sea factura
+a uno y retiro en la puerta de otro— lo encontró **el usuario en los primeros diez minutos
+de usar el bot por Telegram**.
+
+No fue mala suerte. Los 35 flujos prueban corregir **datos de la orden** (paciente, raza,
+edad, dirección); ninguno probaba corregir **la identidad del cliente**. El harness heredó el
+punto ciego de quien lo escribió: se prueba lo que uno imagina que el cliente hará.
+
+**Regla:** una batería verde acota el riesgo de lo que cubre, no del sistema. Antes de dar
+por bueno un módulo, preguntarse **qué clase de cosa no está en la lista** — acá la
+distinción era "datos de la orden" vs "identidad", y toda una mitad no existía. Y reservar
+siempre una prueba con una persona usando el producto de verdad: encuentra la categoría que
+falta, no el caso que falla.
+
+**Corolario (repite L55 y ERR-081, por tercera vez):** si el modelo puede escribir un campo
+que ningún código vuelve a validar contra la base, ahí hay un bug esperando. `clinic_name`
+era exactamente eso. Cuando un campo identifica algo (cliente, NIT, sede), cambiarlo tiene
+que **re-resolverlo contra la base**, nunca solo reescribir el texto.

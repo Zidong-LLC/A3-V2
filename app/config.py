@@ -71,6 +71,10 @@ ALEGRA_BASE_URL = os.environ.get("ALEGRA_BASE_URL", "https://api.alegra.com/api/
 # Solo se pone true al migrar a la cuenta real del cliente y autorizar emisión. Ver
 # docs/guardrails-entorno-y-datos.md.
 ALEGRA_PRODUCTION = os.environ.get("ALEGRA_PRODUCTION", "false").lower() in ("1", "true", "yes")
+# País de la cuenta Alegra: cambia los campos obligatorios al crear contactos e ítems
+# (Colombia pide NIT/régimen/tipo de persona; Argentina pide CUIT/condición de IVA/unidad).
+# Vacío = se detecta solo contra /company la primera vez que hay que crear algo.
+ALEGRA_COUNTRY = os.environ.get("ALEGRA_COUNTRY", "").strip().lower()
 
 # Portal Web (staff + clientes). La anon key solo se usa para el login GoTrue;
 # si falta, el login del portal falla con mensaje claro sin afectar el resto.

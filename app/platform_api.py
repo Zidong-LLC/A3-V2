@@ -1,3 +1,4 @@
+import hmac
 from collections import Counter
 from functools import wraps
 
@@ -21,12 +22,20 @@ FLOW_STAGE_ORDER = {
 
 
 def _auth_required(route_fn):
+    """Exige X-Platform-Token en todas las rutas de la API interna.
+
+    Fail-closed: sin PLATFORM_API_TOKEN configurado la API queda CERRADA. Antes
+    dejaba pasar cuando la variable estaba vacía, y como no estaba definida en el
+    entorno la API quedó sirviendo NIT, teléfono y dirección de los clientes sin
+    credenciales (hallazgo H1 de tasks/qa-e2e-2026-07-28.md).
+    """
     @wraps(route_fn)
     def wrapped(*args, **kwargs):
-        if PLATFORM_API_TOKEN:
-            token = request.headers.get("X-Platform-Token", "")
-            if token != PLATFORM_API_TOKEN:
-                return jsonify({"error": "unauthorized"}), 401
+        if not PLATFORM_API_TOKEN:
+            return jsonify({"error": "platform_api_not_configured"}), 503
+        token = request.headers.get("X-Platform-Token", "")
+        if not hmac.compare_digest(token, PLATFORM_API_TOKEN):
+            return jsonify({"error": "unauthorized"}), 401
         return route_fn(*args, **kwargs)
 
     return wrapped

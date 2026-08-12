@@ -164,3 +164,40 @@ def test_offer_intro_shows_new_tests_with_prices():
         out = agent._enforce_extra_analysis_offer(SESSION, ai, base)
     assert "Potasio $12,000 COP" in out["reply"] and "Sodio $12,000 COP" in out["reply"]
     assert "agregar otro análisis" in out["reply"]
+
+
+# ── ERR-093 — frase ambigua sobre el pago: preguntar, no adivinar ────────────────
+# QA en vivo 2026-07-27 (chat 1): el cliente escribió "No seguimos con el pago, te estoy
+# diciendo" y el bot RE-MOSTRÓ el menú de perfiles desde cero, tirando el avance. El atajo
+# que va al pago exige <=6 tokens y esa frase tiene 8, así que caía por la cascada.
+
+def test_ambiguous_payment_phrase_asks_instead_of_reshowing_menu():
+    fields = dict(COMPLETE, _offering_extra_analysis=True)
+    out = agent._handle_extra_analysis_answer(
+        SESSION, fields, "No seguimos con el pago, te estoy diciendo")
+    assert out is not None
+    assert out["reply"] == agent.EXTRA_ANALYSIS_AMBIGUOUS_QUESTION
+    # No debe re-ofrecer el menú de perfiles ni perder lo ya elegido.
+    assert "Panel" not in out["reply"] and "1." not in out["reply"]
+    assert fields["_selected_profile_code"] == "152"
+    # Sigue en la oferta: el cliente todavía no decidió.
+    assert fields.get("_offering_extra_analysis") is True
+
+
+def test_short_proceed_phrases_still_go_straight_to_payment():
+    """El fix no debe entorpecer el camino normal: las frases cortas siguen derecho."""
+    for text in ("no, así está bien", "listo", "no", "ya"):
+        fields = dict(COMPLETE, _offering_extra_analysis=True)
+        out = agent._handle_extra_analysis_answer(SESSION, fields, text)
+        assert out["reply"] == agent.PAYMENT_METHOD_QUESTION, text
+
+
+def test_ambiguous_phrase_naming_an_analysis_is_not_hijacked():
+    """Si nombra un análisis concreto la intención es clara: se agrega, no se repregunta."""
+    fields = dict(COMPLETE, _offering_extra_analysis=True)
+    with patch.object(agent.db, "get_tests_by_codes_or_names", return_value=[GLUCOSA]), \
+         patch.object(agent.db, "find_tests_by_area", return_value=(None, [])):
+        out = agent._handle_extra_analysis_answer(
+            SESSION, fields, "agregale una glucosa antes de seguir con el pago")
+    assert out["reply"] != agent.EXTRA_ANALYSIS_AMBIGUOUS_QUESTION
+    assert "1316" in (fields.get("selected_tests") or [])

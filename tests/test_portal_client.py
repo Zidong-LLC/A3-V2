@@ -78,16 +78,22 @@ def test_new_request_uses_session_client_id():
     client = _get_test_client()
     _login_client(client, CLIENT_A)
     created = {"request_id": "r-1", "order_number": "A3-00042", "event_payload": {}}
+    hemograma = {"code": "T-10", "name": "Hemograma", "price": 32000}
     with patch("app.portal.client_requests.db.get_client_by_id",
                return_value={"id": CLIENT_A, "clinic_name": "Vet A",
                              "address": "Calle 1", "phone": "300"}), \
+         patch("app.portal.client_requests.db.list_catalog_profiles", return_value=[]), \
+         patch("app.portal.client_requests.db.list_catalog_tests", return_value=[hemograma]), \
+         patch("app.portal.client_requests.db.find_catalog_profile", return_value=None), \
+         patch("app.portal.client_requests.db.get_tests_by_codes_or_names",
+               return_value=[hemograma]), \
          patch("app.portal.client_requests.db.create_request",
                return_value=created) as mock_create, \
          patch("app.portal.client_requests.portal_db.insert_notification") as mock_notif, \
          patch("app.services.portal_db.count_unread_notifications", return_value=0):
         response = client.post(
             "/portal/mis/solicitudes/nueva",
-            data={"patient_name": "Rocky", "exam_type": "Hemograma",
+            data={"patient_name": "Rocky", "test_codes": "T-10",
                   "payment_method": "contraentrega"},
         )
     assert response.status_code == 302
@@ -96,6 +102,10 @@ def test_new_request_uses_session_client_id():
     assert kwargs["session"]["channel"] == "portal"
     assert kwargs["ai_response"]["intent"] == "route_scheduling"
     assert mock_notif.call_args[0][0] == CLIENT_A
+    # ERR-097: el análisis viaja con su código del catálogo, no como texto suelto.
+    captured = kwargs["ai_response"]["captured_fields"]
+    assert captured["selected_tests"] == ["T-10"]
+    assert captured["exam_type"] == "Hemograma"
 
 
 def test_mark_notification_read_scoped_to_session_client():

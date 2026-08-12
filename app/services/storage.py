@@ -24,3 +24,10 @@ def result_signed_url(path: str, expires_in: int = 300) -> str:
     """URL firmada temporal para ver/descargar un PDF del bucket."""
     result = _client.storage.from_(PORTAL_RESULTS_BUCKET).create_signed_url(path, expires_in)
     return result.get("signedURL") or result.get("signedUrl") or ""
+
+
+def download_result_pdf(path: str) -> bytes:
+    """Bytes del PDF. Se usa para armar el ZIP de la descarga masiva: el
+    servidor baja del bucket privado y entrega un solo archivo al cliente,
+    sin exponer una signed URL por cada resultado."""
+    return _client.storage.from_(PORTAL_RESULTS_BUCKET).download(path)

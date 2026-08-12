@@ -29,5 +29,8 @@ def pytest_configure(config):
     os.environ.setdefault("CUTOFF_TIME",               "17:30")
     os.environ.setdefault("DASHBOARD_ADMIN_PASSWORD",  "test-secret")
     os.environ.setdefault("SUPABASE_ANON_KEY",         "test-anon-key")
+    # La API interna es fail-closed: sin token queda cerrada (503). Los tests la
+    # ejercitan con token para probar el camino real, no un bypass.
+    os.environ.setdefault("PLATFORM_API_TOKEN",        "test-platform-token")
     # Debounce de ráfagas APAGADO en tests: los webhooks responden síncrono e inmediato.
     os.environ.setdefault("MESSAGE_DEBOUNCE_SECONDS",  "0")

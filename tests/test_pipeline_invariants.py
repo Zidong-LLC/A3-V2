@@ -17,7 +17,14 @@ AGENT = APP / "agent.py"
 
 # Medido el 2026-07-21. Es un umbral MONÓTONO DECRECIENTE: cada atajo que se convierta a
 # handler post-modelo lo baja. Nadie puede subirlo sin dejar rastro en el mismo commit.
-PRE_LLM_RETURNS_BASELINE = 40
+#
+# 40 → 42 el 2026-07-28 (ERR-099, ficha en tasks/errores-soluciones.md). Los dos `return`
+# nuevos redirigen la corrección del CLIENTE hacia _restart_identification_for_new_client.
+# No convierten un turno visible en invisible: ambos viven dentro de bloques que ya
+# retornaban pre-LLM en TODAS sus ramas (la corrección en fase terminal y la corrección en
+# la confirmación), y usan el mismo patrón que _wants_to_change_client dos líneas más
+# arriba. Lo que cambia es a dónde va el turno, no si el modelo lo ve.
+PRE_LLM_RETURNS_BASELINE = 42
 
 
 def _process_turn_ast() -> tuple[ast.FunctionDef, int]:

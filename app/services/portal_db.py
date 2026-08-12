@@ -149,17 +149,48 @@ def mark_notification_read(notification_id: str, client_id: str) -> None:
 
 # ── Solicitudes del cliente ───────────────────────────────────────────────────
 
-def list_client_requests(client_id: str, limit: int = 100) -> list[dict]:
-    result = (
+def list_client_requests(
+    client_id: str, filters: dict | None = None, limit: int = 100
+) -> list[dict]:
+    """Solicitudes de retiro del cliente, con filtros opcionales.
+
+    Mismos filtros que list_lab_results (paciente, n° de orden, rango de
+    fechas) más el estado, para que las dos pantallas del portal se usen
+    igual. Sin filtros se comporta como antes.
+    """
+    filters = filters or {}
+    query = (
         _client.table("requests")
         .select("*, couriers(name)")
         .eq("client_id", client_id)
         .eq("service_area", "route_scheduling")
-        .order("requested_at", desc=True)
-        .limit(limit)
+    )
+    if filters.get("patient"):
+        query = query.ilike("patient_name", f"%{filters['patient']}%")
+    if filters.get("order_number"):
+        query = query.ilike("order_number", f"%{filters['order_number']}%")
+    if filters.get("status"):
+        query = query.eq("status", filters["status"])
+    if filters.get("date_from"):
+        query = query.gte("requested_at", filters["date_from"])
+    if filters.get("date_to"):
+        query = query.lte("requested_at", f"{filters['date_to']}T23:59:59")
+    result = query.order("requested_at", desc=True).limit(limit).execute()
+    return result.data or []
+
+
+def get_client_request(request_id: str, client_id: str) -> dict | None:
+    """Una solicitud del cliente. Filtra por client_id en la query, no después:
+    una orden de otra veterinaria no debe llegar nunca a la capa de vistas."""
+    result = (
+        _client.table("requests")
+        .select("*, couriers(name, phone)")
+        .eq("id", request_id)
+        .eq("client_id", client_id)
+        .limit(1)
         .execute()
     )
-    return result.data or []
+    return result.data[0] if result.data else None
 
 
 def get_request_by_order_number(order_number: str) -> dict | None:

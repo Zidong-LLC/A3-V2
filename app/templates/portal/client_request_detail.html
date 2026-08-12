@@ -1,0 +1,68 @@
+{% extends "portal/base.html" %}
+{% block title %}A3 Portal - Solicitud {{ order.order_number or '' }}{% endblock %}
+{% block subtitle %}Mis solicitudes{% endblock %}
+{% block heading %}Solicitud {{ order.order_number or '' }}{% endblock %}
+{% block header_actions %}
+<a class="ghost-btn" href="{{ back_url }}"><i data-lucide="arrow-left"></i>Volver</a>
+{% endblock %}
+
+{% block content %}
+<section class="card">
+  <div class="card-head">
+    <h3>Avance de la orden</h3>
+    <p>Estado del recorrido de la muestra</p>
+  </div>
+  {% if progress %}
+  <ol class="progress-track">
+    {% for step in progress %}
+    <li class="progress-step{% if step.done %} is-done{% endif %}{% if step.current %} is-current{% endif %}">
+      <span class="progress-dot"></span>
+      <span class="progress-label">{{ step.label }}</span>
+    </li>
+    {% endfor %}
+  </ol>
+  {% else %}
+  <p class="muted-text">
+    Esta solicitud está en <strong>{{ status_labels.get(order.status, order.status) }}</strong>
+    y no sigue el recorrido habitual. Si tiene dudas, escríbanos por el chat.
+  </p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <div class="card-head"><h3>Datos de la solicitud</h3></div>
+  <div class="portal-detail-grid">
+    <div><span>N° orden</span><strong>{{ order.order_number or '—' }}</strong></div>
+    <div><span>Estado</span><strong><span class="status-badge status-{{ order.status }}">{{ status_labels.get(order.status, order.status) }}</span></strong></div>
+    <div><span>Fecha de solicitud</span><strong>{{ (order.requested_at or '—')[:10] }}</strong></div>
+    <div><span>Retiro programado</span><strong>{{ (order.scheduled_pickup_date or '—')[:10] }}</strong></div>
+    <div><span>Paciente</span><strong>{{ order.patient_name or '—' }}</strong></div>
+    <div><span>Propietario</span><strong>{{ order.owner_name or '—' }}</strong></div>
+    <div><span>Análisis</span><strong>{{ order.exam_type or '—' }}</strong></div>
+    <div><span>Médico remitente</span><strong>{{ order.requesting_doctor or '—' }}</strong></div>
+    <div><span>Dirección de retiro</span><strong>{{ order.pickup_address or '—' }}</strong></div>
+    <div><span>Motorizado</span><strong>{{ (order.couriers or {}).name or 'Por asignar' }}</strong></div>
+  </div>
+  {% if order.observations %}
+  <p class="muted-text">Observaciones: {{ order.observations }}</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  <div class="card-head"><h3>Historial</h3><p>Movimientos registrados en esta solicitud</p></div>
+  {% if timeline %}
+  <ul class="timeline">
+    {% for event in timeline %}
+    <li class="timeline-item">
+      <span class="timeline-date">{{ event.created_at[:16] | replace('T', ' ') }}</span>
+      <span class="timeline-label">
+        {{ event.label }}{% if event.status_label %} — {{ event.status_label }}{% endif %}
+      </span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted-text">Todavía no hay movimientos registrados para esta solicitud.</p>
+  {% endif %}
+</section>
+{% endblock %}

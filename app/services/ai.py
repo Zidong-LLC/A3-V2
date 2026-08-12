@@ -91,8 +91,21 @@ def generate_turn(
     private = {k: v for k, v in (session.get("captured_fields") or {}).items() if k.startswith("_")}
     if private.get("_client_found"):
         name = private.get("_client_display_name", "")
-        addr = private.get("_client_address") or "sin dirección registrada"
-        state_parts.append(f"CLIENTE ENCONTRADO: {name} — Dirección registrada: {addr}")
+        addr = private.get("_client_address")
+        if addr:
+            state_parts.append(f"CLIENTE ENCONTRADO: {name} — Dirección registrada: {addr}")
+        else:
+            # ERR-091: antes acá iba `addr or "sin dirección registrada"`, y el modelo leía ese
+            # texto de relleno como si fuera EL VALOR del campo ("Dirección registrada: sin
+            # dirección registrada"). Al decir el cliente "déjalo así", lo copiaba a
+            # pickup_address y el guardrail lo aceptaba por ser un string no vacío: la orden
+            # salía con dirección basura. Un placeholder de presentación nunca debe ocupar la
+            # posición de un dato en el prompt.
+            state_parts.append(
+                f"CLIENTE ENCONTRADO: {name} — NO tiene dirección registrada en la base. "
+                "Debes PEDIRLE la dirección de retiro al cliente; no la des por válida ni la "
+                "registres vacía."
+            )
     elif private.get("_client_not_found"):
         state_parts.append("CLIENTE NO ENCONTRADO en base de datos. Derivar a atención al cliente.")
 

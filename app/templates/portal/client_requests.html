@@ -9,9 +9,23 @@
 {% block content %}
 <section class="card">
   <div class="card-head"><h3>Historial de solicitudes</h3><p>Estado actual de cada retiro de muestras</p></div>
+  <form method="get" action="{{ url_for('portal.client_requests_page') }}" class="filter-bar">
+    <input class="cell-input" name="patient" value="{{ filters.patient }}" placeholder="Paciente">
+    <input class="cell-input" name="order_number" value="{{ filters.order_number }}" placeholder="N° orden">
+    <select class="cell-input" name="status">
+      <option value="">Todos los estados</option>
+      {% for key, label in status_labels.items() %}
+      <option value="{{ key }}" {% if filters.status == key %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+    <input class="cell-input" name="date_from" type="date" value="{{ filters.date_from }}">
+    <input class="cell-input" name="date_to" type="date" value="{{ filters.date_to }}">
+    <button type="submit" class="ghost-btn small">Filtrar</button>
+    <span class="table-counter">{{ requests|length }} solicitud(es)</span>
+  </form>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Orden</th><th>Fecha solicitud</th><th>Paciente</th><th>Análisis</th><th>Retiro programado</th><th>Motorizado</th><th>Estado</th></tr></thead>
+      <thead><tr><th>Orden</th><th>Fecha solicitud</th><th>Paciente</th><th>Análisis</th><th>Retiro programado</th><th>Motorizado</th><th>Estado</th><th></th></tr></thead>
       <tbody>
         {% for r in requests %}
         <tr>
@@ -22,9 +36,14 @@
           <td>{{ (r.scheduled_pickup_date or '—')[:10] }}</td>
           <td>{{ (r.couriers or {}).name or 'Por asignar' }}</td>
           <td><span class="status-badge status-{{ r.status }}">{{ status_labels.get(r.status, r.status) }}</span></td>
+          <td><a class="ghost-btn small" href="{{ url_for('portal.client_request_detail', request_id=r.id) }}">Ver detalle</a></td>
         </tr>
         {% else %}
-        <tr><td colspan="7" class="muted-text">Aún no tiene solicitudes registradas. Use «Solicitar retiro» para crear la primera.</td></tr>
+        {% if filters.values() | select | first %}
+        <tr><td colspan="8" class="muted-text">Ninguna solicitud coincide con el filtro aplicado.</td></tr>
+        {% else %}
+        <tr><td colspan="8" class="muted-text">Aún no tiene solicitudes registradas. Use «Solicitar retiro» para crear la primera.</td></tr>
+        {% endif %}
         {% endfor %}
       </tbody>
     </table>

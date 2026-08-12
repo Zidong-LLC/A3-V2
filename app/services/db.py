@@ -12,6 +12,12 @@ from app.rules import (
 _client: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 
+def ping() -> bool:
+    """Consulta trivial para saber si Supabase responde (usada por /health)."""
+    _client.table("clients").select("id").limit(1).execute()
+    return True
+
+
 # ── Session ───────────────────────────────────────────────────────────────────
 
 def get_or_create_session(chat_id: str, channel: str = "telegram") -> dict:

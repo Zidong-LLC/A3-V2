@@ -82,6 +82,9 @@ def estimated_total_text(totals: dict) -> str:
 def route_ready_for_payment(session: dict, fields: dict) -> bool:
     has_client = bool(session.get("client_id") or fields.get("_client_found"))
     has_route_data = all(fields.get(k) for k in ROUTE_ORDER_FIELDS_BEFORE_PAYMENT)
+    # ERR-091: una dirección de relleno no habilita el paso al pago (ver is_placeholder_address).
+    if is_placeholder_address(fields.get("pickup_address")):
+        has_route_data = False
     return has_client and has_route_data and not fields.get("_address_confirmation_pending")
 
 
@@ -101,9 +104,29 @@ def missing_route_field(session: dict, fields: dict) -> str | None:
             continue
         if not fields.get(field):
             return field
+        if field == "pickup_address" and is_placeholder_address(fields.get(field)):
+            return field
         if field == "patient_age" and not age_has_unit(fields.get(field)):
             return field
     return None
+
+
+# ERR-091: textos de presentación que NUNCA son una dirección real. Un campo obligatorio
+# validado solo por "no vacío" no está validado: "sin dirección registrada" es un string
+# no vacío y pasaba el guardrail, así que la orden se cerraba con dirección basura y el
+# motorizado no sabía a dónde ir.
+_PLACEHOLDER_ADDRESS_MARKERS = (
+    "sin direccion", "sin dirección", "no registrada", "no tiene direccion",
+    "no tiene dirección", "sin datos", "no aplica", "por definir", "pendiente",
+)
+
+
+def is_placeholder_address(value) -> bool:
+    """¿El valor de la dirección es un texto de relleno en vez de una dirección real?"""
+    text = " ".join(str(value or "").lower().split())
+    if not text:
+        return True
+    return any(marker in text for marker in _PLACEHOLDER_ADDRESS_MARKERS)
 
 
 def missing_route_field_question(field: str) -> str:

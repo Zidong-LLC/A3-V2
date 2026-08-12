@@ -1,5 +1,9 @@
 from unittest.mock import patch
 
+# La API interna exige siempre X-Platform-Token (fail-closed). Coincide con el
+# PLATFORM_API_TOKEN dummy que inyecta conftest.py.
+AUTH = {"X-Platform-Token": "test-platform-token"}
+
 
 def _get_test_client():
     from app.main import app
@@ -52,7 +56,7 @@ def test_platform_overview_includes_unassigned_requests_and_stage_counts():
          patch("app.platform_api.db.list_requests", return_value=requests_rows), \
          patch("app.platform_api.db.list_sessions", return_value=sessions):
         client = _get_test_client()
-        response = client.get("/api/platform/overview")
+        response = client.get("/api/platform/overview", headers=AUTH)
 
     assert response.status_code == 200
     payload = response.get_json()
@@ -72,13 +76,38 @@ def test_platform_api_requires_token_when_configured(monkeypatch):
          patch("app.platform_api.db.list_sessions", return_value=[]):
         client = _get_test_client()
         unauthorized = client.get("/api/platform/overview")
+        wrong_token = client.get(
+            "/api/platform/overview",
+            headers={"X-Platform-Token": "not-the-token"},
+        )
         authorized = client.get(
             "/api/platform/overview",
             headers={"X-Platform-Token": "secret-token"},
         )
 
     assert unauthorized.status_code == 401
+    assert wrong_token.status_code == 401
     assert authorized.status_code == 200
+
+
+def test_platform_api_is_closed_when_token_is_not_configured(monkeypatch):
+    """Sin PLATFORM_API_TOKEN la API queda CERRADA, no abierta.
+
+    Regresión del hallazgo H1: el decorador dejaba pasar cuando la variable
+    estaba vacía, y como no estaba definida en el entorno la API sirvió datos
+    de clientes reales (NIT, teléfono, dirección) sin credenciales.
+    """
+    monkeypatch.setattr("app.platform_api.PLATFORM_API_TOKEN", "")
+
+    with patch("app.platform_api.db.list_clients_with_assignment") as mock_clients:
+        client = _get_test_client()
+        sin_token = client.get("/api/platform/overview")
+        con_token = client.get("/api/platform/overview", headers=AUTH)
+
+    assert sin_token.status_code == 503
+    assert con_token.status_code == 503
+    # Ni siquiera llega a consultar la base de datos.
+    mock_clients.assert_not_called()
 
 
 def test_platform_request_status_update_validates_status_and_updates_request():
@@ -89,10 +118,12 @@ def test_platform_request_status_update_validates_status_and_updates_request():
         invalid = client.patch(
             f"/api/platform/requests/{request_id}/status",
             json={"status": "invalid-status"},
+            headers=AUTH,
         )
         valid = client.patch(
             f"/api/platform/requests/{request_id}/status",
             json={"status": "assigned", "assigned_courier_id": "m-10"},
+            headers=AUTH,
         )
 
     assert invalid.status_code == 400
@@ -110,6 +141,7 @@ def test_platform_request_status_update_returns_not_found_for_invalid_request_id
     response = client.patch(
         "/api/platform/requests/not-a-uuid/status",
         json={"status": "assigned"},
+        headers=AUTH,
     )
 
     assert response.status_code == 404
@@ -123,7 +155,7 @@ def test_platform_unassigned_requests_endpoint_filters_rows():
 
     with patch("app.platform_api.db.list_requests", return_value=rows):
         client = _get_test_client()
-        response = client.get("/api/platform/requests/unassigned")
+        response = client.get("/api/platform/requests/unassigned", headers=AUTH)
 
     assert response.status_code == 200
     payload = response.get_json()

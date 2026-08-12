@@ -56,6 +56,12 @@ def _is_correction_request(text: str) -> bool:
 # Movido de agent.py (ERR-069) para que los enforcers puedan consultarlo sin ciclo.
 _CORRECTION_FIELD_KEYWORDS = (
     (("direccion", "dirección", "domicilio", "retiro"), "pickup_address"),
+    # ERR-099: corregir el CLIENTE no estaba en esta lista, así que "el cliente, soy Animal
+    # Pets" caía en patient_name por la palabra "animal" y solo se reescribía el nombre: la
+    # orden quedaba con el NIT, la dirección y el motorizado del cliente anterior. Va DESPUÉS
+    # de la dirección a propósito — "cambia la dirección de la veterinaria" es una corrección
+    # de dirección, no de cliente — y ANTES del paciente, para que gane la palabra específica.
+    (("cliente", "veterinaria", "clinica", "clínica", "sede"), "clinic_name"),
     (("medico", "médico", "solicitante", "doctor", "doctora"), "requesting_doctor"),
     (("paciente", "perro", "perra", "gato", "gata", "animal", "mascota"), "patient_name"),
     (("especie",), "species"),

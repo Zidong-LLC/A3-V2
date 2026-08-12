@@ -113,6 +113,13 @@ EXTRA_ANALYSIS_OFFER = (
     "Si ya está, seguimos con el pago."
 )
 
+# ERR-093: el cliente nombró el pago en una frase ambigua ("No seguimos con el pago, te
+# estoy diciendo" — ¿"no, sigamos" o "no sigamos"?). Ante la duda se pregunta en vez de
+# adivinar; adivinar mal re-mostraba el menú de perfiles y tiraba el avance de la orden.
+EXTRA_ANALYSIS_AMBIGUOUS_QUESTION = (
+    "Perdona, no te entendí bien: ¿avanzamos con el pago o quieres agregar otro análisis?"
+)
+
 NO_COURIER_HANDOFF_MESSAGE = (
     "Recibimos la orden. En este momento no veo un motorizado asignado al cliente, "
     "así que operaciones la va a coordinar manualmente."

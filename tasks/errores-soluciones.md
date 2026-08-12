@@ -27,6 +27,487 @@ Regla operativa: ningun bug conversacional se cierra sin prueba de regresion o j
 
 ## Errores abiertos
 
+### ERR-101 — `/health` devolvía "ok" fijo: el bot podía estar caído y el monitoreo no se enteraba (auditoría de alcance 2026-08-02) — RESUELTO
+**Síntoma:** `GET /health` respondía `{"status": "ok"}` sin consultar nada. Con Supabase caído
+—sin base no hay sesión, ni cliente, ni orden— el endpoint seguía devolviendo 200, así que
+cualquier monitor externo daba el servicio por sano mientras ningún cliente podía ser atendido.
+
+**Causa raíz:** `app/main.py` devolvía un literal. No existía ninguna función de chequeo de
+dependencias en el proyecto (`alegra.ping()` era la única, y nadie la llamaba).
+
+**Solución:** nuevo `app/health.py` con `check_all()`, que consulta Supabase de verdad
+(`db.ping()`, agregado en `app/services/db.py`), reporta OpenAI como configurado/no configurado
+—no se le pega en cada chequeo porque cada llamada cuesta— y consulta Alegra solo si
+`ALEGRA_ENABLED`. Distingue **crítico** (Supabase caído → HTTP 503) de **degradado** (Alegra
+caído o respuesta lenta → HTTP 200 con `status: degraded`): que falle la facturación no debe
+marcar como caída la recogida de muestras. `main.py` solo orquesta, sin importar Supabase,
+respetando el invariante de `app/CLAUDE.md`.
+
+**Tests:** `tests/test_health_check.py` — 3 casos (sano, Supabase caído → 503, solo Alegra caído
+→ 200 degradado).
+
+---
+
+### ERR-100 — Una orden podía quedar SIN FACTURAR sin dejar ningún rastro (auditoría de alcance 2026-08-02) — RESUELTO
+**Síntoma:** si Alegra fallaba al facturar el cierre de una orden, se escribía un `warning` en el
+log y se seguía adelante. Peor: si el cliente no tenía NIT, `billing.invoice_order` devolvía
+`None` en la primera línea y **no se registraba absolutamente nada**. Nadie podía saber después
+qué órdenes habían quedado sin factura — es plata que se pierde sin rastro.
+
+**Causa raíz:** `_try_invoice_in_alegra` (`app/agent.py`) tenía cuatro salidas mudas: `if not
+lines: return`, el `None` de `invoice_order` por falta de NIT, el `result` sin `invoice_id`, y los
+dos `except` que solo logueaban. Solo el camino feliz escribía en `request_events`.
+
+**Solución:** `_record_invoice_failure()` registra un evento `alegra_failed` en `request_events`
+con el motivo (`cliente_sin_nit`, `sin_lineas_facturables`, `alegra_sin_factura`, `error_alegra`,
+`error_inesperado`) y el detalle. Todos los caminos que terminan sin factura pasan por ahí. Se
+mantiene la garantía de que la facturación **nunca** rompe el cierre de la orden: si ni siquiera
+se puede escribir el evento, cae al log y sigue. No toca el esquema de Supabase.
+
+**Tests:** `tests/test_invoice_failure_is_recorded.py` — 5 casos, uno por camino de salida.
+Se actualizó `tests/test_alegra_billing.py::test_hook_no_rompe_si_alegra_falla`, que afirmaba
+`eventos == []` — es decir, **codificaba este mismo bug** como comportamiento esperado.
+
+---
+
+### ERR-099 — Cambiar de cliente en la confirmación cambia SOLO el nombre: la orden queda con el NIT, la dirección y el motorizado del cliente anterior (QA en vivo por Telegram, 2026-07-28) — ABIERTO, CRÍTICO
+**Síntoma (reproducido en vivo, chat 4):** el resumen mostraba `Veterinaria: Pet Agro
+Colombia / Dirección de retiro: CL 78C SUR 18G 67`. El cliente pidió corregir y escribió
+`"El / Cliente / Soy Animal Pets"`. El bot re-mostró el resumen con
+**`Veterinaria: Animal Pets`** y **la misma dirección `CL 78C SUR 18G 67`**. Cuando el
+cliente insistió (`"Estoy registrado con otra dirección"`), el bot le pidió que la
+escribiera a mano en vez de traerla de la base; y al turno siguiente respondió una frase
+sobre especies veterinarias, sin relación con lo que se estaba hablando.
+
+**Estado real de la sesión al terminar** (verificado en Supabase):
+
+| Campo | Valor | A quién pertenece |
+|---|---|---|
+| `client_id` | `24cb0026-…` | **Pet Agro Colombia** |
+| `tax_id` | `1018431256` | **Pet Agro Colombia** |
+| `pickup_address` | `CL 78C SUR 18G 67` | **Pet Agro Colombia** |
+| `clinic_name` | `Animal Pets` | Animal Pets |
+
+**Animal Pets existe y es otro cliente**: `a88408fe-…`, NIT `53115419-1`, dirección
+**`DG 51A SUR 61B-03`** — otra localidad. Si esa orden se hubiera cerrado, se registraba y
+facturaba a Pet Agro Colombia, con su motorizado, y el retiro se agendaba a una dirección
+que no es la del cliente que figura en la orden. **Es identidad cruzada con impacto
+operativo (el motorizado va a la puerta equivocada) y de facturación.**
+
+**Causa raíz — tres piezas que se combinan:**
+1. **No existe forma de corregir el cliente.** `_CORRECTION_FIELD_KEYWORDS`
+   (`app/detectors/orden.py:57-69`) no tiene ninguna entrada para
+   `cliente / veterinaria / clínica / sede`. Los 11 campos corregibles son de la orden, no
+   de la identidad.
+2. **El detector devuelve el campo equivocado.** Verificado:
+   `_detect_correction_field("El\nCliente\nSoy Animal Pets")` → **`patient_name`**, porque
+   `"animal"` está en la lista de palabras del paciente (línea 60, junto a "perro", "gato",
+   "mascota"). El bot creyó que se corregía el nombre del paciente. De ahí sale también el
+   descarrile de los turnos siguientes.
+3. **El atajo de cambio de cliente no se dispara.** Verificado:
+   `_wants_to_change_client("El\nCliente\nSoy Animal Pets")` → **False**.
+   Ese atajo además corre **pre-LLM**, y la identificación completa vive detrás de
+   `if not session.get("client_id")` (`app/agent.py`), que con el cliente ya identificado no
+   vuelve a ejecutarse nunca.
+
+Con las tres, el modelo escribió `clinic_name = "Animal Pets"` como campo libre y **ningún
+código volvió a validarlo contra la base**. Es exactamente la señal de alerta que ya dejó
+escrita la lección L55 tras ERR-081: *"un campo capturado por el modelo que ningún código
+vuelve a validar contra la base"*. ERR-081 fue el mismo cruce por otro camino (nombre de
+sede respondido a la pregunta de la dirección); este es por el carril de corrección.
+
+**Autorización:** el fix toca **B2 · Identificación (✅ APROBADO)** y **B12 · Corrección en
+la confirmación (⏳ POR CONFIRMAR)**. Se paró, se avisó y el usuario dio OK explícito para
+el arreglo completo (2026-07-28).
+
+**Solución aplicada, en tres partes:**
+1. **`app/detectors/orden.py`** — nueva entrada `(("cliente","veterinaria","clinica",
+   "clínica","sede"), "clinic_name")` en `_CORRECTION_FIELD_KEYWORDS`. La posición es
+   load-bearing y está comentada en el código: **después** de `pickup_address` (para que
+   "cambia la dirección de la veterinaria" siga siendo una corrección de dirección) y
+   **antes** de `patient_name` (para que "Animal Pets" no lo gane la palabra "animal").
+2. **`app/agent.py`** — en los dos puntos donde se procesa el campo a corregir (fase
+   terminal y confirmación), `field == "clinic_name"` deriva a
+   `_restart_identification_for_new_client`, que ya existía y hace lo correcto: con una
+   orden en curso llama a `_switch_client_keep_order`, que descarta
+   `_IDENTIFICATION_RETRY_RESET_FIELDS` (**`clinic_name`, `tax_id`, `pickup_address`** y las
+   flags de dirección), limpia el `client_id` de la sesión y **conserva** paciente, médico,
+   análisis, pago y observaciones (L50: corregir un dato no reinicia el pedido). No se
+   escribió lógica nueva de identificación: se conectó el carril que faltaba.
+3. **`app/enforcers/orden.py`** — el carril de "¿agregar otro análisis?" cede el turno
+   cuando el campo detectado es `clinic_name`, igual que ya hacía con los campos estables.
+   El guard existente (`_wants_to_change_client`) no reconocía estos fraseos.
+
+**Invariante anti-recurrencia:** `tests/test_client_change_in_confirmation.py` (17 casos)
+fija tres cosas: el detector reconoce el cliente en 5 fraseos reales (incluido el mensaje
+literal del chat), los demás campos **no se desplazan** (dirección, paciente, raza, edad,
+médico siguen resolviendo igual), y `clinic_name` **no puede quedar junto a**
+`pickup_address` tras un cambio de cliente — la forma exacta del cruce.
+
+**Nota sobre el baseline pre-LLM:** `PRE_LLM_RETURNS_BASELINE` sube de 40 a 42 en este mismo
+commit. Los dos `return` nuevos no convierten un turno visible en invisible: viven dentro de
+bloques que ya retornaban pre-LLM en **todas** sus ramas, y replican el patrón de
+`_wants_to_change_client` dos líneas más arriba. Cambia a dónde va el turno, no si el modelo
+lo ve.
+
+**Verificación:**
+- Detector probado con 9 fraseos, incluido el literal del chat real. Discrimina los tres
+  casos que importan: `"El/Cliente/Soy Animal Pets"` → `clinic_name`; `"cambia el nombre del
+  animal"` → `patient_name`; `"cambia la dirección de la veterinaria"` → `pickup_address`.
+- Suite: **551 passed**, 2 skipped, 1 xfailed.
+- Regresión con modelo real: **32/35**, el mismo puntaje que las dos corridas previas al fix.
+  El flujo A salió rojo en esa corrida, pero **corrido aislado pasa 2/2**: es el bucle no
+  determinista de ERR-096 ("¿qué análisis o perfil desean?"), no una regresión. Se descartó
+  además revisando que ningún mensaje de A entre por un camino de corrección.
+**Estado:** RESUELTO — **pendiente validación en vivo por Telegram** (rehacer el camino del
+chat 4: llegar al resumen con un cliente y pedir el cambio a otro).
+
+### ERR-098 — La API `/api/platform/*` responde datos de todos los clientes SIN autenticación (QA e2e 2026-07-28) — RESUELTO
+**Síntoma:** `GET /api/platform/clients?limit=2` devuelve nombre comercial, teléfono, NIT,
+dirección, zona y motorizado de los clientes **sin enviar ninguna credencial**. Verificado no
+solo en `localhost` sino **desde internet**, por la URL pública de ngrok, durante este QA.
+`PATCH /api/platform/requests/<id>/status` también atraviesa el control (devuelve 404 por id
+inexistente, no 401): con un `request_id` válido, cualquiera podría cambiarle el estado a una
+solicitud.
+**Causa raíz:** el decorador `_auth_required` (`app/platform_api.py:23-32`) solo exige el
+token **si la variable existe**:
+```python
+if PLATFORM_API_TOKEN:
+    token = request.headers.get("X-Platform-Token", "")
+    if token != PLATFORM_API_TOKEN:
+        return jsonify({"error": "unauthorized"}), 401
+```
+`PLATFORM_API_TOKEN` tiene default `""` (`app/config.py:57`), **no está en el `.env`** y en
+`.env.example:54` está rotulado como *"Token para la API interna (opcional)"*. Sin la
+variable, la puerta queda abierta y no hay ninguna señal de que lo esté: la API responde 200
+con normalidad. Es un fallo que **se manifiesta por ausencia de configuración**, que es
+exactamente el caso más fácil de que llegue a producción.
+**Alcance medido:** las 6 rutas del blueprint (`overview`, `clients`, `requests`,
+`requests/unassigned`, `requests/<id>/events`, `PATCH requests/<id>/status`) sobre los 992
+clientes reales. Ninguna otra superficie está afectada: el dashboard exige sesión y CSRF
+(verificado), y el portal aísla por `client_id` (verificado).
+**Solución (aplicada 2026-08-02):** se invirtió el default a **fail-closed**. `_auth_required`
+ahora devuelve `503 platform_api_not_configured` cuando `PLATFORM_API_TOKEN` está vacío —la API
+queda cerrada, no abierta— y compara el token con `hmac.compare_digest` en vez de `!=`. La
+ausencia de configuración ya no puede abrir la puerta.
+**Pendiente de configuración:** definir `PLATFORM_API_TOKEN=<valor largo>` en el `.env` local y
+en Render antes del deploy; con el fix, hasta que se defina la API responde 503 en vez de servir
+datos. Falta también corregir el rótulo "opcional" en `.env.example:54`.
+**Tests:** `tests/test_platform_api.py` — `test_platform_api_is_closed_when_token_is_not_configured`
+verifica que sin token configurado responde 503 y **ni siquiera consulta la base de datos**;
+`test_platform_api_requires_token_when_configured` cubre token ausente y token incorrecto. El
+`conftest.py` inyecta un token dummy para que la suite ejercite el camino real y no un bypass.
+**Detectado por:** `tools/scripts/qa_web_smoke.py`, que mide esta condición explícitamente.
+**Estado:** RESUELTO en código — queda definir la variable de entorno antes del deploy.
+
+### ERR-097 — Un pedido del portal no resuelve el análisis contra el catálogo y queda con valor $0 (QA e2e 2026-07-28) — RESUELTO
+**Síntoma:** la solicitud A3-2026-172, creada desde el portal con análisis "Hemograma", se
+guardó con `base_profile = {"code": null, "name": "Hemograma", "price": 0}` y
+**`total_estimated = 0`**. El mismo pedido hecho por Telegram resuelve el término contra los
+159 análisis del catálogo y trae el precio real.
+**Causa raíz:** el campo "Análisis solicitado" del portal es un `<input type="text">` libre
+(`app/templates/portal/client_new_request.html:28`) y `client_new_request()`
+(`app/portal/client_requests.py:49-71`) pasa el texto tal cual a `db.create_request` sin
+llamar a `app/catalog.resolve_tests`. El portal nunca tocó la capa de catálogo.
+**Consecuencias:** (1) la orden nacida en el portal no tiene valor estimado, ni para el
+cliente ni para el dashboard; (2) si esa orden se facturara por Alegra,
+`billing.build_invoice_lines` armaría las líneas con `price = 0` — una factura en cero.
+**Nota de alcance:** hoy la facturación se dispara desde el cierre del agente, no desde el
+portal, así que el riesgo de factura en $0 es potencial, no actual. Pero el camino existe.
+**Solución (aplicada 2026-08-02):** se eliminó el texto libre. El formulario del portal ahora
+ofrece un `<select>` de perfiles y un multi-select de análisis, ambos poblados desde el catálogo
+real (`db.list_catalog_profiles` / `db.list_catalog_tests`). `resolve_catalog_selection()`
+(`app/portal/client_requests.py`) traduce lo elegido a `_selected_profile_code/name/price/
+description` y `selected_tests` — exactamente los campos que `_profile_event_payload` ya espera —
+y arma `exam_type` como etiqueta legible para la tabla.
+
+**Por qué no se reusó `catalog.resolve_tests`:** esa función interpreta lenguaje natural porque
+en el chat el cliente escribe libremente. En un formulario web no hay nada que interpretar: se
+ofrece la lista y vuelve un código. Un código que no exista en el catálogo se descarta y la orden
+no se crea, en vez de inventar un precio. Se cumple igual la lección L48 (lo que afecta dinero no
+sale de texto libre), por la vía más simple.
+
+**Tests:** `tests/test_portal_catalog_selection.py` — 5 casos (perfil solo, análisis sueltos,
+perfil + extras, códigos inexistentes descartados, selección vacía rechazada). Se reforzó
+`tests/test_portal_client.py::test_new_request_uses_session_client_id` para verificar que el
+análisis viaja con su código.
+**Estado:** RESUELTO.
+**Estado:** ABIERTO — el portal es demostrativo, así que no bloquea la presentación.
+
+### ERR-096 — Bucle en "¿qué análisis o perfil desean?": el fallo más frecuente del corpus real (QA e2e 2026-07-28) — ABIERTO
+**Síntoma:** el bot repite literalmente `"Por último, ¿qué análisis o perfil desean?"` turno
+tras turno mientras el cliente responde. En el replay de 8 conversaciones reales de Chatwoot
+apareció **16 veces**, más que ningún otro bucle: es el punto donde más gente se queda
+trabada. Le siguen `"¿Cuál es la raza del paciente?"` (8), `"¿Quieres agregar algún análisis
+más…?"` (4) y `"¿Qué edad tiene el paciente?"` (3).
+**Cómo se detectó:** `tools/scripts/replay_chatwoot_qa.py --limit 8` — lenguaje real de los
+equipos, lecturas contra los 992 clientes reales, solo las escrituras mockeadas.
+**Salvedad de método:** el replay es **fuzzing con lenguaje real, no reproducción fiel** —
+los turnos del corpus respondían a versiones anteriores del agente, así que la frecuencia
+indica dónde mirar, no cuántas veces pasa hoy. Los 8 segmentos elegidos son además los **más
+sospechosos** del corpus por diseño del script (`_suspicion()`), no una muestra
+representativa: que den 0/8 limpios no significa que el agente falle siempre.
+**Hipótesis de causa (sin confirmar):** la pregunta del análisis es la que más formas de
+respuesta admite (código, nombre, perfil, categoría, etiqueta diagnóstica, pedido mixto), y
+cuando ninguna resuelve, el flujo vuelve a `missing_route_field_question()` sin acusar que no
+entendió. Encaja con el patrón de la lección L50: el flujo sabe avanzar pero no retroceder.
+**Próximo paso sugerido:** aislar 3 respuestas concretas del corpus que disparen el bucle y
+reproducirlas con `chat_local.py` antes de tocar nada.
+**Estado:** ABIERTO — pendiente de confirmar caso a caso.
+
+### ERR-095 — Preguntas de preventa sin dar el NIT: el bot se traba pidiendo identificación (QA e2e 2026-07-28) — ABIERTO
+**Síntoma:** el flujo T de `validate_flows.py` falló en **las dos corridas** de este QA, con
+dos síntomas distintos del mismo problema:
+- Corrida 1: creó una solicitud durante las preguntas de preventa. El cliente preguntó por
+  los motivos de muerte de un animal, el bot escaló al equipo humano (correcto) y esa
+  derivación registró una solicitud que el flujo no esperaba.
+- Corrida 2: **bucle** — repitió dos veces seguidas *"Para gestionar pedidos, A3 atiende
+  clínicas y profesionales veterinarios registrados. Para continuar necesito una de estas dos
+  opciones: 1) el NIT, o 2) el nombre exacto…"*.
+**Observación importante:** las respuestas individuales del bot son **buenas**. Contesta bien
+"¿hacen análisis para mascotas?", "¿cómo es la metodología?" y "¿ustedes retiran las
+muestras?", y cada vez cierra pidiendo el NIT. El problema no es el contenido: es que cuando
+el cliente dice `"estoy registrado te paso mis datos para programar la recogida"` sin dar
+todavía el NIT, el bot vuelve a la misma pregunta en vez de reconocer la intención y guiar.
+**Por qué importa para la presentación:** las preguntas de preventa son exactamente lo que
+haría alguien que ve el bot por primera vez.
+**Diferencia con el QA anterior:** el 26-07 T falló en una sola corrida y se clasificó como
+no determinista. Hoy falla en las dos: **es un bug real**, no ruido.
+**Estado:** ABIERTO — no se tocó, por la decisión de solo documentar en este QA.
+
+### ERR-094 — Corregir un dato en la confirmación borra el valor viejo y RE-PREGUNTA el nuevo (QA 2026-07-27) — RESUELTO
+**Síntoma:** en el resumen final el cliente escribe `"cambia el nombre del paciente a Rocky"`
+y el bot responde `"¿Cuál es el nombre del paciente?"` con `patient_name=None`. Borró "Laila"
+y no leyó "Rocky": le repregunta un dato que el cliente acaba de dar.
+**Causa raíz:** `_extract_correction_value` (`app/agent.py:1998`) tenía dos límites duros:
+1. `if field != "patient_name": return None` — para edad, médico, raza, propietario o
+   dirección **nunca** extraía nada, así que corregirlos en la confirmación costaba siempre
+   un turno extra.
+2. Aun para el paciente, exigía "se llama / llama / ahora es / paciente es / paciente:".
+   La forma natural "cambia el nombre del paciente **a** Rocky" no matcheaba.
+Como el flujo (`app/agent.py:2519`) **limpia el campo ANTES** de intentar extraer, el
+resultado era el campo en blanco + repregunta.
+**Contraste que confirmó el diagnóstico:** la MISMA corrección a mitad del flujo (antes del
+resumen) sí funciona — ahí la captura el modelo por el camino normal, no este extractor.
+**Solución aplicada:** `_extract_correction_value` reescrito —
+`_CORRECTABLE_INLINE_FIELDS` (paciente, propietario, médico, especie, raza, sexo, edad,
+dirección) + `_CORRECTION_VALUE_RE` con los conectores reales de la gente
+("a", "por", "es", "ahora es", "sería", "debería ser", "se llama", ":"), más limpieza de
+artículos ("a un mestizo" → "mestizo"). `exam_type`, `payment_method` y `observations`
+quedan FUERA a propósito: el análisis pasa por el catálogo (nada que afecte dinero se toma
+de texto libre) y el pago es un enum. La edad sin unidad ("cambiala a 5") se rechaza para
+que la pida el flujo normal.
+**Verificación con modelo real:** "cambia el nombre del paciente a Rocky" → `patient_name`
+= "Rocky"; "cambia la edad a 5 años" → `patient_age` = "5 años" y **re-muestra el resumen
+actualizado** sin repreguntar.
+**Tests:** `tests/test_correction_value_extraction.py` (10 campos/frases parametrizados +
+edad sin unidad + campos con carril propio + sin valor nuevo).
+**Suite:** 534 passed.
+**Estado:** RESUELTO y verificado con modelo real.
+
+### ERR-092 — El bot acusa "registro Luciano como propietario" y un turno después lo borra (QA en vivo por Telegram, 2026-07-27) — RESUELTO
+**Síntoma:** el cliente respondió `Luciano` a "¿Cuál es el nombre del propietario?" y el bot
+acusó correctamente `"Perfecto, registro Luciano como propietario. ¿Quieres dejar alguna
+observación...?"`. Al turno siguiente el cliente dijo `"No, no tengo ninguna observación"` y
+`owner_name` quedó en **"Sin propietario"**. El cliente no tiene forma de detectarlo: dio el
+dato, se lo confirmaron, y en la orden va mal.
+**Causa raíz (dos piezas que se combinan):**
+1. `_detect_which_field_is_being_asked` (`app/detectors/analisis.py:210`) busca la substring
+   `"propietario"` en el ÚLTIMO MENSAJE DEL BOT COMPLETO. Como el acuse del turno anterior
+   dice "...como propietario", cree que todavía se está pidiendo el propietario.
+2. `"ninguna"` está en `_NO_OWNER_TOKENS` (`app/detectors/direccion.py:12`), así que
+   `_says_no_owner("No, no tengo ninguna observación")` da True.
+Con ambas, el atajo de `agent.py` escribía "Sin propietario" encima del nombre real.
+**Solución aplicada (opción elegida por el usuario: blindar el campo, no tocar el detector):**
+lógica extraída a `_apply_no_owner_shortcut(fields, prev_captured, user_message, history)` en
+`app/agent.py`, que **retorna temprano si ya hay `owner_name`** en `fields` o en
+`prev_captured`. La regla de negocio original (paciente callejero → "Sin propietario") sigue
+intacta cuando no hay propietario previo.
+**Nota:** el detector sigue confundido a propósito — un test lo documenta explícitamente. Si
+aparece el mismo choque en otro campo (paciente, médico, raza), la solución de fondo es que
+`_detect_which_field_is_being_asked` mire solo la oración interrogativa final.
+**Tests:** `tests/test_owner_not_overwritten.py` (4 casos: el detector sigue confundido, el
+caso real no borra, protección desde el estado previo, y el callejero sigue funcionando).
+**Suite:** 505 passed.
+**Estado:** RESUELTO. PENDIENTE validación en vivo.
+
+### ERR-093 — "No seguimos con el pago, te estoy diciendo" re-muestra el menú de perfiles y tira el avance (QA en vivo por Telegram, 2026-07-27) — RESUELTO
+**Síntoma:** con la orden casi completa, el bot ofrece "¿agregar otro análisis o seguimos con
+el pago?". El cliente responde `"No está bien, yo estaría con eso"` → el bot re-pregunta lo
+mismo; el cliente insiste `"No seguimos con el pago, te estoy diciendo"` → el bot **vuelve a
+mostrar el menú de perfiles desde cero**, perdiendo el avance.
+**Causa raíz:** el atajo que va al pago (`app/enforcers/orden.py:89`) exige
+`_wants_to_proceed_to_payment(msg) AND (método de pago explícito OR <= 6 tokens)`. La frase
+tiene **8 tokens**, así que no entra; sigue cayendo por la cascada hasta el paso 3, donde
+`_doesnt_know_what_to_ask("No seguimos con el pago...")` da **True** y re-lista los perfiles.
+La frase además es genuinamente ambigua: "no, sigamos con el pago" vs "no sigamos".
+**Solución aplicada (pedido del usuario: ante la duda, preguntar en vez de adivinar):** nuevo
+paso 1b en `_handle_extra_analysis_answer` — si el mensaje menciona el pago pero no trae verbo
+de agregar/quitar (`_ADD_ANALYSIS_TOKENS` / `_REMOVE_TOKENS`), responde
+`EXTRA_ANALYSIS_AMBIGUOUS_QUESTION`: *"Perdona, no te entendí bien: ¿avanzamos con el pago o
+quieres agregar otro análisis?"*. Nunca re-muestra el menú ni pierde el perfil elegido.
+**Descartado:** filtrar por `_named_analysis_terms` — devuelve palabras sueltas de la frase
+("seguimos", "pago"), no análisis del catálogo, así que no discrimina nada.
+**Tests:** 3 en `tests/test_extra_analysis_offer.py` (la frase ambigua pregunta y conserva el
+perfil; las frases cortas siguen yendo derecho al pago; nombrar un análisis no se secuestra).
+**Suite:** 505 passed.
+**Estado:** RESUELTO. PENDIENTE validación en vivo.
+
+### ERR-091 — Cliente sin dirección: el bot pide confirmar "sin dirección registrada" como si fuera una dirección (QA en vivo por Telegram, 2026-07-27)
+**Síntoma:** con un cliente cuya ficha no tiene dirección (Maxivet), el bot respondió:
+`"Tenemos como domicilio de retiro: sin dirección registrada. ¿Es correcta?"` — le pide al
+cliente que confirme el texto literal "sin dirección registrada" en vez de pedirle la
+dirección.
+**Inconsistente (no determinista):** con el MISMO cliente, en prueba aislada previa, el bot
+sí había preguntado bien: `"...sin dirección registrada. ¿Cuál es la dirección correcta
+donde debemos retirar la muestra?"`. Dos comportamientos para el mismo estado, y la
+diferencia la ve el cliente.
+**Alcance medido (grande):** **156 de 842 clientes activos (18,5 %) no tienen dirección** en
+`clients.address`. Ejemplos reales: Citycan, Clinica Veterinaria Innovet, Novavet, Animal
+House Yomasa, Fundación BIODESS. No es un caso de borde: ~1 de cada 5 clientes cae acá.
+**Agravante CONFIRMADO en vivo (mismo QA, turno siguiente):** el cliente respondió
+`"OK, si no está registrada está bien déjalo así qué hacemos ahora"` y el bot contestó
+`"Perfecto, entonces la dejamos sin dirección registrada por ahora. Para dejar la orden de
+servicio completa, empecemos con el médico solicitante..."` → **avanzó al siguiente campo
+sin dirección de retiro**, que es el dato operativo esencial (sin él el motorizado no sabe
+a dónde ir). En la sesión quedó `captured_fields = {'clinic_name': 'Maxivet'}`, sin `address`.
+**LA RED DE SEGURIDAD NO PROTEGE (confirmado 2 turnos después):** la sesión quedó con
+`pickup_address = 'sin dirección registrada'` — el bot guardó **el texto del placeholder
+como si fuera la dirección**. Esto es lo grave: `pickup_address` sí está en
+`ROUTE_REQUIRED_FIELDS` (`app/flow.py:21-28`), pero `missing_route_field()` solo comprueba
+que el campo sea *truthy*, y `"sin dirección registrada"` es un string no vacío. Es decir,
+**el guardrail se satisface con un valor basura y el cierre NO se bloquea**.
+**Consecuencia:** se crea una orden con dirección de retiro literal "sin dirección
+registrada". No es una orden incompleta (que el sistema rechazaría), es una orden
+**inválida que parece válida** y llega al motorizado, que no sabe a dónde ir.
+**CAUSA RAÍZ (localizada):** `app/services/ai.py:94`
+```python
+addr = private.get("_client_address") or "sin dirección registrada"
+state_parts.append(f"CLIENTE ENCONTRADO: {name} — Dirección registrada: {addr}")
+```
+El placeholder se **inyecta en el prompt del modelo** presentado como si fuera el valor real
+del campo ("Dirección registrada: sin dirección registrada"). El modelo no tiene forma de
+distinguir un texto de relleno de un dato, así que cuando el cliente dice "déjalo así" lo
+copia a `pickup_address`. El mismo literal aparece 5 veces más en `app/agent.py:661-701`,
+ahí sí legítimamente (son mensajes de presentación al cliente).
+**Solución propuesta (NO aplicada):** en `ai.py` no inyectar el placeholder como valor;
+cuando `_client_address` está vacío, decirle al modelo explícitamente que el cliente **no
+tiene dirección registrada y hay que pedirla**. Complementario: `missing_route_field()`
+debería rechazar valores placeholder, no solo cadenas vacías.
+**Lección:** un campo obligatorio validado solo por "no vacío" no está validado. Un texto de
+presentación (`or "sin X"`) nunca debe entrar al contexto del modelo en la posición donde va
+un dato — el modelo lo lee como dato y lo devuelve como dato. Es la lección L54 ("un
+docstring que declara una regla de negocio es una decisión") aplicada al prompt: **lo que se
+escribe en el prompt es contrato, no decoración**.
+**Impacto:** ALTO y silencioso. Afecta al 18,5 % de los clientes activos (156 de 842).
+**Detectado:** QA en vivo por Telegram (conv 1), 2026-07-27, con Flask local + ngrok.
+**Solución aplicada (2026-07-27, dos capas):**
+1. `app/services/ai.py` — si el cliente no tiene dirección, el prompt YA NO recibe el
+   placeholder en la posición del dato; recibe una instrucción explícita: *"NO tiene
+   dirección registrada en la base. Debes PEDIRLE la dirección de retiro al cliente; no la
+   des por válida ni la registres vacía."*
+2. `app/flow.py` — nueva `is_placeholder_address()` con los marcadores de relleno
+   ("sin dirección", "no registrada", "no aplica", "pendiente"…). La usan
+   `missing_route_field()` y `route_ready_for_payment()`, así que una dirección de relleno
+   **bloquea el cierre y el paso al pago** en vez de colarse por ser un string no vacío.
+**Verificación con modelo real:** el bot ahora responde *"Tenemos como domicilio de retiro:
+no tenemos dirección registrada en la base. ¿Cuál es la dirección correcta...?"* y ante
+"déjalo así" insiste: *"No puedo dejar la dirección vacía para programar la recogida"*.
+`pickup_address` queda en `None`, no con basura.
+**Tests:** `tests/test_correction_value_extraction.py` (placeholders vs direcciones reales,
+bloqueo del cierre y del paso al pago). **Suite:** 534 passed.
+**Estado:** RESUELTO y verificado con modelo real.
+
+### ERR-088 — El escalado a "cliente nuevo" es IRREVERSIBLE: el bot queda mudo aunque el cliente se corrija (QA pre-presentación, 2026-07-26)
+**Síntoma:** el cliente responde "creo que no estamos registrados"; el bot escala a
+Recepción y setea `_blocked=True`. En el turno siguiente el cliente se corrige — "sí
+estamos, somos Maxivet", un cliente REAL de la base — y el bot **no vuelve a responder
+nunca**. En el corpus real de Chatwoot (conv 10, Gusmery Ruiz) esto ocurrió de verdad: el
+cliente siguió escribiendo **12 turnos al vacío**, incluido su propio nombre.
+**Causa raíz:** `_escalate_unfound_client` (`app/agent.py:631`) reutiliza el flag
+`_blocked`, que nació para el cliente particular (a quien A3 sí quiere dejar de atender).
+En `process_turn` (`app/agent.py:2157`) `_blocked` corta el turno **antes de todo**, así
+que ningún dato posterior puede rescatar la sesión. El riesgo ya estaba anotado en la
+tabla "Estado de flujos" de este mismo documento ("puede impedir recuperacion si el
+usuario luego da datos validos"), pero solo para el caso particular, no para este.
+**Alcance medido (no es universal):** de 4 variantes probadas contra clientes reales,
+**3 SÍ se recuperan** — escribir mal el nombre ("Citikan"→"Citycan"), dudar ("mmm no sé
+bien"→"Maxivet") y dar un nombre inexistente→nombre real. **Solo falla** cuando el cliente
+*declara* no estar registrado. Es un camino, no una epidemia.
+**Impacto:** en Chatwoot un humano puede rescatar la conversación; en Telegram directo el
+cliente queda hablando solo sin ninguna salida desde el chat.
+**Reproducción:** `["Hola", "1", "creo que no estamos registrados", "sí estamos, somos Maxivet"]`
+→ el 4º turno devuelve `None` y `_blocked=True`.
+**Solución propuesta (NO aplicada):** dejar de setear `_blocked` en
+`_escalate_unfound_client` y usar un flag propio que permita reabrir el flujo si llega un
+identificador que resuelve contra la base. Toca B3 (✅ APROBADO).
+**Estado:** ABIERTO — documentado por decisión del usuario (2026-07-26); no se tocó el
+código porque el fix cae sobre un paso aprobado del contrato.
+
+### ERR-089 — "Dale Pets": el nombre de un cliente real se descarta por colisión con un token afirmativo (QA pre-presentación, 2026-07-26)
+**Síntoma:** tras un primer intento fallido de identificación, el cliente escribe
+"Dale Pets" (cliente REAL, `client_id` 8bce027a…). El reintento lo descarta y el bot lo
+escala como no registrado.
+**Causa raíz:** el guard de reintento (`app/agent.py:1491-1492`) descarta el mensaje si
+alguno de sus tokens está en `_CONTINUE_TOKENS | _AFFIRMATIVE_TOKENS | _NEGATIVE_TOKENS`.
+`"dale"` está en `_AFFIRMATIVE_TOKENS` (`app/detectors/basico.py:22`), así que "Dale Pets"
+se lee como un "dale" de asentimiento y no como nombre propio.
+**Familia:** misma raíz que ERR-075 ("Toro"), ERR-078 ("Jorge Toro") y ERR-084 ("José
+Toro") — un nombre propio real que colisiona con una palabra funcional.
+**Alcance medido:** **1 de 992 clientes** de la base cae en este patrón (nombre ≤4 tokens,
+con token funcional y sin palabra de contexto tipo "veterinaria"). Verificado por barrido
+sobre `clients.clinic_name`.
+**Workaround vigente:** decir "veterinaria Dale Pets" o dar el NIT — ambos ya funcionan,
+porque la palabra de contexto salta el guard antes.
+**Solución propuesta (NO aplicada):** no descartar el mensaje cuando, además del token
+funcional, hay al menos otra palabra que no lo es ("pets").
+**Estado:** ABIERTO — documentado por decisión del usuario (2026-07-26). Severidad baja
+(1/992 con workaround), pero la familia "nombre propio vs palabra funcional" ya causó 4 bugs.
+
+### ERR-090 — Dos preguntas del cliente se ignoran textualmente a mitad de flujo (QA pre-presentación, 2026-07-26)
+**Síntoma:** con el flujo en curso, el cliente pregunta "Y a donde me vas a confirmar" o
+dice "Pero ya estaba registrado" y el bot responde **exactamente la misma pregunta
+anterior**, sin acusar recibo. Sale del corpus real (conv 10-4), donde el cliente insistió
+y terminó escribiendo "No entendí".
+**Alcance medido:** de 5 preguntas laterales reales probadas, **3 se atienden bien** —
+precio ("$14,000 COP" + retoma), horario de recogida (explica que lo confirma operaciones)
+y desconcierto genérico ("Yo ahora que hago" → reformula con calma). Las 2 que fallan son
+las que piden *metainformación del proceso* (dónde se confirma, estado del registro), que
+B17 no cubre.
+**Impacto:** UX, no correctitud — la orden no se corrompe ni se pierde. Visible en una
+demo si el cliente pregunta fuera del guion.
+**Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
+
+### ERR-088 — La cuenta Alegra nueva es de ARGENTINA: ningún contacto ni ítem se podía crear (preparación de demo, 2026-08-03)
+**Síntoma:** al vencer la prueba de Alegra se cargaron credenciales nuevas y
+`alegra_demo_invoice.py` falló antes de facturar: `HTTP 400 code 2055 "La condición de IVA
+es un campo obligatorio"`. Con el campo agregado, el siguiente error fue `code 2039 "El
+tipo de identificación no es válido"`, y luego `code 3140 "La unidad de medida es un campo
+obligatorio"` al crear los ítems.
+**Causa raíz CONFIRMADA:** `GET /company` devuelve `applicationVersion="argentina"`,
+moneda ARS. El módulo construía siempre el contacto con el modelo COLOMBIANO
+(`identificationObject.type="NIT"` + `regime` + `kindOfPerson`), que Argentina rechaza:
+allá pide `type="CUIT"`, `ivaCondition` obligatoria en el contacto y `unit` obligatoria en
+el ítem. Ya estaba anotado como sospecha en un comentario de `alegra.py` (líneas 74-77),
+sin resolver.
+**Verificado contra la API real:** Alegra Argentina acepta el NIT colombiano de 9 dígitos
+tal cual como CUIT (no valida dígito verificador), así que los ~800 clientes de Supabase
+facturan sin transformar su NIT.
+**Solución:** `alegra.account_country()` resuelve el país UNA vez (`ALEGRA_COUNTRY` del
+.env manda; si está vacío lo detecta con `/company`; ante falla asume Colombia) y
+`get_or_create_contact` / `get_or_create_item` ramifican el payload. Se invoca solo en los
+caminos de CREACIÓN, nunca en las búsquedas, para no agregar llamadas al camino feliz.
+El camino colombiano queda intacto para la cuenta del cliente.
+**Tests:** suite completa 582 passed, 2 skipped, 1 xfailed (sin tests nuevos: el cambio se
+validó end-to-end contra la cuenta real, que es lo que un mock no probaría).
+**Verificación en vivo:** `alegra_demo_invoice.py` creó contacto (id 4) + factura
+**borrador** `00001-00000001` por $58.000, estado `draft`, y `billing.invoice_to_row` la
+mapea bien para el dashboard (NIT 900123456, "Borrador", sin timbrar).
+**Pendiente:** la cuenta es ARS y sin DIAN — sirve para demostrar la mecánica, no la
+facturación electrónica colombiana. Al migrar a la cuenta del cliente: quitar
+`ALEGRA_COUNTRY` del .env (o ponerlo en `colombia`).
+**Estado:** RESUELTO y verificado en vivo (2026-08-03).
+
 ### ERR-087 — Pedido mixto resumido a UN término vago por el modelo: se pierde todo lo demás (QA en vivo, 2026-07-22, chat 4)
 **Síntoma:** primer pedido de análisis "Necesito análisis de sangre u orina, sodio y
 potasio" → el bot respondió "Listo, queda análisis de sangre": sodio, potasio y orina se

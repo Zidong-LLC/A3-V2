@@ -14,6 +14,13 @@
     <button type="submit" class="ghost-btn small">Filtrar</button>
     <span class="table-counter">{{ results|length }} resultado(s)</span>
   </form>
+  {% if results %}
+  <p class="muted-text">
+    <a class="ghost-btn small" href="{{ url_for('portal.client_results_bulk_download', **filters) }}">
+      <i data-lucide="download"></i>Descargar los {{ results|length }} en un ZIP
+    </a>
+  </p>
+  {% endif %}
   <div class="table-wrap">
     <table>
       <thead><tr><th>Fecha</th><th>Orden</th><th>Paciente</th><th>Propietario</th><th>Análisis</th><th></th></tr></thead>

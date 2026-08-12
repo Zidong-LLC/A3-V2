@@ -54,7 +54,9 @@ from app.orders import (
     _resolve_profile_base_if_missing,
     _selected_profile_addition_response,
 )
-from app.messages import EXTRA_ANALYSIS_OFFER, PAYMENT_METHOD_QUESTION
+from app.messages import (
+    EXTRA_ANALYSIS_AMBIGUOUS_QUESTION, EXTRA_ANALYSIS_OFFER, PAYMENT_METHOD_QUESTION,
+)
 from app.rules import calculate_custom_profile_total
 from app.services import db
 
@@ -77,6 +79,11 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
     correction_field = _detect_correction_field(user_message)
     if correction_field in _STABLE_ORDER_FIELDS:
         return None
+    # ERR-099: un cambio de CLIENTE en medio de la oferta tampoco es de este carril. El guard
+    # de abajo (_wants_to_change_client) no reconoce fraseos como "el cliente, soy Animal
+    # Pets"; el detector de campo sí, y ceder acá deja que la identificación se re-verifique.
+    if correction_field == "clinic_name":
+        return None
     # Cambio de cliente/sede ('necesito cambiar de veterinaria') tampoco es de este carril:
     # con el reorden C2 el atajo pre-LLM ya no intercepta antes — sin esta cesión, el paso
     # genérico se lo tragaba con '¿qué análisis agregas?' (mensaje corto, <8 tokens).
@@ -95,6 +102,20 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
         return _base_route_response(PAYMENT_METHOD_QUESTION, fields)
 
     tokens = set(_tokenize(user_message))
+
+    # 1b) ERR-093: nombró el pago, pero el mensaje trae más texto del que acepta el atajo de
+    # arriba ("No seguimos con el pago, te estoy diciendo" son 8 tokens y el guard corta en 6).
+    # La frase es genuinamente ambigua: "no, sigamos con el pago" vs "no sigamos con el pago".
+    # Antes seguía cayendo por la cascada hasta el paso 3 y RE-MOSTRABA el menú de perfiles
+    # desde cero, tirando todo el avance de la orden (QA en vivo 2026-07-27, chat 1).
+    # Ante la duda se PREGUNTA, no se adivina. Se excluye el caso con intención explícita de
+    # tocar el pedido ("agregale una glucosa antes del pago"): ahí el verbo desambigua solo.
+    # No se usa `_named_analysis_terms` para esto porque devuelve palabras sueltas de la frase
+    # ("seguimos", "pago"), no análisis del catálogo — no distingue nada acá.
+    if (_wants_to_proceed_to_payment(user_message)
+            and not (tokens & _ADD_ANALYSIS_TOKENS)
+            and not (tokens & _REMOVE_TOKENS)):
+        return _base_route_response(EXTRA_ANALYSIS_AMBIGUOUS_QUESTION, fields)
 
     # 2) Pregunta por opciones de un área ('qué análisis de orina tienen') -> menú que SUMA.
     area_resp = _area_options_for_profile_addition(fields, user_message)

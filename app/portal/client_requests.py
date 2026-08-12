@@ -3,7 +3,7 @@ historial de solicitudes, y perfil de la cuenta (solo lectura).
 
 El client_id sale SIEMPRE de la sesión; nunca de query/form.
 """
-from flask import flash, redirect, render_template, request, session, url_for
+from flask import abort, flash, redirect, render_template, request, session, url_for
 
 from app.portal import portal_bp
 from app.portal.auth import client_required
@@ -28,16 +28,137 @@ PAYMENT_METHOD_OPTIONS = [
     ("pago_linea", "Pago en línea"),
 ]
 
+# Avance de la orden: reemplaza al tracking GPS (sin LiveConnect no hay fuente de
+# posición). El cliente ve en qué punto del recorrido está su muestra.
+REQUEST_STATUS_FLOW = [
+    ("received", "Recibida"),
+    ("assigned", "Asignada"),
+    ("on_route", "En ruta"),
+    ("picked_up", "Retirada"),
+    ("in_lab", "En laboratorio"),
+    ("processed", "Procesada"),
+    ("sent", "Enviada"),
+]
+
+# Estados que no avanzan por la línea: se muestran aparte, no como un paso.
+REQUEST_STATUS_OFF_FLOW = ("cancelled", "error_pending_assignment")
+
+# El cliente NO ve eventos internos: facturación (alegra_invoiced/alegra_failed)
+# ni revisiones de alta de cliente. Lista blanca, no lista negra: un evento nuevo
+# es invisible hasta que se decida explícitamente mostrarlo.
+CLIENT_VISIBLE_EVENTS = {
+    "created": "Solicitud registrada",
+    "status_updated": "Actualización de estado",
+}
+
+
+def build_status_progress(status: str) -> list[dict]:
+    """Pasos del recorrido marcando los ya cumplidos según el estado actual."""
+    if status in REQUEST_STATUS_OFF_FLOW:
+        return []
+    keys = [key for key, _ in REQUEST_STATUS_FLOW]
+    current = keys.index(status) if status in keys else -1
+    return [
+        {
+            "key": key,
+            "label": label,
+            "done": index < current,
+            "current": index == current,
+        }
+        for index, (key, label) in enumerate(REQUEST_STATUS_FLOW)
+    ]
+
+
+def resolve_catalog_selection(profile_code: str, test_codes: list[str]) -> dict:
+    """Traduce lo elegido en el formulario a los campos que espera create_request.
+
+    ERR-097: el portal mandaba `exam_type` como texto libre y la orden quedaba
+    con `base_profile.code = null` y `price = 0`. Acá el código y el precio
+    salen SIEMPRE del catálogo — el formulario ofrece una lista, no texto
+    libre, así que no hace falta interpretar lenguaje natural como en el chat.
+    Un código que no exista se descarta: nunca se inventa un precio.
+    """
+    fields: dict = {}
+    labels: list[str] = []
+
+    profile = db.find_catalog_profile(profile_code) if profile_code else None
+    if profile:
+        fields["_selected_profile_code"] = profile.get("code")
+        fields["_selected_profile_name"] = profile.get("name")
+        fields["_selected_profile_price"] = profile.get("price")
+        fields["_selected_profile_description"] = profile.get("description")
+        labels.append(profile.get("name") or "")
+
+    tests = db.get_tests_by_codes_or_names(test_codes) if test_codes else []
+    if tests:
+        fields["selected_tests"] = [t.get("code") for t in tests if t.get("code")]
+        labels.extend(t.get("name") or "" for t in tests)
+
+    fields["exam_type"] = ", ".join(label for label in labels if label)
+    return fields
+
+
+def build_timeline(events: list[dict]) -> list[dict]:
+    """Eventos visibles para el cliente, del más reciente al más antiguo.
+
+    Solo se expone el estado nuevo del payload: el resto del `event_payload`
+    lleva datos internos que no deben salir del laboratorio.
+    """
+    timeline = []
+    for event in events:
+        label = CLIENT_VISIBLE_EVENTS.get(event.get("event_type"))
+        if not label:
+            continue
+        payload = event.get("event_payload") or {}
+        new_status = payload.get("status") if isinstance(payload, dict) else None
+        timeline.append({
+            "label": label,
+            "created_at": event.get("created_at") or "",
+            "status_label": REQUEST_STATUS_LABELS.get(new_status, new_status or ""),
+        })
+    return timeline
+
 
 @portal_bp.get("/mis/solicitudes")
 @client_required
 def client_requests_page():
-    requests_list = portal_db.list_client_requests(session["portal_client_id"])
+    filters = {
+        "patient": (request.args.get("patient") or "").strip(),
+        "order_number": (request.args.get("order_number") or "").strip(),
+        "status": (request.args.get("status") or "").strip(),
+        "date_from": (request.args.get("date_from") or "").strip(),
+        "date_to": (request.args.get("date_to") or "").strip(),
+    }
+    # Un estado desconocido devolvería vacío sin explicación: se descarta.
+    if filters["status"] not in REQUEST_STATUS_LABELS:
+        filters["status"] = ""
+    requests_list = portal_db.list_client_requests(
+        session["portal_client_id"], filters=filters
+    )
     return render_template(
         "portal/client_requests.html",
         requests=requests_list,
+        filters=filters,
         status_labels=REQUEST_STATUS_LABELS,
         active_tab="solicitudes",
+    )
+
+
+@portal_bp.get("/mis/solicitudes/<uuid:request_id>")
+@client_required
+def client_request_detail(request_id):
+    order = portal_db.get_client_request(str(request_id), session["portal_client_id"])
+    if not order:
+        abort(404)
+    events = db.list_request_events(str(request_id), limit=50)
+    return render_template(
+        "portal/client_request_detail.html",
+        order=order,
+        progress=build_status_progress(order.get("status")),
+        timeline=build_timeline(events),
+        status_labels=REQUEST_STATUS_LABELS,
+        active_tab="solicitudes",
+        back_url=url_for("portal.client_requests_page"),
     )
 
 
@@ -45,19 +166,31 @@ def client_requests_page():
 @client_required
 def client_new_request():
     client = db.get_client_by_id(session["portal_client_id"])
+    catalog = {
+        "profiles": db.list_catalog_profiles(),
+        "tests": db.list_catalog_tests(),
+    }
     if request.method == "POST":
         fields = {
             key: (request.form.get(key) or "").strip() or None
             for key in (
                 "patient_name", "species", "patient_age", "owner_name",
-                "exam_type", "pickup_address", "observations",
-                "payment_method", "requesting_doctor",
+                "pickup_address", "observations", "payment_method", "requesting_doctor",
             )
         }
+        # El análisis sale del catálogo, no de texto libre (ERR-097).
+        selected_test_codes = request.form.getlist("test_codes")
+        fields.update(resolve_catalog_selection(
+            (request.form.get("profile_code") or "").strip(), selected_test_codes,
+        ))
         if not fields["patient_name"] or not fields["exam_type"]:
-            flash("Paciente y análisis solicitado son obligatorios", "error")
+            flash(
+                "Indique el paciente y al menos un perfil o análisis del catálogo",
+                "error",
+            )
             return render_template(
                 "portal/client_new_request.html", client=client, form=request.form,
+                catalog=catalog, selected_test_codes=selected_test_codes,
                 payment_options=PAYMENT_METHOD_OPTIONS, active_tab="solicitudes",
             )
         fields["pickup_address"] = fields["pickup_address"] or (client or {}).get("address")
@@ -89,8 +222,9 @@ def client_new_request():
         return redirect(url_for("portal.client_requests_page"))
 
     return render_template(
-        "portal/client_new_request.html", client=client, form={},
-        payment_options=PAYMENT_METHOD_OPTIONS, active_tab="solicitudes",
+        "portal/client_new_request.html", client=client, form={}, catalog=catalog,
+        selected_test_codes=[], payment_options=PAYMENT_METHOD_OPTIONS,
+        active_tab="solicitudes",
     )
 
 

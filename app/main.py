@@ -6,6 +6,7 @@ from app.config import (
     MESSAGE_DEBOUNCE_SECONDS, MESSAGE_DEBOUNCE_MAX_WAIT,
 )
 from app.agent import process_turn
+from app.health import check_all
 from app.services import telegram, chatwoot
 from app.services.db import get_or_create_session
 from app.services.debounce import MessageDebouncer
@@ -169,7 +170,10 @@ def setup_webhook():
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok"})
+    """Salud real de las dependencias. 503 si Supabase no responde, para que un
+    monitor externo detecte la caída en vez de recibir un OK fijo."""
+    payload, status_code = check_all()
+    return jsonify(payload), status_code
 
 
 if __name__ == "__main__":

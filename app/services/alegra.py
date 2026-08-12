@@ -16,7 +16,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from app.config import ALEGRA_EMAIL, ALEGRA_API_TOKEN, ALEGRA_BASE_URL
+from app.config import ALEGRA_EMAIL, ALEGRA_API_TOKEN, ALEGRA_BASE_URL, ALEGRA_COUNTRY
 
 _AUTH = base64.b64encode(f"{ALEGRA_EMAIL}:{ALEGRA_API_TOKEN}".encode()).decode()
 _HEADERS = {
@@ -78,6 +78,32 @@ def find_contact_by_nit(tax_id: str) -> dict | None:
 DEFAULT_REGIME = "SIMPLIFIED_REGIME"
 DEFAULT_KIND_OF_PERSON = "LEGAL_ENTITY"
 
+# Campos que exige Alegra ARGENTINA en su lugar: identificación CUIT (acepta el NIT
+# colombiano tal cual, no valida el dígito verificador), condición de IVA obligatoria
+# en el contacto y unidad de medida obligatoria en el ítem.
+DEFAULT_IVA_CONDITION = "IVA_RESPONSABLE"
+DEFAULT_UNIT = "unit"
+
+_country: str | None = None
+
+
+def account_country() -> str:
+    """País de la cuenta ('colombia' | 'argentina' | ...). Define qué campos exige
+    Alegra al CREAR contactos e ítems. Se resuelve una sola vez: ALEGRA_COUNTRY manda,
+    si no se lee de /company. Ante cualquier falla asume Colombia, que es el negocio
+    real de A3. Solo se invoca en los caminos de creación, nunca en las búsquedas."""
+    global _country
+    if ALEGRA_COUNTRY:
+        return ALEGRA_COUNTRY
+    if _country is None:
+        try:
+            company = _request("GET", "/company")
+            version = (company or {}).get("applicationVersion") if isinstance(company, dict) else None
+            _country = str(version or "colombia").strip().lower()
+        except AlegraError:
+            _country = "colombia"
+    return _country
+
 
 def _split_nit(tax_id: str) -> tuple[str, str | None]:
     """Separa un NIT colombiano en número y dígito de verificación. '900123456-7'
@@ -110,16 +136,24 @@ def get_or_create_contact(
         existing = find_contact_by_nit(number)
         if existing:
             return existing
-    identification = {"number": number, "type": "NIT"}
-    if dv:
-        identification["dv"] = dv
-    body = {
-        "name": clinic_name,
-        "identificationObject": identification,
-        "regime": regime,
-        "kindOfPerson": kind_of_person,
-        "type": ["client"],
-    }
+    if account_country() == "argentina":
+        body = {
+            "name": clinic_name,
+            "identificationObject": {"number": number, "type": "CUIT"},
+            "ivaCondition": DEFAULT_IVA_CONDITION,
+            "type": ["client"],
+        }
+    else:
+        identification = {"number": number, "type": "NIT"}
+        if dv:
+            identification["dv"] = dv
+        body = {
+            "name": clinic_name,
+            "identificationObject": identification,
+            "regime": regime,
+            "kindOfPerson": kind_of_person,
+            "type": ["client"],
+        }
     if extra:
         body.update({k: v for k, v in extra.items() if v})
     created = _request("POST", "/contacts", body)
@@ -145,6 +179,8 @@ def get_or_create_item(reference: str, name: str, price: int) -> dict:
     if existing:
         return existing
     body = {"name": name, "reference": str(reference), "price": price}
+    if account_country() == "argentina":
+        body["unit"] = DEFAULT_UNIT
     created = _request("POST", "/items", body)
     return created if isinstance(created, dict) else {}
 

@@ -239,3 +239,77 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
 
 > Nada de los bloques marcados ✅ APROBADO se toca para resolver estos pendientes. Si hace
 > falta, se avisa primero.
+
+---
+
+## Verificación en vivo — QA pre-presentación (2026-07-26)
+
+Corrida de `validate_flows.py` contra el modelo real y catálogo real, más replay de
+conversaciones reales de Chatwoot. Informe completo: `tasks/qa-pre-presentacion-2026-07-26.md`.
+**No se modificó ningún bloque del flujo en esta sesión** — todo se documentó.
+
+| Bloque | Qué se verificó | Resultado |
+|---|---|---|
+| B2 · Identificación | nombres reales del roster ("Agrocolombia", "VeroPets", "Citycan", "Maxivet") | ✅ identifican bien (cierra la duda de ERR-085) |
+| B4b · Raza infiere especie | typos severos, "Nose" junto, raza desconocida | ✅ (QA5, ERR-083/074) |
+| B6/B9 · Perfiles y personalización | selección múltiple, perfil + análisis sueltos, área en afirmativo | ✅ (P, Q, R, X, QA8, QA9) — **los 3 bugs de dinero ERR-077/079/087 pasan en vivo** |
+| B13 · Cierre y pago | cierre con número de orden | ✅ en los flujos de cierre |
+| B16 · Pagos → Contabilidad | derivación determinista | ✅ |
+| B17 · Preguntas laterales | 5 preguntas reales del corpus | ⚠️ 3 de 5 bien; fallan las de metainformación del proceso → **ERR-090** |
+| B3 · Cliente no registrado | recuperación tras escalar | ⚠️ irreversible si el cliente *declara* no estar registrado → **ERR-088** (fix NO aplicado: tocaría este bloque aprobado) |
+
+**Dos corridas idénticas (33/35 y 30/35) separan dos cosas distintas:**
+
+- **Consistente en ambas → bug real:** QA1 (correcciones encadenadas de raza) y QA4 (especie
+  declarada + raza de otra especie). Ambos son de la familia **raza ↔ especie**, que ya
+  acumula ERR-074/075/078/083/084. Es hoy el punto más frágil del flujo.
+- **Solo en una corrida → no determinista:** F, T, V. Un bloque que pasa una vez no está
+  probado; conviene re-verificar dos veces antes de dar por bueno cualquier cambio.
+
+---
+
+## Verificación en vivo — QA end-to-end (2026-07-28)
+
+Dos corridas nuevas de `validate_flows.py` (32/35 y 32/35), replay de 8 conversaciones
+reales, más el primer recorrido HTTP del portal y del dashboard. Informe completo:
+`tasks/qa-e2e-2026-07-28.md`. **Ningún bloque del flujo cambió de estado ni se tocó código
+de `app/` en esta sesión** — todo se documentó.
+
+Se validó el árbol de trabajo **con los fixes ERR-091 a ERR-094 aún sin commitear**, que el
+QA del 26-07 no alcanzó a cubrir.
+
+| Bloque | Qué se verificó | Resultado |
+|---|---|---|
+| B4 · Recolección de datos | el propietario acusado sobrevive al resumen (ERR-092) | ✅ "Propietario: Luciano" en el resumen; "Sin propietario" 0 veces |
+| B12 · Corrección en la confirmación | corregir con el valor en el mismo mensaje (ERR-094) | ✅ M y M2 verdes en ambas corridas |
+| B9/B9.5 · Personalización y oferta extra | sin regresión tras el fix de ERR-093 | ✅ P, Q, R, X, QA9 verdes en las dos corridas |
+| B5 · Confirmación de dirección | placeholder "sin dirección registrada" (ERR-091) | ⚠️ **no probado en vivo**: el harness usa un cliente con dirección. `is_placeholder_address()` resuelve los casos reales pero **no detecta `"-"` ni `"n/a"`** |
+| B4b · Raza infiere especie | correcciones encadenadas y raza de otra especie | ⚠️ QA1 y QA4 pasaron de rojo **consistente** (26-07) a **intermitente**: ✅ en la corrida 1, 🔴 en la 2. Mejoró, no está cerrado |
+| B1/B2 · Bienvenida e identificación | preguntas de preventa sin dar el NIT | 🔴 **rojo en las dos corridas** → **ERR-095**. Es hoy el único fallo consistente del flujo |
+| B6 · Selección de análisis | corpus real de Chatwoot | ⚠️ bucle en "¿qué análisis o perfil desean?" — **16 apariciones**, el más frecuente del corpus → **ERR-096** |
+| B3 · Cliente no registrado | recuperación tras escalar | ⚠️ sigue igual: 4 casos de SILENCIO en el replay (ERR-088, sin cambios) |
+
+**Lo que cambió respecto del 26-07:** QA1/QA4 dejaron de ser el fallo consistente y pasó a
+serlo el flujo T (preventa). El punto frágil se movió del final del flujo (raza ↔ especie) al
+principio (identificación cuando el cliente pregunta antes de dar el NIT).
+
+### Cambio con autorización explícita — B2 y B12 (ERR-099, 2026-07-28)
+
+La prueba en vivo por Telegram encontró que **corregir el CLIENTE en la confirmación
+reescribía solo el nombre**: el `client_id`, el NIT, la dirección y el motorizado quedaban
+los del cliente anterior. La orden se habría facturado a uno y el retiro habría ido a la
+dirección de otro. Ficha completa en `tasks/errores-soluciones.md` (ERR-099).
+
+Se paró antes de tocar, se avisó y **el usuario dio OK explícito** para el arreglo completo.
+
+| Bloque | Qué cambió | Qué NO cambió |
+|---|---|---|
+| **B12 · Corrección en la confirmación** | `cliente / veterinaria / clínica / sede` pasa a ser un campo corregible que deriva a `_restart_identification_for_new_client` | Los otros 11 campos corregibles resuelven exactamente igual (test parametrizado que lo fija) |
+| **B2 · Identificación** ✅ APROBADO | Se **conecta** al carril de corrección: ahora se puede re-abrir desde el resumen | **Su lógica no se tocó.** No se escribió identificación nueva: se reusa `_restart_identification_for_new_client` / `_switch_client_keep_order`, que ya existían |
+
+**Invariante nuevo:** `tests/test_client_change_in_confirmation.py` — `clinic_name` no puede
+quedar junto a `pickup_address` tras un cambio de cliente, y el orden de las palabras clave
+(dirección → cliente → paciente) queda fijado por test.
+
+**Verificado:** 551 tests en verde; 32/35 con modelo real, el mismo puntaje que las dos
+corridas previas al fix. **Pendiente:** validación en vivo por Telegram.

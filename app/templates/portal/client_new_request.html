@@ -24,8 +24,15 @@
       <label>Propietario
         <input name="owner_name" type="text" value="{{ form.get('owner_name', '') }}">
       </label>
-      <label>Análisis solicitado *
-        <input name="exam_type" type="text" value="{{ form.get('exam_type', '') }}" placeholder="Hemograma, perfil renal…" required>
+      <label>Perfil del catálogo
+        <select name="profile_code" class="cell-select">
+          <option value="">Sin perfil — solo análisis sueltos</option>
+          {% for p in catalog.profiles %}
+          <option value="{{ p.code }}" {{ 'selected' if form.get('profile_code') == p.code else '' }}>
+            {{ p.name }}{% if p.price %} — ${{ '{:,.0f}'.format(p.price|float)|replace(',', '.') }}{% endif %}
+          </option>
+          {% endfor %}
+        </select>
       </label>
       <label>Médico solicitante
         <input name="requesting_doctor" type="text" value="{{ form.get('requesting_doctor', '') }}">
@@ -37,6 +44,18 @@
         <select name="payment_method" class="cell-select">
           {% for value, label in payment_options %}
           <option value="{{ value }}" {{ 'selected' if form.get('payment_method') == value else '' }}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <div class="full-field">
+      <label>Análisis del catálogo
+        <span class="muted-text">Elija uno o varios. Si ya seleccionó un perfil, estos se suman.</span>
+        <select name="test_codes" class="cell-select catalog-multi" multiple size="8">
+          {% for t in catalog.tests %}
+          <option value="{{ t.code }}" {{ 'selected' if t.code in selected_test_codes else '' }}>
+            {{ t.name }}{% if t.price %} — ${{ '{:,.0f}'.format(t.price|float)|replace(',', '.') }}{% endif %}
+          </option>
           {% endfor %}
         </select>
       </label>

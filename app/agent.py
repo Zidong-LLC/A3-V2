@@ -218,7 +218,8 @@ from app.messages import (
     POST_TERMINAL_GREETING_REPLY, RESULTS_PENDING_MESSAGE, OPTION_RECONSIDER_MESSAGE,
     ORDER_NUMBER_NEEDS_CLIENT_MESSAGE, ORDER_NUMBER_NOT_FOUND_MESSAGE, FAREWELL_REPLY,
     CLOSING_PROMPT, PAYMENT_METHOD_QUESTION, PAYMENT_ONLINE_HANDOFF_MESSAGE,
-    EXTRA_ANALYSIS_OFFER, NO_COURIER_HANDOFF_MESSAGE, AGE_QUESTION, CORRECTION_PROMPT,
+    EXTRA_ANALYSIS_OFFER, EXTRA_ANALYSIS_AMBIGUOUS_QUESTION,
+    NO_COURIER_HANDOFF_MESSAGE, AGE_QUESTION, CORRECTION_PROMPT,
 )
 
 logger = logging.getLogger(__name__)
@@ -626,6 +627,26 @@ def _unsupported_final_user_response(fields: dict) -> dict:
         "pending_intents": [],
         "resume_prompt": "",
     }
+
+
+def _apply_no_owner_shortcut(
+    fields: dict, prev_captured: dict, user_message: str, history: list[dict]
+) -> None:
+    """Paciente sin dueño (callejero/rescatado): si se está pidiendo el propietario y el
+    cliente indica que no hay, se registra "Sin propietario" y se avanza, en vez de
+    repreguntar en bucle (regla de negocio confirmada 2026-06-23).
+
+    ERR-092 — nunca pisar un propietario YA capturado. `_detect_which_field_is_being_asked`
+    lee el último mensaje del bot completo, así que el ACUSE de un campo ("registro Luciano
+    como propietario. ¿Alguna observación?") le hace creer que todavía se pide el
+    propietario; ahí un "no tengo ninguna observación" (token "ninguna" ∈ _NO_OWNER_TOKENS)
+    borraba el nombre que el cliente acababa de dar. El bot decía la verdad al acusarlo y se
+    pisaba a sí mismo un turno después, sin que el cliente pudiera notarlo.
+    """
+    if fields.get("owner_name") or prev_captured.get("owner_name"):
+        return
+    if _says_no_owner(user_message) and _detect_which_field_is_being_asked(history) == "owner_name":
+        fields["owner_name"] = "Sin propietario"
 
 
 def _escalate_unfound_client(fields: dict, reply: str = CLIENT_NOT_FOUND_MESSAGE) -> dict:
@@ -1974,18 +1995,49 @@ def _prevent_incomplete_route_closure(session: dict, ai_response: dict, fields: 
 # Enforcers de anclaje → app/enforcers/grounding.py (importados abajo con alias).
 # _enforce_selected_tests_are_catalog_codes → app/enforcers/dinero.py (importado abajo como alias).
 
+# ERR-094: campos cuyo valor nuevo se puede leer del mismo mensaje de corrección. Se excluyen
+# los que tienen carril propio: exam_type y selected_tests pasan por el catálogo (nada que
+# afecte dinero se toma de texto libre), payment_method es un enum y observations es libre.
+_CORRECTABLE_INLINE_FIELDS = frozenset({
+    "patient_name", "owner_name", "requesting_doctor",
+    "species", "breed", "sex", "patient_age", "pickup_address",
+})
+
+# Conectores con que la gente introduce el valor nuevo: "cambia el paciente A Rocky",
+# "la edad ES 5 años", "el médico AHORA ES la Dra. Laura", "el paciente SE LLAMA Rocky".
+_CORRECTION_VALUE_RE = re.compile(
+    r"(?i)\b(?:se\s+llama|ahora\s+es|deber[íi]a\s+ser|ser[íi]a|es|por|a|:)\s+([^,;]{2,45})\s*$"
+)
+
+# Ruido que queda pegado adelante del valor cuando la frase repite el nombre del campo
+# ("cambia la raza a un mestizo" -> "un mestizo" -> "mestizo").
+_CORRECTION_VALUE_NOISE_RE = re.compile(
+    r"(?i)^(?:un|una|el|la|los|las|de|del)\s+"
+)
+
+
 def _extract_correction_value(field: str, text: str) -> str | None:
-    if field != "patient_name":
+    """Valor nuevo dentro del propio mensaje de corrección, o None si no se puede leer.
+
+    Antes solo entendía `patient_name` y solo con "se llama / paciente es / ahora es", así
+    que "cambia el nombre del paciente a Rocky" no matcheaba: el campo se limpiaba y el bot
+    RE-PREGUNTABA un dato que el cliente acababa de dar (QA 2026-07-27). Para el resto de los
+    campos devolvía None siempre, o sea que corregir la edad o el médico en la confirmación
+    costaba un turno extra sí o sí.
+    """
+    if field not in _CORRECTABLE_INLINE_FIELDS:
         return None
-    matches = list(re.finditer(
-        r"(?i)(?:se llama|llama|ahora es|paciente es|paciente:)\s+([A-Za-zÁÉÍÓÚÑáéíóúñüÜ' -]{2,40})\s*$",
-        text or "",
-    ))
-    if not matches:
+    match = _CORRECTION_VALUE_RE.search(text or "")
+    if not match:
         return None
-    value = matches[-1].group(1).strip(" .,:;-")
-    value = re.sub(r"(?i)^(?:ahora\s+)?(?:se\s+)?llama\s+", "", value).strip()
-    return value or None
+    value = match.group(1).strip(" .,:;-\"'¿?¡!")
+    value = _CORRECTION_VALUE_NOISE_RE.sub("", value).strip()
+    if not value or len(value) < 2:
+        return None
+    # La edad sin unidad no sirve ("cambiala a 5"): que la pida el flujo normal.
+    if field == "patient_age" and not _age_has_unit(value):
+        return None
+    return value
 
 
 # _format_tests_total, _catalog_price_answer y _price_answer_for_order -> app/orders.py (3.4a).
@@ -2063,27 +2115,53 @@ def _finalize_request(chat_id: str, session: dict, ai_response: dict, started_fr
     return ai_response
 
 
+def _record_invoice_failure(request_id: str, reason: str, detail: str = "") -> None:
+    """Deja rastro persistente de una orden que quedó SIN facturar.
+
+    Antes un fallo de Alegra solo escribía un warning en el log y se perdía: nadie
+    podía saber después qué órdenes quedaron sin factura. Ahora queda como evento
+    `alegra_failed` en request_events, consultable desde el dashboard. Nunca lanza:
+    si ni siquiera se puede registrar el fallo, se cae al log y sigue."""
+    logger.warning("Alegra: orden %s sin facturar (%s) %s", request_id, reason, detail)
+    if not request_id:
+        return
+    try:
+        db.create_request_event(
+            request_id, "alegra_failed", {"reason": reason, "detail": detail[:500]}
+        )
+    except Exception as e:  # noqa: BLE001 — registrar el fallo nunca puede tumbar el cierre
+        logger.warning("Alegra: además falló registrar el evento de %s: %s", request_id, e)
+
+
 def _try_invoice_in_alegra(order_info: dict, ai_response: dict) -> None:
     """Factura la orden en Alegra (borrador) al cerrarla. La facturación es complementaria:
-    cualquier fallo se loggea y se ignora — nunca rompe el cierre ni la recogida del cliente.
-    Guarda los IDs de Alegra como evento `alegra_invoiced` (no toca el esquema de Supabase)."""
+    cualquier fallo se registra y se ignora — nunca rompe el cierre ni la recogida del cliente.
+    Guarda los IDs de Alegra como evento `alegra_invoiced`, y todo camino que termine sin
+    factura queda como `alegra_failed` (no toca el esquema de Supabase)."""
+    request_id = order_info.get("request_id")
     try:
         fields = ai_response.get("captured_fields", {})
         profile = (order_info.get("event_payload") or {}).get("profile")
         lines = billing.build_invoice_lines(profile)
         if not lines:
+            _record_invoice_failure(request_id, "sin_lineas_facturables")
             return
         nit = fields.get("tax_id")
+        if not nit:
+            _record_invoice_failure(request_id, "cliente_sin_nit")
+            return
         name = fields.get("clinic_name") or fields.get("_client_display_name") or "Cliente A3"
         date = datetime.now(APP_TIMEZONE).date().isoformat()
         extra = {"email": fields.get("_client_email"), "phone": fields.get("_client_phone")}
         result = billing.invoice_order(nit, name, lines, date, {k: v for k, v in extra.items() if v})
         if result and result.get("invoice_id"):
-            db.create_request_event(order_info["request_id"], "alegra_invoiced", result)
+            db.create_request_event(request_id, "alegra_invoiced", result)
+        else:
+            _record_invoice_failure(request_id, "alegra_sin_factura")
     except alegra.AlegraError as e:
-        logger.warning("Alegra: no se pudo facturar la orden %s: %s", order_info.get("request_id"), e)
+        _record_invoice_failure(request_id, "error_alegra", str(e))
     except Exception as e:  # noqa: BLE001 — la facturación jamás debe tumbar el cierre
-        logger.warning("Alegra: error inesperado facturando %s: %s", order_info.get("request_id"), e)
+        _record_invoice_failure(request_id, "error_inesperado", str(e))
 
 
 def _remember_client_fields(fields: dict) -> None:
@@ -2432,6 +2510,13 @@ def process_turn(
             # sigue capturando y, al llegar al análisis vacío, recomienda o pregunta.
         if _is_correction_request(user_message) or _is_negative_text(user_message):
             field = _detect_correction_field(user_message)
+            # ERR-099: cambiar de cliente NO es editar un texto. Re-abre la identificación
+            # contra la base para que el NIT, la dirección y el motorizado se re-resuelvan.
+            if field == "clinic_name":
+                return _persist_turn(
+                    chat_id, user_message,
+                    _restart_identification_for_new_client(chat_id, session, prev_captured),
+                )
             if field:
                 _clear_field_for_correction(prev_captured, field)
                 return _persist_turn(
@@ -2499,6 +2584,15 @@ def process_turn(
             and session.get("intent_current") == "route_scheduling"
             and (_is_correction_request(user_message) or _wants_to_change_analysis(user_message))):
         field = _detect_correction_field(user_message)
+        # ERR-099: en el resumen, "quiero cambiar el cliente / soy Animal Pets" reescribía
+        # solo clinic_name y dejaba client_id, tax_id, pickup_address y motorizado del
+        # cliente anterior — la orden se facturaba a uno y el retiro iba a la puerta de otro.
+        # La identidad se re-verifica contra la base; el resto de la orden se conserva.
+        if field == "clinic_name":
+            return _persist_turn(
+                chat_id, user_message,
+                _restart_identification_for_new_client(chat_id, session, prev_captured),
+            )
         if field:
             _clear_field_for_correction(prev_captured, field)
             correction_value = _extract_correction_value(field, user_message)
@@ -2691,11 +2785,7 @@ def process_turn(
     _merge_existing_route_fields(prev_captured, fields)
     _apply_common_order_fallbacks(fields, user_message)
 
-    # Paciente sin dueño (callejero/rescatado): si se está pidiendo el propietario y el cliente
-    # indica que no hay, se registra como "Sin propietario" y se avanza, en vez de repreguntar
-    # en bucle (regla de negocio confirmada 2026-06-23).
-    if _says_no_owner(user_message) and _detect_which_field_is_being_asked(history) == "owner_name":
-        fields["owner_name"] = "Sin propietario"
+    _apply_no_owner_shortcut(fields, prev_captured, user_message, history)
 
     signal = ai_response.get("user_intent_signal")
 
