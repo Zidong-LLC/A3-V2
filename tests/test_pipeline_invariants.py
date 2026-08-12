@@ -33,13 +33,13 @@ AGENT = APP / "agent.py"
 # reemplaza; convertirlo en handler post-modelo significaría llamar al modelo para todos
 # los mensajes de una conversación que un humano ya tomó.
 #
-# 43 → 44 el 2026-08-12 (decisión 011, jerarquía de pedidos). El `return` nuevo atiende el
-# turno con un PEDIDO abierto y la orden ya registrada: cobrar y facturar el pedido. Tiene
-# que ser pre-LLM porque va ANTES de la despedida —que también es pre-LLM y termina el turno
-# sin modelo—: si el modelo viera el turno, un "eso es todo" saldría por FAREWELL_REPLY y el
-# pedido quedaría abierto y sin factura. Además cede (`return None`) cuando el cliente pide
-# otra orden, así que no vuelve invisible ese camino.
-PRE_LLM_RETURNS_BASELINE = 44
+# 43 se mantiene tras la decisión 011 (jerarquía de pedidos). El cierre del pedido se
+# resolvió como enforcer POST-modelo señal-primero (`_enforce_open_pedido_close`), no como
+# atajo pre-LLM: el cliente puede decir que terminó de mil formas ("listo", "terminala", "ya
+# está", "no va más") y ninguna lista de tokens las cubre — el modelo sí las entiende. Lo
+# único pre-LLM es que el atajo de despedida CEDE cuando hay un pedido abierto, para que el
+# turno llegue al modelo; eso no agrega returns.
+PRE_LLM_RETURNS_BASELINE = 43
 
 
 def _process_turn_ast() -> tuple[ast.FunctionDef, int]:
@@ -97,10 +97,11 @@ def test_no_signal_of_the_enum_is_dead_code():
 
     # Señales sin consumidor HOY. La lista solo puede ENCOGER: cada una que se cablee sale.
     #   - same_as_previous: hay `_is_same_as_previous` decidiendo por tokens en dos atajos pre-LLM.
-    #   - farewell: hay `_is_farewell` por tokens.
     #   - provides_requested_data: no lo lee nadie.
     # (`cancel` SÍ se consume, en app/detectors/orden.py:137, como veto de confirmación.)
-    known_dead = {"provides_requested_data", "same_as_previous", "farewell"}
+    # `farewell` salió de esta lista el 2026-08-12: la lee `_enforce_open_pedido_close` para
+    # cerrar el pedido sin depender de que el cliente diga la palabra exacta.
+    known_dead = {"provides_requested_data", "same_as_previous"}
     code = "\n".join(p.read_text(encoding="utf-8") for p in APP.rglob("*.py")
                      if p.name not in ("schema.py", "prompt.py"))
     dead = {s for s in signals if f'"{s}"' not in code and f"'{s}'" not in code}

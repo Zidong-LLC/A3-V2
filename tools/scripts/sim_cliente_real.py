@@ -105,6 +105,17 @@ PERSONAS = {
         "registrada y te vuelva a preguntar, decí que eso es todo y elegí pago "
         "contraentrega. Al final revisá que el cierre mencione LAS DOS órdenes."
     ),
+    # El cliente NO dice la palabra que el sistema espera: cierra el pedido con sinónimos.
+    "cierra_con_sinonimos": (
+        "Cargá una orden normal: Dra. Laura Méndez, Firulais, canino labrador macho de 3 "
+        "años, dueño Pedro Gómez, un cuadro hemático, sin observaciones. Confirmala. "
+        "Cuando el bot te pregunte si querés cargar otra orden, NO uses las palabras que "
+        "te sugiere: contestá con tus propias palabras que ya terminaste, por ejemplo "
+        "'listo, nada más por hoy' o 'ya está, cerrame eso'. Cuando te pregunte la forma "
+        "de pago, tampoco digas la palabra exacta: decí algo como 'les pagamos cuando "
+        "pasen a recoger' o 'en efectivo al mensajero'. Al final revisá que el pedido "
+        "haya quedado cerrado con la forma de pago correcta."
+    ),
     "corrige_sobre_la_marcha": (
         "Das datos y te corregís a mitad de camino: decís que el paciente es macho y al "
         "rato 'perdón, es hembra'; cambiás la edad; y cuando ya estás en el resumen final "

@@ -145,6 +145,17 @@ Se adoptó la combinación de la primera y la segunda, con la cuarta como respal
 - **B14 · Multi-orden** — pasa de ser un extra a ser el mecanismo central
 - **B18 · Alegra** — una factura por pedido
 
+## Pendiente para la etapa de PLATAFORMA (anotado 2026-08-12)
+
+El pedido tiene que verse en el dashboard y en la plataforma: hoy las tablas nuevas no
+aparecen en ningún listado. Mínimo a cubrir cuando se trabaje esa fase:
+
+- Columna/agrupador de pedido en el listado de solicitudes, para ver qué órdenes viajan juntas
+- Estado del pedido (`abierto` / `cerrado` / `facturado`) visible, con los `abierto` viejos
+  destacados — son los candidatos al cierre manual mientras no exista el barrido
+- Acción de **cerrar y facturar un pedido a mano** desde el dashboard
+- El número de pedido (P-2026-001) junto al número de orden en la vista de detalle
+
 ## Riesgos
 
 1. **El caso de una sola orden no debe sentirse más largo.** Es el 90% del uso real. Si en

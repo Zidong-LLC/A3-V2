@@ -2123,6 +2123,12 @@ def _replace_courier_commitment(reply: str) -> str:
     return f"{reply}\n\n{NO_COURIER_HANDOFF_MESSAGE}"
 
 
+# Marca efímera del turno (no viaja a captured_fields ni a la base): este turno llega a fase
+# terminal pero NO corresponde a una orden nueva. La usa el cierre del pedido. SIN prefijo `_`
+# a propósito: no es estado de la conversación, así que no va al catálogo de flags de state.py.
+_SKIP_REQUEST_CREATION = "skip_request_creation"
+
+
 def _current_pedido_id(chat_id: str, session: dict) -> str | None:
     """Pedido abierto del chat; lo abre si es la primera orden. Un fallo de la base no puede
     tumbar el cierre de la orden: se devuelve None y la orden queda suelta, que es el
@@ -2147,6 +2153,9 @@ def _finalize_request(chat_id: str, session: dict, ai_response: dict, started_fr
         and previous_phase not in TERMINAL_PHASES
         and not started_from_escalation
         and ai_response.get("message_mode") != "cancellation"
+        # El cierre de un PEDIDO llega a fase terminal pero no es una orden nueva: sus
+        # órdenes ya se registraron al confirmarlas una por una (decisión 011).
+        and not ai_response.get(_SKIP_REQUEST_CREATION)
     )
     if not should_create_request:
         return ai_response
@@ -2198,44 +2207,62 @@ def _finalize_request(chat_id: str, session: dict, ai_response: dict, started_fr
     return ai_response
 
 
-def _handle_open_pedido_turn(chat_id: str, session: dict, user_message: str) -> str | None:
-    """Turno con un PEDIDO abierto y la orden ya registrada (decisión 011).
+def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: dict,
+                               user_message: str) -> dict:
+    """Cierre del PEDIDO abierto, SEÑAL-PRIMERO (decisión 011).
 
-    Devuelve la respuesta, o None para que el turno siga por el pipeline normal — que es lo
-    que hace falta cuando el cliente pide otra orden: ese camino ya existe y funciona.
+    Corre DESPUÉS del modelo a propósito. El cliente no dice la palabra que uno espera: para
+    terminar puede escribir "listo", "terminala", "ya está", "no va más", "eso sería todo";
+    y para el pago, "que sea contra entrega", "pagamos cuando lleguen" o "en efectivo". Una
+    lista de tokens nunca cubre eso — el modelo sí lo entiende, y acá se actúa sobre lo que
+    entendió: su `user_intent_signal` y el `payment_method` que capturó.
+
+    Los detectores de texto quedan solo como RED, para el turno en que el modelo no marca
+    señal (misma jerarquía que el resto del pipeline: la señal manda, el token respalda).
     """
-    fields = dict(session.get("captured_fields") or {})
+    if not PEDIDOS_ENABLED or not prev_fields.get("_pedido_id"):
+        return ai_response
+    if ai_response.get("intent") != "route_scheduling" and not ai_response.get("requires_handoff"):
+        return ai_response
 
-    # "otra orden" tiene prioridad: el pedido sigue abierto y se le cuelga una orden más.
-    if _explicitly_wants_another_order(user_message) or _followup_wants_new_analysis(user_message):
-        return None
+    fields = ai_response.get("captured_fields", {})
+    signal = ai_response.get("user_intent_signal")
 
-    payment_method = _payment_method_from_text(user_message)
+    # Pedir otra orden gana siempre: el pedido sigue abierto y se le cuelga una orden más.
+    if signal == "another_order" or _explicitly_wants_another_order(user_message):
+        return ai_response
+
+    # ¿Dio la forma de pago? La fuente primaria es lo que capturó el MODELO; el detector de
+    # texto es la red para cuando no la marcó.
+    payment_method = fields.get("payment_method") or _payment_method_from_text(user_message)
     if payment_method:
-        ai_response = _close_pedido_turn(chat_id, session, fields, payment_method)
-        return _persist_turn(chat_id, user_message, ai_response)
+        return _close_pedido_turn(session, dict(prev_fields, **fields), payment_method)
 
-    # No pidió otra orden ni dio el pago: si se está despidiendo o dice que terminó, se le
-    # pregunta la forma de pago UNA vez, que es lo único que falta para cerrar el pedido.
-    if _is_farewell(user_message) or _confirms_order_now(user_message):
+    # Terminó de cargar órdenes pero todavía no dijo cómo paga: se le pregunta UNA vez.
+    wants_to_finish = signal in ("farewell", "negate") or _is_farewell(user_message)
+    if wants_to_finish and not prev_fields.get("_pedido_awaiting_payment"):
+        fields = dict(prev_fields, **fields)
         fields["_pedido_awaiting_payment"] = True
-        return _persist_turn(chat_id, user_message, {
+        return {
+            **ai_response,
             "reply": PAYMENT_METHOD_QUESTION,
-            "phase": "fase_6_cierre",
+            # NO es fase terminal: la orden ya está registrada y lo único que falta es cobrar
+            # el pedido. Con `fase_6_cierre` acá, `_finalize_request` leía "entró a cierre" y
+            # registraba OTRA orden con los mismos datos — en la prueba con sinónimos llegó a
+            # duplicar la misma orden cuatro veces.
+            "phase": "fase_2_recogida_datos",
             "intent": "route_scheduling",
             "service_area": "route_scheduling",
             "requires_handoff": False,
             "handoff_area": None,
             "captured_fields": fields,
-            "confidence": 1.0,
             "message_mode": "flow_progress",
-            "pending_intents": [],
-            "resume_prompt": "",
-        })
-    return None
+            _SKIP_REQUEST_CREATION: True,
+        }
+    return ai_response
 
 
-def _close_pedido_turn(chat_id: str, session: dict, fields: dict, payment_method: str) -> dict:
+def _close_pedido_turn(session: dict, fields: dict, payment_method: str) -> dict:
     """Cierra el pedido: registra la forma de pago, emite UNA factura con todas sus órdenes
     y devuelve el resumen del pedido. Es el final del camino de la decisión 011."""
     pedido_id = fields.get("_pedido_id")
@@ -2264,6 +2291,9 @@ def _close_pedido_turn(chat_id: str, session: dict, fields: dict, payment_method
     fields["_pedido_cerrado"] = True
     return {
         "reply": f"{cuerpo}\n\nQuedamos atentos. 🙂",
+        # El pedido se cierra en fase terminal, pero sin crear una orden nueva: las órdenes
+        # ya se registraron una por una al confirmarlas.
+        _SKIP_REQUEST_CREATION: True,
         "phase": "fase_6_cierre",
         "intent": "route_scheduling",
         "service_area": "route_scheduling",
@@ -2450,18 +2480,13 @@ def process_turn(
         db.save_message(chat_id, WELCOME_MESSAGE, "bot")
         return WELCOME_MESSAGE
 
-    # Pedido abierto en fase terminal (decisión 011): la orden ya está registrada pero el
-    # PEDIDO todavía no se cobró ni se facturó. Va ANTES de la despedida: sin esto, un "eso
-    # es todo" saldría por FAREWELL_REPLY y el pedido quedaría abierto y sin factura.
-    if (PEDIDOS_ENABLED
-            and session.get("phase_current") in TERMINAL_PHASES
-            and (session.get("captured_fields") or {}).get("_pedido_id")):
-        pedido_reply = _handle_open_pedido_turn(chat_id, session, user_message)
-        if pedido_reply is not None:
-            return pedido_reply
-
-    # Despedida después de fase terminal: cerrar sin llamar al AI
-    if session.get("phase_current") in TERMINAL_PHASES and _is_farewell(user_message):
+    # Despedida después de fase terminal: cerrar sin llamar al AI.
+    # Con un PEDIDO abierto este atajo CEDE: el pedido todavía no se cobró ni se facturó, y
+    # el cliente puede decir que terminó de mil formas ("listo", "terminala", "ya está", "no
+    # va más") que ninguna lista de palabras cubre. El turno pasa al modelo y lo resuelve
+    # `_enforce_open_pedido_close` con la señal de intención (decisión 011).
+    _pedido_abierto = PEDIDOS_ENABLED and (session.get("captured_fields") or {}).get("_pedido_id")
+    if session.get("phase_current") in TERMINAL_PHASES and _is_farewell(user_message) and not _pedido_abierto:
         db.save_message(chat_id, user_message, "user")
         db.save_message(chat_id, FAREWELL_REPLY, "bot")
         return FAREWELL_REPLY
@@ -3662,6 +3687,10 @@ def process_turn(
     ai_response = _enforce_custom_profile_close(session, ai_response, prev_captured, user_message)
     fields = ai_response.get("captured_fields", fields)
     ai_response = _enforce_extra_analysis_offer(session, ai_response, prev_captured)
+    fields = ai_response.get("captured_fields", fields)
+    # Va ANTES del paso de pago: con un pedido abierto, la forma de pago cierra el PEDIDO
+    # entero, no la orden suelta (decisión 011).
+    ai_response = _enforce_open_pedido_close(session, ai_response, prev_captured, user_message)
     fields = ai_response.get("captured_fields", fields)
     ai_response = _enforce_payment_step(session, ai_response, fields, user_message)
     ai_response = _enforce_profile_customization_changes(ai_response, prev_captured, user_message)
