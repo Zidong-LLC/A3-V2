@@ -2989,6 +2989,14 @@ def process_turn(
                 )
         elif not prev_fields.get("exam_type"):
             catalog_ctx = db.get_catalog_context(prev_fields.get("species"))
+            # Los ANÁLISIS sueltos también, no solo los perfiles: este es el momento en que el
+            # cliente pide el análisis, y sin ellos el modelo negaba códigos que SÍ existen
+            # ("el 2019" → "no tengo registrado el 2019"; el 2019 es Parvovirus Canino Vcheck).
+            # Medido con qa_cobertura_catalogo.py: 4 de 4 códigos de análisis negados. No era
+            # un problema de especie — uno de los negados estaba etiquetado 'ambos'.
+            tests_ctx = db.get_individual_tests_context(prev_fields.get("species"))
+            if tests_ctx:
+                catalog_ctx = f"{catalog_ctx}\n\n{tests_ctx}" if catalog_ctx else tests_ctx
             labels = db.list_diagnostic_labels()
             if labels:
                 catalog_ctx = (catalog_ctx or "") + (

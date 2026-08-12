@@ -527,10 +527,19 @@ def delete_client_completely(client_id: str, clinic_key: str | None = None) -> b
 
 
 def get_catalog_context(species: str | None = None) -> str:
-    """Returns a compact catalog string for AI context injection."""
+    """Catálogo de PERFILES que se le inyecta al modelo. Va COMPLETO, sin filtrar por especie
+    (decisión 012).
+
+    El filtro dejaba al modelo sin ver 73 perfiles según la especie del paciente, y entonces
+    respondía de buena fe que no existían: con un paciente felino, "tenés el 653?" recibía
+    "no lo tengo identificado en el catálogo" aunque el 653 esté en la base. La regla del
+    negocio es que **nada que esté en la base puede negarse**. El `species` de cada ítem es
+    una etiqueta informativa; el modelo la usa para avisar, no para esconder.
+
+    Costo medido: el contexto pasa de ~3.600 a ~4.900 tokens por turno. El parámetro se
+    conserva por compatibilidad con los call sites.
+    """
     query = _client.table("catalog_profiles").select("code, name, category, description, price").eq("is_active", True)
-    if species and species.lower() in ("canino", "felino"):
-        query = query.in_("species", [species.lower(), "ambos"])
     rows = query.order("code").execute().data
     if not rows:
         return ""
@@ -632,10 +641,13 @@ def get_catalog_profiles_by_codes(codes: list[str], species: str | None = None) 
 
 
 def get_individual_tests_context(species: str | None = None) -> str:
-    """Compact catalog of individual tests for AI context (custom profile flow)."""
+    """Catálogo de ANÁLISIS sueltos para el contexto del modelo. Completo, sin filtrar por
+    especie: mismo motivo que `get_catalog_context` (decisión 012).
+
+    Verificado antes del cambio: con un paciente felino, "tenes el 1503?" respondía "No lo
+    tengo identificado en el catálogo" — el 1503 es T4 Total Canino y está en la base. Eran
+    52 análisis invisibles según la especie."""
     query = _client.table("catalog_tests").select("code, name, category, price").eq("is_active", True)
-    if species and species.lower() in ("canino", "felino"):
-        query = query.in_("species", [species.lower(), "ambos"])
     rows = query.order("code").execute().data
     if not rows:
         return ""
