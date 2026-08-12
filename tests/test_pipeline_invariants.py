@@ -32,7 +32,14 @@ AGENT = APP / "agent.py"
 # El guard tiene que ser pre-LLM porque decide si el turno se procesa, igual que el que
 # reemplaza; convertirlo en handler post-modelo significaría llamar al modelo para todos
 # los mensajes de una conversación que un humano ya tomó.
-PRE_LLM_RETURNS_BASELINE = 43
+#
+# 43 → 44 el 2026-08-12 (decisión 011, jerarquía de pedidos). El `return` nuevo atiende el
+# turno con un PEDIDO abierto y la orden ya registrada: cobrar y facturar el pedido. Tiene
+# que ser pre-LLM porque va ANTES de la despedida —que también es pre-LLM y termina el turno
+# sin modelo—: si el modelo viera el turno, un "eso es todo" saldría por FAREWELL_REPLY y el
+# pedido quedaría abierto y sin factura. Además cede (`return None`) cuando el cliente pide
+# otra orden, así que no vuelve invisible ese camino.
+PRE_LLM_RETURNS_BASELINE = 44
 
 
 def _process_turn_ast() -> tuple[ast.FunctionDef, int]:

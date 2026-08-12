@@ -60,10 +60,40 @@ def _reset(chat_id):
     })
 
 
-def _create_request(chat_id, session, ai):
+def _create_request(chat_id, session, ai, pedido_id=None):
     _state["requests"].append(ai)
     n = len(_state["requests"])
+    if pedido_id:
+        _state.setdefault("pedido_requests", {}).setdefault(pedido_id, []).append(
+            {"order_number": f"A3-2026-90{n}",
+             "patient_name": (ai.get("captured_fields") or {}).get("patient_name"),
+             "exam_type": (ai.get("captured_fields") or {}).get("exam_type")}
+        )
     return {"request_id": f"replay-req-{n}", "order_number": f"A3-2026-90{n}"}
+
+
+# Pedidos (decision 011): tambien son ESCRITURAS, asi que van mockeados. Sin esto la
+# simulacion crearia pedidos de verdad en Supabase.
+def _create_pedido(client_id, chat_id, entry_channel="telegram"):
+    _state["pedidos"] = _state.get("pedidos", {})
+    pid = f"replay-ped-{len(_state['pedidos']) + 1}"
+    _state["pedidos"][pid] = {"id": pid, "pedido_number": f"P-2026-90{len(_state['pedidos']) + 1}",
+                              "status": "abierto", "external_chat_id": chat_id}
+    return {"id": pid, "pedido_number": _state["pedidos"][pid]["pedido_number"]}
+
+
+def _get_open_pedido(chat_id):
+    for ped in (_state.get("pedidos") or {}).values():
+        if ped["external_chat_id"] == chat_id and ped["status"] == "abierto":
+            return ped
+    return None
+
+
+def _close_pedido(pedido_id, payment_method=None):
+    ped = (_state.get("pedidos") or {}).get(pedido_id)
+    if ped:
+        ped.update(status="cerrado", payment_method=payment_method)
+    return ped
 
 
 # Solo lo que ESCRIBE o lleva estado de sesión. Todo lo demás (find_client_matches,
@@ -77,6 +107,13 @@ _WRITE_PATCHES = {
     "link_client_to_session": dict(side_effect=lambda c, cid: _state["session"].update(client_id=cid)),
     "clear_client_from_session": dict(side_effect=lambda c: _state["session"].update(client_id=None)),
     "create_request": dict(side_effect=_create_request),
+    "create_pedido": dict(side_effect=_create_pedido),
+    "get_open_pedido": dict(side_effect=_get_open_pedido),
+    "close_pedido": dict(side_effect=_close_pedido),
+    "touch_pedido": dict(return_value=None),
+    "mark_pedido_invoiced": dict(return_value=None),
+    "list_pedido_requests": dict(
+        side_effect=lambda pid: (_state.get("pedido_requests") or {}).get(pid, [])),
     "create_pending_client_review": dict(side_effect=lambda cl, rv: _state["pending_clients"].append((cl, rv))),
     "create_request_event": dict(return_value=None),
 }

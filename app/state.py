@@ -100,6 +100,9 @@ FLAGS_CIERRE = frozenset({
     "_correction_pending", "_stable_confirm_pending", "_prev_order_snapshot",
     "_pending_intents", "_handoff_announced", "_handoff_offer_pending", "_order_registered",
     "_nc_capturing", "_offtrack_count", "_skip_resume", "_force_close_hint",
+    # Jerarquía de pedidos (decisión 011): el pedido abierto al que se van colgando las
+    # órdenes, y la marca de que ya se cerró y facturó.
+    "_pedido_id", "_pedido_cerrado", "_pedido_awaiting_payment", "_pedido_profiles",
 })
 KNOWN_FLAGS = FLAGS_IDENTIFICACION | FLAGS_ANALISIS | FLAGS_DIRECCION | FLAGS_CIERRE
 

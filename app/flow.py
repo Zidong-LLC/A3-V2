@@ -5,6 +5,7 @@ su pregunta, la respuesta base) y los cálculos de texto de dinero. Es la capa d
 dependen los enforcers: al vivir acá, los enforcers pueden migrar a app/enforcers/ sin
 imports circulares con agent.py. Los nombres públicos no llevan guion bajo; agent los
 re-importa con alias para no tocar los ~200 call sites."""
+from app.config import PEDIDOS_ENABLED
 from app.text import tokenize as _tokenize, money as _money, as_text_items as _as_text_items
 from app.messages import AGE_QUESTION, PAYMENT_METHOD_QUESTION
 
@@ -29,6 +30,19 @@ ROUTE_ORDER_FIELDS_BEFORE_PAYMENT = (
 
 
 ROUTE_REQUIRED_FIELDS = ROUTE_ORDER_FIELDS_BEFORE_PAYMENT + ("payment_method",)
+
+
+def order_required_fields() -> tuple[str, ...]:
+    """Campos que exige UNA orden para estar completa.
+
+    Con la jerarquía de pedidos (decisión 011) la forma de pago NO es un dato de la orden
+    sino del PEDIDO: se pregunta una sola vez al cerrarlo, no una vez por paciente. Sin el
+    flag, todo sigue igual que antes.
+
+    Solo dos sitios deciden la secuencia con esto —`missing_route_field` y el armado del
+    resumen—; el resto de los usos de ROUTE_REQUIRED_FIELDS solo recorre campos (snapshots,
+    progreso) y no le molesta que `payment_method` esté vacío."""
+    return ROUTE_ORDER_FIELDS_BEFORE_PAYMENT if PEDIDOS_ENABLED else ROUTE_REQUIRED_FIELDS
 
 
 # Etiquetas en español de los campos de la orden (movidas de agent.py, ERR-069: los
@@ -96,7 +110,7 @@ def missing_route_field(session: dict, fields: dict) -> str | None:
         return "client"
     if fields.get("_address_confirmation_pending"):
         return "pickup_address"
-    for field in ROUTE_REQUIRED_FIELDS:
+    for field in order_required_fields():
         if field == "exam_type":
             # El análisis puede estar como perfil elegido, selección estructurada de tests o
             # texto libre: cualquiera cuenta (tras un reemplazo suelto exam_type queda vacío

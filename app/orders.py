@@ -3,7 +3,7 @@ confirmación y cierre, menús de categoría y capturas de selección de perfil.
 import re
 
 from app import catalog, state
-from app.config import DISCOUNT_TIERS
+from app.config import DISCOUNT_TIERS, PEDIDOS_ENABLED
 from app.text import (
     tokenize as _tokenize, money as _money, as_text_items as _as_text_items,
     catalog_item_key as _catalog_item_key, strip_price_text as _strip_price_text,
@@ -14,6 +14,7 @@ from app.flow import (
     format_test_items as _format_test_items, estimated_total_text as _estimated_total_text,
     age_has_unit as _age_has_unit, route_ready_for_payment as _route_ready_for_payment,
     ROUTE_REQUIRED_FIELDS as _ROUTE_REQUIRED_FIELDS,
+    order_required_fields as _order_required_fields,
     ROUTE_ORDER_FIELDS_BEFORE_PAYMENT as _ROUTE_ORDER_FIELDS_BEFORE_PAYMENT,
 )
 from app.detectors import (
@@ -79,7 +80,7 @@ def _resolve_profile_base_if_missing(fields: dict) -> None:
 
 
 def _order_summary_lines(fields: dict, header: str) -> list[str] | None:
-    if not all(fields.get(key) for key in _ROUTE_REQUIRED_FIELDS):
+    if not all(fields.get(key) for key in _order_required_fields()):
         return None
 
     # Backstop de precio: asegurar que un perfil base elegido por texto tenga su código/precio
@@ -102,8 +103,11 @@ def _order_summary_lines(fields: dict, header: str) -> list[str] | None:
         f"- Propietario: {fields.get('owner_name')}",
         f"- Análisis: {analysis}",
         f"- Observaciones: {fields.get('observations')}",
-        f"- Forma de pago: {fields.get('payment_method')}",
     ]
+    # Con pedidos, la forma de pago es del PEDIDO y se muestra en su resumen, no en el de
+    # cada orden: A3 pidió que el resumen de la orden no la incluya (decisión 011).
+    if not PEDIDOS_ENABLED:
+        lines.append(f"- Forma de pago: {fields.get('payment_method')}")
 
     if fields.get("_selected_profile_code"):
         added_rows = db.get_tests_by_codes_or_names(_as_text_items(fields.get("selected_tests")))

@@ -94,6 +94,17 @@ PERSONAS = {
         "hemático, contraentrega. Al ver el resumen revisá que la veterinaria y la "
         "dirección sean de la MISMA sede, y decílo si no coinciden."
     ),
+    # Decisión 011: dos órdenes en un mismo pedido, una sola forma de pago y una factura.
+    "pedido_dos_ordenes": (
+        "Sos un veterinario que necesita cargar DOS pacientes de una sola vez. "
+        "Identificate y cargá la primera orden: Dra. Laura Méndez, paciente Firulais, "
+        "canino labrador macho de 3 años, dueño Pedro Gómez, un cuadro hemático, sin "
+        "observaciones. Cuando el bot registre esa orden y te pregunte si querés cargar "
+        "otra, decí que SÍ: escribí 'otra orden'. La segunda es para 'Michi', felino "
+        "siamés hembra de 2 años, mismo dueño, un coprológico. Cuando esa quede "
+        "registrada y te vuelva a preguntar, decí que eso es todo y elegí pago "
+        "contraentrega. Al final revisá que el cierre mencione LAS DOS órdenes."
+    ),
     "corrige_sobre_la_marcha": (
         "Das datos y te corregís a mitad de camino: decís que el paciente es macho y al "
         "rato 'perdón, es hembra'; cambiás la edad; y cuando ya estás en el resumen final "

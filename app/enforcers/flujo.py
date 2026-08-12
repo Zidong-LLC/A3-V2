@@ -2,6 +2,7 @@
 import re
 
 from app import catalog, state
+from app.config import PEDIDOS_ENABLED
 
 CONFIRMATION_PHASE = state.Phase.CONFIRMACION.value
 from app.flow import (
@@ -136,6 +137,13 @@ def _enforce_payment_step(session: dict, ai_response: dict, fields: dict, user_m
         return ai_response
 
     if not _route_ready_for_payment(session, fields):
+        return ai_response
+
+    # Con la jerarquía de pedidos (decisión 011) la forma de pago NO se pide al completar la
+    # orden: es del PEDIDO y se pregunta una sola vez al cerrarlo, después de que el cliente
+    # decida que no va a agregar más órdenes. Acá el paso simplemente cede y la orden avanza
+    # a su confirmación sin pago.
+    if PEDIDOS_ENABLED:
         return ai_response
 
     # LÓGICA DE RETROCESO (L50): el flujo no solo avanza — el cliente puede volver a un paso

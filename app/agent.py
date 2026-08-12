@@ -23,7 +23,7 @@ from app.species import (
     apply_implied_animal_fields as _apply_implied_animal_fields,
 )
 from app.breeds import resolve_breed as _resolve_breed
-from app.config import ALEGRA_ENABLED, APP_TIMEZONE, FSM_ENFORCE
+from app.config import ALEGRA_ENABLED, APP_TIMEZONE, FSM_ENFORCE, PEDIDOS_ENABLED
 from app.services import ai, db, alegra
 from app.rules import TERMINAL_PHASES, calculate_custom_profile_total, calculate_profile_adjusted_total
 from app.detectors import (
@@ -217,7 +217,7 @@ from app.messages import (
     CLIENT_RETRY_NOT_FOUND_MESSAGE, CLIENT_IDENTIFIER_RETRY_MESSAGE,
     POST_TERMINAL_GREETING_REPLY, RESULTS_PENDING_MESSAGE, OPTION_RECONSIDER_MESSAGE,
     ORDER_NUMBER_NEEDS_CLIENT_MESSAGE, ORDER_NUMBER_NOT_FOUND_MESSAGE, FAREWELL_REPLY,
-    CLOSING_PROMPT, PAYMENT_METHOD_QUESTION, PAYMENT_ONLINE_HANDOFF_MESSAGE,
+    CLOSING_PROMPT, PEDIDO_CLOSING_PROMPT, PAYMENT_METHOD_QUESTION, PAYMENT_ONLINE_HANDOFF_MESSAGE,
     EXTRA_ANALYSIS_OFFER, EXTRA_ANALYSIS_AMBIGUOUS_QUESTION,
     NO_COURIER_HANDOFF_MESSAGE, AGE_QUESTION, CORRECTION_PROMPT,
     ADVISOR_ASSIGNMENT_LINE,
@@ -2123,6 +2123,21 @@ def _replace_courier_commitment(reply: str) -> str:
     return f"{reply}\n\n{NO_COURIER_HANDOFF_MESSAGE}"
 
 
+def _current_pedido_id(chat_id: str, session: dict) -> str | None:
+    """Pedido abierto del chat; lo abre si es la primera orden. Un fallo de la base no puede
+    tumbar el cierre de la orden: se devuelve None y la orden queda suelta, que es el
+    comportamiento previo a la decisión 011."""
+    try:
+        abierto = db.get_open_pedido(chat_id)
+        if abierto:
+            return abierto["id"]
+        nuevo = db.create_pedido(session.get("client_id"), chat_id, session.get("channel") or "telegram")
+        return nuevo["id"] if nuevo else None
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("pedidos: no se pudo abrir/recuperar el pedido de %s: %s", chat_id, exc)
+        return None
+
+
 def _finalize_request(chat_id: str, session: dict, ai_response: dict, started_from_escalation: bool, previous_phase: str) -> dict:
     """Crea la solicitud en BD cuando el turno cierra/escala una orden nueva y
     decora el reply con el motorizado asignado y el número de orden."""
@@ -2136,8 +2151,15 @@ def _finalize_request(chat_id: str, session: dict, ai_response: dict, started_fr
     if not should_create_request:
         return ai_response
 
-    order_info = db.create_request(chat_id, session, ai_response)
-    if ALEGRA_ENABLED and ai_response.get("intent") == "route_scheduling" and order_info:
+    # Con pedidos, la orden se cuelga del pedido abierto del chat (se abre en la primera) y
+    # NO se factura acá: la factura sale una sola vez, al cerrar el pedido, con todas las
+    # órdenes juntas (decisión 011). Sin el flag, todo sigue como antes.
+    pedido_id = None
+    if PEDIDOS_ENABLED and ai_response.get("intent") == "route_scheduling":
+        pedido_id = _current_pedido_id(chat_id, session)
+
+    order_info = db.create_request(chat_id, session, ai_response, pedido_id=pedido_id)
+    if ALEGRA_ENABLED and not pedido_id and ai_response.get("intent") == "route_scheduling" and order_info:
         _try_invoice_in_alegra(order_info, ai_response)
     # Marca que ya se registró una ORDEN DE RECOGIDA real, para reconocer un pedido de
     # "otra orden" más adelante aunque la conversación haya salido de la fase terminal.
@@ -2158,8 +2180,101 @@ def _finalize_request(chat_id: str, session: dict, ai_response: dict, started_fr
             ai_response["requires_handoff"] = True
             ai_response["handoff_area"] = "operaciones"
         # Cierre cordial al final: ofrecer otra orden o terminar (en todos los casos).
-        ai_response["reply"] = f"{ai_response['reply']}\n\n{CLOSING_PROMPT}"
+        # Con pedidos el cierre pregunta además por el pago, porque la orden se registró sin
+        # forma de pago y el pedido todavía está abierto (decisión 011).
+        prompt = PEDIDO_CLOSING_PROMPT if pedido_id else CLOSING_PROMPT
+        ai_response["reply"] = f"{ai_response['reply']}\n\n{prompt}"
+        if pedido_id:
+            campos = ai_response.setdefault("captured_fields", {})
+            campos["_pedido_id"] = pedido_id
+            # Se acumulan las líneas de cada orden para facturarlas juntas al cerrar el
+            # pedido. Se guarda el `profile` ya resuelto (con códigos y precios del catálogo)
+            # y no una referencia a la orden: así la factura no depende de releer eventos.
+            perfil = (order_info or {}).get("event_payload", {}).get("profile")
+            if perfil:
+                acumulado = list(campos.get("_pedido_profiles") or [])
+                acumulado.append(perfil)
+                campos["_pedido_profiles"] = acumulado
     return ai_response
+
+
+def _handle_open_pedido_turn(chat_id: str, session: dict, user_message: str) -> str | None:
+    """Turno con un PEDIDO abierto y la orden ya registrada (decisión 011).
+
+    Devuelve la respuesta, o None para que el turno siga por el pipeline normal — que es lo
+    que hace falta cuando el cliente pide otra orden: ese camino ya existe y funciona.
+    """
+    fields = dict(session.get("captured_fields") or {})
+
+    # "otra orden" tiene prioridad: el pedido sigue abierto y se le cuelga una orden más.
+    if _explicitly_wants_another_order(user_message) or _followup_wants_new_analysis(user_message):
+        return None
+
+    payment_method = _payment_method_from_text(user_message)
+    if payment_method:
+        ai_response = _close_pedido_turn(chat_id, session, fields, payment_method)
+        return _persist_turn(chat_id, user_message, ai_response)
+
+    # No pidió otra orden ni dio el pago: si se está despidiendo o dice que terminó, se le
+    # pregunta la forma de pago UNA vez, que es lo único que falta para cerrar el pedido.
+    if _is_farewell(user_message) or _confirms_order_now(user_message):
+        fields["_pedido_awaiting_payment"] = True
+        return _persist_turn(chat_id, user_message, {
+            "reply": PAYMENT_METHOD_QUESTION,
+            "phase": "fase_6_cierre",
+            "intent": "route_scheduling",
+            "service_area": "route_scheduling",
+            "requires_handoff": False,
+            "handoff_area": None,
+            "captured_fields": fields,
+            "confidence": 1.0,
+            "message_mode": "flow_progress",
+            "pending_intents": [],
+            "resume_prompt": "",
+        })
+    return None
+
+
+def _close_pedido_turn(chat_id: str, session: dict, fields: dict, payment_method: str) -> dict:
+    """Cierra el pedido: registra la forma de pago, emite UNA factura con todas sus órdenes
+    y devuelve el resumen del pedido. Es el final del camino de la decisión 011."""
+    pedido_id = fields.get("_pedido_id")
+    resumen = []
+    total = 0
+    try:
+        db.close_pedido(pedido_id, payment_method)
+        ordenes = db.list_pedido_requests(pedido_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("pedidos: no se pudo cerrar el pedido %s: %s", pedido_id, exc)
+        ordenes = []
+    for orden in ordenes:
+        etiqueta = orden.get("order_number") or orden.get("id")
+        resumen.append(f"- {etiqueta} · {orden.get('patient_name') or 'paciente'}"
+                       f" · {orden.get('exam_type') or 'análisis'}")
+    encabezado = (f"Listo, cerramos el pedido con {len(ordenes)} "
+                  f"{'orden' if len(ordenes) == 1 else 'órdenes'}:")
+    cuerpo = "\n".join([encabezado, *resumen, f"- Forma de pago: {payment_method}"])
+
+    if ALEGRA_ENABLED:
+        _try_invoice_pedido(pedido_id, fields)
+
+    fields.pop("_pedido_id", None)
+    fields.pop("_pedido_profiles", None)
+    fields.pop("_pedido_awaiting_payment", None)
+    fields["_pedido_cerrado"] = True
+    return {
+        "reply": f"{cuerpo}\n\nQuedamos atentos. 🙂",
+        "phase": "fase_6_cierre",
+        "intent": "route_scheduling",
+        "service_area": "route_scheduling",
+        "requires_handoff": False,
+        "handoff_area": None,
+        "captured_fields": fields,
+        "confidence": 1.0,
+        "message_mode": "flow_progress",
+        "pending_intents": [],
+        "resume_prompt": "",
+    }
 
 
 def _record_invoice_failure(request_id: str, reason: str, detail: str = "") -> None:
@@ -2178,6 +2293,40 @@ def _record_invoice_failure(request_id: str, reason: str, detail: str = "") -> N
         )
     except Exception as e:  # noqa: BLE001 — registrar el fallo nunca puede tumbar el cierre
         logger.warning("Alegra: además falló registrar el evento de %s: %s", request_id, e)
+
+
+def _try_invoice_pedido(pedido_id: str | None, fields: dict) -> None:
+    """UNA factura para todo el pedido (decisión 011): concatena las líneas de todas sus
+    órdenes. Igual que la facturación por orden, es complementaria — cualquier fallo se
+    registra y se ignora, nunca rompe el cierre ni la recogida.
+
+    El pedido queda en 'cerrado' y NO pasa a 'facturado' si Alegra falla: esa diferencia es
+    justamente lo que permite ver después qué pedidos quedaron sin factura."""
+    if not pedido_id:
+        return
+    try:
+        lines = []
+        for perfil in (fields.get("_pedido_profiles") or []):
+            lines.extend(billing.build_invoice_lines(perfil))
+        if not lines:
+            logger.warning("pedidos: %s sin líneas facturables", pedido_id)
+            return
+        nit = fields.get("tax_id")
+        if not nit:
+            logger.warning("pedidos: %s sin NIT del cliente, no se factura", pedido_id)
+            return
+        name = fields.get("clinic_name") or fields.get("_client_display_name") or "Cliente A3"
+        date = datetime.now(APP_TIMEZONE).date().isoformat()
+        extra = {"email": fields.get("_client_email"), "phone": fields.get("_client_phone")}
+        result = billing.invoice_order(nit, name, lines, date, {k: v for k, v in extra.items() if v})
+        if result and result.get("invoice_id"):
+            db.mark_pedido_invoiced(pedido_id, str(result["invoice_id"]))
+        else:
+            logger.warning("pedidos: %s cerrado sin factura (Alegra no devolvió id)", pedido_id)
+    except alegra.AlegraError as e:
+        logger.warning("pedidos: %s cerrado sin factura (Alegra): %s", pedido_id, e)
+    except Exception as e:  # noqa: BLE001 — facturar jamás debe tumbar el cierre
+        logger.warning("pedidos: %s cerrado sin factura (inesperado): %s", pedido_id, e)
 
 
 def _try_invoice_in_alegra(order_info: dict, ai_response: dict) -> None:
@@ -2300,6 +2449,16 @@ def process_turn(
         db.save_message(chat_id, user_message, "user")
         db.save_message(chat_id, WELCOME_MESSAGE, "bot")
         return WELCOME_MESSAGE
+
+    # Pedido abierto en fase terminal (decisión 011): la orden ya está registrada pero el
+    # PEDIDO todavía no se cobró ni se facturó. Va ANTES de la despedida: sin esto, un "eso
+    # es todo" saldría por FAREWELL_REPLY y el pedido quedaría abierto y sin factura.
+    if (PEDIDOS_ENABLED
+            and session.get("phase_current") in TERMINAL_PHASES
+            and (session.get("captured_fields") or {}).get("_pedido_id")):
+        pedido_reply = _handle_open_pedido_turn(chat_id, session, user_message)
+        if pedido_reply is not None:
+            return pedido_reply
 
     # Despedida después de fase terminal: cerrar sin llamar al AI
     if session.get("phase_current") in TERMINAL_PHASES and _is_farewell(user_message):

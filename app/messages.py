@@ -101,6 +101,13 @@ CLOSING_PROMPT = (
     "Si eso es todo, quedamos atentos. 🙂"
 )
 
+# Cierre cuando la orden va dentro de un PEDIDO abierto (decisión 011): el pedido admite más
+# órdenes y la forma de pago se pregunta una sola vez, al cerrarlo, para toda la factura.
+PEDIDO_CLOSING_PROMPT = (
+    "¿Necesitas cargar otra orden para otro paciente? Escríbeme: otra orden. "
+    "Si eso es todo, seguimos con la forma de pago y cerramos el pedido."
+)
+
 # ── Pago ────────────────────────────────────────────────────────────────────────
 PAYMENT_METHOD_QUESTION = "Antes de cerrar, ¿cómo prefieres el pago: contraentrega con el motorizado o pago en línea?"
 PAYMENT_ONLINE_HANDOFF_MESSAGE = (
