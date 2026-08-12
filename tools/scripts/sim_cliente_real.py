@@ -74,6 +74,26 @@ PERSONAS = {
         "un cuadro hemático, pago contraentrega. Si el bot deja de responderte, insistí "
         "un par de veces y después escribí '[FIN]'."
     ),
+    # ERR-099: cambiar de cliente en la confirmación tiene que re-resolver NIT, dirección y
+    # motorizado contra la base, no solo reescribir el nombre.
+    "cambia_de_cliente_al_final": (
+        "Programás una orden completa a nombre de 'Dale Pets' (dá ese nombre cuando te pidan "
+        "identificarte). Datos: Dra. Laura Méndez, paciente Firulais, canino labrador macho "
+        "de 3 años, dueño Pedro Gómez, un cuadro hemático, pago contraentrega. PERO cuando "
+        "el bot te muestre el resumen final, te das cuenta del error y decís: 'el cliente, "
+        "soy Animal Pets'. Después revisá el resumen nuevo: fijate si la DIRECCIÓN cambió a "
+        "la de Animal Pets o si quedó la vieja, y decílo. Confirmá solo si está todo bien."
+    ),
+    # ERR-081: responder la pregunta de dirección con el NOMBRE de otra sede.
+    "responde_sede_como_direccion": (
+        "Te identificás como 'Centro Medico Veterinario'. Cuando el bot te confirme la "
+        "dirección que tiene registrada, decí que no es esa. Cuando te pregunte cuál es la "
+        "dirección correcta, respondé con el NOMBRE de otra sede en vez de una dirección: "
+        "'Centro veterinario La Uribe'. Después seguí con la orden normal: Dra. Laura "
+        "Méndez, Firulais, canino labrador macho 3 años, dueño Pedro Gómez, cuadro "
+        "hemático, contraentrega. Al ver el resumen revisá que la veterinaria y la "
+        "dirección sean de la MISMA sede, y decílo si no coinciden."
+    ),
     "corrige_sobre_la_marcha": (
         "Das datos y te corregís a mitad de camino: decís que el paciente es macho y al "
         "rato 'perdón, es hembra'; cambiás la edad; y cuando ya estás en el resumen final "
