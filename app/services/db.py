@@ -1530,7 +1530,11 @@ def update_request_status(
 _ALLOWED_ENTRY_CHANNELS = {"telegram"}
 
 
-def create_request(chat_id: str, session: dict, ai_response: dict) -> str | None:
+def create_request(chat_id: str, session: dict, ai_response: dict,
+                   pedido_id: str | None = None) -> str | None:
+    """Crea la orden. `pedido_id` la asocia a un pedido (decisión 011); si es None la orden
+    queda suelta y se comporta exactamente como antes — así entran las del portal y las
+    históricas."""
     intent = ai_response["intent"]
     fields = ai_response.get("captured_fields", {})
     client_id = session.get("client_id")
@@ -1571,11 +1575,16 @@ def create_request(chat_id: str, session: dict, ai_response: dict) -> str | None
         request_data["status"] = "received"
         request_data["fallback_reason"] = ai_response.get("handoff_area")
 
+    if pedido_id:
+        request_data["pedido_id"] = pedido_id
+
     result = _client.table("requests").insert(request_data).execute()
     if not result.data:
         return None
 
     request_id = result.data[0]["id"]
+    if pedido_id:
+        touch_pedido(pedido_id)
     order_number = result.data[0].get("order_number")  # generado por la BB (None si falta la migración)
     event_payload = {
         "source":   source_channel,
@@ -1599,6 +1608,91 @@ def create_request(chat_id: str, session: dict, ai_response: dict) -> str | None
     # Se devuelve el event_payload (con `profile` y `service_order`) para que la capa de
     # facturación (app/billing.py) arme las líneas sin reconstruir la lógica de catálogo.
     return {"request_id": request_id, "order_number": order_number, "event_payload": event_payload}
+
+
+# ── Pedidos (decisión 011) ──────────────────────────────────────────────────────
+# El PEDIDO agrupa las órdenes de una sesión de carga y es la unidad que se factura: una
+# forma de pago y una factura para todas sus órdenes. Estas funciones son la capa de datos;
+# el flujo conversacional las usa en una etapa posterior. Con `pedido_id` NULL una orden se
+# comporta exactamente como antes, así que nada de esto altera el comportamiento actual.
+
+def create_pedido(client_id: str | None, chat_id: str, entry_channel: str = "telegram") -> dict | None:
+    """Abre un pedido. Devuelve {id, pedido_number} o None si la inserción falla."""
+    result = _client.table("pedidos").insert({
+        "client_id":        client_id,
+        "external_chat_id": chat_id,
+        "entry_channel":    entry_channel,
+        "status":           "abierto",
+    }).execute()
+    if not result.data:
+        return None
+    row = result.data[0]
+    return {"id": row["id"], "pedido_number": row.get("pedido_number")}
+
+
+def get_open_pedido(chat_id: str) -> dict | None:
+    """Pedido abierto de un chat, si lo hay. Un chat tiene a lo sumo uno."""
+    if not chat_id:
+        return None
+    result = (
+        _client.table("pedidos")
+        .select("*")
+        .eq("external_chat_id", chat_id)
+        .eq("status", "abierto")
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return result.data[0] if result.data else None
+
+
+def touch_pedido(pedido_id: str) -> None:
+    """Marca actividad en el pedido. Es la base del cierre por inactividad: sin esto, un
+    pedido con órdenes agregadas parecería abandonado desde su creación."""
+    if not pedido_id:
+        return
+    _client.table("pedidos").update(
+        {"updated_at": datetime.now(timezone.utc).isoformat()}
+    ).eq("id", pedido_id).execute()
+
+
+def close_pedido(pedido_id: str, payment_method: str | None = None) -> dict | None:
+    """Cierra el pedido: ya no admite más órdenes. La factura se emite aparte, y recién
+    cuando se emite el estado pasa a 'facturado' (ver mark_pedido_invoiced)."""
+    if not pedido_id:
+        return None
+    now = datetime.now(timezone.utc).isoformat()
+    payload = {"status": "cerrado", "closed_at": now, "updated_at": now}
+    if payment_method:
+        payload["payment_method"] = payment_method
+    result = _client.table("pedidos").update(payload).eq("id", pedido_id).execute()
+    return result.data[0] if result.data else None
+
+
+def mark_pedido_invoiced(pedido_id: str, alegra_invoice_id: str | None) -> None:
+    """Deja el id de la factura en el pedido. Separado de close_pedido a propósito: un
+    pedido puede quedar cerrado y sin facturar si Alegra falla, y eso tiene que verse."""
+    if not pedido_id:
+        return
+    _client.table("pedidos").update({
+        "status":            "facturado",
+        "alegra_invoice_id": alegra_invoice_id,
+        "updated_at":        datetime.now(timezone.utc).isoformat(),
+    }).eq("id", pedido_id).execute()
+
+
+def list_pedido_requests(pedido_id: str) -> list[dict]:
+    """Órdenes del pedido, en orden de carga. Es lo que se factura junto."""
+    if not pedido_id:
+        return []
+    result = (
+        _client.table("requests")
+        .select("*")
+        .eq("pedido_id", pedido_id)
+        .order("requested_at")
+        .execute()
+    )
+    return result.data or []
 
 
 def get_last_order_for_client(client_id: str) -> dict | None:
