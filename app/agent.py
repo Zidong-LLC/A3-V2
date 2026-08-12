@@ -2222,8 +2222,6 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
     """
     if not PEDIDOS_ENABLED or not prev_fields.get("_pedido_id"):
         return ai_response
-    if ai_response.get("intent") != "route_scheduling" and not ai_response.get("requires_handoff"):
-        return ai_response
 
     fields = ai_response.get("captured_fields", {})
     signal = ai_response.get("user_intent_signal")
@@ -2239,7 +2237,10 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
         return _close_pedido_turn(session, dict(prev_fields, **fields), payment_method)
 
     # Terminó de cargar órdenes pero todavía no dijo cómo paga: se le pregunta UNA vez.
-    wants_to_finish = signal in ("farewell", "negate") or _is_farewell(user_message)
+    # Señales con las que el cliente da por terminada la carga. `cancel` entra porque el
+    # modelo la usa para "cerrame eso" / "terminala ahí": con la orden YA registrada no puede
+    # anular nada, así que en este contexto significa cerrar el pedido, no cancelarlo.
+    wants_to_finish = signal in ("farewell", "negate", "cancel") or _is_farewell(user_message)
     if wants_to_finish and not prev_fields.get("_pedido_awaiting_payment"):
         fields = dict(prev_fields, **fields)
         fields["_pedido_awaiting_payment"] = True
@@ -2867,8 +2868,12 @@ def process_turn(
             ai_response["message_mode"] = "side_question"
             return _persist_turn(chat_id, user_message, ai_response)
 
+        # Con un PEDIDO abierto este atajo CEDE. Decide por lista de palabras y responde
+        # "quedamos atentos" sin que el modelo vea el turno: con pedidos eso deja el pedido
+        # abierto y SIN FACTURAR justo cuando el cliente dijo que terminó. Medido: era la
+        # causa de 6 de los 10 fallos del QA semántico de cierre (decisión 011).
         close_words = {"cierra", "cerrar", "cerramos", "cierralo", "ciérralo", "cerrada", "cerrado"}
-        if not _explicitly_wants_another_order(user_message) and (
+        if not _pedido_abierto and not _explicitly_wants_another_order(user_message) and (
             _is_order_confirmation(user_message) or set(_tokenize(user_message)) & close_words
         ):
             if _is_affirmative_text(user_message):
@@ -2886,7 +2891,10 @@ def process_turn(
                     _restart_identification_for_new_client(chat_id, session, prev_captured),
                 )
             return _persist_turn(chat_id, user_message, _begin_followup_order(prev_captured, user_message))
-        if _is_negative_text(user_message):
+        # Con un PEDIDO abierto, un "no, nada más" NO es una despedida: es el cliente
+        # diciendo que terminó de cargar órdenes, o sea el momento exacto de cobrar. Este
+        # atajo cede y el turno sigue al modelo (decisión 011).
+        if _is_negative_text(user_message) and not _pedido_abierto:
             db.save_message(chat_id, user_message, "user")
             db.save_message(chat_id, FAREWELL_REPLY, "bot")
             return FAREWELL_REPLY

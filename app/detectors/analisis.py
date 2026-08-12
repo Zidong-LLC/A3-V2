@@ -275,6 +275,11 @@ def _wants_to_proceed_to_payment(text: str) -> bool:
 
 
 def _payment_method_from_text(text: str) -> str | None:
+    """Red de respaldo del método de pago. La fuente primaria es lo que captura el MODELO
+    (que interpreta la intención); esto solo cubre el turno en que no lo marcó.
+
+    Los fraseos indirectos están acá porque el cliente describe CUÁNDO paga, no cómo se
+    llama el método: "les pagamos cuando pasen a recoger", "mandanos el link"."""
     tokens = set(_tokenize(text))
     if "contraentrega" in tokens or "efectivo" in tokens:
         return "contraentrega"
@@ -282,6 +287,16 @@ def _payment_method_from_text(text: str) -> str | None:
         return "pago_linea"
     if ({"pago", "pagar"} & tokens) and ({"linea", "línea", "online"} & tokens):
         return "pago_linea"
+    # Pedir un link o los datos de la cuenta es pedir pago a distancia.
+    if ("link" in tokens or "consignacion" in tokens or "consignación" in tokens) and (
+            {"pago", "pagar", "pagamos", "paga"} & tokens or "link" in tokens):
+        return "pago_linea"
+    # "pagamos cuando pasen/lleguen/recojan/entreguen" = al momento de la recogida.
+    paga = {"pagamos", "pagar", "pago", "paga", "pagarles", "cancelamos"} & tokens
+    al_recibir = {"pasen", "pasan", "lleguen", "llegan", "recojan", "recogen",
+                  "entreguen", "recibir", "recibirlo", "vengan", "venga"} & tokens
+    if paga and al_recibir:
+        return "contraentrega"
     return None
 
 

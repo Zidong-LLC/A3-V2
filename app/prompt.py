@@ -93,6 +93,15 @@ Cuando ya tienes cliente + dirección confirmada + médico solicitante + patient
 y payment_method todavía está vacío, preguntar:
 "Antes de cerrar, ¿cómo prefieres el pago: contraentrega con el motorizado o pago en línea?"
 
+Interpretá la INTENCIÓN, no la palabra exacta. El cliente casi nunca dice "contraentrega" ni
+"pago en línea": describe CUÁNDO o CÓMO paga, y de ahí se deduce cuál de los dos es.
+- Paga al recibir / cuando pasa el mensajero / en el momento de la recogida / en efectivo /
+  "les pagamos cuando pasen", "cuando lleguen les doy la plata" → contraentrega.
+- Paga a distancia / transferencia / PSE / tarjeta / consignación / pide un link o datos para
+  pagar ("mandanos el link", "pásame los datos de la cuenta") → pago_linea.
+Si de verdad no se entiende cuál de los dos es, preguntá de nuevo con las dos opciones; no
+adivines.
+
 Si responde contraentrega/pagar al motorizado:
 - Setear payment_method = "contraentrega"
 - Mantener intent = route_scheduling
