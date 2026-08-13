@@ -2765,7 +2765,12 @@ def process_turn(
             response["message_mode"] = "side_question"
             response = _resume_route_after_lateral_turn(session, response)
             return _persist_turn(chat_id, user_message, response)
-        if _is_catalog_overview_question(user_message):
+        # Con el reofrecimiento de datos estables pendiente, la respuesta del cliente es
+        # sobre ESOS datos, no una pregunta de catálogo. "Todo igual menos el TIPO de
+        # ANÁLISIS" caía acá por las palabras "tipo" + "análisis" y se le contestaba con el
+        # muestrario general, sin limpiar el perfil de la orden anterior; ese perfil heredado
+        # después apagaba los cuatro enforcers que debían ofrecer el menú (prueba real, chat 4).
+        if _is_catalog_overview_question(user_message) and not prev_captured.get("_stable_confirm_pending"):
             fields = dict(prev_captured)
             analysis_in_progress = bool(
                 fields.get("_selected_profile_code") or _as_text_items(fields.get("selected_tests"))

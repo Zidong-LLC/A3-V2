@@ -105,6 +105,20 @@ _PROCEED_TO_PAYMENT_PHRASES = (
 
 
 
+# Palabras que nombran el CAMPO análisis, no una prueba concreta del catálogo.
+_ANALYSIS_FIELD_WORDS = frozenset({
+    "analisis", "análisis", "perfil", "perfiles", "examen", "examenes", "exámenes",
+    "tipo", "tipos", "estudio", "estudios", "prueba", "pruebas",
+})
+# Muletillas del "todo igual menos …": no aportan a distinguir parcial de total.
+_PARTIAL_CHANGE_STOPWORDS = frozenset({
+    "todo", "toda", "todos", "todas", "igual", "iguales", "mismo", "misma", "mismos",
+    "lo", "el", "la", "los", "las", "un", "una", "de", "del", "menos", "salvo",
+    "excepto", "pero", "sin", "y", "que", "es", "son", "solo", "sólo", "cambia",
+    "cambiá", "cambiar", "cambiame", "cambiemos",
+})
+
+
 def _wants_partial_analysis_change(text: str) -> bool:
     """¿El cliente quiere MANTENER el análisis/perfil anterior y solo ajustarlo
     (agregar o quitar pruebas), no empezar de cero? Ej.: 'el mismo pero sin coproscópico',
@@ -119,6 +133,14 @@ def _wants_partial_analysis_change(text: str) -> bool:
     if tokens & {"personalizar", "personalizarlo", "ajustar", "ajustarlo", "modificar"}:
         return True
     if (_is_same_as_previous(text) or tokens & _SAME_AS_PREVIOUS_TOKENS) and tokens & _PARTIAL_KEEP_MARKERS:
+        # "el mismo MENOS el coproscópico" es un ajuste parcial: excluye UNA prueba.
+        # "todo igual MENOS el tipo de análisis" es un cambio TOTAL: lo que excluye es el
+        # campo entero, no un ítem. Se distinguen por lo que queda al sacar las muletillas:
+        # si no nombró ninguna prueba concreta, está hablando del análisis como campo.
+        # (Prueba real, chat 4: se leía como parcial y el perfil de la orden anterior
+        # sobrevivía, apagando la validación del análisis nuevo.)
+        if not (tokens - _PARTIAL_CHANGE_STOPWORDS - _ANALYSIS_FIELD_WORDS):
+            return False
         return True
     return False
 
@@ -132,7 +154,15 @@ def _wants_to_change_analysis(text: str) -> bool:
     if _wants_partial_analysis_change(text):
         return False
     tokens = set(_tokenize(text))
-    return bool(tokens & _ANALYSIS_NOUN_TOKENS) and bool(tokens & _ANALYSIS_CHANGE_SIGNAL_TOKENS)
+    if not (tokens & _ANALYSIS_NOUN_TOKENS):
+        return False
+    if tokens & _ANALYSIS_CHANGE_SIGNAL_TOKENS:
+        return True
+    # "todo igual MENOS el análisis": excluir el campo entero del "todo igual" ES pedir otro
+    # análisis, aunque no aparezca ningún verbo de cambio. Misma condición que usa
+    # `_wants_partial_analysis_change` para descartarlo, del otro lado.
+    return bool(tokens & _PARTIAL_KEEP_MARKERS) and not (
+        tokens - _PARTIAL_CHANGE_STOPWORDS - _ANALYSIS_FIELD_WORDS)
 
 
 
