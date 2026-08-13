@@ -586,4 +586,28 @@
     });
   });
 
+
+  // ── Cierre manual de un pedido ──────────────────────────────────────────────
+  // Respaldo humano del barrido automático: ese barrido corre de forma oportunista (sin
+  // scheduler), así que un pedido abandonado sin tráfico posterior necesita que alguien
+  // pueda cerrarlo desde acá.
+  document.querySelectorAll('[data-pedido-close]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const pedidoId = btn.dataset.pedidoClose;
+      const flag = document.querySelector(`[data-pedido-flag="${pedidoId}"]`);
+      if (!window.confirm('Se cerrará el pedido y se intentará emitir su factura. ¿Continuar?')) return;
+      btn.disabled = true;
+      if (flag) flag.textContent = 'Procesando…';
+      try {
+        const data = await postJsonSafe('/api/dashboard/pedido-close', { pedido_id: pedidoId, invoice: true });
+        if (flag) flag.textContent = data.warning || (data.invoice ? `Facturado ${data.invoice}` : 'Cerrado');
+        if (!data.warning) setTimeout(() => window.location.reload(), 1200);
+      } catch (err) {
+        if (flag) flag.textContent = err.message || 'No se pudo cerrar';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
 })();

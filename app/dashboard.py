@@ -1576,6 +1576,12 @@ def samples_page():
     return _render_dashboard("muestras")
 
 
+@dashboard.get("/pedidos")
+@_login_required
+def pedidos_page():
+    return _render_dashboard("pedidos")
+
+
 @dashboard.get("/ordenes-servicio/<request_id>/imprimir")
 @_login_required
 def service_order_print_page(request_id: str):
@@ -2112,6 +2118,72 @@ _CATALOG_SPECIES = {"ambos", "canino", "felino", "bovino", "equino", "porcino",
                     "ovino", "caprino", "conejo", "ave", "roedor", "reptil"}
 
 
+@dashboard.post("/api/dashboard/pedido-close")
+@_login_required
+def close_pedido_manually():
+    """Cierra un pedido a mano y, si se pide, emite su factura.
+
+    Es el respaldo humano del barrido automático: el barrido corre de forma oportunista
+    (sin scheduler), así que un pedido abandonado sin tráfico posterior necesita que alguien
+    de operaciones pueda cerrarlo desde acá.
+
+    Cerrar y facturar están separados a propósito, igual que en el agente: si Alegra falla el
+    pedido queda 'cerrado' y NO pasa a 'facturado', y eso es justamente lo que permite ver
+    después cuáles quedaron sin factura.
+    """
+    payload = request.get_json(silent=True) or {}
+    pedido_id = str(payload.get("pedido_id") or "").strip()
+    payment_method = _sanitize_text(payload.get("payment_method"), 40) or None
+    facturar = bool(payload.get("invoice"))
+    if not pedido_id:
+        return jsonify({"error": "Missing pedido_id"}), 400
+
+    pedido = db.get_pedido(pedido_id)
+    if not pedido:
+        return jsonify({"error": "El pedido no existe"}), 404
+    if pedido.get("status") == "facturado":
+        return jsonify({"error": "Ese pedido ya está facturado"}), 400
+
+    try:
+        if pedido.get("status") == "abierto":
+            db.close_pedido(pedido_id, payment_method or pedido.get("payment_method"))
+    except Exception:
+        return jsonify({"error": "No se pudo cerrar el pedido"}), 503
+
+    resultado = {"ok": True, "status": "cerrado", "invoice": None}
+    if not facturar:
+        return jsonify(resultado)
+
+    if not ALEGRA_ENABLED:
+        resultado["warning"] = "Alegra está desactivado: el pedido quedó cerrado sin facturar."
+        return jsonify(resultado)
+    try:
+        lineas = []
+        for perfil in db.get_pedido_profiles(pedido_id):
+            lineas.extend(billing.build_invoice_lines(perfil))
+        if not lineas:
+            resultado["warning"] = "El pedido no tiene líneas facturables; quedó cerrado."
+            return jsonify(resultado)
+        cliente = db.get_client_by_id(pedido.get("client_id")) or {}
+        nit = cliente.get("tax_id")
+        if not nit:
+            resultado["warning"] = "El cliente no tiene NIT; el pedido quedó cerrado sin facturar."
+            return jsonify(resultado)
+        factura = billing.invoice_order(
+            nit, cliente.get("clinic_name") or "Cliente A3", lineas,
+            datetime.now(timezone.utc).date().isoformat(),
+            {k: v for k, v in {"email": cliente.get("email")}.items() if v},
+        )
+        if factura and factura.get("invoice_id"):
+            db.mark_pedido_invoiced(pedido_id, str(factura["invoice_id"]))
+            resultado.update(status="facturado", invoice=factura.get("number") or factura["invoice_id"])
+        else:
+            resultado["warning"] = "Alegra no devolvió factura; el pedido quedó cerrado."
+    except Exception as exc:  # noqa: BLE001
+        resultado["warning"] = f"Cerrado, pero la factura falló: {str(exc)[:120]}"
+    return jsonify(resultado)
+
+
 @dashboard.post("/api/dashboard/catalog-item")
 @_login_required
 def update_catalog_item():
@@ -2400,6 +2472,12 @@ def _render_dashboard(active_tab: str):
         context["demo_mode"] = True
         context["sample_process_lanes"] = demo_lanes
         context["sample_demo_total"] = sum(lane["count"] for lane in demo_lanes)
+    if active_tab == "pedidos":
+        # Solo se consulta en su pestaña: son dos queries y no hacen falta en el resto.
+        pedidos = db.list_pedidos_for_dashboard()
+        context["pedidos"] = pedidos
+        context["pedidos_abiertos"] = sum(1 for p in pedidos if p.get("status") == "abierto")
+        context["pedidos_sin_facturar"] = sum(1 for p in pedidos if p.get("status") == "cerrado")
     if active_tab == "clientes":
         all_rows = context.get("clients_rows") or []
         per_page = 15

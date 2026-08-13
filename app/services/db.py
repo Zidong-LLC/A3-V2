@@ -1817,6 +1817,88 @@ def mark_pedido_invoiced(pedido_id: str, alegra_invoice_id: str | None) -> None:
     }).eq("id", pedido_id).execute()
 
 
+def list_pedidos_for_dashboard(limit: int = 60) -> list[dict]:
+    """Pedidos con el nombre del cliente y sus órdenes, para la plataforma.
+
+    Hasta ahora el pedido solo existía dentro del agente: el dashboard no lo conocía. Eso
+    dejaba sin respaldo humano al barrido automático — un pedido abandonado sin tráfico
+    posterior quedaba abierto e invisible. Los `abierto` van primero porque son los que
+    alguien tiene que mirar."""
+    try:
+        pedidos = (
+            _client.table("pedidos")
+            .select("*, clients(clinic_name)")
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        ).data or []
+    except Exception:
+        return []
+    if not pedidos:
+        return []
+
+    ids = [p["id"] for p in pedidos]
+    try:
+        ordenes = (
+            _client.table("requests")
+            .select("id, pedido_id, order_number, patient_name, species, exam_type, status")
+            .in_("pedido_id", ids)
+            .order("requested_at")
+            .execute()
+        ).data or []
+    except Exception:
+        ordenes = []
+
+    por_pedido: dict[str, list[dict]] = {}
+    for orden in ordenes:
+        por_pedido.setdefault(orden.get("pedido_id"), []).append(orden)
+
+    for pedido in pedidos:
+        cliente = pedido.get("clients") if isinstance(pedido.get("clients"), dict) else {}
+        pedido["client_name"] = cliente.get("clinic_name") or "Cliente"
+        pedido["orders"] = por_pedido.get(pedido["id"], [])
+        pedido["orders_count"] = len(pedido["orders"])
+    pedidos.sort(key=lambda p: (p.get("status") != "abierto", p.get("created_at") or ""), reverse=False)
+    return pedidos
+
+
+def get_pedido_profiles(pedido_id: str) -> list[dict]:
+    """Los `profile` de cada orden del pedido, reconstruidos desde `request_events`.
+
+    El agente los lleva en la sesión (`_pedido_profiles`) mientras la conversación está viva,
+    pero el dashboard no tiene ese estado: para facturar un pedido a mano hay que releerlos
+    del evento `created`, donde quedaron ya resueltos contra el catálogo."""
+    ordenes = list_pedido_requests(pedido_id)
+    if not ordenes:
+        return []
+    try:
+        eventos = (
+            _client.table("request_events")
+            .select("request_id, event_type, event_payload")
+            .in_("request_id", [o["id"] for o in ordenes])
+            .eq("event_type", "created")
+            .execute()
+        ).data or []
+    except Exception:
+        return []
+    perfiles = []
+    for evento in eventos:
+        perfil = (evento.get("event_payload") or {}).get("profile")
+        if perfil:
+            perfiles.append(perfil)
+    return perfiles
+
+
+def get_pedido(pedido_id: str) -> dict | None:
+    if not pedido_id:
+        return None
+    try:
+        result = _client.table("pedidos").select("*").eq("id", pedido_id).limit(1).execute()
+        return (result.data or [None])[0]
+    except Exception:
+        return None
+
+
 def list_stale_pedidos(horas: int = 1, limit: int = 20) -> list[dict]:
     """Pedidos ABIERTOS sin actividad hace más de `horas`.
 
