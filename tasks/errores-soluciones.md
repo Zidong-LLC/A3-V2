@@ -479,6 +479,40 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-106 — El perfil de la orden anterior contaminaba la orden siguiente (prueba en vivo, 2026-08-12)
+**Síntoma (Telegram, chat 4):** tras cerrar una orden con el perfil 653, el cliente pidió otra
+orden y dijo *"Todo igual menos el tipo de análisis"* → el bot respondió con el muestrario
+genérico de áreas; después *"Un pre quirúrgico"* → *"Perfecto, anoto PREQUIRURGICO como
+análisis"*. Debía ofrecer los 11 perfiles prequirúrgicos (152-162).
+**Lo grave NO se veía en el chat:** `_enforce_profile_exam_type_integrity` revertía `exam_type`
+al perfil heredado, así que la orden quedaba con **Perfil Senior Canino III ($58.000) del
+paciente ANTERIOR** mientras el bot decía haber anotado un prequirúrgico. Error de dinero,
+familia ERR-077/103/105.
+**Causa raíz:** `_start_followup_service_order_response` hereda `exam_type` y
+`_selected_profile_code` como estado ACTIVO. Ese flag apaga los guards de entrada de los
+CUATRO enforcers que debían ofrecer el menú — incluidos `_enforce_diagnostic_label_help` y
+`_enforce_loose_exam_catalog_resolution`, que están escritos exactamente para este caso y
+citan "PREQUIRURGICO" en sus comentarios. No fallaron por su lógica sino por estado heredado
+de OTRA orden.
+**Dos desvíos previos lo habilitaban:**
+1. `_is_catalog_overview_question` leía "el TIPO de ANÁLISIS" como "¿qué tipos de análisis
+   hacen?" y respondía el catálogo genérico sin limpiar nada. Ahora cede cuando hay un
+   reofrecimiento de estables pendiente: esa respuesta es sobre ESOS datos.
+2. `_wants_partial_analysis_change` clasificaba *"todo igual MENOS el análisis"* como ajuste
+   PARCIAL (tiene "igual" y "menos"). La distinción real es QUÉ se excluye: una prueba
+   concreta ("el mismo menos la glucosa") es parcial; el campo entero es cambio TOTAL. Se
+   resuelve mirando si queda algún término que no sea muletilla ni nombre genérico del campo.
+**Solución:** los dos desvíos. Con el perfil heredado ya limpio, los cuatro enforcers vuelven
+a correr solos — **no hubo que tocar sus guards**.
+**Tests:** `tests/test_followup_order_analysis_change.py` (10 casos, incluidos los 4 de ajuste
+parcial que NO deben cambiar de comportamiento).
+**Verificación:** guion exacto de la conversación real — ahora ofrece los 11 perfiles y el
+estado queda limpio (`exam_type` y `_selected_profile_code` en None). Suite 631; QA catálogo
+12/12 y 5/5; QA cierre 24/25 con precisión 8/8.
+**Cómo se encontró:** prueba MANUAL por Telegram, ~15 minutos. Ninguna de las tres baterías
+automáticas lo había detectado. Refuerza L60.
+**Estado:** RESUELTO y verificado (2026-08-12). Commit `33c4ec5`.
+
 ### ERR-104 — El agente le decía "no existe" a un cliente sobre algo que SÍ está en la base (2026-08-12)
 **Síntoma (conversación real EVI, 28/07):** paciente felino, el cliente pidió el "Perfil 653"
 y el bot respondió *"No encuentro el Perfil 653 en el catálogo"*. El 653 EXISTE: Perfil Senior
