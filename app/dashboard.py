@@ -585,6 +585,33 @@ def _request_sample_status(request_status: str | None) -> str:
     }.get(str(request_status or ""), "pending_pickup")
 
 
+def _service_order_items(payload: dict) -> list[dict]:
+    """Análisis de la orden con su código y su valor, como en la orden de servicio en papel:
+    `Cód | Descripción | Valor`, una fila por análisis.
+
+    El bloque `service_order` del evento nunca guardó importes —solo `exam_type` como texto—,
+    así que se leen del `profile` hermano, que sí los tiene resueltos contra el catálogo.
+    """
+    perfil = payload.get("profile") if isinstance(payload.get("profile"), dict) else {}
+    if not perfil:
+        return []
+    items: list[dict] = []
+    base = perfil.get("base_profile") or {}
+    # Un perfil PERSONALIZADO no tiene código ni precio propio: su valor son las pruebas
+    # sueltas, que ya se listan abajo una por una. Incluirlo agregaba una fila con el nombre
+    # largo ("Perfil personalizado: 1201 PT…, 1202 PTT…") y la columna Valor vacía.
+    if (base.get("code") or base.get("name")) and (base.get("code") or int(base.get("price") or 0)):
+        items.append({"code": base.get("code") or "", "name": base.get("name") or "",
+                      "price": int(base.get("price") or 0)})
+    for extra in (perfil.get("extra_profiles") or []):
+        items.append({"code": extra.get("code") or "", "name": extra.get("name") or "",
+                      "price": int(extra.get("price") or 0)})
+    for test in (perfil.get("added_tests") or []):
+        items.append({"code": test.get("code") or "", "name": test.get("name") or "",
+                      "price": int(test.get("price") or 0)})
+    return items
+
+
 def _build_service_order_rows(requests_rows: list[dict], request_events: list[dict]) -> list[dict]:
     requests_by_id = {str(row.get("id") or ""): row for row in requests_rows if row.get("id")}
     rows_by_request = {}
@@ -625,6 +652,12 @@ def _build_service_order_rows(requests_rows: list[dict], request_events: list[di
             "patient_age": patient.get("age") or request_row.get("patient_age") or "-",
             "owner_name": patient.get("owner_name") or request_row.get("owner_name") or "-",
             "exam_type": exam_type,
+            # Ítems con CÓDIGO y VALOR para la orden imprimible. Salen del `profile` hermano
+            # del mismo evento, que ya los guarda resueltos contra el catálogo: el bloque
+            # `service_order` nunca tuvo importes, y por eso el PDF venía imprimiendo la
+            # forma de pago en la columna "Valor" y con una sola fila fija.
+            "items": _service_order_items(payload),
+            "items_total": sum(int(i.get("price") or 0) for i in _service_order_items(payload)),
             "observations": service_order.get("observations") or "-",
             "payment_method": PAYMENT_METHOD_LABELS.get(
                 service_order.get("payment_method"), service_order.get("payment_method") or "-"
@@ -2159,8 +2192,10 @@ def close_pedido_manually():
         return jsonify(resultado)
     try:
         lineas = []
-        for perfil in db.get_pedido_profiles(pedido_id):
-            lineas.extend(billing.build_invoice_lines(perfil))
+        ordenes = {o["id"]: o for o in db.list_pedido_requests(pedido_id)}
+        for request_id, perfil in db.get_pedido_profiles(pedido_id, con_request_id=True):
+            paciente = (ordenes.get(request_id) or {}).get("patient_name")
+            lineas.extend(billing.build_invoice_lines(perfil, paciente))
         if not lineas:
             resultado["warning"] = "El pedido no tiene líneas facturables; quedó cerrado."
             return jsonify(resultado)

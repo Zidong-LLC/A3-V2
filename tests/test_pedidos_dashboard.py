@@ -35,13 +35,18 @@ def cliente(monkeypatch):
                         lambda pid, pago=None: reg["cerrados"].append((pid, pago)))
     monkeypatch.setattr(dash.db, "mark_pedido_invoiced",
                         lambda pid, inv: reg["facturados"].append((pid, inv)))
+    # Devuelve (request_id, profile): cada línea de la factura lleva el paciente de SU orden.
     monkeypatch.setattr(dash.db, "get_pedido_profiles",
-                        lambda pid: [{"base_profile": {"code": "1101", "name": "Hemo", "price": 14000},
-                                      "added_tests": [], "total_estimated": 14000}])
+                        lambda pid, con_request_id=False: [
+                            ("req-1", {"base_profile": {"code": "1101", "name": "Hemo", "price": 14000},
+                                       "added_tests": [], "total_estimated": 14000})])
+    monkeypatch.setattr(dash.db, "list_pedido_requests",
+                        lambda pid: [{"id": "req-1", "patient_name": "Firulais"}])
     monkeypatch.setattr(dash.db, "get_client_by_id",
                         lambda cid: {"tax_id": "900123456", "clinic_name": "Animal Pets"})
     monkeypatch.setattr(dash.billing, "build_invoice_lines",
-                        lambda perfil: [{"code": "1101", "name": "Hemo", "price": 14000, "quantity": 1}])
+                        lambda perfil, paciente=None: [{"code": "1101", "name": "Hemo", "price": 14000,
+                                                        "quantity": 1, "description": paciente}])
     monkeypatch.setattr(dash.billing, "invoice_order",
                         lambda *a, **k: reg["invoice_calls"].append(a) or {"invoice_id": "inv-9", "number": "FE-1"})
     monkeypatch.setattr(dash, "ALEGRA_ENABLED", True)

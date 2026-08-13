@@ -82,16 +82,22 @@ def _slug(text: str) -> str:
     return f"A3-{base[:40]}" if base else "A3-item"
 
 
-def _line(code: str | None, name: str, price: int) -> dict:
-    return {
+def _line(code: str | None, name: str, price: int, patient: str | None = None) -> dict:
+    line = {
         "reference": str(code).strip() if code else _slug(name),
         "name": name or "Análisis",
         "price": int(price or 0),
         "quantity": 1,
     }
+    # El PACIENTE va en la descripción de la línea, como en las facturas que emite A3 hoy:
+    # una factura de pedido junta varios pacientes, y sin esto la veterinaria recibe seis
+    # análisis sin saber cuál es de cuál.
+    if patient:
+        line["description"] = str(patient).strip()[:200]
+    return line
 
 
-def build_invoice_lines(profile_payload: dict | None) -> list[dict]:
+def build_invoice_lines(profile_payload: dict | None, patient: str | None = None) -> list[dict]:
     """Convierte el `profile` del event_payload en líneas de factura
     [{reference, name, price, quantity[, discount]}]. El perfil base se factura con su precio
     menos las pruebas removidas; cada prueba agregada es una línea aparte. Un perfil
@@ -113,9 +119,9 @@ def build_invoice_lines(profile_payload: dict | None) -> list[dict]:
     # El "perfil" sintético sin código ni precio ('Perfil personalizado (N análisis)') no es
     # un ítem facturable: solo agregaría una línea de $0 como ruido en la factura.
     if not pure_custom and (base.get("name") or base.get("code")):
-        lines.append(_line(base.get("code"), base.get("name") or "Perfil", base_price))
+        lines.append(_line(base.get("code"), base.get("name") or "Perfil", base_price, patient))
     for test in added:
-        lines.append(_line(test.get("code"), test.get("name"), test.get("price")))
+        lines.append(_line(test.get("code"), test.get("name"), test.get("price"), patient))
 
     if pure_custom and added:
         totals = calculate_custom_profile_total(added)
@@ -152,6 +158,8 @@ def invoice_order(
     for line in lines:
         item = alegra.get_or_create_item(line["reference"], line["name"], line["price"])
         invoice_item = {"id": item.get("id"), "quantity": line["quantity"], "price": line["price"]}
+        if line.get("description"):
+            invoice_item["description"] = line["description"]
         if line.get("discount"):
             invoice_item["discount"] = line["discount"]
         invoice_items.append(invoice_item)

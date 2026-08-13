@@ -1862,12 +1862,15 @@ def list_pedidos_for_dashboard(limit: int = 60) -> list[dict]:
     return pedidos
 
 
-def get_pedido_profiles(pedido_id: str) -> list[dict]:
+def get_pedido_profiles(pedido_id: str, con_request_id: bool = False) -> list:
     """Los `profile` de cada orden del pedido, reconstruidos desde `request_events`.
 
     El agente los lleva en la sesión (`_pedido_profiles`) mientras la conversación está viva,
     pero el dashboard no tiene ese estado: para facturar un pedido a mano hay que releerlos
-    del evento `created`, donde quedaron ya resueltos contra el catálogo."""
+    del evento `created`, donde quedaron ya resueltos contra el catálogo.
+
+    Con `con_request_id=True` devuelve `(request_id, profile)` para poder poner el paciente
+    de CADA orden en su línea de la factura."""
     ordenes = list_pedido_requests(pedido_id)
     if not ordenes:
         return []
@@ -1885,7 +1888,7 @@ def get_pedido_profiles(pedido_id: str) -> list[dict]:
     for evento in eventos:
         perfil = (evento.get("event_payload") or {}).get("profile")
         if perfil:
-            perfiles.append(perfil)
+            perfiles.append((evento.get("request_id"), perfil) if con_request_id else perfil)
     return perfiles
 
 

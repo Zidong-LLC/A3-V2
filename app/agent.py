@@ -2491,8 +2491,11 @@ def _try_invoice_pedido(pedido_id: str | None, fields: dict) -> None:
         return
     try:
         lines = []
-        for perfil in (fields.get("_pedido_profiles") or []):
-            lines.extend(billing.build_invoice_lines(perfil))
+        fichas = fields.get("_pedido_ordenes") or []
+        for i, perfil in enumerate(fields.get("_pedido_profiles") or []):
+            # Cada línea lleva el paciente de SU orden: la factura del pedido junta varios.
+            paciente = (fichas[i] or {}).get("patient_name") if i < len(fichas) else None
+            lines.extend(billing.build_invoice_lines(perfil, paciente))
         if not lines:
             logger.warning("pedidos: %s sin líneas facturables", pedido_id)
             return
@@ -2523,7 +2526,7 @@ def _try_invoice_in_alegra(order_info: dict, ai_response: dict) -> None:
     try:
         fields = ai_response.get("captured_fields", {})
         profile = (order_info.get("event_payload") or {}).get("profile")
-        lines = billing.build_invoice_lines(profile)
+        lines = billing.build_invoice_lines(profile, fields.get("patient_name"))
         if not lines:
             _record_invoice_failure(request_id, "sin_lineas_facturables")
             return

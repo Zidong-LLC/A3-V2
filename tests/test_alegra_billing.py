@@ -215,3 +215,30 @@ def test_contact_lookup_retries_without_dv_before_create(monkeypatch):
 
     assert contact["id"] == "3"
     assert [call[0] for call in llamadas] == ["GET", "GET"]
+
+
+# ── El paciente en la descripción de cada línea (factura real de A3, 03/08/2026) ──
+# Una factura de PEDIDO junta varios pacientes: en la factura real de A3 la columna
+# "Descripción" lleva el nombre del paciente de cada línea (Chilindrina Garzon, Isis,
+# Lulu Castillo). Sin eso la veterinaria recibe seis análisis sin saber cuál es de cuál.
+
+def test_la_linea_lleva_el_paciente_en_la_descripcion():
+    perfil = {"base_profile": {"code": "160", "name": "Perfil Prequirúrgico IX", "price": 54117},
+              "added_tests": [], "removed_tests": []}
+    lineas = billing.build_invoice_lines(perfil, "Chilindrina Garzon")
+    assert lineas[0]["description"] == "Chilindrina Garzon"
+
+
+def test_cada_analisis_agregado_tambien_lleva_el_paciente():
+    perfil = {"base_profile": {"code": "160", "name": "Perfil", "price": 50000},
+              "added_tests": [{"code": "1101", "name": "Cuadro Hemático", "price": 14000}],
+              "removed_tests": []}
+    lineas = billing.build_invoice_lines(perfil, "Isis")
+    assert [l.get("description") for l in lineas] == ["Isis", "Isis"]
+
+
+def test_sin_paciente_la_linea_no_trae_descripcion():
+    """No-regresión: el camino viejo (sin paciente) no cambia."""
+    perfil = {"base_profile": {"code": "160", "name": "Perfil", "price": 50000},
+              "added_tests": [], "removed_tests": []}
+    assert "description" not in billing.build_invoice_lines(perfil)[0]

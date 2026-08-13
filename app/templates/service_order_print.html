@@ -58,7 +58,7 @@
       <div class="top-grid">
         <div class="logo">A3 Laboratorio<span>Clinico Veterinario</span></div>
         <div class="title">Orden de Servicio<br><span style="font-size:15px;font-weight:700;">{{ order.order_number or '' }}</span></div>
-        <div class="code">Cod: SGA3-AL-FR-01<br>Version: 03-2024<br>Pagina 1 de 1</div>
+        <div class="code">Cod: SGA3-AL-FR-01<br>Version: 04 - 01/08/2026<br>Pagina 1 de 1</div>
       </div>
 
       <div class="date-row">
@@ -95,14 +95,24 @@
           <div class="field"><label>Edad</label><div class="line">{{ order.patient_age or '' }}</div></div>
           <div class="field"><label>Propietario</label><div class="line">{{ order.owner_name or '' }}</div></div>
         </div>
+        <div class="field"><label>Fecha toma de muestras:</label><div class="line">{{ order.scheduled_pickup_date if order.scheduled_pickup_date and order.scheduled_pickup_date != '-' else '' }}</div></div>
       </section>
 
       <section class="tests">
         <header><span>Cod</span><span>Descripcion</span><span>Valor</span></header>
-        <div class="row"><span>{{ order.order_number or 'OS' }}</span><span>{{ order.exam_type or '' }}</span><span>{{ order.payment_method or '' }}</span></div>
+        {%- set items = order.get('items') or [] %}
+        {%- for item in items %}
+        <div class="row"><span>{{ item.code }}</span><span>{{ item.name }}</span><span>{% if item.price %}${{ "{:,}".format(item.price).replace(",", ".") }}{% endif %}</span></div>
+        {%- endfor %}
+        {%- if not items %}
+        <div class="row"><span></span><span>{{ order.exam_type or '' }}</span><span></span></div>
+        {%- endif %}
+        {%- for _ in range([4 - items|length, 0]|max) %}
         <div class="row"><span></span><span></span><span></span></div>
-        <div class="row"><span></span><span></span><span></span></div>
-        <div class="row"><span></span><span></span><span></span></div>
+        {%- endfor %}
+        {%- if order.items_total %}
+        <div class="row total-row"><span></span><span><strong>Total</strong></span><span><strong>${{ "{:,}".format(order.items_total).replace(",", ".") }}</strong></span></div>
+        {%- endif %}
       </section>
 
       <section class="block observations">
@@ -111,12 +121,10 @@
 
       <section class="internal">
         <div class="internal-grid">
-          <div class="field"><label>Valor cancelado:</label><div class="line"></div></div>
-          <div class="field"><label>R C No.:</label><div class="line"></div></div>
           <div class="field"><label>Enviado por:</label><div class="line">{{ order.courier_name or '' }}</div></div>
-          <div class="field"><label>C x C No.:</label><div class="line"></div></div>
+          <div class="field"><label>Annar</label><div class="line"></div></div>
         </div>
-        <div class="footer-note">Para uso del laboratorio</div>
+        <div class="footer-note">Para uso del laboratorio:</div>
       </section>
     </section>
   </main>
