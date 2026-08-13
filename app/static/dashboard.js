@@ -538,4 +538,52 @@
       row.classList.toggle('op-hidden', q && !(row.dataset.search || '').includes(q));
     });
   });
+
+  // ── Edición del catálogo (precio y etiqueta de especie) ─────────────────────
+  // El catálogo era de solo lectura: cambiar un precio exigía SQL a mano (pedido de A3 del
+  // 07/04). La etiqueta de especie marca los ítems EXCLUSIVOS de una especie; el resto
+  // queda disponible para todas (decisión 012).
+  document.querySelectorAll('[data-catalog-edit]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const row = btn.closest('[data-builder-card]')?.querySelector('[data-catalog-edit-row]');
+      if (row) row.hidden = !row.hidden;
+    });
+  });
+
+  document.querySelectorAll('[data-catalog-save]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const card = btn.closest('[data-builder-card]');
+      const row = btn.closest('[data-catalog-edit-row]');
+      const flag = row?.querySelector('[data-catalog-flag]');
+      const precio = row?.querySelector('[data-catalog-price-input]');
+      const especie = row?.querySelector('[data-catalog-species-input]');
+      if (!card || !precio || !especie) return;
+      const payload = {
+        kind: btn.dataset.kind,
+        code: btn.dataset.code,
+        price: precio.value.trim(),
+        species: especie.value,
+      };
+      if (flag) flag.textContent = 'Guardando…';
+      btn.disabled = true;
+      try {
+        const data = await postJsonSafe('/api/dashboard/catalog-item', payload);
+        const nuevo = Number(data.item?.price || 0);
+        const label = card.querySelector('[data-catalog-price]');
+        if (label) label.textContent = nuevo ? money(nuevo) : 'Sin precio';
+        // La card se filtra por especie desde la barra de arriba: hay que actualizar el
+        // dataset o el filtro seguiría usando el valor viejo hasta recargar.
+        card.dataset.species = especie.value;
+        const meta = card.querySelector('.lab-card-meta span');
+        if (meta) meta.textContent = especie.value;
+        if (flag) flag.textContent = 'Guardado';
+        setTimeout(() => { if (flag) flag.textContent = ''; if (row) row.hidden = true; }, 1200);
+      } catch (err) {
+        if (flag) flag.textContent = err.message || 'No se pudo guardar';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
 })();
