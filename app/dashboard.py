@@ -2102,6 +2102,68 @@ def delete_custom_profile():
         return jsonify({"error": "Unable to delete custom profile"}), 503
 
 
+_CATALOG_TABLES = {"analisis": "catalog_tests", "perfil": "catalog_profiles"}
+# 'ambos' = disponible para todas las especies. Cualquier otro valor marca el ítem como
+# EXCLUSIVO de esa especie (decisión 012): así A3 puede reclasificar sus 73 perfiles sin
+# depender de nosotros.
+_CATALOG_SPECIES = {"ambos", "canino", "felino", "bovino", "equino", "porcino",
+                    "ovino", "caprino", "conejo", "ave", "roedor", "reptil"}
+
+
+@dashboard.post("/api/dashboard/catalog-item")
+@_login_required
+def update_catalog_item():
+    """Edita el PRECIO y/o la ETIQUETA DE ESPECIE de un ítem del catálogo.
+
+    El catálogo era de solo lectura: cambiar un precio exigía SQL a mano. Pedido de A3 del
+    07/04 (el pendiente más antiguo) y del 28/07 (la etiqueta).
+
+    Cada cambio queda auditado en `request_events` con el valor anterior y quién lo hizo:
+    tocar un precio mueve plata, así que tiene que poder rastrearse.
+    """
+    payload = request.get_json(silent=True) or {}
+    kind = str(payload.get("kind") or "").strip().lower()
+    tabla = _CATALOG_TABLES.get(kind)
+    code = str(payload.get("code") or "").strip()
+    if not tabla:
+        return jsonify({"error": "kind debe ser 'analisis' o 'perfil'"}), 400
+    if not code:
+        return jsonify({"error": "Missing code"}), 400
+
+    cambios: dict = {}
+    if "price" in payload:
+        try:
+            precio = int(str(payload.get("price")).replace(".", "").replace(",", "").strip())
+        except (TypeError, ValueError):
+            return jsonify({"error": "El precio debe ser un número entero"}), 400
+        if precio < 0:
+            return jsonify({"error": "El precio no puede ser negativo"}), 400
+        cambios["price"] = precio
+    if "species" in payload:
+        especie = str(payload.get("species") or "").strip().lower() or "ambos"
+        if especie not in _CATALOG_SPECIES:
+            return jsonify({"error": f"Especie no reconocida: {especie}"}), 400
+        cambios["species"] = especie
+    if not cambios:
+        return jsonify({"error": "Nada para actualizar"}), 400
+
+    try:
+        anterior = db.get_catalog_item(tabla, code) or {}
+        if not anterior:
+            return jsonify({"error": f"No existe el código {code}"}), 404
+        actualizado = db.update_catalog_item(tabla, code, cambios)
+    except Exception:
+        return jsonify({"error": "No se pudo actualizar el catálogo"}), 503
+
+    db.log_catalog_change(
+        tabla, code,
+        antes={k: anterior.get(k) for k in cambios},
+        despues=cambios,
+        por=session.get("dashboard_username"),
+    )
+    return jsonify({"ok": True, "item": actualizado})
+
+
 @dashboard.post("/api/dashboard/sample-status")
 @_login_required
 def update_sample_status():

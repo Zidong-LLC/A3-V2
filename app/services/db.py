@@ -1111,6 +1111,52 @@ def save_custom_profile(payload: dict) -> dict:
     return (result.data or [{}])[0]
 
 
+def update_catalog_item(tabla: str, code: str, cambios: dict) -> dict | None:
+    """Edita un ítem del catálogo (precio y/o etiqueta de especie) desde el dashboard.
+
+    Hasta ahora el catálogo era de SOLO LECTURA: cambiar un precio exigía SQL a mano. A3 lo
+    pidió el 07/04 (es el pendiente más antiguo) y la etiqueta de especie el 28/07 — sin ella
+    no pueden marcar qué perfiles son exclusivos, que es lo que hace útil la decisión 012.
+
+    `tabla` se valida contra una lista blanca: viene de la request y nunca puede componer el
+    nombre libremente. Devuelve la fila actualizada o None si no existe.
+    """
+    if tabla not in ("catalog_tests", "catalog_profiles"):
+        raise ValueError(f"tabla de catálogo no permitida: {tabla!r}")
+    code = str(code or "").strip()
+    if not code or not cambios:
+        return None
+    result = _client.table(tabla).update(cambios).eq("code", code).execute()
+    return (result.data or [None])[0]
+
+
+def log_catalog_change(tabla: str, code: str, antes: dict, despues: dict, por: str | None) -> None:
+    """Registra un cambio de catálogo. Editar un precio mueve plata: tiene que rastrearse.
+
+    No se usa `request_events` porque su `request_id` es NOT NULL y un cambio de catálogo no
+    pertenece a ninguna orden (verificado contra la base). Nunca lanza: la auditoría es
+    complementaria y el cambio ya se aplicó."""
+    try:
+        _client.table("catalog_audit").insert({
+            "source_table": tabla,
+            "code": str(code),
+            "before_json": antes or {},
+            "after_json": despues or {},
+            "changed_by": por or "operator",
+        }).execute()
+    except Exception:
+        return
+
+
+def get_catalog_item(tabla: str, code: str) -> dict | None:
+    """Fila actual de un ítem del catálogo. Se usa para registrar el valor ANTERIOR en la
+    auditoría de un cambio de precio."""
+    if tabla not in ("catalog_tests", "catalog_profiles"):
+        raise ValueError(f"tabla de catálogo no permitida: {tabla!r}")
+    result = _client.table(tabla).select("*").eq("code", str(code or "").strip()).limit(1).execute()
+    return (result.data or [None])[0]
+
+
 def delete_custom_profile(profile_id: str) -> bool:
     result = _client.table("client_custom_profiles").delete().eq("id", profile_id).execute()
     return bool(result.data)
