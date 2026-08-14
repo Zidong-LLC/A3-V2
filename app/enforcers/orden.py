@@ -12,6 +12,7 @@ from app.flow import (
     missing_route_field as _missing_route_field,
     missing_route_field_question as _missing_route_field_question,
     order_data_complete as _order_data_complete,
+    ROUTE_ORDER_FIELDS_BEFORE_PAYMENT as _ROUTE_ORDER_FIELDS_BEFORE_PAYMENT,
 )
 from app.detectors import (
     _AFFIRMATIVE_TOKENS,
@@ -380,6 +381,18 @@ def _enforce_extra_analysis_offer(session: dict, ai_response: dict, prev_fields:
     # daba vueltas sin llegar nunca al resumen. `_analysis_settled_response` decide qué
     # corresponde en cada caso: ofrecer, pedir el dato que falta, o resumir.
     if not analysis_new:
+        return ai_response
+    # ¿El turno fue SOBRE el análisis? Si el cliente entregó otro dato de la orden, el acuse le
+    # toca a ESE campo. El análisis también "cambia" solo —al heredarse de la orden anterior o
+    # al resolverse su precio—, y entonces este enforcer contestaba "Listo, queda Perfil
+    # Prequirúrgico I" a un cliente que acababa de escribir el nombre del paciente (prueba en
+    # vivo 2026-08-14). Se mira qué dato cambió, no qué palabras usó: el modelo interpreta la
+    # oración y el código verifica el resultado.
+    otro_dato_nuevo = any(
+        fields.get(f) and fields.get(f) != prev_fields.get(f)
+        for f in _ROUTE_ORDER_FIELDS_BEFORE_PAYMENT if f != "exam_type"
+    )
+    if otro_dato_nuevo:
         return ai_response
     exam = fields.get("_selected_profile_name") or fields.get("exam_type")
     intro = f"Listo, queda {exam}." if exam else "Listo, lo anoto."

@@ -55,6 +55,7 @@ from app.detectors.orden import (  # noqa: F401
     _detect_correction_field,
     _expresses_order_request,
     _is_correction_request,
+    _is_bare_confirmation,
     _is_order_confirmation,
     _wants_to_reconsider_option,
 )

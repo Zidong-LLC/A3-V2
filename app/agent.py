@@ -113,6 +113,7 @@ from app.detectors import (
     _RECONSIDER_HINT_TOKENS,
     _HANDOFF_ACCEPT_TOKENS,
     _is_order_confirmation,
+    _is_bare_confirmation,
     _is_correction_request,
     _detect_correction_field,
     _expresses_order_request,
@@ -2963,11 +2964,29 @@ def process_turn(
                     prev_captured,
                 ),
             )
-        if _is_order_confirmation(user_message):
+        # Confirmación PELADA: el único caso inequívoco, y el único que este atajo responde
+        # con plantilla. Si el mensaje trae algo MÁS que el "sí", no se decide acá.
+        #
+        # Este bloque es determinístico y corre ANTES del modelo, así que solo ve palabras
+        # sueltas: con "Si análisis quiero perfil 653" se quedaba con el "Si" inicial, contestaba
+        # la plantilla y tiraba el resto de la oración — el 653 se perdía y la orden seguía con
+        # el perfil HEREDADO que el cliente acababa de pedir cambiar (plata mal cobrada).
+        # Pedido del usuario (2026-08-14): "no tiene que entender una palabra puntual, tiene que
+        # entender el contexto de toda la oración". Un mensaje compuesto es justamente lo que el
+        # modelo sabe leer y este atajo no: se le cede el turno y los enforcers de catálogo
+        # resuelven el código contra el catálogo real, igual que en cualquier otra vía.
+        if _is_bare_confirmation(user_message):
             missing = _missing_route_field(session, prev_captured)
             question = _missing_route_field_question(missing) if missing else "¿Qué análisis o perfil desean?"
             guide = "Listo. Para esta orden cambia normalmente el paciente, el propietario y el análisis. "
             return _persist_turn(chat_id, user_message, _base_route_response(guide + question, prev_captured))
+        if _is_order_confirmation(user_message):
+            # Confirma Y pide algo más. Lo único que hay que resolver antes de ceder, porque
+            # ningún paso posterior puede adivinarlo: soltar el análisis de la orden anterior
+            # si de eso habla el mensaje. Si sobrevive, el enforcer de integridad lo restaura y
+            # vuelve el error de dinero (ERR-106).
+            if _detect_correction_field(user_message) == "exam_type" or _wants_to_change_analysis(user_message):
+                _clear_field_for_correction(prev_captured, "exam_type")
         # Respuesta con datos del paciente u otra cosa: seguir el pipeline normal
         # (los datos estables ya están cargados y se conservan al fusionar).
 

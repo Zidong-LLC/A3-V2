@@ -48,6 +48,35 @@ def _is_order_confirmation(text: str) -> bool:
     return bool(tokens & _CONFIRM_ORDER_TOKENS)
 
 
+# Palabras de relleno que acompañan a un "sí" sin agregarle ninguna intención. NO es una lista
+# temática (no nombra análisis, ni campos, ni nada del dominio): es lo que se descuenta para
+# ver si SOBRA contenido en el mensaje.
+_CONFIRMATION_FILLERS = frozenset({
+    "por", "favor", "gracias", "muchas", "muy", "amable", "ya", "esta", "está", "asi", "así",
+    "eso", "esa", "ese", "todo", "y", "pero", "que", "es", "la", "el", "lo", "un", "una",
+    "señor", "señora", "amigo", "amiga", "pues", "entonces", "bueno",
+})
+
+
+def _is_bare_confirmation(text: str) -> bool:
+    """¿El mensaje es SOLO una confirmación, sin ninguna otra intención adentro?
+
+    La pregunta no es "¿contiene un sí?" sino "¿queda algo si le sacamos el sí?". Un atajo
+    determinístico solo puede responder con plantilla cuando el mensaje no dice nada más; en
+    cuanto sobra contenido, la oración completa la tiene que leer el modelo.
+
+    Nació de "Si análisis quiero perfil 653" (prueba en vivo 2026-08-14): el atajo del
+    reofrecimiento de estables vio el "Si" inicial, contestó su plantilla y descartó el resto
+    de la frase — el código 653 se perdía y la orden seguía con el perfil heredado.
+    Se mide por lo que SOBRA, y no con una lista de palabras del dominio, justamente para que
+    funcione con cualquier fraseo y no haya que ir agregando casos."""
+    if not _is_order_confirmation(text):
+        return False
+    resto = [t for t in _tokenize(text)
+             if t not in _CONFIRM_ORDER_TOKENS and t not in _CONFIRMATION_FILLERS]
+    return not resto
+
+
 def _is_correction_request(text: str) -> bool:
     return bool(set(_tokenize(text)) & _CORRECTION_TOKENS)
 

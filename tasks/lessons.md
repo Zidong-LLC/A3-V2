@@ -661,3 +661,33 @@ resumen debe apagar todo lo que compita con él.
 rompió 5 tests, con razón: cuando el bot acaba de preguntar *"¿querés agregar otro análisis?"*,
 un "sí" significa exactamente eso. Lo que decide no es la palabra sino **a qué pregunta
 responde**. Un guard que ignora el contexto no arregla la ambigüedad: la mueve de lugar.
+
+## L65 — Un atajo determinístico no puede leer media oración y decidir por toda (2026-08-14)
+
+El usuario lo dijo mejor que cualquier ficha: *"no tiene que entender una frase o una palabra
+puntual, tiene que entender el contexto de toda la oración. A veces entiende una palabra
+puntual y no entiende todo el resto, y por eso se confunde"*.
+
+Caso: **"Si análisis quiero perfil 653"**. El bloque que atiende el reofrecimiento de datos
+estables corre ANTES del modelo y decide con detectores de tokens. Vio el "Si" inicial,
+respondió su plantilla y tiró el resto de la frase. El 653 se perdió y la orden siguió con el
+perfil heredado que el cliente pedía cambiar — plata mal cobrada.
+
+Lo irónico: el sistema tenía todo. `_profile_codes_from_text` devolvía `['653']` y
+`_detect_correction_field` devolvía `exam_type`. Nada de eso se usó, porque otro detector
+—el del "sí"— ganó la carrera y retornó.
+
+**Mi primer plan fue agregarle detectores al atajo**, y era el error de nuevo: más listas para
+tapar el agujero que dejan las listas. El usuario me corrigió a tiempo.
+
+**Regla:** un atajo determinístico solo puede responder cuando el mensaje **no dice nada más**.
+La pregunta correcta no es *"¿contiene un sí?"* sino **"¿queda algo si le sacamos el sí?"**. Se
+mide por lo que SOBRA en el mensaje, no por lo que se reconoce — así funciona con cualquier
+fraseo y no hay casos que ir agregando. Verificado con 4 formas distintas de pedir lo mismo:
+4/4 contra el modelo real.
+
+**Corolario — dónde SÍ va lo determinístico.** El segundo bug del mismo día se arregló mirando
+**qué campo cambió en el estado**, no qué palabras usó el cliente. Esa es la división correcta:
+el modelo interpreta la oración; el código verifica el resultado y hace cumplir la regla. Un
+guardrail que intenta interpretar compite con el modelo y pierde; uno que verifica estado lo
+complementa.

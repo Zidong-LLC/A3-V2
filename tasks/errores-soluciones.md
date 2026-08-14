@@ -479,6 +479,56 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-110 — Un atajo leyó la primera palabra y tiró el resto de la oración (2026-08-14)
+**Síntoma (Telegram, chat 4, 17:40-17:44).** La primera orden salió perfecta (ERR-109 cerrado:
+agregó Sodio y Potasio desde el resumen, dijo "Si" y se registró A3-2026-183). El choque fue en
+la SEGUNDA:
+```
+BOT:     …Mantengo estos datos: Análisis: Perfil Prequirúrgico I
+         ¿Confirmas o quieres cambiar alguno (dirección, médico o análisis)?
+CLIENTE: Si análisis quiero perfil 653     ← confirma Y pide cambiar el análisis
+BOT:     Listo. Para esta orden cambia normalmente el paciente… ¿Cuál es el nombre del paciente?
+CLIENTE: Pedro                              ← el NOMBRE del paciente
+BOT:     Listo, queda Perfil Prequirúrgico I. ¿Es canino…?   ← acusa el ANÁLISIS, y el viejo
+CLIENTE: Quiero perfil 653 en esta orden    ← tuvo que repetirlo
+```
+**Causa 1 — un atajo pre-LLM decide por una palabra.** El bloque de `_stable_confirm_pending`
+(`agent.py:2927`) es *"determinístico, sin llamar al AI"*: encadena detectores de tokens y
+retorna sin que el modelo lea el turno. Medido con la frase real: `_is_order_confirmation` da
+**True** (ve el "Si" inicial) y gana; mientras tanto `_profile_codes_from_text` devolvía
+**['653']** y `_detect_correction_field` devolvía **exam_type**. El sistema tenía todo y lo
+descartó. Peor: como no limpió `exam_type`, la orden siguió con el **Perfil Prequirúrgico I
+heredado**, justo el que se pedía cambiar — error de dinero (familia ERR-077/103/105/106).
+**Directiva del usuario que enmarca el arreglo (2026-08-14):** *"no tiene que entender una
+frase o una palabra puntual: tiene que entender el contexto de toda la oración. A veces
+entiende una palabra puntual y no el resto, y por eso se confunde"*.
+**Solución 1 — el atajo se queda solo con lo inequívoco.** NO se le agregaron más detectores
+(sería más de lo mismo). Se agregó `_is_bare_confirmation` (`detectors/orden.py`), que no
+pregunta *"¿contiene un sí?"* sino **"¿queda algo si le sacamos el sí?"**: descuenta los tokens
+de confirmación y un puñado de muletillas (`por favor`, `gracias`…) y mira si SOBRA contenido.
+No es una lista temática —no nombra análisis ni campos— así que funciona con cualquier fraseo
+sin ir agregando casos. Si el mensaje trae algo más, el atajo cede y el turno va al modelo, que
+lee la oración entera; los enforcers de catálogo resuelven el código como en cualquier otra
+vía. Lo único que el bloque hace antes de ceder es soltar el análisis heredado.
+**Causa 2 — el acuse hablaba del campo equivocado.** Regresión de ERR-108: al quitarle a
+`_enforce_extra_analysis_offer` la condición de "orden completa", pasó a tomar el turno siempre
+que `analysis_new` fuera True. Pero el análisis también "cambia" solo —al heredarse del
+snapshot o al resolverse su precio—, así que respondía *"Listo, queda Perfil Prequirúrgico I"*
+a un cliente que acababa de escribir el nombre del paciente.
+**Solución 2:** el enforcer cede si en el turno progresó OTRO campo de la orden. La decisión se
+toma mirando **qué dato cambió en el estado**, no qué palabras usó el cliente: el modelo
+interpreta la oración, el código verifica el resultado. Se conserva lo que ERR-108 arregló
+(cuando lo único que cambia es el análisis, sigue empujando el dato faltante).
+**Tests:** 16 casos nuevos en `tests/test_pedidos_flujo.py` (47 en total), incluidos 5 fraseos
+distintos de la misma intención y 7 contrapruebas de "sí" pelado.
+**Verificación:** suite **701** con el flag y **656** sin él. QA catálogo 16/16 y 5/5; cierre
+semántico 25/25. **Batería de fraseos contra el modelo real — 4/4**: `"Si análisis quiero
+perfil 653"`, `"dale pero cambiame el análisis al 653"`, `"confirmo, aunque esta vez va el
+653"`, `"sí, todo igual salvo el análisis: el 653"` → las cuatro dejan `code=653` / Perfil
+Senior Canino III, ninguna conserva el 152 heredado, y el turno siguiente ("Pedro") ya no
+acusa el análisis.
+**Estado:** RESUELTO y verificado (2026-08-14). Pendiente la prueba humana por Telegram.
+
 ### ERR-109 — El "Sí" de la confirmación no registraba la orden (regresión del mismo día, 2026-08-14)
 **Síntoma (Telegram, chat 4):** la parte nueva funcionó —el cliente agregó Sodio y Potasio
 desde el resumen y el total pasó a $48.000— y al confirmar se rompió:

@@ -20,6 +20,7 @@ import pytest
 
 from app import agent
 from app.config import PEDIDOS_ENABLED
+from app.detectors import _is_bare_confirmation, _is_order_confirmation
 from app.enforcers import confirmacion as econf, orden as eorden
 from app.flow import extra_analysis_offer, order_required_fields
 from app.messages import PEDIDO_CLOSING_QUESTION
@@ -217,6 +218,71 @@ def test_pedir_cambiar_otro_dato_no_entra_al_carril_de_analisis():
     out = econf._confirmation_analysis_adjustment(
         SESSION, dict(ORDEN_COMPLETA), "quiero cambiar el médico", "correction")
     assert out is None or "análisis" not in (out.get("reply") or "").lower()
+
+
+# ── 1c. La segunda orden: el atajo no puede tragarse la oración ────────────────
+
+@pytest.mark.parametrize("mensaje", [
+    "Si análisis quiero perfil 653",
+    "dale pero cambiame el análisis al 653",
+    "confirmo, aunque esta vez va el 653",
+    "sí, todo igual salvo el análisis: el 653",
+    "ok, igual que antes pero con el 653",
+])
+def test_un_si_con_algo_mas_no_es_una_confirmacion_pelada(mensaje):
+    """El bloque del reofrecimiento de estables es determinístico y corre ANTES del modelo:
+    solo ve palabras. Con "Si análisis quiero perfil 653" se quedaba con el "Si" inicial,
+    contestaba su plantilla y tiraba el resto — el 653 se perdía y la orden seguía con el
+    perfil HEREDADO que el cliente pedía cambiar (prueba en vivo 2026-08-14).
+
+    El criterio no es "¿contiene un sí?" sino "¿queda algo si le sacamos el sí?", así que
+    funciona con cualquier fraseo y no hay que ir agregando casos a una lista."""
+    assert _is_order_confirmation(mensaje), "todas empiezan confirmando"
+    assert not _is_bare_confirmation(mensaje), "…pero ninguna es SOLO una confirmación"
+
+
+@pytest.mark.parametrize("mensaje", ["Si", "si", "dale", "correcto", "ok, listo",
+                                     "sí, gracias", "Si, por favor"])
+def test_un_si_pelado_sigue_siendo_pelado(mensaje):
+    """Contraprueba: el atajo tiene que seguir resolviendo el caso simple sin llamar al modelo."""
+    assert _is_bare_confirmation(mensaje)
+
+
+def test_confirmar_pidiendo_otro_analisis_suelta_el_perfil_heredado():
+    """La parte de DINERO. Aunque el turno se ceda al modelo, el análisis de la orden anterior
+    tiene que soltarse acá: si sobrevive, el enforcer de integridad lo restaura y la orden
+    queda con el perfil del paciente anterior (familia ERR-077/103/105/106)."""
+    campos = dict(ORDEN_COMPLETA, _stable_confirm_pending=True)
+    agent._clear_field_for_correction(campos, "exam_type")
+    assert not campos.get("exam_type")
+    assert not campos.get("_selected_profile_code"), "el código del perfil viejo también se va"
+
+
+def test_dar_el_nombre_del_paciente_no_acusa_el_analisis():
+    """El "clash" que reportó el usuario: respondió "Pedro" (nombre del paciente) y el bot le
+    contestó "Listo, queda Perfil Prequirúrgico I". El análisis también cambia solo —al
+    heredarse o al resolverse su precio—, así que el acuse le toca al dato que el cliente
+    entregó de verdad."""
+    base = {k: v for k, v in ORDEN_COMPLETA.items() if k != "patient_name"}
+    fields = dict(base, patient_name="Pedro",
+                  _selected_profile_code="152", _selected_profile_name="Perfil Prequirúrgico I")
+    base.pop("_selected_profile_code", None)
+    ai = {"intent": "route_scheduling", "captured_fields": fields, "reply": "(del modelo)"}
+    out = eorden._enforce_extra_analysis_offer(SESSION, ai, base)
+    assert out["reply"] == "(del modelo)", "el acuse del análisis no puede pisar este turno"
+
+
+def test_si_lo_unico_que_cambia_es_el_analisis_el_enforcer_sigue_actuando():
+    """No re-romper ERR-108: cuando el turno SÍ fue sobre el análisis, este enforcer tiene que
+    seguir tomándolo y empujando el dato que falta."""
+    base = {k: v for k, v in ORDEN_COMPLETA.items()
+            if k not in ("observations", "exam_type", "_selected_profile_code",
+                         "_selected_profile_name", "_selected_profile_price")}
+    fields = dict(base, selected_tests=["1101"])
+    ai = {"intent": "route_scheduling", "captured_fields": fields, "reply": "(del modelo)"}
+    with patch.object(eorden.db, "get_tests_by_codes", return_value=[]):
+        out = eorden._enforce_extra_analysis_offer(SESSION, ai, base)
+    assert "observación" in out["reply"].lower() or "observacion" in out["reply"].lower()
 
 
 # ── 2. El pedido queda abierto y admite más órdenes ─────────────────────────────
