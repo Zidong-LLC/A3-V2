@@ -36,7 +36,6 @@ def test_offers_extra_analysis_when_only_payment_missing():
     fields = dict(COMPLETE)
     out = agent._analysis_settled_response(SESSION, fields, "Listo, registro X.")
     assert fields["_offering_extra_analysis"] is True
-    assert "agregar otro análisis" in out["reply"]
     assert extra_analysis_offer() in out["reply"]
 
 
@@ -140,7 +139,7 @@ def test_stuck_profile_menu_does_not_block_extra_offer():
         out = agent._enforce_extra_analysis_offer(SESSION, ai, base)
     assert fields.get("_profile_menu_options") is None          # el menú pegado se descarta
     assert fields.get("_offering_extra_analysis") is True       # y se ofrece agregar otro
-    assert "agregar otro análisis" in out["reply"]
+    assert extra_analysis_offer() in out["reply"]
     assert "None" not in out["reply"]                           # sin "queda None" cuando no hay nombre
 
 
@@ -177,7 +176,7 @@ def test_offer_intro_shows_new_tests_with_prices():
     with patch.object(agent.db, "get_tests_by_codes", return_value=[POTASIO, SODIO]):
         out = agent._enforce_extra_analysis_offer(SESSION, ai, base)
     assert "Potasio $12.000" in out["reply"] and "Sodio $12.000" in out["reply"]
-    assert "agregar otro análisis" in out["reply"]
+    assert extra_analysis_offer() in out["reply"]
 
 
 # ── ERR-093 — frase ambigua sobre el pago: preguntar, no adivinar ────────────────

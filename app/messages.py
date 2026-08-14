@@ -128,19 +128,11 @@ PAYMENT_ONLINE_HANDOFF_MESSAGE = (
 # Oferta de agregar más análisis antes del pago. Se repite tras cada agregado hasta que el
 # cliente decida seguir (decline o dé el método de pago). El "si ya está, seguimos con el
 # pago" deja la salida clara para no caer en bucle.
-EXTRA_ANALYSIS_OFFER = (
-    "¿Quieres agregar otro análisis o perfil, o personalizar este? "
-    "Si ya está, seguimos con el pago."
-)
-
-# Con la jerarquía de pedidos (decisión 011) después de la orden NO viene el pago, sino el
-# resumen de ESTA orden y la oferta de cargar otra: prometer el pago acá le miente al cliente
-# sobre el paso siguiente. La salida sigue siendo igual de explícita, que es lo que evita el
-# bucle. Cuál de las dos se usa lo decide `flow.extra_analysis_offer()`.
-EXTRA_ANALYSIS_OFFER_PEDIDO = (
-    "¿Quieres agregar otro análisis o perfil, o personalizar este? "
-    "Si ya está, cerramos esta orden."
-)
+# Pregunta CERRADA: las dos alternativas van explícitas en la frase, para que un "no" seco no
+# pueda significar dos cosas (pedido del usuario, 2026-08-14). No promete ningún paso siguiente
+# —ni el pago ni el cierre— porque después de esto viene la observación: prometer de más fue
+# justo lo que hubo que corregir dos veces (ERR-107, ERR-108).
+EXTRA_ANALYSIS_OFFER = "¿Agregamos otro análisis a esta orden, o la dejamos así?"
 
 # ERR-093: el cliente nombró el pago en una frase ambigua ("No seguimos con el pago, te
 # estoy diciendo" — ¿"no, sigamos" o "no sigamos"?). Ante la duda se pregunta en vez de

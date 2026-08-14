@@ -117,11 +117,12 @@ def test_la_oferta_no_puede_quedar_solo_en_el_paso_huerfano():
     assert agent._missing_route_field(SESSION, fields) == "observations"
 
 
-def test_fijado_el_analisis_el_sistema_empuja_el_dato_que_falta():
+def test_fijado_el_analisis_el_sistema_toma_el_turno():
     """El hueco que dejaba mandar al modelo. Entre "se fijó el análisis" y "la orden está
     completa" queda la observación (desde el 28/07 va después del análisis). Ahí este enforcer
-    cedía, y el modelo improvisaba "¿quieres agregar otro análisis?": el flujo daba vueltas y
-    no llegaba nunca al resumen. Verificado en vivo antes de arreglarlo."""
+    cedía y el modelo improvisaba su propia pregunta — el flujo daba vueltas sin llegar al
+    resumen, y peor, decía haber agregado análisis que no agregaba. Ahora el sistema toma el
+    turno y ofrece agregar otro análisis, que es el paso que corresponde."""
     base = {k: v for k, v in ORDEN_COMPLETA.items()
             if k not in ("observations", "exam_type", "_selected_profile_code",
                          "_selected_profile_name", "_selected_profile_price")}
@@ -130,8 +131,29 @@ def test_fijado_el_analisis_el_sistema_empuja_el_dato_que_falta():
           "reply": "¿Quieres agregar otro análisis o ya lo cerramos así?"}
     with patch.object(eorden.db, "get_tests_by_codes", return_value=[]):
         out = eorden._enforce_extra_analysis_offer(SESSION, ai, base)
-    assert "observación" in out["reply"].lower() or "observacion" in out["reply"].lower(), \
-        "tiene que empujar el dato que falta, no dejar improvisar al modelo"
+    assert extra_analysis_offer() in out["reply"], "la respuesta la controla el sistema"
+    assert fields.get("_offering_extra_analysis") is True
+
+
+def test_las_dos_preguntas_van_separadas():
+    """Decisión del usuario (2026-08-14): la oferta de agregar análisis y la observación son
+    preguntas DISTINTAS, una por turno. Juntas, un "no" seco no dice a cuál responde — que es
+    donde el modelo se confundía. Separadas, el contexto lo vuelve inequívoco."""
+    oferta = extra_analysis_offer()
+    assert "observaci" not in oferta.lower(), "la observación se pregunta en su propio turno"
+    # Y es CERRADA: las dos alternativas están explícitas en la frase.
+    assert "?" in oferta and " o " in oferta
+
+
+def test_declinar_la_oferta_lleva_a_la_observacion():
+    """El "no" a la oferta pasa al paso siguiente, que es la observación — no al resumen ni al
+    pago. Es el orden que pidió A3 (análisis, después observación)."""
+    fields = {k: v for k, v in ORDEN_COMPLETA.items() if k != "observations"}
+    fields["_offering_extra_analysis"] = True
+    out = eorden._handle_extra_analysis_answer(SESSION, fields, "no")
+    assert out is not None
+    assert "observaci" in out["reply"].lower()
+    assert fields.get("_offering_extra_analysis") is None
 
 
 def test_agregar_un_analisis_en_la_confirmacion_no_registra_la_orden():
@@ -212,6 +234,52 @@ def test_una_negacion_ambigua_repregunta_en_vez_de_adivinar():
     assert fields.get("_awaiting_additional_test") is None, "tiene que soltar el carril"
 
 
+SODIO = {"code": "1405", "name": "Sodio", "price": 12000, "category": "Química"}
+POTASIO = {"code": "1404", "name": "Potasio", "price": 12000, "category": "Química"}
+
+
+@pytest.mark.parametrize("mensaje", [
+    "si quiero agreagar sodio y potasio",   # el typo EXACTO de la prueba en vivo
+    "si quiero agregar sodio y potasio",
+    "dale, sumale sodio y potasio",
+    "ok, metele sodio y potasio",
+    "confirmo pero añadime sodio y potasio",
+])
+def test_agregar_analisis_se_aplica_de_verdad_aunque_haya_typos(mensaje):
+    """EL BUG DE DINERO del 2026-08-14. El cliente escribió "agreagar" con un typo:
+    `_wants_partial_analysis_change` da True con "agregar" y False con el typo, así que el
+    guard de ese día leyó el mensaje como confirmación pelada y CEDIÓ el turno al modelo. Sin
+    el carril determinístico nadie resolvió nada contra el catálogo: el bot contestó "Perfecto,
+    agrego Sodio y Potasio" con `selected_tests` VACÍO. La orden habría salido sin los análisis
+    pedidos y facturada de menos, sin que el cliente pudiera notarlo.
+
+    Se verifica el ESTADO, no el texto: este bug pasó desapercibido justamente porque la
+    respuesta decía lo correcto."""
+    fields = dict(ORDEN_COMPLETA)
+    with patch.object(econf.db, "get_tests_by_codes_or_names", return_value=[SODIO, POTASIO]), \
+         patch.object(econf.db, "get_tests_by_codes", return_value=[SODIO, POTASIO]):
+        out = econf._confirmation_analysis_adjustment(SESSION, fields, mensaje, "correction")
+    assert out is not None, "el sistema tiene que tomar el turno, no cederlo al modelo"
+    guardados = set(agent._as_text_items(fields.get("selected_tests")))
+    assert {"1405", "1404"} <= guardados, f"no se guardaron: {guardados}"
+
+
+def test_si_no_se_pudo_agregar_el_bot_no_dice_que_lo_agrego():
+    """El acuse no puede adelantarse al estado. Si el catálogo devuelve algo que después no
+    queda en la orden, hay que decirlo y preguntar — nunca un "listo, lo agregué" falso."""
+    fields = dict(ORDEN_COMPLETA)
+    FANTASMA = {"code": None, "name": None, "price": 0}
+    with patch.object(econf.db, "get_tests_by_codes_or_names", return_value=[FANTASMA]), \
+         patch.object(econf.db, "get_tests_by_codes", return_value=[]), \
+         patch.object(econf, "_add_tests_to_order", lambda f, r, a: None):
+        out = econf._confirmation_analysis_adjustment(
+            SESSION, fields, "agregame un sodio", "correction")
+    assert out is not None
+    reply = out["reply"].lower()
+    assert "no pude agregar" in reply, "tiene que admitir que no lo agregó"
+    assert "listo, agrego" not in reply
+
+
 def test_pedir_cambiar_otro_dato_no_entra_al_carril_de_analisis():
     """Contraprueba: "quiero cambiar el médico" también es `correction`, pero no es un ajuste
     de análisis — si este carril se lo tragara, el cliente no podría corregir nada más."""
@@ -274,7 +342,7 @@ def test_dar_el_nombre_del_paciente_no_acusa_el_analisis():
 
 def test_si_lo_unico_que_cambia_es_el_analisis_el_enforcer_sigue_actuando():
     """No re-romper ERR-108: cuando el turno SÍ fue sobre el análisis, este enforcer tiene que
-    seguir tomándolo y empujando el dato que falta."""
+    seguir tomándolo en vez de dejar improvisar al modelo."""
     base = {k: v for k, v in ORDEN_COMPLETA.items()
             if k not in ("observations", "exam_type", "_selected_profile_code",
                          "_selected_profile_name", "_selected_profile_price")}
@@ -282,7 +350,8 @@ def test_si_lo_unico_que_cambia_es_el_analisis_el_enforcer_sigue_actuando():
     ai = {"intent": "route_scheduling", "captured_fields": fields, "reply": "(del modelo)"}
     with patch.object(eorden.db, "get_tests_by_codes", return_value=[]):
         out = eorden._enforce_extra_analysis_offer(SESSION, ai, base)
-    assert "observación" in out["reply"].lower() or "observacion" in out["reply"].lower()
+    assert out["reply"] != "(del modelo)"
+    assert extra_analysis_offer() in out["reply"]
 
 
 # ── 2. El pedido queda abierto y admite más órdenes ─────────────────────────────

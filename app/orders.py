@@ -213,11 +213,17 @@ def _analysis_settled_response(session: dict, fields: dict, intro: str) -> dict:
     has_analysis = bool(
         fields.get("exam_type") or fields.get("selected_tests") or fields.get("_selected_profile_code")
     )
-    # `_order_data_complete` es el que sabe leer ese momento con y sin pedidos (ver flow.py).
-    if has_analysis and _order_data_complete(session, fields):
+    missing = _missing_route_field(session, fields)
+    # La oferta de agregar otro análisis es un paso PROPIO y va acá: apenas el análisis queda
+    # fijado, antes de la observación. Como el análisis es el penúltimo campo, en este punto lo
+    # único que puede faltar es `observations` (o el pago, sin pedidos).
+    #
+    # Va separada de la observación a propósito (decisión del usuario, 2026-08-14): juntarlas
+    # en una sola pregunta hace que un "no" seco no diga a cuál de las dos responde, y ahí es
+    # donde el modelo se confunde. Con una pregunta por vez, el "no" es inequívoco por contexto.
+    if has_analysis and missing in (None, "observations", "payment_method"):
         fields["_offering_extra_analysis"] = True
         return _base_route_response(f"{intro} {_extra_analysis_offer()}", fields)
-    missing = _missing_route_field(session, fields)
     if missing:
         return _base_route_response(f"{intro} {_missing_route_field_question(missing)}", fields)
     confirmacion = _order_confirmation_response(fields, intro)

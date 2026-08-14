@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 from app import agent
 from app.config import PEDIDOS_ENABLED
+from app.flow import extra_analysis_offer
 
 PROFILE_152 = {
     "code": "152", "name": "Perfil Prequirúrgico I", "species": "ambos",
@@ -26,18 +27,21 @@ GLUCOSA = {"code": "0201", "name": "Glucosa", "price": 18000, "category": "Quím
 
 
 def _assert_payment_step_outcome(out):
-    """Qué hace el paso de pago después de que el perfil quedó fijo.
+    """Qué pasa después de que el perfil quedó fijo.
 
     Lo que estos casos protegen es el paso ANTERIOR: que el perfil quede confirmado y que no
-    se reabra el catálogo. Lo que el pago haga a continuación depende del flag, y las DOS
-    ramas son correctas: sin pedidos empuja la pregunta; con pedidos (decisión 011)
-    `payment_method` ya no es campo de la orden y el paso cede, porque el pago se pregunta
-    una sola vez al cerrar el pedido."""
+    se reabra el catálogo. Lo que viene DESPUÉS ya no es el pago en ninguno de los dos flujos:
+    desde el 2026-08-14 la oferta de agregar otro análisis es un paso propio que cae justo acá,
+    con un texto cerrado que no nombra el pago. Se afirma entonces que el flujo AVANZA, y con
+    pedidos que además no mencione el pago (decisión 011: se pregunta al cerrar el pedido)."""
     reply = out["reply"].lower()
     if PEDIDOS_ENABLED:
         assert "pago" not in reply, "con pedidos el pago se pregunta al cerrar el pedido, no acá"
     else:
-        assert "pago" in reply
+        # Sin pedidos, después del perfil viene la oferta de otro análisis o directamente el
+        # pago, según lo que falte. Las dos son avances válidos: lo que no puede pasar es que
+        # el turno se quede sin empujar nada.
+        assert extra_analysis_offer().lower() in reply or "pago" in reply, out["reply"]
 # Perfil que el match por NOMBRE devolvía por error (mismo prefijo "Perfil Prequirúrgico").
 PROFILE_161_WRONG = {
     "code": "161", "name": "Perfil Prequirúrgico X", "species": "ambos",

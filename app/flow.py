@@ -7,10 +7,7 @@ imports circulares con agent.py. Los nombres públicos no llevan guion bajo; age
 re-importa con alias para no tocar los ~200 call sites."""
 from app.config import PEDIDOS_ENABLED
 from app.text import tokenize as _tokenize, money as _money, as_text_items as _as_text_items
-from app.messages import (
-    AGE_QUESTION, PAYMENT_METHOD_QUESTION,
-    EXTRA_ANALYSIS_OFFER, EXTRA_ANALYSIS_OFFER_PEDIDO,
-)
+from app.messages import AGE_QUESTION, PAYMENT_METHOD_QUESTION, EXTRA_ANALYSIS_OFFER
 
 
 
@@ -144,9 +141,12 @@ def order_data_complete(session: dict, fields: dict) -> bool:
 
 
 def extra_analysis_offer() -> str:
-    """Texto de la oferta de agregar otro análisis, con la salida correcta según el flujo:
-    sin pedidos lo siguiente es el pago; con pedidos es el cierre de ESTA orden."""
-    return EXTRA_ANALYSIS_OFFER_PEDIDO if PEDIDOS_ENABLED else EXTRA_ANALYSIS_OFFER
+    """Texto de la oferta de agregar otro análisis.
+
+    Ya no depende del flag: la pregunta es cerrada y no anuncia el paso siguiente, así que sirve
+    igual en los dos flujos. Sigue siendo función (y no la constante suelta) porque es el punto
+    único por donde pasa este texto — los tests lo comparan desde acá."""
+    return EXTRA_ANALYSIS_OFFER
 
 
 # ERR-091: textos de presentación que NUNCA son una dirección real. Un campo obligatorio

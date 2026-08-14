@@ -3,7 +3,7 @@
 Muestra el resumen editable, maneja los ajustes de análisis durante la confirmación y
 ejecuta el cierre determinístico cuando el cliente confirma con la orden completa."""
 from app import state
-from app.text import tokenize as _tokenize
+from app.text import as_text_items as _as_text_items, tokenize as _tokenize
 from app.flow import (
     base_route_response as _base_route_response,
     missing_route_field as _missing_route_field,
@@ -12,6 +12,7 @@ from app.flow import (
 from app.detectors import (
     _confirms_order_now,
     _detect_correction_field,
+    _is_bare_confirmation,
     _is_order_confirmation,
     _named_analysis_terms,
     _profile_codes_from_text,
@@ -95,18 +96,30 @@ def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message:
     # Un "sí / dale / correcto" PELADO en la confirmación es CONFIRMAR, nunca "sí, quiero
     # agregar". Va primero porque el filtro de abajo lo dejaba pasar (medido:
     # `_detect_correction_field("Si")` es None) y la orden no se registraba nunca.
-    # "Pelado" es la clave (L49): "sí, pero agrégale glucosa" también empieza con sí y ahí el
-    # carril SÍ tiene que actuar — por eso se exige que el mensaje no pida además un ajuste.
-    if (not pending_action and _is_order_confirmation(user_message)
-            and not _wants_partial_analysis_change(user_message)):
+    #
+    # "Pelado" se mide con `_is_bare_confirmation` —¿queda algo si le sacamos el sí?— y NO con
+    # "¿pide además un ajuste?": esa segunda forma depende de reconocer el verbo, y un typo la
+    # desarma. Caso real (2026-08-14): "si quiero agreagar sodio y potasio" pasaba por
+    # confirmación pelada, el carril cedía, y como nadie resolvía nada contra el catálogo el
+    # modelo contestó "Perfecto, agrego Sodio y Potasio" con `selected_tests` VACÍO. La orden
+    # habría salido sin los análisis pedidos y facturada de menos.
+    if not pending_action and _is_bare_confirmation(user_message):
         return None
 
     if not pending_action:
-        es_ajuste = _wants_partial_analysis_change(user_message)
-        if not es_ajuste and signal == "correction":
-            es_ajuste = _detect_correction_field(user_message) in (None, "exam_type")
-        if not es_ajuste:
+        # Habla de OTRO dato de la orden ("cambiá el médico"): no es de este carril.
+        campo = _detect_correction_field(user_message)
+        if campo and campo != "exam_type":
             return None
+        # Cualquier otra cosa PUEDE ser un pedido de análisis, y quien lo decide es el
+        # CATÁLOGO —abajo, resolviendo el mensaje contra la base—, no un detector de verbos.
+        #
+        # Antes se exigía acá que un detector reconociera la intención ("agregale…") o que el
+        # modelo marcara `correction`. Los dos fallan seguido: "añadime sodio y potasio" no
+        # matchea la lista, y un mensaje que arranca con "dale" el modelo lo marca `affirm`.
+        # Cuando fallaban los dos, este carril devolvía None y el cierre determinístico de
+        # abajo REGISTRABA la orden sin los análisis pedidos (medido en vivo: 1 de 6 fraseos
+        # se guardaba bien). Dejar que decida el catálogo saca del medio a los verbos.
 
     tokens = set(_tokenize(user_message))
 
@@ -144,6 +157,18 @@ def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message:
     if not rows:
         if signal == "negate" or tokens & {"nada", "ninguno", "ninguna"}:
             return None
+        # El catálogo no reconoció nada Y el cliente estaba confirmando ("me sirve así,
+        # avancemos con eso"): es una confirmación con más palabras, no un pedido de análisis.
+        # Se cede para que el cierre determinístico registre la orden — sin esta salida,
+        # ampliar la entrada del carril convertía cualquier "dale" largo en "¿qué análisis
+        # quieres agregar?".
+        # Pero si ADEMÁS pide un ajuste ("sí, pero agregale otro análisis"), no se cede: ahí
+        # corresponde repreguntar cuál, no cerrar la orden. La señal del modelo cubre los
+        # fraseos que no están en ninguna lista.
+        confirma = _is_order_confirmation(user_message) or signal == "affirm"
+        if (not pending_action and confirma
+                and not _wants_partial_analysis_change(user_message)):
+            return None
         # No nombró un test exacto: si pregunta por un ÁREA ('qué análisis de orina
         # tienen'), ofrecer las opciones de esa área para agregar, en vez de repreguntar
         # a ciegas y dejarlo trabado.
@@ -164,6 +189,21 @@ def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message:
         return response
 
     _add_tests_to_order(fields, rows, action)
+    # El acuse no puede adelantarse al ESTADO. Se verifica que los análisis quedaron de verdad
+    # en la orden antes de decir que se agregaron: el 2026-08-14 el bot respondió "Perfecto,
+    # agrego Sodio y Potasio" con `selected_tests` vacío, y la orden habría salido sin ellos y
+    # facturada de menos — un error que el cliente no tiene forma de detectar.
+    if action == "add":
+        quedaron = set(_as_text_items(fields.get("selected_tests")))
+        faltan = [r for r in rows if str(r.get("code") or r.get("name")) not in quedaron]
+        if faltan:
+            nombres = ", ".join(str(r.get("name") or r.get("code")) for r in faltan)
+            fields["_awaiting_additional_test"] = "add"
+            response = _base_route_response(
+                f"Perdona, no pude agregar {nombres} a la orden. "
+                f"¿Me confirmas el nombre o el código del análisis que necesitas?", fields)
+            response["phase"] = CONFIRMATION_PHASE
+            return response
     fields.pop("_awaiting_additional_test", None)
     fields.pop("_correction_pending", None)
     # Igual que en `_add_profile_in_confirmation`: con el resumen en pantalla, la marca de la

@@ -479,6 +479,51 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-111 — El bot dijo que agregó dos análisis y la orden quedó vacía (2026-08-14)
+**Síntoma (Telegram, chat 4, 18:29).** Desde el resumen, el cliente escribió *"si quiero
+agreagar sodio y potasio"* (con typo). El bot respondió *"Perfecto, agrego Sodio y Potasio al
+pedido. Queda pendiente actualizar el resumen con el nuevo total. ¿Quieres agregar algún otro
+análisis o ya lo cerramos así?"*. Al *"no"* siguiente contestó *"¿Qué dato quieres corregir?"*.
+**LO GRAVE NO SE VE EN EL CHAT:** el estado quedó con **`selected_tests = None`** — los dos
+análisis **nunca se agregaron**. Si el cliente confirmaba, la orden salía sin lo que pidió y
+facturada de menos, y no tenía forma de detectarlo. Peor que ERR-077/103/105/106: ahí el precio
+quedaba mal; acá el bot afirma haber hecho algo que no hizo.
+**Causa raíz — una letra.** `_wants_partial_analysis_change` da `True` con "agregar" y `False`
+con **"agreagar"**. El guard puesto esa misma mañana era
+`_is_order_confirmation(msg) and not _wants_partial_analysis_change(msg)`: con el typo dio
+`True`, el carril **cedió el turno al modelo**, y sin el carril determinístico nadie resolvió
+nada contra el catálogo. El modelo improvisó el acuse y una pregunta ABIERTA; el `"no"` cayó
+en el carril de correcciones (`_is_correction_request("no")` es `True`).
+**Descubrimiento al verificar — el arreglo parcial era PEOR.** Con el guard corregido pero el
+resto igual, la batería de 6 fraseos contra el modelo real dio **1/6**: ya no mentía, pero
+ahora *"dale, añadime sodio y potasio"* **REGISTRABA la orden sin los análisis** (el mensaje
+arranca con "dale", el modelo lo marcó `affirm` y el cierre determinístico se lo llevó).
+**Solución — que decida el CATÁLOGO, no los verbos.** La entrada de
+`_confirmation_analysis_adjustment` ya no exige que un detector reconozca la intención ni que
+el modelo marque `correction`: cede solo si el mensaje es una confirmación PELADA
+(`_is_bare_confirmation`) o si habla de otro campo (`_detect_correction_field`). Todo lo demás
+entra y **lo resuelve el catálogo**, que es la fuente de verdad y no depende de cómo se
+escriba el verbo. Si el catálogo no reconoce nada y el cliente estaba confirmando, se cede
+para que cierre; si además pide un ajuste, se repregunta cuál.
+**Y el acuse no puede adelantarse al estado:** tras `_add_tests_to_order` se verifica que los
+análisis quedaron en `selected_tests`; si no, el bot lo admite y pregunta, en vez de afirmar.
+El prompt suma una REGLA DE ORO: *nunca digas que hiciste algo que no está hecho*.
+**Dos preguntas separadas (decisión del usuario).** La oferta de otro análisis pasó a ser un
+paso propio, antes de la observación, con texto cerrado y sin prometer el paso siguiente:
+*"¿Agregamos otro análisis a esta orden, o la dejamos así?"*. Estaba muerta desde el 28/07
+(ERR-108). Juntar las dos preguntas hacía que un *"no"* seco no dijera a cuál respondía — que
+es donde el modelo se perdía. Separadas, el contexto lo vuelve inequívoco.
+**Tests:** 8 casos nuevos que verifican el **ESTADO guardado y no el texto** — este bug pasó
+desapercibido justamente porque la respuesta decía lo correcto.
+**Verificación:** suite **709** con el flag y **656** sin él. QA catálogo 16/16 y 5/5; cierre
+semántico 25/25. **Batería de 6 fraseos con typos contra el modelo real: 6/6** (era 1/6), con
+0 acuses falsos: `"agreagar"`, `"agregr"`, `"añadime"`, `"sumale"`, `"metele"`, `"agregá…
+porfa"`. **Guion completo en vivo**: `152` → *"¿Agregamos otro análisis?"* → `no` →
+observación → `no ninguna` → resumen → `"dale, sumale sodio y potasio"` → resumen con $48.000
+→ `si` → orden registrada conservando el perfil Y los dos análisis. Los dos `"no"` se
+entendieron bien, cada uno en su contexto.
+**Estado:** RESUELTO y verificado (2026-08-14). Pendiente la prueba humana por Telegram.
+
 ### ERR-110 — Un atajo leyó la primera palabra y tiró el resto de la oración (2026-08-14)
 **Síntoma (Telegram, chat 4, 17:40-17:44).** La primera orden salió perfecta (ERR-109 cerrado:
 agregó Sodio y Potasio desde el resumen, dijo "Si" y se registró A3-2026-183). El choque fue en

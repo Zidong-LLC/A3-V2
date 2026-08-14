@@ -691,3 +691,31 @@ fraseo y no hay casos que ir agregando. Verificado con 4 formas distintas de ped
 el modelo interpreta la oración; el código verifica el resultado y hace cumplir la regla. Un
 guardrail que intenta interpretar compite con el modelo y pierde; uno que verifica estado lo
 complementa.
+
+## L66 — Verificar el ESTADO, no el texto de la respuesta (2026-08-14)
+
+El bot dijo *"Perfecto, agrego Sodio y Potasio al pedido"*. El estado guardado tenía
+`selected_tests = None`. **Los análisis nunca se agregaron.** Si el cliente confirmaba, la
+orden salía sin lo que pidió y facturada de menos — y no tenía forma de enterarse, porque la
+conversación decía exactamente lo que él esperaba leer.
+
+Ese bug sobrevivió a tres pruebas humanas y a toda la suite. Ninguna lo vio, porque todas
+miraban lo mismo que el cliente: **el texto**. Apareció recién cuando consulté la sesión en la
+base y comparé lo dicho contra lo guardado.
+
+**Regla:** cuando un turno modifica la orden, el test verifica el CAMPO, no la frase. Un
+`assert "agrego" in reply` no prueba nada: prueba que el bot sabe decir "agrego". Lo que hay
+que afirmar es `selected_tests == [...]`. Y el código, además, no puede acusar un cambio sin
+haber confirmado que quedó aplicado.
+
+**Corolario — el arreglo parcial puede ser peor que el bug.** Con el guard corregido pero el
+resto igual, la batería contra el modelo real dio **1 de 6**: ya no mentía, pero ahora
+*"dale, añadime sodio y potasio"* **registraba la orden sin los análisis**. Cambié un fallo
+visible (un acuse falso) por uno silencioso (una orden cerrada de menos). Sin medir el estado
+con seis fraseos distintos, lo habría dado por arreglado y entregado.
+
+**Corolario — quién debe decidir.** El carril dependía de que un detector reconociera el verbo
+("agregar") o de que el modelo marcara la señal correcta. Con "agreagar" falló el detector; con
+"dale, añadime…" falló la señal. La salida no fue mejorar ninguno de los dos, sino **cambiar
+quién decide**: ahora el mensaje se resuelve contra el CATÁLOGO, que es la fuente de verdad y
+no depende de cómo se escriba el verbo. 6/6, typos incluidos.
