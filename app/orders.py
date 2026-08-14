@@ -298,6 +298,10 @@ def _clear_field_for_correction(fields: dict, field: str) -> None:
             "_selected_profile_code", "_selected_profile_name", "_selected_profile_price",
             "_selected_profile_description", "_profile_detail_offered",
             "_profile_detail_confirmed", "_profile_customizing", "_profile_options_offered",
+            # ERR-114: el carril del pedido mixto también se suelta. Si el cliente cambia el
+            # análisis, el TEXTO de su pedido anterior no puede re-escanearse al fijar el
+            # nuevo perfil — resucitaba los análisis viejos con su costo.
+            "_mixed_request_text", "_pending_ambiguous_items", "_pending_offer_count",
         ):
             fields.pop(key, None)
 

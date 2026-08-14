@@ -455,6 +455,51 @@ def test_los_heredados_activos_no_pasan_por_el_anclaje():
     assert agent._as_text_items(out["captured_fields"].get("selected_tests")) == ["1405", "1404"]
 
 
+# ── 1g. El carril del pedido mixto no cruza la frontera entre órdenes ──────────
+
+def test_el_texto_del_pedido_mixto_no_sobrevive_a_la_frontera():
+    """LA vía real de ERR-114 (diagnóstico instrumentado 2026-08-15). `_mixed_request_text`
+    guarda el TEXTO del pedido original para re-escanearlo al fijar el perfil (ERR-076,
+    correcto DENTRO de una orden). Fuera de `_ORDER_RESET_FIELDS`, sobrevivía a la frontera y
+    en la orden 2 ese texto viejo resucitaba los análisis de la orden 1: $24.000 de más."""
+    for marca in ("_mixed_request_text", "_pending_ambiguous_items", "_pending_offer_count"):
+        assert marca in agent._ORDER_RESET_FIELDS, marca
+
+
+def test_cambiar_el_analisis_tambien_suelta_el_texto_mixto():
+    campos = dict(ORDEN_COMPLETA, _mixed_request_text="un prequirúrgico, sodio y potasio",
+                  _pending_ambiguous_items=["orina"], _pending_offer_count=1)
+    agent._clear_field_for_correction(campos, "exam_type")
+    assert "_mixed_request_text" not in campos
+    assert "_pending_ambiguous_items" not in campos
+    assert "_pending_offer_count" not in campos
+
+
+def test_fijar_un_perfil_con_texto_mixto_viejo_no_resucita_analisis():
+    """El guion exacto del enforcer: orden nueva limpia + `_mixed_request_text` de la orden
+    ANTERIOR presente (simula el estado contaminado pre-fix) → fijar el 653 NO debe re-agregar
+    sodio y potasio. Con el reset de frontera la marca ya no llega acá; este test protege el
+    invariante aunque llegue."""
+    SODIO = {"code": "1405", "name": "Sodio", "price": 12000, "category": "Química"}
+    POTASIO = {"code": "1404", "name": "Potasio", "price": 12000, "category": "Química"}
+    P653 = {"code": "653", "name": "Perfil Senior Canino III", "species": "Canino",
+            "description": "…", "price": 58000}
+    fields = {"_client_found": True, "species": "Canino", "selected_tests": None}
+    # SIN _mixed_request_text (el reset de frontera ya la limpió): el camino feliz.
+    with patch.object(eorden.db, "get_catalog_profiles_by_codes", return_value=[P653]), \
+         patch.object(agent.db, "get_catalog_profiles_by_codes", return_value=[P653]), \
+         patch.object(agent.db, "list_catalog_tests", return_value=[SODIO, POTASIO]), \
+         patch.object(agent.db, "get_tests_by_codes_or_names", return_value=[]), \
+         patch.object(agent.db, "get_tests_by_codes", return_value=[]):
+        out = eorden._enforce_catalog_profile_code_selection(
+            {"client_id": "c1"},
+            {"intent": "route_scheduling", "captured_fields": fields, "reply": "(m)"},
+            "perfil 653")
+    sel = agent._as_text_items(out["captured_fields"].get("selected_tests"))
+    assert not ({"1405", "1404"} & set(sel)), f"resucitaron: {sel}"
+    assert out["captured_fields"].get("_selected_profile_code") == "653"
+
+
 # ── 2. El pedido queda abierto y admite más órdenes ─────────────────────────────
 
 def test_pedir_otra_orden_mantiene_el_pedido_abierto():

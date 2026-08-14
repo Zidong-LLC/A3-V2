@@ -719,3 +719,28 @@ con seis fraseos distintos, lo habría dado por arreglado y entregado.
 "dale, añadime…" falló la señal. La salida no fue mejorar ninguno de los dos, sino **cambiar
 quién decide**: ahora el mensaje se resuelve contra el CATÁLOGO, que es la fuente de verdad y
 no depende de cómo se escriba el verbo. 6/6, typos incluidos.
+
+## L67 — Cuando el fantasma sobrevive a tres candados, el culpable no es el que mira el candado (2026-08-15)
+
+Tres fixes seguidos apuntaron al MODELO (que re-emitía los análisis de la orden anterior
+desde el historial), y el replay seguía fallando. La vía real era otra: una función
+determinística re-escaneaba `_mixed_request_text` —el TEXTO del pedido original, guardado
+por un fix legítimo (ERR-076)— y esa marca no estaba en la lista de reset de la frontera
+entre órdenes. El residuo cruzaba de la orden 1 a la 2 por un camino "de confianza".
+
+**Cómo se encontró en una pasada, tras tres intentos fallidos:** un wrapper sobre CADA
+función del pipeline imprimiendo cuándo cambia el campo. `[] -> ['1404','1405']` con nombre
+de función al lado. Diez minutos de instrumentación valen más que tres días de hipótesis.
+
+**Regla 1:** cuando un valor reaparece tras limpiarlo, instrumentar la CADENA completa antes
+de reforzar el guardia de una puerta: el que entra puede estar usando otra.
+
+**Regla 2 — la de la frontera:** toda marca `_` que guarde CONTENIDO de la orden (texto del
+pedido, colas de ambiguos, contadores) tiene que estar en `_ORDER_RESET_FIELDS`. Una marca
+que arrastra contenido entre órdenes es dinero mal cobrado esperando turno. Al crear una
+marca nueva, la pregunta obligatoria es: ¿qué pasa con esto cuando la orden cierra?
+
+**Regla 3:** los "escritores de confianza" también necesitan provenancia. El re-escaneo de
+ERR-076 era correcto dentro de la orden; nadie se preguntó qué pasaba si el insumo venía de
+OTRA. Un dato sin dueño (¿de qué orden es este texto?) tarde o temprano se aplica donde no
+corresponde.

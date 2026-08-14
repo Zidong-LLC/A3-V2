@@ -375,6 +375,15 @@ _ORDER_RESET_FIELDS = frozenset({
     "_profile_options_offered", "_diagnostic_label", "_prev_order_snapshot",
     "_test_menu_options", "_test_menu_adds_to_profile", "_awaiting_additional_test",
     "_offering_extra_analysis",
+    # ERR-114 — el carril del pedido MIXTO. `_mixed_request_text` guarda el TEXTO del pedido
+    # original de la orden ("un prequirúrgico, sodio y potasio") para re-escanearlo al fijar
+    # el perfil (fix de ERR-076, correcto DENTRO de una orden). Fuera de esta lista, la marca
+    # sobrevivía a la frontera entre órdenes y en la orden SIGUIENTE ese texto viejo se
+    # re-escaneaba contra el catálogo: los análisis de la orden 1 renacían en la orden 2 y la
+    # cuenta salía $24.000 de más. Fue LA vía de ERR-114 — no el modelo: un escritor
+    # determinístico leyendo residuo de la orden anterior (diagnóstico instrumentado,
+    # 2026-08-15). Sus dos hermanas del mismo carril se limpian por la misma razón.
+    "_mixed_request_text", "_pending_ambiguous_items", "_pending_offer_count",
 })
 
 _IDENTIFICATION_RETRY_RESET_FIELDS = frozenset({

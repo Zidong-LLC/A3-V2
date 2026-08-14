@@ -479,7 +479,7 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
-### ERR-114 — [ABIERTO — EN CURSO] Los agregados de la orden 1 reviven en la orden 2 pese a la limpieza
+### ERR-114 — Los agregados de la orden 1 revivían en la orden 2: el texto del pedido mixto cruzaba la frontera
 **Síntoma (Telegram 2026-08-14 21:21, y REPRODUCIDO en replay):** la limpieza de ERR-112 corre
 bien ("si el analisis quiero cambiar" → estado limpio), el cliente fija el 653, y el resumen de
 la orden 2 sale igual con *Agregados: 1405-Sodio, 1404-Potasio* de la orden 1 → $82.000 en vez
@@ -518,8 +518,25 @@ sin identificar. Los espías muestran que a la altura del anclaje los códigos s
 o el turno pasa por un camino que esquiva ambos candados, o algo entre el candado y el anclaje
 los re-agrega. Próximo paso: replay con print DENTRO del candado y del anclaje (qué recibió,
 qué decidió) — una corrida nombra la vía.
-**Estado:** ABIERTO — el flujo multi-orden con agregados en la orden 1 sigue en riesgo de
-cobrar de más. NO probar en vivo ese caso como si estuviera resuelto.
+**RESOLUCIÓN (2026-08-15) — la vía real no era el modelo.** El diagnóstico instrumentado
+(wrapper sobre cada enforcer imprimiendo cuándo cambia `selected_tests`) la nombró en una
+pasada: `_enforce_catalog_profile_code_selection: [] -> ['1404','1405']` en el turno "perfil
+653", **con el modelo emitiendo sel=None**. El mecanismo: `_capture_profile_menu_selection`
+(`orders.py:486`) re-escanea `_mixed_request_text` —el TEXTO del pedido mixto ORIGINAL— al
+fijar un perfil (fix de ERR-076, correcto DENTRO de una orden). Esa marca **no estaba en
+`_ORDER_RESET_FIELDS`**: sobrevivía a la frontera entre órdenes y el texto viejo ("…sodio y
+potasio…") resucitaba los análisis de la orden 1 en la orden 2. Explica la intermitencia
+(depende de si la orden 1 dejó la marca) y por qué tres candados sobre el MODELO no lo
+frenaron: era un escritor determinístico leyendo residuo de la orden anterior.
+**Fix:** `_mixed_request_text`, `_pending_ambiguous_items` y `_pending_offer_count` agregadas
+a `_ORDER_RESET_FIELDS` y a la limpieza de `_clear_field_for_correction("exam_type")`. El
+candado de provenancia y el anclaje endurecido quedan como defensa en profundidad.
+**Verificación (la vara del usuario: replay antes de decir "solucionado"):** replay letra por
+letra de la conversación 21:06 → **6/6 en DOS corridas consecutivas** ($58.000, sin Agregados,
+sel=[], code=653; una corrida previa 5/6 con el dinero igualmente limpio). Guion ERR-112
+7/7. Suite **733** con flag / **656** sin él. QA cierre 25/25; catálogo 16/16 (el caso
+múltiple 4/5 es ERR-113, preexistente y documentado). Tests: 3 nuevos de frontera.
+**Estado:** RESUELTO y verificado (2026-08-15). Pendiente la prueba humana por Telegram.
 
 ### ERR-113 — [ABIERTO] La primera captura de códigos sueltos pierde el estado a veces (preexistente)
 **Síntoma (detectado por QA + repro, 2026-08-14):** en `¿Qué análisis o perfil desean?`, el
