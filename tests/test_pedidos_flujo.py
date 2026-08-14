@@ -147,6 +147,70 @@ def test_agregar_un_analisis_en_la_confirmacion_no_registra_la_orden():
     assert out["phase"] != "fase_6_cierre"
 
 
+def test_agregar_en_la_confirmacion_no_deja_encendida_la_oferta():
+    """LA CAUSA del bug del 2026-08-14. `_enforce_extra_analysis_offer` corre ANTES que el
+    enforcer de confirmación, así que al agregar un análisis desde el resumen encendía
+    `_offering_extra_analysis`; el resumen se mostraba igual, pero la marca quedaba viva
+    detrás. En el turno siguiente el "Si" del cliente lo agarraba
+    `_handle_extra_analysis_answer` como "sí, quiero agregar otro" y la orden no se
+    registraba nunca."""
+    GLUCOSA = {"code": "0201", "name": "Glucosa", "price": 18000, "category": "Química"}
+    fields = dict(ORDEN_COMPLETA, _offering_extra_analysis=True)
+    with patch.object(econf.db, "get_tests_by_codes_or_names", return_value=[GLUCOSA]), \
+         patch.object(econf.db, "get_tests_by_codes", return_value=[GLUCOSA]):
+        econf._confirmation_analysis_adjustment(
+            SESSION, fields, "quiero agregar sodio y potasio", "correction")
+    assert fields.get("_offering_extra_analysis") is None
+    assert fields.get("_awaiting_additional_test") is None
+
+
+def test_la_oferta_no_se_enciende_estando_en_la_confirmacion():
+    """La raíz de la raíz: en la confirmación el resumen YA ofrece agregar análisis, así que
+    el carril paralelo no debe activarse y dejar estado colgado."""
+    en_confirmacion = dict(SESSION, phase_current=agent.CONFIRMATION_PHASE)
+    base = dict(ORDEN_COMPLETA)
+    fields = dict(base, selected_tests=["1101"])
+    ai = {"intent": "route_scheduling", "captured_fields": fields, "reply": "(del modelo)"}
+    out = eorden._enforce_extra_analysis_offer(en_confirmacion, ai, base)
+    assert fields.get("_offering_extra_analysis") is None
+    assert out["reply"] == "(del modelo)"
+
+
+def test_un_si_pelado_en_la_confirmacion_no_pide_analisis():
+    """El síntoma exacto que vio el usuario: respondió "Si" al resumen y el bot le contestó
+    "¿Qué análisis quieres agregar?". Red por si la marca vuelve a colarse."""
+    en_confirmacion = dict(SESSION, phase_current=agent.CONFIRMATION_PHASE)
+    fields = dict(ORDEN_COMPLETA, _offering_extra_analysis=True)
+    out = eorden._handle_extra_analysis_answer(en_confirmacion, fields, "Si")
+    assert out is None, "tiene que ceder para que el cierre determinístico registre la orden"
+    assert fields.get("_offering_extra_analysis") is None
+
+
+def test_un_si_que_ademas_pide_agregar_si_agrega():
+    """Contraprueba (L49): el guard solo se lleva el "sí" PELADO. "sí, pero agrégale glucosa"
+    trae una intención más y el carril tiene que actuar."""
+    GLUCOSA = {"code": "0201", "name": "Glucosa", "price": 18000, "category": "Química"}
+    fields = dict(ORDEN_COMPLETA)
+    with patch.object(econf.db, "get_tests_by_codes_or_names", return_value=[GLUCOSA]), \
+         patch.object(econf.db, "get_tests_by_codes", return_value=[GLUCOSA]):
+        out = econf._confirmation_analysis_adjustment(
+            SESSION, fields, "sí, pero agrégale glucosa", "correction")
+    assert out is not None and out["phase"] == agent.CONFIRMATION_PHASE
+
+
+def test_una_negacion_ambigua_repregunta_en_vez_de_adivinar():
+    """Pedido del usuario (2026-08-14): *"si la respuesta es muy ambigua, repreguntá o pedile
+    que especifique"*. Caso real: "No confirmo los datos no quiero agregar otro análisis" —
+    niega las dos cosas, que llevan a lados opuestos. Antes quedaba en bucle preguntando qué
+    análisis agregar."""
+    fields = dict(ORDEN_COMPLETA, _awaiting_additional_test="add")
+    out = econf._confirmation_analysis_adjustment(
+        SESSION, fields, "No confirmo los datos no quiero agregar otro análisis", "negate")
+    assert out is not None
+    assert "no me quedó claro" in out["reply"].lower()
+    assert fields.get("_awaiting_additional_test") is None, "tiene que soltar el carril"
+
+
 def test_pedir_cambiar_otro_dato_no_entra_al_carril_de_analisis():
     """Contraprueba: "quiero cambiar el médico" también es `correction`, pero no es un ajuste
     de análisis — si este carril se lo tragara, el cliente no podría corregir nada más."""

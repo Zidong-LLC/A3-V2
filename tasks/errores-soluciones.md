@@ -479,6 +479,57 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-109 — El "Sí" de la confirmación no registraba la orden (regresión del mismo día, 2026-08-14)
+**Síntoma (Telegram, chat 4):** la parte nueva funcionó —el cliente agregó Sodio y Potasio
+desde el resumen y el total pasó a $48.000— y al confirmar se rompió:
+```
+BOT:     …¿Confirmas estos datos? Si quieres, puedes cambiar algún dato o agregar otro análisis.
+CLIENTE: Si
+BOT:     Claro. ¿Qué análisis quieres agregar? Decime el nombre o el código.   ← debía registrar
+CLIENTE: No confirmo los datos no quiero agregar otro análisis
+BOT:     Claro, seguimos con Perfil Prequirúrgico I ($24.000). ¿Qué análisis quieres agregarle?
+```
+La orden nunca se registró. **Regresión introducida horas antes por ERR-108**, y el mismo
+patrón de ERR-107 en la otra rama del mismo enforcer.
+**Causa raíz:** `_enforce_extra_analysis_offer` corre en el pipeline (`agent.py:3900`) ANTES
+que `_enforce_confirmation_step` (`:3962`). Al agregar los análisis, `selected_tests` cambia →
+`analysis_new` es True → con el cambio de ERR-108 (el enforcer ya no exige la orden completa)
+entra igual y **enciende `_offering_extra_analysis`**. Después el enforcer de confirmación
+devuelve el resumen por `return adjusted` — rama que limpiaba `_awaiting_additional_test` y
+`_correction_pending` pero **no ese flag**. Con la marca viva detrás del resumen, el turno
+siguiente `agent.py:2882` manda el "Si" a `_handle_extra_analysis_answer`, que lo lee como
+"sí, quiero agregar otro".
+**Agravante de texto, también propio:** el mensaje terminaba en *"…o agregar otro análisis"*,
+así que el "Sí" era ambiguo hasta para una persona. Ahora la oferta va PRIMERO y la pregunta
+ÚLTIMA: *"Si quieres cambiar algún dato o agregar otro análisis, decímelo. / ¿Confirmas estos
+datos?"*.
+**Solución en cuatro capas, de la raíz al síntoma:**
+1. `_enforce_extra_analysis_offer` cede si ya estamos en `CONFIRMACION`: ahí el resumen YA
+   ofrece agregar, y el carril paralelo solo duplica la oferta y deja estado colgado.
+2. `_confirmation_analysis_adjustment` limpia `_offering_extra_analysis` en los dos puntos
+   donde devuelve el resumen, igual que los otros dos flags.
+3. El texto desambiguado (arriba).
+4. Red: un "sí" PELADO viniendo de la confirmación nunca entra al carril de agregar. "Pelado"
+   es la clave (L49) — *"sí, pero agrégale glucosa"* también empieza con sí y ahí el carril SÍ
+   debe actuar; se distingue con `_wants_partial_analysis_change`. El guard es **contextual**:
+   la primera versión cedía siempre y rompió 5 tests, porque cuando el bot acaba de preguntar
+   *"¿querés agregar otro?"* un "sí" significa exactamente eso. Lo que manda es a qué pregunta
+   responde.
+**Repregunta ante ambigüedad (pedido del usuario en el momento):** *"si la respuesta es muy
+ambigua, repreguntá o pedile que especifique"*. La negación se evaluaba DESPUÉS de buscar
+análisis en el mensaje, así que *"No confirmo los datos no quiero agregar otro análisis"*
+—que niega las dos cosas, y llevan a lados opuestos— volvía a caer en el carril. Ahora se
+evalúa primero, suelta `_awaiting_additional_test` y responde `CONFIRMATION_AMBIGUOUS_QUESTION`
+en vez de suponer. Se mira si nombró un CÓDIGO y no `_named_analysis_terms`, que devuelve
+palabras sueltas de la frase ("análisis" entre ellas) y hacía fallar la detección.
+**Tests:** 5 casos nuevos en `tests/test_pedidos_flujo.py` (31 en total), incluida la
+contraprueba de *"sí, pero agrégale glucosa"*.
+**Verificación:** suite **686** con el flag y **656** sin él. QA catálogo 16/16 y 5/5; cierre
+semántico 25/25. Guion en vivo con la secuencia EXACTA de la prueba: resumen → *"Quiero
+agregar sodio y potasio"* → resumen con los dos ($48.000) → *"Si"* → **orden registrada**
+(A3-2026-901) con motorizado, y el pedido abierto para la siguiente.
+**Estado:** RESUELTO y verificado (2026-08-14). Pendiente la prueba humana por Telegram.
+
 ### ERR-108 — Nunca ofrecía editar la orden antes de confirmarla, y arrastraba una forma de pago fantasma (2026-08-14)
 **Síntoma (reporte del usuario tras su prueba por Telegram):** *"que me permita, antes de que
 confirme, editar alguna de las cosas… nunca le preguntaron si quería editar alguno de los

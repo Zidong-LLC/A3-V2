@@ -26,7 +26,7 @@ from app.orders import (
     _route_closure_summary,
     _route_confirmation_summary,
 )
-from app.messages import PAYMENT_ONLINE_HANDOFF_MESSAGE
+from app.messages import CONFIRMATION_AMBIGUOUS_QUESTION, PAYMENT_ONLINE_HANDOFF_MESSAGE
 from app.services import db
 
 CONFIRMATION_PHASE = state.Phase.CONFIRMACION.value
@@ -70,6 +70,9 @@ def _add_profile_in_confirmation(fields: dict, user_message: str) -> dict | None
 
     fields.pop("_awaiting_additional_test", None)
     fields.pop("_correction_pending", None)
+    # Si se muestra el resumen, la oferta de agregar YA no está en pantalla: su marca no puede
+    # quedar viva o el "Sí" siguiente cae en ese carril en vez de registrar la orden.
+    fields.pop("_offering_extra_analysis", None)
     summary = _route_confirmation_summary(fields)
     response = _base_route_response(
         summary or f"Listo, agrego {profile.get('code')} {profile.get('name')}.", fields
@@ -89,6 +92,15 @@ def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message:
     # acotar, este carril se la tragaba y respondía "¿Qué análisis quieres agregar?" — dejando
     # al cliente sin poder corregir ningún otro dato. Por eso, cuando se entra por señal, la
     # corrección no puede apuntar a OTRO campo de la orden.
+    # Un "sí / dale / correcto" PELADO en la confirmación es CONFIRMAR, nunca "sí, quiero
+    # agregar". Va primero porque el filtro de abajo lo dejaba pasar (medido:
+    # `_detect_correction_field("Si")` es None) y la orden no se registraba nunca.
+    # "Pelado" es la clave (L49): "sí, pero agrégale glucosa" también empieza con sí y ahí el
+    # carril SÍ tiene que actuar — por eso se exige que el mensaje no pida además un ajuste.
+    if (not pending_action and _is_order_confirmation(user_message)
+            and not _wants_partial_analysis_change(user_message)):
+        return None
+
     if not pending_action:
         es_ajuste = _wants_partial_analysis_change(user_message)
         if not es_ajuste and signal == "correction":
@@ -97,6 +109,24 @@ def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message:
             return None
 
     tokens = set(_tokenize(user_message))
+
+    # NEGACIÓN antes que nada: "no, ninguno más", "no quiero agregar otro análisis". Se
+    # evaluaba recién después de buscar análisis en el mensaje, así que una negación que
+    # mencionaba la palabra "análisis" volvía a caer en el carril y repreguntaba en bucle
+    # (prueba en vivo 2026-08-14). Al salir hay que APAGAR la espera: si queda encendida, el
+    # turno siguiente vuelve a entrar por `pending_action` sin mirar nada más.
+    # Se mira si nombró un CÓDIGO ("no, mejor el 1101" sí es un ajuste) y no los términos
+    # sueltos: `_named_analysis_terms` devuelve palabras de la frase —"análisis" entre ellas—,
+    # así que una negación que menciona la palabra volvía a caer en el carril.
+    if signal == "negate" or tokens & {"nada", "ninguno", "ninguna", "ningun", "ningún"}:
+        if not _profile_codes_from_text(user_message):
+            fields.pop("_awaiting_additional_test", None)
+            fields.pop("_offering_extra_analysis", None)
+            # Dijo que NO, pero no dijo a qué: "no agrego nada más" y "no confirmo" llevan a
+            # lados opuestos. Se pregunta en vez de suponer.
+            response = _base_route_response(CONFIRMATION_AMBIGUOUS_QUESTION, fields)
+            response["phase"] = CONFIRMATION_PHASE
+            return response
     action = pending_action or "add"
     if tokens & {"quitar", "quita", "quitale", "quítale", "sacar", "saca", "sin", "menos", "retirar", "remover"}:
         action = "remove"
@@ -136,6 +166,11 @@ def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message:
     _add_tests_to_order(fields, rows, action)
     fields.pop("_awaiting_additional_test", None)
     fields.pop("_correction_pending", None)
+    # Igual que en `_add_profile_in_confirmation`: con el resumen en pantalla, la marca de la
+    # oferta no puede sobrevivir. Este era EL bug del 2026-08-14 — se agregaban Sodio y
+    # Potasio, se mostraba el resumen, y el "Si" del turno siguiente lo agarraba
+    # `_handle_extra_analysis_answer` como "sí, quiero agregar otro".
+    fields.pop("_offering_extra_analysis", None)
 
     summary = _route_confirmation_summary(fields)
     response = _base_route_response(summary or _missing_route_field_question(_missing_route_field(session, fields)), fields)

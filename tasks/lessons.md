@@ -627,3 +627,37 @@ sugiere; el código garantiza.
 ESTE mismo caso?". Aislar una variable por vez (restauré solo `prompt.py` y volví a medir)
 convirtió una sospecha difusa en un diagnóstico en dos corridas. Es el mismo principio del
 `--seed` de L62: sin reproducibilidad no hay diagnóstico, hay opinión.
+
+## L64 — Una pregunta que ofrece dos cosas produce respuestas que no significan nada (2026-08-14)
+
+Escribí el cierre del resumen así:
+
+> ¿Confirmas estos datos? Si quieres, puedes cambiar algún dato o agregar otro análisis.
+
+El cliente respondió **"Si"** y la orden no se registró. Y tenía razón el "Si": esa pregunta
+ofrece dos cosas y termina con la segunda, así que un sí no dice a cuál responde. **Ni una
+persona lo sabría.** No fue el modelo el que se equivocó: fue el texto el que hizo imposible
+acertar.
+
+Invertir el orden —oferta primero, pregunta al final— lo resuelve de raíz:
+
+> Si quieres cambiar algún dato o agregar otro análisis, decímelo.
+> ¿Confirmas estos datos?
+
+**Regla:** una pregunta al cliente tiene UNA respuesta esperable. Si el texto ofrece dos
+caminos, el último que se nombra es el que se va a contestar — así que la pregunta que
+importa va última, y las alternativas antes. Antes de escribir un mensaje con dos opciones,
+probar a responderlo con un "sí" y ver si se entiende.
+
+**Corolario técnico:** el desambiguado del texto no alcanza, porque el estado también se
+confunde. El "Si" caía en el carril de agregar análisis porque una marca de "te estoy
+ofreciendo agregar" quedaba viva detrás del resumen. Cuando dos pasos pueden atender el mismo
+turno, hay que decidir explícitamente cuál manda — y el que no manda **no puede dejar estado
+encendido**. Es la tercera vez en dos días que el mismo flag suelto rompe el cierre
+(ERR-107, ERR-109): la lección no es "acordate de limpiarlo", es que el paso que muestra el
+resumen debe apagar todo lo que compita con él.
+
+**Y el guard tiene que ser contextual.** Mi primera versión ("un sí pelado siempre confirma")
+rompió 5 tests, con razón: cuando el bot acaba de preguntar *"¿querés agregar otro análisis?"*,
+un "sí" significa exactamente eso. Lo que decide no es la palabra sino **a qué pregunta
+responde**. Un guard que ignora el contexto no arregla la ambigüedad: la mueve de lugar.

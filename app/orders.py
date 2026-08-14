@@ -167,8 +167,12 @@ def _route_confirmation_summary(fields: dict) -> str | None:
     # La subcadena "¿Confirmas estos datos?" se conserva a propósito: cuatro tests la
     # verifican y el prompt la nombra. El "(Sí / Corregir)" se va: era la parte que sonaba a
     # formulario y no mencionaba los análisis.
-    lines.append("¿Confirmas estos datos? Si quieres, puedes cambiar algún dato "
-                 "o agregar otro análisis.")
+    # La oferta va PRIMERO y la pregunta ÚLTIMA. Al revés ("¿Confirmas estos datos? Si
+    # quieres, puedes... agregar otro análisis.") un "Sí" queda genuinamente ambiguo —¿confirma
+    # o quiere agregar?— y ni una persona sabría cuál: en la prueba en vivo del 2026-08-14 el
+    # "Si" del cliente se leyó como "sí, quiero agregar otro" y la orden no se registró.
+    lines.append("Si quieres cambiar algún dato o agregar otro análisis, decímelo.")
+    lines.append("¿Confirmas estos datos?")
     return "\n".join(lines)
 
 

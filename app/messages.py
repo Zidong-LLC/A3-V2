@@ -149,6 +149,17 @@ EXTRA_ANALYSIS_AMBIGUOUS_QUESTION = (
     "Perdona, no te entendí bien: ¿avanzamos con el pago o quieres agregar otro análisis?"
 )
 
+# Mismo criterio, en la CONFIRMACIÓN: el cliente dijo que no, pero no dijo a qué. Puede ser
+# "no agrego nada más" o "no confirmo". Las dos llevan a lados opuestos, así que adivinar es
+# peor que preguntar (pedido del usuario 2026-08-14: si la respuesta es ambigua, repreguntar
+# y pedir que especifique, en vez de suponer). Caso real: "No confirmo los datos no quiero
+# agregar otro análisis" — contradictorio, y el bot lo tomó como "quiero agregar" y entró en
+# bucle.
+CONFIRMATION_AMBIGUOUS_QUESTION = (
+    "Perdona, no me quedó claro: ¿confirmamos la orden así como está, "
+    "o hay algo que quieras cambiar? Si es lo segundo, decime qué."
+)
+
 NO_COURIER_HANDOFF_MESSAGE = (
     "Recibimos la orden. En este momento no veo un motorizado asignado al cliente, "
     "así que operaciones la va a coordinar manualmente."

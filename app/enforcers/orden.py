@@ -23,6 +23,7 @@ from app.detectors import (
     _doesnt_know_what_to_ask,
     _is_affirmative_text,
     _is_ambiguous_profile_change,
+    _is_order_confirmation,
     _is_profile_customization_request,
     _is_profile_detail_question,
     _looks_like_catalog_profile,
@@ -121,6 +122,18 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
     # cambio; el acuse determinístico lo arma _enforce_first_missing_after_progress
     # (ERR-069: el carril devoraba la corrección y respondía '¿qué análisis agregas?' en
     # bucle — chat real 2026-07-17, 3 intentos del cliente sin acuse).
+    # Un "sí" responde a lo ÚLTIMO que se preguntó. Si lo último fue el RESUMEN, confirma la
+    # orden; si fue "¿querés agregar otro análisis?", pide agregar. Por eso el guard mira la
+    # fase: solo cede cuando veníamos de la confirmación.
+    # Es la red del bug del 2026-08-14: con la marca de la oferta colgada detrás del resumen,
+    # este carril se llevaba el "Si" y la orden no se registraba nunca. Los arreglos de
+    # `confirmacion.py` evitan que la marca sobreviva; esto evita el daño si vuelve a colarse.
+    if (session.get("phase_current") == state.Phase.CONFIRMACION.value
+            and _is_order_confirmation(user_message)
+            and not _missing_route_field(session, fields)):
+        fields.pop("_offering_extra_analysis", None)
+        return None
+    # 0) CORRECCIÓN de un dato estable de la orden ('quiero cambiar la raza es un tobiano'):
     correction_field = _detect_correction_field(user_message)
     if correction_field in _STABLE_ORDER_FIELDS:
         return None
@@ -330,6 +343,13 @@ def _enforce_extra_analysis_offer(session: dict, ai_response: dict, prev_fields:
     if not (session.get("client_id") or fields.get("_client_found")):
         return ai_response
     if fields.get("_offering_extra_analysis") or fields.get("payment_method"):
+        return ai_response
+    # Ya estamos en la CONFIRMACIÓN: el resumen ofrece ahí mismo cambiar datos o agregar otro
+    # análisis, así que encender además este carril paralelo duplica la oferta y —peor— deja
+    # su marca colgada detrás del resumen. Ese estado colgado fue el bug del 2026-08-14: el
+    # cliente agregaba un análisis desde el resumen, decía "Si" para confirmar, y ese "Si" lo
+    # interpretaba `_handle_extra_analysis_answer` como "sí, quiero agregar otro".
+    if session.get("phase_current") == state.Phase.CONFIRMACION.value:
         return ai_response
     has_analysis = bool(fields.get("exam_type") or fields.get("selected_tests") or fields.get("_selected_profile_code"))
     # Menú PEGADO que ya no aplica (ERR-060): si la orden YA tiene análisis, un menú arrastrado
