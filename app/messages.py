@@ -133,6 +133,15 @@ EXTRA_ANALYSIS_OFFER = (
     "Si ya está, seguimos con el pago."
 )
 
+# Con la jerarquía de pedidos (decisión 011) después de la orden NO viene el pago, sino el
+# resumen de ESTA orden y la oferta de cargar otra: prometer el pago acá le miente al cliente
+# sobre el paso siguiente. La salida sigue siendo igual de explícita, que es lo que evita el
+# bucle. Cuál de las dos se usa lo decide `flow.extra_analysis_offer()`.
+EXTRA_ANALYSIS_OFFER_PEDIDO = (
+    "¿Quieres agregar otro análisis o perfil, o personalizar este? "
+    "Si ya está, cerramos esta orden."
+)
+
 # ERR-093: el cliente nombró el pago en una frase ambigua ("No seguimos con el pago, te
 # estoy diciendo" — ¿"no, sigamos" o "no sigamos"?). Ante la duda se pregunta en vez de
 # adivinar; adivinar mal re-mostraba el menú de perfiles y tiraba el avance de la orden.

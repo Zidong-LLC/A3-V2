@@ -6,6 +6,9 @@ pago. Debe tener salida robusta (no bucle). Ver RESUELTO-017.
 from unittest.mock import patch
 
 from app import agent
+from app.config import PEDIDOS_ENABLED
+from app.flow import extra_analysis_offer
+from tests.helpers_pedidos import assert_advances_after_decline
 
 GLUCOSA = {"code": "1316", "name": "Glucosa (Ayunas)", "price": 12000, "category": "Química"}
 
@@ -34,7 +37,7 @@ def test_offers_extra_analysis_when_only_payment_missing():
     out = agent._analysis_settled_response(SESSION, fields, "Listo, registro X.")
     assert fields["_offering_extra_analysis"] is True
     assert "agregar otro análisis" in out["reply"]
-    assert "seguimos con el pago" in out["reply"]
+    assert extra_analysis_offer() in out["reply"]
 
 
 def test_proceed_detection():
@@ -44,11 +47,22 @@ def test_proceed_detection():
         assert agent._wants_to_proceed_to_payment(t) is False
 
 
-def test_answer_decline_goes_to_payment():
+def test_answer_decline_closes_the_offer():
+    """Declinar la oferta cierra el carril. A dónde va después depende del flujo: sin pedidos
+    lo siguiente es la forma de pago; con pedidos (decisión 011) el pago es del PEDIDO y se
+    pregunta al cerrarlo, así que la orden pasa a su CONFIRMACIÓN.
+
+    Este carril devolvía PAYMENT_METHOD_QUESTION sin mirar el flag: por eso el bot seguía
+    pidiendo la forma de pago orden por orden con pedidos encendidos (testeo 2026-08-14)."""
     fields = dict(COMPLETE, _offering_extra_analysis=True)
     out = agent._handle_extra_analysis_answer(SESSION, fields, "no, así está bien")
     assert fields.get("_offering_extra_analysis") is None
-    assert out["reply"] == agent.PAYMENT_METHOD_QUESTION
+    if PEDIDOS_ENABLED:
+        assert "pago" not in out["reply"].lower()
+        assert out["phase"] == agent.CONFIRMATION_PHASE
+        assert "¿Confirmas estos datos?" in out["reply"]
+    else:
+        assert out["reply"] == agent.PAYMENT_METHOD_QUESTION
 
 
 def test_answer_payment_method_returns_none_to_let_pipeline_capture():
@@ -66,7 +80,7 @@ def test_answer_named_test_adds_and_reoffers():
     assert fields["selected_tests"] == ["1316"]
     assert fields["_offering_extra_analysis"] is True  # se vuelve a ofrecer
     assert "agrego" in out["reply"].lower()
-    assert "seguimos con el pago" in out["reply"]
+    assert extra_analysis_offer() in out["reply"]
 
 
 def test_generic_area_term_does_not_autoadd():
@@ -189,7 +203,7 @@ def test_short_proceed_phrases_still_go_straight_to_payment():
     for text in ("no, así está bien", "listo", "no", "ya"):
         fields = dict(COMPLETE, _offering_extra_analysis=True)
         out = agent._handle_extra_analysis_answer(SESSION, fields, text)
-        assert out["reply"] == agent.PAYMENT_METHOD_QUESTION, text
+        assert_advances_after_decline(out, text)
 
 
 def test_ambiguous_phrase_naming_an_analysis_is_not_hijacked():

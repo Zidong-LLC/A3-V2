@@ -479,6 +479,52 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-107 — Con pedidos activos el bot seguía cobrando por orden, y el "Sí" no cerraba nada (2026-08-14)
+**Síntoma (Telegram, reporte del usuario):** terminada la orden, el bot preguntaba *"¿cómo
+prefiere la forma de pago?"*. Lo acordado con A3 (decisión 011) es que el pago se pregunta UNA
+vez al cerrar el PEDIDO, con una sola factura por todas las órdenes.
+**Primera causa, y es mía:** `PEDIDOS_ENABLED` nació con default `false` y no está en el
+`.env`, así que el entorno de prueba corría el flujo viejo. Yo lo levanté así y lo presenté
+como "lo que va a producción". El flujo multi-orden es lo ACORDADO, no un experimento: el
+default pasó a `true` y el flag queda como interruptor de emergencia.
+**Pero encender el flag destapó cuatro bugs que lo hacían inusable.** Los 656 tests corrían
+con el flag apagado y no existía ningún test del carril conversacional del pedido: la ruta que
+decide cuándo se cobra y cuántas facturas salen era la MENOS probada de las dos.
+1. *La oferta de agregar otro análisis desaparecía.* Se disparaba con
+   `_missing_route_field(...) == "payment_method"`; sin ese campo en la orden, la condición no
+   se cumplía nunca. Se leía igual en dos sitios, así que se apagaba en todas las vías de
+   captura a la vez. Ahora es `flow.order_data_complete()`, fuente única que sabe leer el
+   mismo momento con y sin pedidos.
+2. *El decline seguía pidiendo el pago.* `_handle_extra_analysis_answer` devolvía
+   `PAYMENT_METHOD_QUESTION` **sin mirar el flag** — este era el síntoma que reportó el
+   usuario, y sobrevivía a encender el flag. Ahora lleva la orden a su confirmación.
+3. *BLOQUEO TOTAL: el "Sí" no registraba la orden.* `_offering_extra_analysis` quedaba activo
+   mientras el enforcer de confirmación mostraba *"¿Confirmas estos datos? (Sí / Corregir)"*.
+   El cliente decía "Sí" y el bot respondía **"¿Qué análisis quieres agregar?"** — la orden no
+   se registraba nunca. Es ERR-080 exactamente, con el flag hermano: esa línea ya limpiaba
+   `_awaiting_additional_test` por la misma razón, pero sin pedidos los dos pasos jamás caían
+   en el mismo turno, así que `_offering_extra_analysis` no hacía falta limpiarlo.
+4. *El texto prometía un paso que no existe.* "Si ya está, seguimos con el pago" — con pedidos
+   lo que sigue es cerrar la orden. Variante propia elegida por `flow.extra_analysis_offer()`.
+**De yapa:** el resumen mostraba el perfil base SIN su código mientras los adicionales sí lo
+llevaban. El cliente que pidió "el perfil 986" no podía verificar en la línea más cara de la
+orden que quedó ese y no otro.
+**Tests:** `tests/test_pedidos_flujo.py` (18 casos) — el archivo que faltaba: la orden no
+cobra, el pedido admite más órdenes, el pago se pregunta una sola vez, el resumen lista TODAS
+las órdenes con el total consolidado y sale UNA factura. Incluye el punto 4.6, nunca
+demostrado hasta ahora, y la contraprueba de `"listo, ahora cargame el otro paciente"` (no
+debe cerrar). `tests/helpers_pedidos.py` centraliza las aserciones que dependen del flag.
+**Verificación:** suite **672 passed** con el flag y **656 passed** sin él (el interruptor de
+emergencia sigue sirviendo). QA catálogo 16/16 y 5/5; QA cierre semántico **25/25**
+(precisión 8/8, pago 7/7). Reproducción del guion completo de dos turnos: orden registrada,
+motorizado asignado, sin preguntar el pago, y cierre con "¿otra orden o cerramos el pedido?".
+**Cómo se encontraron 1, 3 y 4:** no los vio ningún test — salieron de correr la suite CON el
+flag y de comparar el QA de catálogo con semilla fija contra el flujo viejo. El bloqueo del
+"Sí" (3) habría abortado la prueba humana en el primer intento. Al QA de catálogo se le agregó
+`--seed` porque sorteaba códigos distintos en cada corrida y dos ejecuciones no eran
+comparables — sin eso, la diferencia 5/5 → 2/5 parecía ruido.
+**Estado:** RESUELTO y verificado (2026-08-14). Pendiente la prueba humana por Telegram.
+
 ### ERR-106 — El perfil de la orden anterior contaminaba la orden siguiente (prueba en vivo, 2026-08-12)
 **Síntoma (Telegram, chat 4):** tras cerrar una orden con el perfil 653, el cliente pidió otra
 orden y dijo *"Todo igual menos el tipo de análisis"* → el bot respondió con el muestrario

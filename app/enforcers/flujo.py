@@ -12,6 +12,7 @@ from app.flow import (
     missing_route_field as _missing_route_field,
     missing_route_field_question as _missing_route_field_question,
     route_ready_for_payment as _route_ready_for_payment,
+    extra_analysis_offer as _extra_analysis_offer,
 )
 from app.detectors import _STABLE_ORDER_FIELDS, _detect_which_field_is_being_asked, _last_bot_message, _looks_off_topic_smalltalk, _wants_partial_analysis_change
 from app.menus import _reply_asks_missing_field
@@ -98,7 +99,7 @@ def _enforce_first_missing_after_progress(session: dict, ai_response: dict, prev
     if fields.get("_offering_extra_analysis"):
         corrected = _corrected_stable_fields(fields, prev_fields)
         if corrected and not (fields.get("_test_menu_options") or fields.get("_profile_menu_options")):
-            ai_response["reply"] = f"{_correction_ack_text(corrected, fields)} {EXTRA_ANALYSIS_OFFER}"
+            ai_response["reply"] = f"{_correction_ack_text(corrected, fields)} {_extra_analysis_offer()}"
         return ai_response
     # Un menú recién ofrecido (análisis o perfiles) ES la pregunta del análisis: no
     # pisarlo con la plantilla del dato faltante (ERR-048: "Perfecto, lo anoto. ¿qué

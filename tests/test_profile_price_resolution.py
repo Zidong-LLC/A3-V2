@@ -12,6 +12,7 @@ trae el `exam_type` (fuente determinística del precio). Ver tasks/errores-soluc
 from unittest.mock import patch
 
 from app import agent
+from app.config import PEDIDOS_ENABLED
 
 PROFILE_152 = {
     "code": "152", "name": "Perfil Prequirúrgico I", "species": "ambos",
@@ -22,6 +23,21 @@ PROFILE_151 = {
     "description": "Cuadro Hemático, Parcial de Orina, Coprológico", "price": 32000,
 }
 GLUCOSA = {"code": "0201", "name": "Glucosa", "price": 18000, "category": "Química"}
+
+
+def _assert_payment_step_outcome(out):
+    """Qué hace el paso de pago después de que el perfil quedó fijo.
+
+    Lo que estos casos protegen es el paso ANTERIOR: que el perfil quede confirmado y que no
+    se reabra el catálogo. Lo que el pago haga a continuación depende del flag, y las DOS
+    ramas son correctas: sin pedidos empuja la pregunta; con pedidos (decisión 011)
+    `payment_method` ya no es campo de la orden y el paso cede, porque el pago se pregunta
+    una sola vez al cerrar el pedido."""
+    reply = out["reply"].lower()
+    if PEDIDOS_ENABLED:
+        assert "pago" not in reply, "con pedidos el pago se pregunta al cerrar el pedido, no acá"
+    else:
+        assert "pago" in reply
 # Perfil que el match por NOMBRE devolvía por error (mismo prefijo "Perfil Prequirúrgico").
 PROFILE_161_WRONG = {
     "code": "161", "name": "Perfil Prequirúrgico X", "species": "ambos",
@@ -106,7 +122,9 @@ def test_summary_puts_catalog_profile_price_on_analysis_line_without_duplicate_b
     with patch.object(agent.db, "get_tests_by_codes_or_names", return_value=[]):
         summary = agent._route_confirmation_summary(fields)
 
-    assert "- Análisis: Perfil General — $32.000" in summary
+    # El CÓDIGO va adelante, igual que en "Perfiles adicionales" y en la orden impresa: es
+    # como el cliente que pidió "el perfil 151" verifica que quedó ese y no otro.
+    assert "- Análisis: 151 Perfil General — $32.000" in summary
     assert "- Perfil base:" not in summary
     assert "- Valor estimado: $32.000" in summary
 
@@ -239,7 +257,7 @@ def test_profile_code_selection_wins_over_diagnostic_label():
     assert out["captured_fields"].get("_diagnostic_label") is None
     assert "151 Perfil General" in out["reply"]
     assert "Cuáles quieres incluir" not in out["reply"]
-    assert "pago" in out["reply"].lower()
+    _assert_payment_step_outcome(out)
 
 
 def test_selected_profile_can_be_customized_before_payment():
@@ -301,7 +319,7 @@ def test_customized_selected_profile_can_be_closed_then_asks_payment():
     out = agent._enforce_payment_step(session, out, out["captured_fields"])
 
     assert out["captured_fields"]["_profile_customizing"] is False
-    assert "pago" in out["reply"].lower()
+    _assert_payment_step_outcome(out)
 
 
 def test_confirming_profile_detail_does_not_reopen_catalog_options():
@@ -333,7 +351,7 @@ def test_confirming_profile_detail_does_not_reopen_catalog_options():
 
     assert out["captured_fields"]["_profile_detail_confirmed"] is True
     assert "combinaciones" not in out["reply"].lower()
-    assert "pago" in out["reply"].lower()
+    _assert_payment_step_outcome(out)
 
 
 def test_profile_detail_confirmation_uses_intent_signal_not_exact_words():
@@ -362,7 +380,7 @@ def test_profile_detail_confirmation_uses_intent_signal_not_exact_words():
     out = agent._enforce_payment_step(session, out, out["captured_fields"])
 
     assert out["captured_fields"]["_profile_detail_confirmed"] is True
-    assert "pago" in out["reply"].lower()
+    _assert_payment_step_outcome(out)
 
 
 def test_negated_customization_signal_keeps_profile_as_is():
@@ -394,4 +412,4 @@ def test_negated_customization_signal_keeps_profile_as_is():
 
     assert out["captured_fields"].get("_profile_customizing") is not True
     assert out["captured_fields"]["_profile_detail_confirmed"] is True
-    assert "pago" in out["reply"].lower()
+    _assert_payment_step_outcome(out)

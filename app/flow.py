@@ -7,7 +7,10 @@ imports circulares con agent.py. Los nombres públicos no llevan guion bajo; age
 re-importa con alias para no tocar los ~200 call sites."""
 from app.config import PEDIDOS_ENABLED
 from app.text import tokenize as _tokenize, money as _money, as_text_items as _as_text_items
-from app.messages import AGE_QUESTION, PAYMENT_METHOD_QUESTION
+from app.messages import (
+    AGE_QUESTION, PAYMENT_METHOD_QUESTION,
+    EXTRA_ANALYSIS_OFFER, EXTRA_ANALYSIS_OFFER_PEDIDO,
+)
 
 
 
@@ -126,6 +129,24 @@ def missing_route_field(session: dict, fields: dict) -> str | None:
         if field == "patient_age" and not age_has_unit(fields.get(field)):
             return field
     return None
+
+
+def order_data_complete(session: dict, fields: dict) -> bool:
+    """¿La orden ya tiene todos sus datos? Es el momento en que se ofrece agregar otro análisis.
+
+    El MISMO momento del flujo se lee distinto según el flag: sin pedidos, el único campo que
+    falta es la forma de pago; con pedidos `payment_method` dejó de ser campo de la orden
+    (decisión 011), así que se lee como "no falta nada". Vive acá para que no vuelva a quedar
+    escrito como `missing == "payment_method"` en cada sitio: escrito así, encender el flag
+    hacía desaparecer la oferta de análisis extra de todas las vías de captura a la vez."""
+    missing = missing_route_field(session, fields)
+    return not missing if PEDIDOS_ENABLED else missing == "payment_method"
+
+
+def extra_analysis_offer() -> str:
+    """Texto de la oferta de agregar otro análisis, con la salida correcta según el flujo:
+    sin pedidos lo siguiente es el pago; con pedidos es el cierre de ESTA orden."""
+    return EXTRA_ANALYSIS_OFFER_PEDIDO if PEDIDOS_ENABLED else EXTRA_ANALYSIS_OFFER
 
 
 # ERR-091: textos de presentación que NUNCA son una dirección real. Un campo obligatorio

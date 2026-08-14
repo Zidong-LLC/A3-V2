@@ -3,12 +3,15 @@ resolución de texto suelto, personalización e integridad del perfil)."""
 import re
 
 from app import catalog, state
+from app.config import PEDIDOS_ENABLED
 from app.text import as_text_items as _as_text_items, catalog_item_key as _catalog_item_key, money as _money, strip_price_text as _strip_price_text, tokenize as _tokenize
 from app.flow import (
     base_route_response as _base_route_response,
     estimated_total_text as _estimated_total_text,
     format_test_items as _format_test_items,
     missing_route_field as _missing_route_field,
+    missing_route_field_question as _missing_route_field_question,
+    order_data_complete as _order_data_complete,
 )
 from app.detectors import (
     _AFFIRMATIVE_TOKENS,
@@ -48,6 +51,7 @@ from app.orders import (
     _scan_ambiguous_terms, _menu_for_ambiguous_term,
     _add_tests_to_order,
     _analysis_settled_response,
+    _order_confirmation_response,
     _area_options_for_profile_addition,
     _capture_profile_menu_selection,
     _category_profiles_menu_response,
@@ -140,6 +144,20 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
         fields.pop("_offering_extra_analysis", None)
         if _payment_method_from_text(user_message):
             return None  # el pipeline normal captura el método de pago
+        # Con pedidos NO hay pago que preguntar acá: la forma de pago es del PEDIDO y se
+        # pregunta una sola vez al cerrarlo (decisión 011). Declinar la oferta lleva la orden
+        # a su confirmación. Este carril devolvía PAYMENT_METHOD_QUESTION sin mirar el flag,
+        # así que pedía la forma de pago orden por orden incluso con pedidos encendidos
+        # — reportado en el testeo en vivo del 2026-08-14.
+        if PEDIDOS_ENABLED:
+            confirmacion = _order_confirmation_response(fields)
+            if confirmacion:
+                return confirmacion
+            # Orden todavía incompleta (no debería pasar: la oferta solo sale cuando ya no
+            # falta nada). Se pide el dato pendiente antes que preguntar un pago que en este
+            # flujo no corresponde.
+            missing = _missing_route_field(session, fields)
+            return _base_route_response(_missing_route_field_question(missing), fields) if missing else None
         return _base_route_response(PAYMENT_METHOD_QUESTION, fields)
 
     tokens = set(_tokenize(user_message))
@@ -335,7 +353,7 @@ def _enforce_extra_analysis_offer(session: dict, ai_response: dict, prev_fields:
         or _as_text_items(fields.get("selected_tests")) != _as_text_items(prev_fields.get("selected_tests"))
         or fields.get("_selected_profile_code") != prev_fields.get("_selected_profile_code")
     )
-    if not analysis_new or _missing_route_field(session, fields) != "payment_method":
+    if not analysis_new or not _order_data_complete(session, fields):
         return ai_response
     exam = fields.get("_selected_profile_name") or fields.get("exam_type")
     intro = f"Listo, queda {exam}." if exam else "Listo, lo anoto."

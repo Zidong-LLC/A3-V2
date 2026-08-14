@@ -14,7 +14,19 @@ QA-7  payloads de órdenes con code null / price 0 (consecuencia de QA-1).
 """
 from unittest.mock import patch
 
+import pytest
+
 from app import agent
+from app.config import PEDIDOS_ENABLED
+
+# Dos casos de este archivo prueban la LÓGICA DE RETROCESO *dentro* de la pregunta de pago de
+# la orden ("antes de cerrar quiero agregar otro análisis" mientras el bot pregunta cómo paga).
+# Con la jerarquía de pedidos (decisión 011) ese momento no existe: el pago no se pregunta por
+# orden, así que `_enforce_payment_step` cede antes de llegar a esas ramas. El retroceso
+# equivalente con pedidos —pedir otro análisis cuando el bot ofrece "¿otra orden o cerramos?"—
+# se cubre en tests/test_pedidos_flujo.py.
+solo_sin_pedidos = pytest.mark.skipif(
+    PEDIDOS_ENABLED, reason="el paso de pago por orden solo existe sin PEDIDOS_ENABLED")
 
 COPRO = {"code": "1701", "name": "Coprológico", "price": 12000, "category": "Parasitología"}
 CUADRO = {"code": "1101", "name": "Cuadro Hemático Completo", "price": 14000, "category": "Hematología"}
@@ -352,6 +364,7 @@ def test_new_test_menu_discards_stale_profile_menu():
     assert not fields2.get("_test_menu_options") and not fields2.get("_test_menu_adds_to_profile")
 
 
+@solo_sin_pedidos
 def test_payment_question_does_not_override_add_analysis_request():
     """'antes de cerrar quiero agregar otro análisis' cuando el bot pregunta el pago NO debe
     ser pisado re-preguntando el pago: se reabre el paso de agregado."""
@@ -390,6 +403,7 @@ def test_reference_phrase_captured_as_doctor_is_discarded():
 # ── L50: la LÓGICA de los fallos, no la palabra (corrección del usuario 2026-07-11) ──
 
 
+@solo_sin_pedidos
 def test_step_push_yields_to_correction_signal():
     """LÓGICA DE RETROCESO: el empuje del paso de pago CEDE ante la señal semántica de
     corrección del modelo — cualquier fraseo de 'volver atrás' (agregar análisis, cambiar

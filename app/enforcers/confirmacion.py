@@ -212,6 +212,12 @@ def _enforce_confirmation_step(session: dict, ai_response: dict, fields: dict, p
     # en fases previas. Si el flag sobrevive, el "Sí" del cliente se intenta resolver como
     # análisis, falla, y el cierre determinístico nunca corre (chat 10: orden nunca registrada).
     fields.pop("_awaiting_additional_test", None)
+    # El flag HERMANO, por la misma razón. Sin pedidos nunca coincidía con el resumen: la
+    # orden no estaba completa (faltaba el pago), así que la confirmación no se disparaba en
+    # ese momento. Con pedidos (decisión 011) los dos pasos caen en el MISMO turno, y al
+    # sobrevivir la marca el "Sí" del cliente se leía como "sí, quiero agregar otro análisis":
+    # el bot respondía "¿Qué análisis quieres agregar?" y la orden no se registraba nunca.
+    fields.pop("_offering_extra_analysis", None)
     operational_answer = _operational_side_question_answer(user_message)
     if operational_answer:
         summary = f"{operational_answer}\n\n{summary}"

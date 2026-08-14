@@ -13,6 +13,8 @@ from app.flow import (
     missing_route_field_question as _missing_route_field_question,
     format_test_items as _format_test_items, estimated_total_text as _estimated_total_text,
     age_has_unit as _age_has_unit, route_ready_for_payment as _route_ready_for_payment,
+    order_data_complete as _order_data_complete,
+    extra_analysis_offer as _extra_analysis_offer,
     ROUTE_REQUIRED_FIELDS as _ROUTE_REQUIRED_FIELDS,
     order_required_fields as _order_required_fields,
     ROUTE_ORDER_FIELDS_BEFORE_PAYMENT as _ROUTE_ORDER_FIELDS_BEFORE_PAYMENT,
@@ -90,7 +92,12 @@ def _order_summary_lines(fields: dict, header: str) -> list[str] | None:
     clinic_name = fields.get("clinic_name") or fields.get("_client_display_name") or "cliente registrado"
     analysis = fields.get("exam_type")
     if fields.get("_selected_profile_code"):
-        analysis = f"{fields.get('_selected_profile_name') or analysis} — {_money(fields.get('_selected_profile_price'))}"
+        # Con el CÓDIGO adelante, igual que la línea de "Perfiles adicionales" y que la orden
+        # impresa. Sin él, el cliente que pidió "el perfil 986" no podía verificar en el
+        # resumen que quedó ese y no otro — y es la línea más cara de la orden.
+        analysis = (f"{fields['_selected_profile_code']} "
+                    f"{fields.get('_selected_profile_name') or analysis} — "
+                    f"{_money(fields.get('_selected_profile_price'))}")
     lines = [
         header,
         f"- Veterinaria: {clinic_name}",
@@ -155,6 +162,20 @@ def _route_confirmation_summary(fields: dict) -> str | None:
 
 
 
+def _order_confirmation_response(fields: dict, intro: str = "") -> dict | None:
+    """Lleva la orden a su CONFIRMACIÓN: resumen + '¿Confirmas estos datos?'.
+
+    Devuelve None si todavía no hay con qué armar el resumen. Existe como función propia
+    porque con pedidos hay dos caminos que desembocan acá —terminar de fijar el análisis y
+    declinar la oferta de agregar otro— y el segundo antes iba a la pregunta de pago."""
+    summary = _route_confirmation_summary(fields)
+    if not summary:
+        return None
+    ai = _base_route_response(f"{intro}\n{summary}".strip(), fields)
+    ai["phase"] = CONFIRMATION_PHASE
+    return ai
+
+
 def _route_closure_summary(fields: dict) -> str | None:
     lines = _order_summary_lines(fields, "Quedó registrado:")
     if lines is None:
@@ -177,17 +198,16 @@ def _analysis_settled_response(session: dict, fields: dict, intro: str) -> dict:
     has_analysis = bool(
         fields.get("exam_type") or fields.get("selected_tests") or fields.get("_selected_profile_code")
     )
-    if has_analysis and _missing_route_field(session, fields) == "payment_method":
+    # `_order_data_complete` es el que sabe leer ese momento con y sin pedidos (ver flow.py).
+    if has_analysis and _order_data_complete(session, fields):
         fields["_offering_extra_analysis"] = True
-        return _base_route_response(f"{intro} {EXTRA_ANALYSIS_OFFER}", fields)
+        return _base_route_response(f"{intro} {_extra_analysis_offer()}", fields)
     missing = _missing_route_field(session, fields)
     if missing:
         return _base_route_response(f"{intro} {_missing_route_field_question(missing)}", fields)
-    summary = _route_confirmation_summary(fields)
-    if summary:
-        ai = _base_route_response(f"{intro}\n{summary}", fields)
-        ai["phase"] = CONFIRMATION_PHASE
-        return ai
+    confirmacion = _order_confirmation_response(fields, intro)
+    if confirmacion:
+        return confirmacion
     return _base_route_response(intro, fields)
 
 

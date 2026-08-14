@@ -572,3 +572,31 @@ rojo no prueba nada.
 tuvieron que ceder para que el bot entendiera al cliente. Cada uno estaba "protegiendo" algo
 con una lista de palabras, y cada uno tapaba un problema real debajo. Cuando un atajo decide
 por lista de tokens antes de que el modelo lea el turno, no está resolviendo: está escondiendo.
+
+## L62 — Un feature flag apagado por defecto es una decisión de producto disfrazada de config (2026-08-14)
+
+El usuario reportó que el bot le pedía la forma de pago orden por orden, cuando lo acordado
+con A3 era una sola forma de pago y una sola factura por pedido. Su reacción fue exacta:
+*"eso es una de las cosas que habíamos aclarado"*.
+
+Tenía razón, y el flujo correcto **ya estaba escrito y funcionando** — detrás de
+`PEDIDOS_ENABLED`, que nació en `false` y no estaba en el `.env`. Yo levanté el entorno sin él
+y le dije que ese era "el flujo que va a producción". Le entregué a probar lo contrario de lo
+acordado y lo presenté como lo definitivo.
+
+**Lo que el flag escondía era peor que el flag.** Al encenderlo aparecieron cuatro bugs, uno
+de ellos un bloqueo total: el cliente respondía "Sí" al *"¿Confirmas estos datos?"* y el bot
+contestaba *"¿Qué análisis quieres agregar?"* — la orden no se registraba nunca. Los 656 tests
+pasaban porque **todos corrían con el flag apagado**: existían tests de la capa de datos, del
+dashboard y del barrido de pedidos, pero ninguno del carril conversacional. La ruta que decide
+cuándo se cobra y cuántas facturas salen era la menos probada de las dos.
+
+**Regla:** cuando algo está acordado con el cliente, el default del código es `true`. Un flag
+en `false` no es "prudencia": es la garantía de que el comportamiento acordado no corre en
+ningún lado y de que su código se pudre sin cobertura. Si el flag existe para poder apagar
+algo en emergencia, el default sigue siendo `true` y el `false` es la emergencia.
+
+**Corolario de medición:** la suite verde no significaba nada porque medía la rama que NO iba
+a producción. Antes de dar por bueno un flag, correr la suite en **las dos** configuraciones y
+mirar qué se rompe. Y si un QA sortea sus casos al azar (el de catálogo lo hacía), necesita
+semilla fija: sin `--seed`, la caída de 5/5 a 2/5 parecía ruido en vez de una señal.

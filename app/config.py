@@ -71,11 +71,12 @@ ALEGRA_BASE_URL = os.environ.get("ALEGRA_BASE_URL", "https://api.alegra.com/api/
 # Solo se pone true al migrar a la cuenta real del cliente y autorizar emisión. Ver
 # docs/guardrails-entorno-y-datos.md.
 ALEGRA_PRODUCTION = os.environ.get("ALEGRA_PRODUCTION", "false").lower() in ("1", "true", "yes")
-# Jerarquía PEDIDO → ÓRDENES → ANÁLISIS (decisión 011). Con el flag encendido la forma de
-# pago deja de ser un dato de cada orden y pasa a ser del pedido: se pregunta UNA vez al
-# cerrar y se emite UNA factura con todas las órdenes. Apagado por defecto porque cambia la
-# secuencia del cierre (B10/B13/B14); se enciende cuando la prueba en vivo lo confirme.
-PEDIDOS_ENABLED = os.environ.get("PEDIDOS_ENABLED", "false").lower() in ("1", "true", "yes")
+# Jerarquía PEDIDO → ÓRDENES → ANÁLISIS (decisión 011): la forma de pago no es un dato de
+# cada orden sino del PEDIDO — se pregunta UNA vez al cerrar y se emite UNA factura con todas
+# las órdenes. ENCENDIDO por defecto (2026-08-14): es lo acordado con A3, no un experimento,
+# y con el default en false el flujo viejo volvía solo en cualquier entorno donde nadie
+# configurara la variable. `PEDIDOS_ENABLED=false` queda como interruptor de emergencia.
+PEDIDOS_ENABLED = os.environ.get("PEDIDOS_ENABLED", "true").lower() in ("1", "true", "yes")
 
 # País de la cuenta Alegra: cambia los campos obligatorios al crear contactos e ítems
 # (Colombia pide NIT/régimen/tipo de persona; Argentina pide CUIT/condición de IVA/unidad).

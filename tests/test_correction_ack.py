@@ -9,7 +9,8 @@ Tests de lógica pura con los mensajes reales del chat, sin fingir el modelo (L5
 from unittest.mock import patch
 
 from app.enforcers import orden as eorden, flujo as eflujo
-from app.messages import EXTRA_ANALYSIS_OFFER
+from app.flow import extra_analysis_offer
+from tests.helpers_pedidos import assert_advances_after_decline
 
 BASE = {"_client_found": True, "species": "Equino", "breed": "Árabe", "sex": "Macho",
         "patient_age": "4 años", "patient_name": "Lolo", "owner_name": "Pedro",
@@ -37,7 +38,7 @@ def test_extra_offer_lane_still_handles_analysis_and_payment():
         out = eorden._handle_extra_analysis_answer(SESSION, dict(BASE), "agregar potasio")
         assert out and "Potasio" in out["reply"]
         out2 = eorden._handle_extra_analysis_answer(SESSION, dict(BASE), "no ya está, seguimos")
-        assert out2 and "pago" in out2["reply"].lower()
+        assert_advances_after_decline(out2, "no ya está, seguimos")
 
 
 def test_correction_ack_in_normal_intake():
@@ -64,7 +65,7 @@ def test_correction_ack_in_extra_offer_lane_resumes_offer():
           "phase": "fase_2_recogida_datos", "reply": "(reply del modelo)"}
     out = eflujo._enforce_first_missing_after_progress(SESSION, ai, prev)
     assert "corrijo raza: Tobiano" in out["reply"]
-    assert EXTRA_ANALYSIS_OFFER in out["reply"]
+    assert extra_analysis_offer() in out["reply"]
 
 
 def test_normal_progress_keeps_generic_ack():

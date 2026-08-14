@@ -132,6 +132,10 @@ def main() -> int:
         n = int(sys.argv[sys.argv.index("--n") + 1])
     if "--especie" in sys.argv:
         especie = sys.argv[sys.argv.index("--especie") + 1]
+    # Semilla fija opcional: sin ella cada corrida sortea otros códigos y dos ejecuciones no
+    # son comparables — comparar el antes/después de un cambio exige la MISMA muestra.
+    if "--seed" in sys.argv:
+        random.seed(int(sys.argv[sys.argv.index("--seed") + 1]))
 
     patchers = [patch(f"app.services.db.{k}", **v) for k, v in _WRITE_PATCHES.items()]
     for p in patchers:

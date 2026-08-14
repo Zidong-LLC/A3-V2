@@ -9,6 +9,7 @@ con orden en curso se conserva todo (L50) y se re-verifica identidad + direcció
 from unittest.mock import patch
 
 from app import agent
+from tests.helpers_pedidos import assert_advances_after_decline
 
 ORDER_IN_PROGRESS = {
     "_client_found": True, "clinic_name": "Pet Agro Colombia", "tax_id": "900",
@@ -59,4 +60,4 @@ def test_short_decline_still_proceeds_to_payment():
     fields = dict(ORDER_IN_PROGRESS, _offering_extra_analysis=True)
     fields.pop("payment_method")
     out = agent._handle_extra_analysis_answer({"client_id": "c"}, fields, "no, ya esta")
-    assert out is not None and agent.PAYMENT_METHOD_QUESTION in out["reply"]
+    assert_advances_after_decline(out, "no, ya esta")
