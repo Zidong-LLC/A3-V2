@@ -311,7 +311,10 @@ def _payment_method_from_text(text: str) -> str | None:
     Los fraseos indirectos están acá porque el cliente describe CUÁNDO paga, no cómo se
     llama el método: "les pagamos cuando pasen a recoger", "mandanos el link"."""
     tokens = set(_tokenize(text))
-    if "contraentrega" in tokens or "efectivo" in tokens:
+    # "contra entrega" separado es la MISMA palabra que "contraentrega": el cliente la escribe
+    # de las dos formas y la red no reconocía la segunda ("pagamos contra entrega" → None).
+    if "contraentrega" in tokens or "efectivo" in tokens or (
+            "contra" in tokens and {"entrega", "entregar", "entregarla"} & tokens):
         return "contraentrega"
     if "pse" in tokens or "transferencia" in tokens or "tarjeta" in tokens:
         return "pago_linea"

@@ -157,7 +157,18 @@ def _route_confirmation_summary(fields: dict) -> str | None:
     lines = _order_summary_lines(fields, "Antes de registrar, te resumo la orden:")
     if lines is None:
         return None
-    lines.append("¿Confirmas estos datos? (Sí / Corregir)")
+    # La oferta de editar/agregar va ACÁ y no en un paso aparte. El paso que la hacía
+    # ("¿quieres agregar otro análisis?") quedó huérfano el 28/07, cuando A3 pidió mover el
+    # análisis ANTES de las observaciones: desde entonces, al fijar el análisis siempre falta
+    # `observations`, así que `order_data_complete` es False y la oferta no se dispara nunca.
+    # Este es el único momento donde el cliente ve la orden entera antes de que se registre,
+    # y decirlo explícito es lo que pidió el usuario (2026-08-14: "nunca le preguntaron si
+    # quería editar alguno de los datos o agregar otro análisis").
+    # La subcadena "¿Confirmas estos datos?" se conserva a propósito: cuatro tests la
+    # verifican y el prompt la nombra. El "(Sí / Corregir)" se va: era la parte que sonaba a
+    # formulario y no mencionaba los análisis.
+    lines.append("¿Confirmas estos datos? Si quieres, puedes cambiar algún dato "
+                 "o agregar otro análisis.")
     return "\n".join(lines)
 
 

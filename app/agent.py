@@ -1044,7 +1044,14 @@ def _start_followup_service_order_response(fields: dict, user_message: str = "")
     reused: list[tuple[str, str]] = []
     if clinic:
         reused.append(("Veterinaria", clinic))
-    for field in ("pickup_address", "requesting_doctor", "payment_method"):
+    # Con pedidos la forma de pago NO es un dato de la orden: es del pedido y se pregunta una
+    # sola vez al cerrarlo. Mostrarla acá contradice ese flujo y, peor, la vuelve creíble: en
+    # la prueba del 2026-08-14 apareció "Forma de pago: contraentrega" en la segunda orden
+    # sin que el cliente la hubiera elegido nunca (el modelo la había rellenado sola).
+    heredables = ("pickup_address", "requesting_doctor")
+    if not PEDIDOS_ENABLED:
+        heredables += ("payment_method",)
+    for field in heredables:
         value = fields.get(field)
         if value:
             shown = _payment_method_label(value) if field == "payment_method" else value
@@ -1062,7 +1069,8 @@ def _start_followup_service_order_response(fields: dict, user_message: str = "")
     lines = ["Perfecto, creamos otra orden de servicio. Mantengo estos datos de la orden anterior:"]
     for label, value in reused:
         lines.append(f"- {label}: {value}")
-    lines.append("¿Confirmas o quieres cambiar alguno (dirección, médico, forma de pago o análisis)?")
+    cambiables = "dirección, médico o análisis" if PEDIDOS_ENABLED else "dirección, médico, forma de pago o análisis"
+    lines.append(f"¿Confirmas o quieres cambiar alguno ({cambiables})?")
     return _base_route_response("\n".join(lines), fields)
 
 
@@ -2311,8 +2319,20 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
 
     # ¿Dio la forma de pago? La fuente primaria es lo que capturó el MODELO; el detector de
     # texto es la red para cuando no la marcó.
-    payment_method = fields.get("payment_method") or _payment_method_from_text(user_message)
-    if payment_method:
+    #
+    # GUARD DE DINERO: el pago solo vale como orden de cerrar si el cliente lo expresó EN ESTE
+    # turno, o si el pedido ya venía esperándolo (le preguntamos y esta es la respuesta). Un
+    # `payment_method` ARRASTRADO en captured_fields no alcanza: cerrar y facturar con un valor
+    # que el cliente nunca eligió es cobrarle de una forma que no pidió. En la prueba del
+    # 2026-08-14 el modelo rellenó "contraentrega" solo, sin que el bot preguntara nunca —
+    # bastaba con eso para cerrar el pedido entero y emitir la factura.
+    # Si YA le preguntamos, lo que el modelo entendió ES la respuesta y vale con su lectura
+    # semántica ("pagamos cuando lleguen"). Si NO le preguntamos, el pago tiene que estar en
+    # lo que el cliente ACABA de escribir: un campo que apareció solo no cierra nada.
+    esperando_pago = bool(prev_fields.get("_pedido_awaiting_payment"))
+    pago_en_el_texto = _payment_method_from_text(user_message)
+    payment_method = fields.get("payment_method") or pago_en_el_texto
+    if payment_method and (esperando_pago or pago_en_el_texto):
         return _close_pedido_turn(session, dict(prev_fields, **fields), payment_method)
 
     # Terminó de cargar órdenes pero todavía no dijo cómo paga: se le pregunta UNA vez.

@@ -353,7 +353,13 @@ def _enforce_extra_analysis_offer(session: dict, ai_response: dict, prev_fields:
         or _as_text_items(fields.get("selected_tests")) != _as_text_items(prev_fields.get("selected_tests"))
         or fields.get("_selected_profile_code") != prev_fields.get("_selected_profile_code")
     )
-    if not analysis_new or not _order_data_complete(session, fields):
+    # Con el análisis recién fijado, este enforcer toma el turno SIEMPRE, falte lo que falte.
+    # Antes solo entraba si ya no faltaba nada, y entre "se fijó el análisis" y "la orden está
+    # completa" queda un hueco —la observación, que desde el 28/07 va después del análisis— en
+    # el que mandaba el modelo. Ahí improvisaba "¿quieres agregar otro análisis?" y el flujo
+    # daba vueltas sin llegar nunca al resumen. `_analysis_settled_response` decide qué
+    # corresponde en cada caso: ofrecer, pedir el dato que falta, o resumir.
+    if not analysis_new:
         return ai_response
     exam = fields.get("_selected_profile_name") or fields.get("exam_type")
     intro = f"Listo, queda {exam}." if exam else "Listo, lo anoto."

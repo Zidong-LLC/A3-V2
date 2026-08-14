@@ -479,6 +479,55 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-108 — Nunca ofrecía editar la orden antes de confirmarla, y arrastraba una forma de pago fantasma (2026-08-14)
+**Síntoma (reporte del usuario tras su prueba por Telegram):** *"que me permita, antes de que
+confirme, editar alguna de las cosas… nunca le preguntaron si quería editar alguno de los
+datos o agregar otro análisis"*. En su chat se ve exacto: `653` → *"Listo, registro 653… Por
+último, ¿observaciones?"* → resumen. Nunca ofreció nada más.
+**Causa raíz — NO era del flag ni de ERR-107.** La oferta se dispara cuando la orden ya no
+necesita más datos, pero el **28/07 A3 pidió mover el análisis ANTES de las observaciones**
+(`ROUTE_ORDER_FIELDS_BEFORE_PAYMENT`). Desde entonces, al fijar el análisis SIEMPRE falta
+`observations`, así que la condición no se cumple nunca y el paso quedó huérfano entre el
+análisis y la confirmación: **estaba muerto desde el 28/07, con y sin pedidos.**
+**Solución:** la oferta va donde el usuario la pidió — en el resumen, que es el único momento
+en que ve la orden entera antes de que se registre. `"¿Confirmas estos datos? Si quieres,
+puedes cambiar algún dato o agregar otro análisis."` No agrega ningún paso al flujo. La
+maquinaria que aplica el cambio (`_confirmation_analysis_adjustment`) ya existía.
+**Segundo hallazgo, de DINERO (apareció leyendo su conversación completa):** en la segunda
+orden el bot mostró *"Forma de pago: contraentrega"* que el cliente **nunca eligió** — jamás
+se le preguntó. El prompt no sabía que existen los pedidos (*"PASO 4 — Forma de pago
+(OBLIGATORIO antes del cierre)"*), así que el modelo rellenaba el campo solo. Y
+`_enforce_open_pedido_close` cerraba y facturaba el pedido en cuanto veía un `payment_method`,
+viniera de donde viniera: **bastaba ese valor inventado para cobrar con un método que el
+cliente no pidió.** Se arregló en tres capas: el prompt (la forma de pago es del PEDIDO y
+nunca se asume), el snapshot de la orden siguiente (deja de mostrarla) y un guard —el pago
+solo cierra si el cliente lo dijo EN ESE turno o si ya se le había preguntado.
+**Tercer hallazgo, encontrado por el guion en vivo — y era MÍO:** al reescribir el PASO 4 le
+saqué al modelo la instrucción sin darle el reemplazo completo, y empezó a improvisar
+*"¿quieres agregar otro análisis?"* apenas se elegía uno; el flujo daba vueltas y **no llegaba
+nunca al resumen**. Se confirmó que era regresión propia corriendo el MISMO guion contra el
+código anterior (`git stash`). El arreglo de fondo no fue insistir en el prompt —se probó y
+falló— sino sacarle la decisión al modelo: `_enforce_extra_analysis_offer` ahora toma el turno
+en cuanto el análisis es nuevo, falte lo que falte, y `_analysis_settled_response` decide qué
+corresponde. Guardrail determinístico en vez de confiar en el prompt.
+**De yapa:** `_confirmation_analysis_adjustment` entraba solo por lista de tokens —medido,
+`"agregale un coprológico"` entra pero `"agregame una glucosa"` NO—. Ahora entra también por
+`user_intent_signal == "correction"`, acotado con `_detect_correction_field` para que
+*"quiero cambiar el médico"* no caiga en el carril de análisis (regresión que introduje y
+detecté con su propio test). Y `_payment_method_from_text` no reconocía `"contra entrega"`
+separado, que es la misma palabra que `"contraentrega"`.
+**Tests:** 9 casos nuevos en `tests/test_pedidos_flujo.py` (26 en total).
+**Verificación:** suite **681** con el flag y **656** sin él. QA catálogo 16/16 y 5/5. QA
+cierre semántico **25/25** con cobertura 10/10 — subió: `"ya está, cerrame eso"` fallaba con
+el prompt viejo Y con mi primera versión, y pasa desde que el prompt explica qué es cerrar un
+pedido. Guion en vivo contra el modelo real: resumen → `"agregame una glucosa"` → la agrega y
+re-resume con descuento por volumen ($22.880) → `"si"` → registra → `"otra orden"` → la
+segunda **sin** forma de pago heredada.
+**Pendiente anotado (decisión del usuario):** editar una orden YA registrada. En su prueba
+dijo *"necesito editar este perfil, agregar otro análisis al mismo"* con la orden guardada y
+el bot creó otra. Con la oferta antes de confirmar el caso casi no aparece.
+**Estado:** RESUELTO y verificado (2026-08-14). Pendiente la prueba humana por Telegram.
+
 ### ERR-107 — Con pedidos activos el bot seguía cobrando por orden, y el "Sí" no cerraba nada (2026-08-14)
 **Síntoma (Telegram, reporte del usuario):** terminada la orden, el bot preguntaba *"¿cómo
 prefiere la forma de pago?"*. Lo acordado con A3 (decisión 011) es que el pago se pregunta UNA

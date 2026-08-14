@@ -11,6 +11,7 @@ from app.flow import (
 )
 from app.detectors import (
     _confirms_order_now,
+    _detect_correction_field,
     _is_order_confirmation,
     _named_analysis_terms,
     _profile_codes_from_text,
@@ -79,8 +80,21 @@ def _add_profile_in_confirmation(fields: dict, user_message: str) -> dict | None
 
 def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message: str, signal: str | None) -> dict | None:
     pending_action = fields.get("_awaiting_additional_test")
-    if not pending_action and not _wants_partial_analysis_change(user_message):
-        return None
+    # SEÑAL-PRIMERO. Este carril entraba solo por lista de tokens, y la lista tiene agujeros:
+    # medido, "agregale un coprológico" entra pero "agregame una glucosa" NO. Ahora que el
+    # resumen ofrece explícitamente agregar otro análisis, la respuesta llega en cualquier
+    # fraseo, así que la lectura del modelo manda y el detector queda como red.
+    #
+    # Pero la señal SOLA no alcanza: "quiero cambiar el médico" también es `correction`, y sin
+    # acotar, este carril se la tragaba y respondía "¿Qué análisis quieres agregar?" — dejando
+    # al cliente sin poder corregir ningún otro dato. Por eso, cuando se entra por señal, la
+    # corrección no puede apuntar a OTRO campo de la orden.
+    if not pending_action:
+        es_ajuste = _wants_partial_analysis_change(user_message)
+        if not es_ajuste and signal == "correction":
+            es_ajuste = _detect_correction_field(user_message) in (None, "exam_type")
+        if not es_ajuste:
+            return None
 
     tokens = set(_tokenize(user_message))
     action = pending_action or "add"

@@ -600,3 +600,30 @@ algo en emergencia, el default sigue siendo `true` y el `false` es la emergencia
 a producción. Antes de dar por bueno un flag, correr la suite en **las dos** configuraciones y
 mirar qué se rompe. Y si un QA sortea sus casos al azar (el de catálogo lo hacía), necesita
 semilla fija: sin `--seed`, la caída de 5/5 a 2/5 parecía ruido en vez de una señal.
+
+## L63 — Sacarle una instrucción al modelo sin darle el reemplazo es dejarlo improvisar (2026-08-14)
+
+Reescribí el PASO 4 del prompt para que el bot dejara de pedir la forma de pago por orden.
+Quité la instrucción vieja, expliqué que el pago es del pedido… y no le dije qué hacer en su
+lugar. El modelo llenó el hueco solo: empezó a ofrecer *"¿quieres agregar otro análisis?"*
+apenas se elegía uno, el flujo daba vueltas y **no llegaba nunca al resumen**.
+
+Lo detecté con un guion en vivo contra el modelo real, y confirmé que era regresión MÍA
+corriendo el mismo guion contra el código anterior (`git stash`). Sin esa comparación lo
+habría atribuido a la variabilidad del modelo: los QA daban 8/10 y 7/10 en corridas seguidas,
+y el ruido tapaba la señal.
+
+Después cometí el segundo error: intenté arreglarlo **insistiendo en el prompt** ("no ofrezcas
+agregar análisis por tu cuenta"). No alcanzó — el modelo lo siguió haciendo. Lo que funcionó
+fue sacarle la decisión: el enforcer toma el turno en cuanto el análisis es nuevo, falte lo que
+falte, y una función determinística decide si ofrecer, pedir el dato que falta o resumir.
+
+**Regla:** una instrucción del prompt no se borra, se **reemplaza**. Y si el comportamiento
+importa para el flujo, no se pide por prompt: se hace cumplir con un guardrail. El prompt
+sugiere; el código garantiza.
+
+**Corolario — comparar contra la línea base, no contra la memoria.** Ante un número que empeora
+(25/25 → 23/25), la pregunta no es "¿será el modelo?" sino "¿qué da el código anterior con
+ESTE mismo caso?". Aislar una variable por vez (restauré solo `prompt.py` y volví a medir)
+convirtió una sospecha difusa en un diagnóstico en dos corridas. Es el mismo principio del
+`--seed` de L62: sin reproducibilidad no hay diagnóstico, hay opinión.
