@@ -479,6 +479,23 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-115 — "Sigamos con la forma de pago" respondía "¿Qué análisis o perfil desean?" (2026-08-15)
+**Síntoma (Telegram 22:48):** al cerrar el pedido, el cliente citó al bot TEXTUAL ("sigamos
+con la forma de pago") y recibió la pregunta del análisis. Todo lo anterior de la conversación
+salió perfecto (ERR-114 confirmado resuelto en vivo: orden 2 con el 653 limpio, $58.000).
+**Causa:** el cierre SÍ entendió (el estado quedó con `_pedido_awaiting_payment=True`), pero
+la fusión naif `dict(prev, **fields)` de `_enforce_open_pedido_close` dejó que el
+`exam_type=None` que el modelo emite (el schema manda todas las claves) BORRARA los datos de
+la orden; con la orden "incompleta", un empuje posterior pisó la pregunta del pago con
+"¿Qué análisis o perfil desean?".
+**Fix:** `_merge_sin_borrar` — en el cierre del pedido, lo nuevo pisa lo viejo pero un None
+del modelo no borra un dato capturado. Aplicado a las dos fusiones del enforcer (la de la
+pregunta y la del pago final).
+**Tests:** 2 nuevos con el turno exacto (incluye que el resumen final liste TODAS las órdenes
+aunque el modelo mande nulls). Suite 735/656.
+**Estado:** RESUELTO (2026-08-15). Pendiente: cierre en vivo del pedido P-2026-008 (el de la
+prueba, con 2 órdenes) para verificar la factura ÚNICA en Alegra.
+
 ### ERR-114 — Los agregados de la orden 1 revivían en la orden 2: el texto del pedido mixto cruzaba la frontera
 **Síntoma (Telegram 2026-08-14 21:21, y REPRODUCIDO en replay):** la limpieza de ERR-112 corre
 bien ("si el analisis quiero cambiar" → estado limpio), el cliente fija el 653, y el resumen de

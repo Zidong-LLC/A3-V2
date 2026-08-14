@@ -500,6 +500,44 @@ def test_fijar_un_perfil_con_texto_mixto_viejo_no_resucita_analisis():
     assert out["captured_fields"].get("_selected_profile_code") == "653"
 
 
+# ── 1h. El turno del cierre no deja que los null del modelo borren la orden ────
+
+def test_sigamos_con_el_pago_no_borra_la_orden_ni_pierde_la_pregunta():
+    """Prueba en vivo 2026-08-15 22:48: el cliente citó al bot textual ("sigamos con la forma
+    de pago") y recibió "¿Qué análisis o perfil desean?". El cierre SÍ entendió (dejó
+    `_pedido_awaiting_payment=True`), pero la fusión naif `dict(prev, **fields)` dejó que el
+    exam_type=None del modelo BORRARA la orden; con la orden "incompleta", un empuje posterior
+    pisó la pregunta del pago."""
+    prev = dict(ORDEN_COMPLETA, _pedido_id="ped-1", _order_registered=True)
+    # El modelo emite el schema completo: los campos de la orden vienen en None.
+    model_fields = {k: None for k in ("exam_type", "patient_name", "selected_tests",
+                                      "_selected_profile_code")}
+    ai = _resp(model_fields, user_intent_signal="farewell", reply="(del modelo)")
+    out = agent._enforce_open_pedido_close(SESSION, ai, prev, "sigamos con la forma de pago")
+    cf = out["captured_fields"]
+    assert cf["_pedido_awaiting_payment"] is True
+    assert cf.get("exam_type") == ORDEN_COMPLETA["exam_type"], "el None no puede borrar la orden"
+    assert cf.get("_selected_profile_code") == ORDEN_COMPLETA["_selected_profile_code"]
+    from app.messages import PEDIDO_CLOSING_QUESTION as PCQ
+    assert out["reply"] == PCQ
+
+
+def test_el_pago_final_tampoco_pierde_las_fichas_por_nulls(monkeypatch):
+    monkeypatch.setattr(agent.db, "close_pedido", lambda *a, **k: None)
+    monkeypatch.setattr(agent.db, "list_pedido_requests", lambda pid: [{"id": "r1"}, {"id": "r2"}])
+    monkeypatch.setattr(agent, "ALEGRA_ENABLED", False)
+    fichas = [{"order_number": "A3-186", "patient_name": "Lolo", "total": 48000},
+              {"order_number": "A3-187", "patient_name": "Pipo", "total": 58000}]
+    prev = dict(ORDEN_COMPLETA, _pedido_id="ped-1", _pedido_awaiting_payment=True,
+                _pedido_ordenes=fichas)
+    model_fields = {"payment_method": "contraentrega", "_pedido_ordenes": None}
+    ai = _resp(model_fields)
+    out = agent._enforce_open_pedido_close(SESSION, ai, prev, "contraentrega")
+    assert out["captured_fields"]["_pedido_cerrado"] is True
+    assert "A3-186" in out["reply"] and "A3-187" in out["reply"], \
+        "el resumen del pedido lista TODAS las órdenes aunque el modelo mande nulls"
+
+
 # ── 2. El pedido queda abierto y admite más órdenes ─────────────────────────────
 
 def test_pedir_otra_orden_mantiene_el_pedido_abierto():

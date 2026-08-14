@@ -2306,6 +2306,17 @@ def _record_favorite_profile(session: dict, order_info: dict | None, fields: dic
         logger.warning("favoritos: no se pudo registrar el uso del cliente %s: %s", client_id, exc)
 
 
+def _merge_sin_borrar(prev_fields: dict, fields: dict) -> dict:
+    """Fusión para el CIERRE del pedido: lo nuevo pisa lo viejo, pero un None del modelo NO
+    borra un dato ya capturado. El schema emite todas las claves en cada turno; en el turno
+    de cierre ("sigamos con la forma de pago") el modelo mandó exam_type=None, la fusión naif
+    lo dejó borrar la orden, y con la orden "incompleta" un empuje posterior pisó la pregunta
+    del pago con "¿Qué análisis o perfil desean?" (prueba en vivo 2026-08-15 22:48)."""
+    merged = dict(prev_fields)
+    merged.update({k: v for k, v in fields.items() if v is not None})
+    return merged
+
+
 def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: dict,
                                user_message: str) -> dict:
     """Cierre del PEDIDO abierto, SEÑAL-PRIMERO (decisión 011).
@@ -2345,7 +2356,7 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
     pago_en_el_texto = _payment_method_from_text(user_message)
     payment_method = fields.get("payment_method") or pago_en_el_texto
     if payment_method and (esperando_pago or pago_en_el_texto):
-        return _close_pedido_turn(session, dict(prev_fields, **fields), payment_method)
+        return _close_pedido_turn(session, _merge_sin_borrar(prev_fields, fields), payment_method)
 
     # Terminó de cargar órdenes pero todavía no dijo cómo paga: se le pregunta UNA vez.
     # Señales con las que el cliente da por terminada la carga. `cancel` entra porque el
@@ -2353,7 +2364,7 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
     # anular nada, así que en este contexto significa cerrar el pedido, no cancelarlo.
     wants_to_finish = signal in ("farewell", "negate", "cancel") or _is_farewell(user_message)
     if wants_to_finish and not prev_fields.get("_pedido_awaiting_payment"):
-        fields = dict(prev_fields, **fields)
+        fields = _merge_sin_borrar(prev_fields, fields)
         fields["_pedido_awaiting_payment"] = True
         return {
             **ai_response,
