@@ -479,6 +479,37 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-117 — [ABIERTO — DECISIÓN DE FLUJO] La frontera entre órdenes solo existe si el cliente dice "otra orden" en el momento exacto
+**Hallazgo del QA de estrés (2026-08-15, 6 personas × 1-10 órdenes):** los clientes humanos
+marcan el cambio de paciente de DOS formas que el flujo no soporta:
+1. **Describen el siguiente paciente sin decir "otra orden"** ("ahora P2, gato criollo, 1101 y
+   1701"): el agente lo lee como CORRECCIÓN de la orden actual — *"Listo, corrijo nombre del
+   paciente: P5 y propietario… y especie…"* — y sobrescribe el mismo formulario N veces. En
+   `masivo_5`, el cliente creyó cargar 5 pacientes y se registraron CERO órdenes.
+2. **Dicen "otra orden" ANTES de confirmar la actual** (saltándose el resumen): no se toma
+   como frontera; en `maraton_10` las 10 órdenes colapsaron en una sola, registrada al final
+   con códigos acumulados de varias ($ contaminado).
+**Impacto:** el caso de uso CENTRAL del negocio (varias órdenes por corrida) solo funciona si
+el cliente sigue el protocolo exacto registrar→"otra orden". Con lenguaje humano libre, 5 de
+6 personas del estrés no lograron cargar su pedido completo.
+**Decisión pendiente con el usuario (toca flujo aprobado):**
+- ¿Un paciente NUEVO descripto en bloque (nombre+especie+edad+dueño distintos) con la orden
+  actual completa debe abrir orden nueva automáticamente (confirmando la actual primero)?
+- ¿"Otra orden" con la actual completa pero sin confirmar debe confirmar-y-registrar la
+  actual y abrir la siguiente?
+**Estado:** ABIERTO — documentado, esperando decisión (2026-08-15).
+
+### ERR-116 — [ABIERTO] El carril de "agregar análisis al perfil" atrapa el flujo multi-orden
+**Hallazgo del QA de estrés (2026-08-15):** el carril que responde *"¿Quieres agregar algún
+análisis más (decime cuál) o seguimos con el pago?"* (`_selected_profile_addition_response`,
+`enforcers/orden.py:318`) es la trampa donde cayeron 3 de las 5 personas fallidas:
+- **Devora "otra orden"**: en `apurado_typos` el cliente lo dijo y el carril repitió la misma
+  pregunta en bucle — 0 de 3 órdenes registradas.
+- Los datos del paciente siguiente dichos ahí se leen como corrección (ver ERR-117).
+- El texto **todavía promete "el pago"**, que con pedidos no es el paso siguiente — quedó
+  fuera del barrido de ERR-107.
+**Estado:** ABIERTO — es clase bug (el bucle), atacable sin decisión de flujo (2026-08-15).
+
 ### ERR-115 — "Sigamos con la forma de pago" respondía "¿Qué análisis o perfil desean?" (2026-08-15)
 **Síntoma (Telegram 22:48):** al cerrar el pedido, el cliente citó al bot TEXTUAL ("sigamos
 con la forma de pago") y recibió la pregunta del análisis. Todo lo anterior de la conversación
