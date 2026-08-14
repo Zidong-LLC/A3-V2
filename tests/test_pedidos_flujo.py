@@ -354,6 +354,64 @@ def test_si_lo_unico_que_cambia_es_el_analisis_el_enforcer_sigue_actuando():
     assert extra_analysis_offer() in out["reply"]
 
 
+# ── 1d. El paquete heredado no sobrevive al cambio de análisis ─────────────────
+
+@pytest.mark.parametrize("mensaje", [
+    "analisis quiero el 653",       # la frase EXACTA de la prueba en vivo
+    "quiero el 653",
+    "mejor el 653",
+    "cambialo al 653",
+    "Si análisis quiero perfil 653",
+    "todo igual menos el análisis",
+])
+def test_cambiar_el_analisis_reofrecido_suelta_tambien_los_agregados(mensaje):
+    """DINERO (prueba en vivo 2026-08-14): la orden 1 llevaba el perfil 152 + Sodio y Potasio
+    agregados. En la orden 2 el cliente pidió el 653; el enforcer reemplazó el perfil base
+    pero los AGREGADOS heredados sobrevivieron — el resumen dio $82.000 en vez de $58.000,
+    con análisis que el cliente nunca pidió en esa orden.
+
+    `_replaces_offered_analysis` decide con el campo detectado o el código, no con verbos:
+    "analisis quiero el 653" no lleva 'cambiar' ni 'otro' ni 'sí', y aun así reemplaza."""
+    assert agent._replaces_offered_analysis(mensaje, "152") is True
+    # Y la limpieza que dispara borra el paquete COMPLETO, agregados incluidos:
+    campos = dict(ORDEN_COMPLETA, selected_tests=["1405", "1404"], removed_tests=[])
+    agent._clear_field_for_correction(campos, "exam_type")
+    assert not campos.get("selected_tests"), "los agregados heredados tienen que soltarse"
+    assert not campos.get("_selected_profile_code")
+
+
+@pytest.mark.parametrize("mensaje", [
+    "si", "jose", "es un canino", "3 años",
+    "quiero cambiar el médico",
+    "el mismo pero sin la glucosa",   # parcial → personalización, no reemplazo
+])
+def test_lo_que_no_cambia_el_analisis_no_suelta_el_paquete(mensaje):
+    assert agent._replaces_offered_analysis(mensaje, "152") is False
+
+
+# ── 1e. "No quiero los agregados" quita los agregados ──────────────────────────
+
+@pytest.mark.parametrize("mensaje", [
+    "en esta orden no quiero los agregados",   # la frase EXACTA de la prueba en vivo
+    "sin los agregados",
+    "quitale los agregados",
+    "sacame lo agregado",
+])
+def test_no_quiero_los_agregados_se_reconoce(mensaje):
+    """'Agregados' es el rótulo que el bot imprime en el resumen: el cliente lo cita textual.
+    Antes caía en la repregunta genérica '¿Qué dato quieres corregir?'."""
+    assert agent._removes_the_additions(mensaje) is True
+
+
+@pytest.mark.parametrize("mensaje", [
+    "quiero agregar sodio",            # agregar ≠ quitar los agregados
+    "no quiero cambiar nada",          # no menciona el rótulo
+    "quitale el sodio",                # análisis puntual: lo maneja el ajuste existente
+])
+def test_referencias_que_no_son_quitar_los_agregados(mensaje):
+    assert agent._removes_the_additions(mensaje) is False
+
+
 # ── 2. El pedido queda abierto y admite más órdenes ─────────────────────────────
 
 def test_pedir_otra_orden_mantiene_el_pedido_abierto():

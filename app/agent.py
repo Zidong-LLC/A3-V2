@@ -50,6 +50,8 @@ from app.detectors import (
     _PRICE_QUESTION_TOKENS,
     _TOTAL_QUESTION_TOKENS,
     _wants_partial_analysis_change,
+    _removes_the_additions,
+    _replaces_offered_analysis,
     _wants_to_change_analysis,
     _looks_like_catalog_profile,
     _looks_like_specific_profile_query,
@@ -2934,11 +2936,18 @@ def process_turn(
                 chat_id, user_message,
                 _restart_identification_for_new_client(chat_id, session, prev_captured),
             )
-        # Cambio TOTAL de análisis ('otro análisis', 'cambiemos el perfil'): limpiar el
-        # análisis reofrecido de la orden anterior y dejar que el flujo lo vuelva a pedir
-        # (recomendación o selección). El ajuste PARCIAL ('el mismo pero sin X') NO entra
-        # acá: lo maneja la personalización del perfil base más adelante.
-        if _wants_to_change_analysis(user_message):
+        # Cambio TOTAL de análisis ('otro análisis', 'cambiemos el perfil', 'analisis quiero
+        # el 653'): limpiar el PAQUETE reofrecido de la orden anterior —exam_type, perfil y
+        # sus AGREGADOS— y dejar que el flujo capture el nuevo. El ajuste PARCIAL ('el mismo
+        # pero sin X') NO entra acá: lo maneja la personalización del perfil base.
+        #
+        # `_replaces_offered_analysis` decide con lo que el sistema ya sabe (el campo al que
+        # apunta el mensaje o un CÓDIGO distinto del heredado), no con verbos: con "analisis
+        # quiero el 653" ningún detector de verbos disparaba, el enforcer fijaba el 653 como
+        # base y los agregados de la orden ANTERIOR sobrevivían — la orden salió $24.000 más
+        # cara con análisis que el cliente nunca pidió en ella (prueba en vivo 2026-08-14).
+        if (_wants_to_change_analysis(user_message)
+                or _replaces_offered_analysis(user_message, prev_captured.get("_selected_profile_code"))):
             _clear_field_for_correction(prev_captured, "exam_type")
             # No retornamos: el resto del mensaje puede traer datos del paciente; el flujo
             # sigue capturando y, al llegar al análisis vacío, recomienda o pregunta.
@@ -2980,13 +2989,8 @@ def process_turn(
             question = _missing_route_field_question(missing) if missing else "¿Qué análisis o perfil desean?"
             guide = "Listo. Para esta orden cambia normalmente el paciente, el propietario y el análisis. "
             return _persist_turn(chat_id, user_message, _base_route_response(guide + question, prev_captured))
-        if _is_order_confirmation(user_message):
-            # Confirma Y pide algo más. Lo único que hay que resolver antes de ceder, porque
-            # ningún paso posterior puede adivinarlo: soltar el análisis de la orden anterior
-            # si de eso habla el mensaje. Si sobrevive, el enforcer de integridad lo restaura y
-            # vuelve el error de dinero (ERR-106).
-            if _detect_correction_field(user_message) == "exam_type" or _wants_to_change_analysis(user_message):
-                _clear_field_for_correction(prev_captured, "exam_type")
+        # (Un "Sí, análisis quiero el 653" —confirma Y pide otro análisis— ya soltó el paquete
+        # heredado en el chequeo de arriba: `_replaces_offered_analysis` cubre ese caso.)
         # Respuesta con datos del paciente u otra cosa: seguir el pipeline normal
         # (los datos estables ya están cargados y se conservan al fusionar).
 
@@ -3056,6 +3060,20 @@ def process_turn(
                 )
             else:
                 ai_response = _base_route_response(_missing_route_field_question(field), prev_captured)
+        elif (_removes_the_additions(user_message)
+                and prev_captured.get("_selected_profile_code")
+                and _as_text_items(prev_captured.get("selected_tests"))):
+            # "En esta orden no quiero los agregados": el cliente cita el RÓTULO que el bot
+            # imprime en el resumen. Se quitan los agregados (el perfil base queda) y se
+            # re-muestra el resumen con el total recalculado. Antes caía en la repregunta
+            # genérica "¿Qué dato quieres corregir?" (prueba en vivo 2026-08-14). Solo dispara
+            # si HAY agregados: sin ellos, la frase es ambigua y sigue la repregunta de abajo.
+            prev_captured["selected_tests"] = None
+            summary = _route_confirmation_summary(prev_captured)
+            ai_response = _base_route_response(
+                f"Listo, quito los agregados.\n{summary}" if summary else CORRECTION_PROMPT,
+                prev_captured,
+            )
         else:
             ai_response = _base_route_response(CORRECTION_PROMPT, prev_captured)
         # Mientras se edita el resumen seguimos en la fase de confirmación, para que el

@@ -5,7 +5,7 @@ app.text/app.flow/otros detectores — sin I/O ni helpers de agent."""
 import re
 
 from app.text import tokenize as _tokenize, ACCENT_TRANSLATION as _ACCENT_TRANSLATION
-from app.detectors.orden import _is_same_as_previous, _SAME_AS_PREVIOUS_TOKENS
+from app.detectors.orden import _detect_correction_field, _is_same_as_previous, _SAME_AS_PREVIOUS_TOKENS
 from app.detectors.basico import _AFFIRMATIVE_TOKENS, _NEGATIVE_TOKENS
 
 
@@ -446,6 +446,45 @@ def _followup_wants_new_analysis(text: str) -> bool:
         return True
     return bool(tokens & {"otro", "otra", "nuevo", "nueva", "distinto", "distinta", "diferente"})
 
+
+
+def _replaces_offered_analysis(text: str, inherited_code: str | None) -> bool:
+    """En la reoferta de datos estables ('Mantengo estos datos… ¿Confirmas o quieres cambiar
+    alguno?'), ¿el mensaje REEMPLAZA el análisis heredado de la orden anterior?
+
+    Nació de 'analisis quiero el 653' (prueba en vivo 2026-08-14): ningún detector de verbos
+    disparó (`_wants_to_change_analysis` exige 'cambi-' u 'otro/nuevo'), el pipeline fijó el
+    653 como perfil base y los AGREGADOS heredados de la orden anterior sobrevivieron — la
+    orden salió $24.000 más cara con análisis que el cliente nunca pidió en ella.
+
+    Decide con lo que el sistema YA sabe, no con verbos: el campo al que apunta el mensaje
+    (`_detect_correction_field`) o un CÓDIGO de catálogo distinto del heredado. Un ajuste
+    parcial ('el mismo pero sin la glucosa') queda afuera: eso personaliza el perfil ofrecido,
+    no lo reemplaza."""
+    if _wants_partial_analysis_change(text):
+        return False
+    if _detect_correction_field(text) == "exam_type":
+        return True
+    heredado = str(inherited_code or "")
+    return any(c != heredado for c in _profile_codes_from_text(text))
+
+
+def _removes_the_additions(text: str) -> bool:
+    """¿El mensaje pide quitar 'los agregados' como conjunto?
+
+    'Agregados' es el RÓTULO que el propio bot imprime en el resumen de la orden
+    ('- Agregados: 1405-Sodio…'): el cliente lo cita tal cual lo leyó. No es una lista
+    temática — es el vocabulario del bot, y el llamador además exige que la orden tenga
+    agregados de verdad (estado), así que solo dispara cuando hay algo que quitar.
+
+    Caso real (2026-08-14): 'en esta orden no quiero los agregados' caía en la repregunta
+    genérica '¿Qué dato quieres corregir?'. Quitar UN análisis puntual ('quitale el sodio')
+    no pasa por acá: eso ya lo maneja el ajuste de análisis en confirmación."""
+    if not re.search(r"(?i)\bagregad", text or ""):
+        return False
+    tokens = set(_tokenize(text))
+    return bool(tokens & {"no", "sin", "quita", "quitar", "quitale", "quítale", "saca",
+                          "sacar", "sacame", "sácame", "elimina", "eliminar", "borra"})
 
 
 def _wants_another_service_order(text: str) -> bool:

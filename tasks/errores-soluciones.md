@@ -479,6 +479,49 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-113 — [ABIERTO] La primera captura de códigos sueltos pierde el estado a veces (preexistente)
+**Síntoma (detectado por QA + repro, 2026-08-14):** en `¿Qué análisis o perfil desean?`, el
+mensaje `"necesito el 1320 y el 1518"` a veces (≈1 de 3) deja `selected_tests = []` mientras el
+MODELO responde *"Perfecto. Registro Urea Sanguínea $12.000 y Cortisol…"* — acuse falso en la
+primera captura, misma clase de dinero que ERR-111 pero en otra vía (la verificación de acuse
+de ERR-111 vive en el ajuste de confirmación y no cubre este camino).
+**Atribución verificada con la disciplina de L63:** repro de 6 corridas contra el código
+actual (4/6 OK) y contra el commit anterior con la MISMA N (4/6 OK) → **preexistente**, no
+regresión de los cambios del día. La primera comparación (3 corridas) había dado 1/3 vs 3/3 y
+apuntaba mal: muestra chica.
+**Hipótesis:** la resolución determinística de códigos sueltos depende de la FORMA de la
+respuesta del modelo (qué campo emite); cuando el modelo pone el acuse en el texto sin emitir
+la captura estructurada, ningún enforcer resuelve. Encaja exactamente con la Parte 2 pendiente
+(coherencia pregunta↔captura): "se preguntó el análisis + el mensaje trae códigos + no se
+capturó nada" debe disparar resolución o repregunta, nunca seguir de largo.
+**Estado:** ABIERTO — documentado 2026-08-14; atacarlo con la Parte 2 (sistema de comprensión).
+
+### ERR-112 — Los agregados de la orden anterior contaminaban la siguiente, y "no quiero los agregados" no se entendía (2026-08-14)
+**Síntoma 1 (Telegram, 19:46 — DINERO):** la orden 1 llevaba el perfil 152 + Sodio y Potasio
+agregados. En la reoferta de la orden 2 el cliente dijo `"analisis quiero el 653"`; el bot fijó
+el 653 pero el resumen salió con *Agregados: 1405-Sodio, 1404-Potasio* heredados → **$82.000 en
+vez de $58.000**, con análisis que el cliente nunca pidió en esa orden. Familia ERR-106.
+**Causa:** el paquete del análisis se hereda completo como reoferta; al reemplazarlo, las tres
+ramas que limpian dependían de verbos (`cambi-`/`otro`) o de un "sí" — y `"analisis quiero el
+653"` no trae ninguno. Otra vez el patrón ERR-110: `_detect_correction_field` daba `exam_type`
+y `_profile_codes_from_text` daba `['653']`, y ningún guard usaba esa información.
+**Solución:** `_replaces_offered_analysis(text, inherited_code)` (`detectors/analisis.py`),
+que decide con el campo detectado o un código distinto del heredado — no con verbos — y
+excluye el ajuste parcial. Dispara la limpieza EXISTENTE (`_clear_field_for_correction`), que
+borra el paquete completo, agregados incluidos. La rama duplicada de ERR-110 quedó cubierta.
+**Síntoma 2 (19:56):** `"en esta orden no quiero los agregados"` → *"¿Qué dato quieres
+corregir? (dirección, médico…)"*. **"Agregados" es el rótulo que el propio bot imprime en el
+resumen**: el cliente lo citaba textual y el sistema no se reconocía a sí mismo.
+**Solución:** `_removes_the_additions(text)` — el rótulo del bot + señal de quitar, cruzado en
+el llamador con el ESTADO (que haya agregados). Quita los agregados, conserva el perfil base y
+re-muestra el resumen recalculado. Si no hay agregados, sigue la repregunta genérica.
+**Tests:** 19 casos nuevos (74 en `test_pedidos_flujo.py`), verificando ESTADO (L66).
+**Verificación:** suite **728** con flag y **656** sin él. QA cierre semántico 25/25; catálogo
+16/16 (el caso múltiple 4/5 es ERR-113, preexistente). Guion en vivo con la conversación
+exacta: parte A (652→653) da **$58.000 sin Agregados** con `selected_tests=[]` y `code=653`;
+parte B quita los agregados y re-resume en $58.000, sin repregunta genérica.
+**Estado:** RESUELTO y verificado (2026-08-14). Pendiente la prueba humana por Telegram.
+
 ### ERR-111 — El bot dijo que agregó dos análisis y la orden quedó vacía (2026-08-14)
 **Síntoma (Telegram, chat 4, 18:29).** Desde el resumen, el cliente escribió *"si quiero
 agreagar sodio y potasio"* (con typo). El bot respondió *"Perfecto, agrego Sodio y Potasio al

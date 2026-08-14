@@ -108,6 +108,8 @@ from app.detectors.analisis import (  # noqa: F401
     _split_multiple_exam_items,
     _wants_partial_analysis_change,
     _wants_profile_recommendation,
+    _removes_the_additions,
+    _replaces_offered_analysis,
     _wants_to_change_analysis,
     _wants_to_proceed_to_payment,
 )
