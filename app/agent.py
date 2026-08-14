@@ -2624,6 +2624,38 @@ def _persist_turn(chat_id: str, user_message: str, ai_response: dict) -> str:
     return ai_response["reply"]
 
 
+def _candado_provenancia_tests(fields: dict, prev_captured: dict, user_message: str) -> None:
+    """Candado de provenancia (ERR-114): los análisis de la orden solo CRECEN por lo que el
+    cliente acaba de decir o elegir. Un código nuevo respecto del estado previo se acepta
+    solo si (1) está literal en el mensaje, (2) el mensaje lo NOMBRA (catalog.names_test),
+    (3) sale del menú activo, o (4) el cliente dijo "el de siempre". El resto se revierte en
+    silencio.
+
+    Debe correr sobre la salida de CADA llamada al modelo — hay DOS `generate_turn` en
+    process_turn (el principal y el del camino de identificación), y por el segundo, sin
+    candado, los `selected_tests` de la ORDEN ANTERIOR que el modelo re-emite desde el
+    historial entraban a la orden nueva: $24.000 de más en análisis nunca pedidos (prueba en
+    vivo 2026-08-14 21:21, reproducido en replay)."""
+    emitidos = _as_text_items(fields.get("selected_tests"))
+    previos = set(_as_text_items(prev_captured.get("selected_tests")))
+    nuevos = [c for c in emitidos if c not in previos]
+    if not nuevos or _is_same_as_previous(user_message):
+        return
+    menu_ok = {str(o.get("code")) for o in (prev_captured.get("_test_menu_options") or [])
+               if o.get("code")}
+    sospechosos = [c for c in nuevos if c not in (user_message or "") and c not in menu_ok]
+    if sospechosos:
+        try:
+            rows = {str(r.get("code")): r for r in db.list_catalog_tests(limit=5000)}
+            sospechosos = [c for c in sospechosos
+                           if not (c in rows and catalog.names_test(user_message, rows[c]))]
+        except Exception:  # sin catálogo no se puede validar: no tocar nada
+            sospechosos = []
+    if sospechosos:
+        kept = [c for c in emitidos if c not in set(sospechosos)]
+        fields["selected_tests"] = kept or prev_captured.get("selected_tests")
+
+
 def process_turn(
     chat_id: str,
     user_message: str,
@@ -3274,20 +3306,17 @@ def process_turn(
     # Reemplaza la copia manual inline; el comportamiento es idéntico (ver state.carry_over).
     state.ConversationState(fields).carry_over(prev_captured)
 
-    # ERR-114 — FANTASMAS de la orden anterior. El modelo re-emite `selected_tests` que vio
-    # en el historial (el resumen de la orden 1 los nombra: "Agregados: 1405-Sodio…") en
-    # turnos que ni hablan del análisis — el nombre del propietario, la observación. En la
-    # prueba en vivo del 2026-08-14 21:21 los re-emitió TRES turnos seguidos después de la
-    # limpieza y terminaron en la orden 2: $24.000 de más en análisis que el cliente nunca
-    # pidió en ella. Se descartan ACÁ, a la entrada, con una regla de estado + contexto: el
-    # estado no los tenía, el bot está preguntando OTRO campo, y el mensaje no trae esos
-    # códigos. Más abajo hay demasiadas vías con excepciones para taparlas una por una.
-    _emitidos = _as_text_items(fields.get("selected_tests"))
-    if _emitidos and not _as_text_items(prev_captured.get("selected_tests")):
-        _asked = _detect_which_field_is_being_asked(history)
-        if (_asked and _asked != "exam_type"
-                and not any(c in (user_message or "") for c in _emitidos)):
-            fields["selected_tests"] = None
+    # CANDADO DE PROVENANCIA (ERR-114 — la lógica de estados por orden que pidió el usuario,
+    # 2026-08-15): los análisis de la orden solo pueden CRECER por lo que el cliente acaba de
+    # decir o elegir. El modelo re-emite los `selected_tests` de la ORDEN ANTERIOR en cada
+    # turno porque los ve en el historial ("Agregados: 1405-Sodio…" en el resumen de la orden
+    # 1) y por distintas vías con excepciones terminaban dentro de la orden nueva: $24.000 de
+    # más en análisis nunca pedidos. Acá, en el ÚNICO punto donde entra la salida del modelo,
+    # un código nuevo solo se acepta si (1) está literal en el mensaje, (2) el mensaje lo
+    # NOMBRA (catalog.names_test), (3) sale del menú activo, o (4) el cliente dijo "el de
+    # siempre". Lo demás se revierte en silencio. Los caminos determinísticos de más abajo
+    # agregan por sus propias vías (mensaje + catálogo) y no pasan por este filtro.
+    _candado_provenancia_tests(fields, prev_captured, user_message)
 
     _merge_existing_route_fields(prev_captured, fields)
     _apply_common_order_fallbacks(fields, user_message)
@@ -3910,6 +3939,9 @@ def process_turn(
                     if k.startswith("_"):
                         new_fields[k] = v
                 fields = new_fields
+                # SEGUNDA llamada al modelo del turno: mismo candado que la primera. Por acá,
+                # sin filtro, re-entraban los análisis de la orden anterior (ERR-114).
+                _candado_provenancia_tests(fields, prev_captured, user_message)
 
     was_results = ai_response.get("intent") == "results"
     ai_response = _enforce_results_message(session, ai_response, user_message)

@@ -507,6 +507,17 @@ DENTRO de `_enforce_selected_tests_grounding` (qué excepción tomó, qué ancl�
 corpus) — nombra la vía exacta en una pasada. Y considerar la solución de fondo: PROVENANCIA
 de los análisis (solo entra a la orden lo que se agregó por una vía explícita de ESTA orden),
 que es la versión fuerte del sistema de coherencia de la Parte 2.
+**Avance 2 (2026-08-15):** implementado el CANDADO DE PROVENANCIA propuesto por el usuario
+(`_candado_provenancia_tests`, `app/agent.py`): un código nuevo solo entra si está en el
+mensaje, el mensaje lo nombra, sale del menú activo o es "el de siempre". Aplicado a las DOS
+llamadas al modelo de process_turn (se descubrió que hay un segundo `generate_turn` en el
+camino de identificación, sin filtros — vía probable). Verificado en aislamiento: descarta
+fantasmas y conserva legítimos; suite 730 verde. **PERO el replay de la conversación 21:06
+sigue terminando con los fantasmas en el estado (4/6)** — queda al menos una vía de re-entrada
+sin identificar. Los espías muestran que a la altura del anclaje los códigos siguen presentes:
+o el turno pasa por un camino que esquiva ambos candados, o algo entre el candado y el anclaje
+los re-agrega. Próximo paso: replay con print DENTRO del candado y del anclaje (qué recibió,
+qué decidió) — una corrida nombra la vía.
 **Estado:** ABIERTO — el flujo multi-orden con agregados en la orden 1 sigue en riesgo de
 cobrar de más. NO probar en vivo ese caso como si estuviera resuelto.
 
