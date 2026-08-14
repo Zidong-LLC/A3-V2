@@ -137,14 +137,43 @@ def _enforce_selected_tests_grounding(session: dict, ai_response: dict, prev_fie
     # salen de ese menú. Un menú PEGADO de otro paso (ej. perfiles prequirúrgicos arrastrados
     # hasta el armado a medida) no desactiva el anclaje: por ese hueco 'orina' se registró
     # igual sin menú en el replay verificado.
+    # FANTASMAS del snapshot (ERR-114) — PRIMERO, antes de cualquier excepción: códigos de la
+    # ORDEN ANTERIOR que el modelo re-emite porque los ve en el historial (el resumen de la
+    # orden 1 los nombra). Si el mensaje de ESTE turno no los trae —ni el código ni el
+    # nombre—, se quitan EN SILENCIO: no son una adivinanza que ofrecer como menú, son basura
+    # de contexto. En la prueba en vivo del 2026-08-14 21:21 revivieron TRES turnos seguidos
+    # después de limpiados, y la orden 2 salió con los Agregados de la orden 1 y $24.000 de
+    # más. Un pedido legítimo de repetirlos ("sodio y potasio también acá") los nombra, y por
+    # eso sobrevive a este filtro.
+    snap_codes = set(_as_text_items((prev.get("_prev_order_snapshot") or {}).get("selected_tests")))
+    ghosts = [c for c in new_codes if c in snap_codes and c not in (user_message or "")]
+    if ghosts:
+        try:
+            rows_g = {str(r.get("code")): r for r in db.list_catalog_tests(limit=5000)}
+            ghosts = [c for c in ghosts
+                      if not (c in rows_g and catalog.names_test(user_message, rows_g[c]))]
+        except Exception:
+            pass
+        if ghosts:
+            fields["selected_tests"] = [
+                c for c in _as_text_items(fields.get("selected_tests")) if c not in ghosts
+            ] or None
+            new_codes = [c for c in new_codes if c not in ghosts]
+            if not new_codes:
+                return ai_response
     if _is_same_as_previous(user_message):
         return ai_response
     menu_codes = {str(o.get("code")) for o in (prev.get("_test_menu_options") or []) if o.get("code")}
     if menu_codes and set(new_codes) <= menu_codes:
         return ai_response
-    snapshot = prev.get("_prev_order_snapshot") or {}
-    if set(new_codes) <= set(_as_text_items(snapshot.get("selected_tests"))):
-        return ai_response
+    # OJO: acá había una tercera excepción — códigos presentes en `_prev_order_snapshot`
+    # pasaban sin anclaje. Era redundante o dañina: si los heredados siguen ACTIVOS están en
+    # `prev.selected_tests` y no son "nuevos" (no llegan acá); y si fueron LIMPIADOS (el
+    # cliente cambió el análisis en la orden de seguimiento), el modelo los re-emitía igual
+    # porque los veía en el historial, y esta excepción los resucitaba: la orden 2 salió con
+    # los Agregados de la orden 1 y $24.000 de más, DESPUÉS de que la limpieza corriera bien
+    # (prueba en vivo 2026-08-14 21:19, ERR-114). Un código que el cliente no nombró no entra,
+    # venga de donde venga.
     try:
         all_rows = db.list_catalog_tests(limit=5000)
     except Exception:

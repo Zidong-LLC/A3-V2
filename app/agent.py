@@ -3274,6 +3274,21 @@ def process_turn(
     # Reemplaza la copia manual inline; el comportamiento es idéntico (ver state.carry_over).
     state.ConversationState(fields).carry_over(prev_captured)
 
+    # ERR-114 — FANTASMAS de la orden anterior. El modelo re-emite `selected_tests` que vio
+    # en el historial (el resumen de la orden 1 los nombra: "Agregados: 1405-Sodio…") en
+    # turnos que ni hablan del análisis — el nombre del propietario, la observación. En la
+    # prueba en vivo del 2026-08-14 21:21 los re-emitió TRES turnos seguidos después de la
+    # limpieza y terminaron en la orden 2: $24.000 de más en análisis que el cliente nunca
+    # pidió en ella. Se descartan ACÁ, a la entrada, con una regla de estado + contexto: el
+    # estado no los tenía, el bot está preguntando OTRO campo, y el mensaje no trae esos
+    # códigos. Más abajo hay demasiadas vías con excepciones para taparlas una por una.
+    _emitidos = _as_text_items(fields.get("selected_tests"))
+    if _emitidos and not _as_text_items(prev_captured.get("selected_tests")):
+        _asked = _detect_which_field_is_being_asked(history)
+        if (_asked and _asked != "exam_type"
+                and not any(c in (user_message or "") for c in _emitidos)):
+            fields["selected_tests"] = None
+
     _merge_existing_route_fields(prev_captured, fields)
     _apply_common_order_fallbacks(fields, user_message)
 

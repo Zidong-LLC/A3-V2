@@ -412,6 +412,49 @@ def test_referencias_que_no_son_quitar_los_agregados(mensaje):
     assert agent._removes_the_additions(mensaje) is False
 
 
+# ── 1f. El snapshot no revive códigos que el cliente no nombró ─────────────────
+
+def test_el_snapshot_no_revive_los_agregados_limpiados():
+    """ERR-114 (prueba en vivo 2026-08-14 21:19): la limpieza de ERR-112 corrió bien, pero el
+    MODELO re-emitió [1405, 1404] porque los vio en el historial, y el anclaje tenía una
+    excepción que dejaba pasar sin verificar cualquier código presente en el snapshot de la
+    orden anterior. Los agregados revivían y la orden 2 salía $24.000 más cara.
+
+    Regla: un código que el cliente no nombró no entra, venga de donde venga."""
+    from app.enforcers import catalogo as ecat
+    prev = {
+        "_client_found": True, "species": "Canino",
+        "selected_tests": None,                      # limpiado por el cambio de análisis
+        "_prev_order_snapshot": {"selected_tests": ["1405", "1404"]},
+    }
+    fields = dict(prev, selected_tests=["1405", "1404"],   # el modelo los re-emite
+                  _selected_profile_code="653", exam_type="Perfil Senior Canino III")
+    ai = {"intent": "route_scheduling", "requires_handoff": False,
+          "captured_fields": fields, "reply": "(del modelo)"}
+    SODIO = {"code": "1405", "name": "Sodio", "price": 12000, "category": "Química"}
+    POTASIO = {"code": "1404", "name": "Potasio", "price": 12000, "category": "Química"}
+    with patch.object(ecat.db, "list_catalog_tests", return_value=[SODIO, POTASIO]):
+        out = ecat._enforce_selected_tests_grounding(
+            {"client_id": "c1"}, ai, prev, "laura", [])
+    guardados = set(agent._as_text_items(out["captured_fields"].get("selected_tests")))
+    assert not ({"1405", "1404"} & guardados), \
+        f"el anclaje tiene que descartar los códigos no nombrados: {guardados}"
+
+
+def test_los_heredados_activos_no_pasan_por_el_anclaje():
+    """Contraprueba: si los heredados siguen ACTIVOS están en prev.selected_tests, no son
+    'nuevos' y el anclaje ni interviene — la reoferta confirmada sigue funcionando."""
+    from app.enforcers import catalogo as ecat
+    prev = {"_client_found": True, "selected_tests": ["1405", "1404"],
+            "_prev_order_snapshot": {"selected_tests": ["1405", "1404"]}}
+    fields = dict(prev)
+    ai = {"intent": "route_scheduling", "requires_handoff": False,
+          "captured_fields": fields, "reply": "(del modelo)"}
+    out = ecat._enforce_selected_tests_grounding({"client_id": "c1"}, ai, prev, "si", [])
+    assert out["reply"] == "(del modelo)"
+    assert agent._as_text_items(out["captured_fields"].get("selected_tests")) == ["1405", "1404"]
+
+
 # ── 2. El pedido queda abierto y admite más órdenes ─────────────────────────────
 
 def test_pedir_otra_orden_mantiene_el_pedido_abierto():

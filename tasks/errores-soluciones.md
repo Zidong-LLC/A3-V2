@@ -479,6 +479,37 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-114 — [ABIERTO — EN CURSO] Los agregados de la orden 1 reviven en la orden 2 pese a la limpieza
+**Síntoma (Telegram 2026-08-14 21:21, y REPRODUCIDO en replay):** la limpieza de ERR-112 corre
+bien ("si el analisis quiero cambiar" → estado limpio), el cliente fija el 653, y el resumen de
+la orden 2 sale igual con *Agregados: 1405-Sodio, 1404-Potasio* de la orden 1 → $82.000 en vez
+de $58.000.
+**Lo confirmado con instrumentación (espías en `generate_turn` y en el anclaje):**
+- El MODELO re-emite `selected_tests=['1405','1404']` en CADA turno de la orden 2 (los ve en
+  el historial: el resumen de la orden 1 los nombra). Turnos que ni hablan del análisis
+  ("laura", "no ninguna") vienen con esos códigos.
+- `_enforce_selected_tests_grounding` los DEJA PASAR en vivo (espía: `['1405','1404'] ->
+  ['1405','1404']`), aunque en aislamiento con las mismas condiciones los descarta. La vía
+  exacta que los deja pasar NO está identificada aún.
+- Algo posterior los limpia en la mayoría de los turnos (estado `[]` tras 17-19), pero en el
+  turno del resumen sobreviven y entran a la orden.
+- **Premisas descartadas con datos:** el snapshot NO guarda `selected_tests` (es null — la
+  excepción del snapshot no era la vía); `update_session` reemplaza completo (no hay merge
+  que ignore None).
+**Endurecimiento aplicado (suma, no cierra):** (1) eliminada la excepción del snapshot en el
+anclaje — era pasaje sin verificación; (2) filtro de fantasmas dentro del anclaje; (3) descarte
+a la ENTRADA del pipeline: si el estado no tenía análisis, el bot pregunta OTRO campo y el
+mensaje no trae los códigos, los emitidos se descartan antes de los enforcers. Tests de estado
+(2 nuevos), suite 730 verde. **El replay letra por letra de la conversación 21:06 sigue dando
+4/6** — el fantasma llega igual al resumen final por una vía no identificada.
+**Próximo paso (primera tarea de la sesión siguiente):** UNA corrida instrumentada con prints
+DENTRO de `_enforce_selected_tests_grounding` (qué excepción tomó, qué ancló y contra qué
+corpus) — nombra la vía exacta en una pasada. Y considerar la solución de fondo: PROVENANCIA
+de los análisis (solo entra a la orden lo que se agregó por una vía explícita de ESTA orden),
+que es la versión fuerte del sistema de coherencia de la Parte 2.
+**Estado:** ABIERTO — el flujo multi-orden con agregados en la orden 1 sigue en riesgo de
+cobrar de más. NO probar en vivo ese caso como si estuviera resuelto.
+
 ### ERR-113 — [ABIERTO] La primera captura de códigos sueltos pierde el estado a veces (preexistente)
 **Síntoma (detectado por QA + repro, 2026-08-14):** en `¿Qué análisis o perfil desean?`, el
 mensaje `"necesito el 1320 y el 1518"` a veces (≈1 de 3) deja `selected_tests = []` mientras el
