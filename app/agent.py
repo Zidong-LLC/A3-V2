@@ -2732,11 +2732,15 @@ def _order_boundary_response(session: dict, ai_response: dict, prev: dict,
                 siguiente["exam_type"] = p0.get("name")
             rows = db.list_catalog_tests(limit=5000)
             codigos_test = {str(r.get("code")) for r in rows}
-            # SOLO códigos literales del mensaje: la resolución por NOMBRE sobre el bloque
-            # entero agarraba matches espurios (un '161' que nadie pidió). Si el cliente
-            # nombró el análisis sin código, la orden nueva lo pregunta y el flujo normal
-            # lo resuelve — perder un turno es mejor que registrar un análisis ajeno.
+            # Códigos literales del mensaje + análisis NOMBRADOS con el criterio estricto
+            # del anclaje (`names_test`: contenido distintivo, nunca palabras de área). La
+            # resolución difusa de bloque entero quedó descartada — agarraba matches
+            # espurios (un '161' que nadie pidió); `names_test` es la vara ya probada.
             tests = [c for c in codes if c not in cod_perfil and c in codigos_test]
+            for r in rows:
+                cod = str(r.get("code"))
+                if cod not in tests and cod not in cod_perfil and catalog.names_test(user_message, r):
+                    tests.append(cod)
             if tests:
                 siguiente["selected_tests"] = tests
                 if not perfiles:
