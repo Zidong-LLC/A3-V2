@@ -479,6 +479,25 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-118 — [ABIERTO] Estado del estrés multi-orden tras la frontera humana (corte 2026-08-15)
+**Trayectoria medida** (QA de estrés, veredicto por estado): masivo_5 0/5 → **4/5**;
+maraton_10 1/10 → 4/10 con corrimiento +1 persistente. El bucle de "otra orden" está muerto,
+la estructura por paciente funciona, y el perfil 161 de $90.000 (ERR-041 vía snapshot del
+exam) quedó eliminado con el fix del grounding (`f7d61d5`).
+**Pendientes concretos, con pista:**
+1. **Corrimiento +1 en el maratón**: cuando el cliente parte el bloque (paciente en un
+   mensaje, análisis en el siguiente) o antepone "Confirmo, y sigo con…", la frontera no
+   dispara en ese turno y los códigos del paciente N+1 se enganchan a la orden N abierta.
+   Ver transcripciones `estres_transcript_maraton_10.txt` (v4/v5). Probable: `nombre_nuevo`
+   falla si el modelo no emite patient_name en ese turno → agregar red determinística
+   (nombre nuevo detectado en el MENSAJE contra el patrón del plan de datos del paciente).
+2. **DOBLE factura en masivo_5 v5** (`facturas emitidas: 2`): pista nueva de dinero — revisar
+   si el cierre corre dos veces o si el barrido de abandonados facturó además del cierre.
+3. **Bloque con 2 códigos sueltos** ("1101 y 1701") a veces abre la orden vacía (P2).
+**Herramienta**: `tools/scripts/qa_estres_multiorden.py` — correr `masivo_5 maraton_10` tras
+cada fix; la vara es 6/6 personas con dinero limpio.
+**Estado:** ABIERTO — en iteración activa; NO declarar producción hasta la vara (2026-08-15).
+
 ### ERR-117 — [ABIERTO — DECISIÓN DE FLUJO] La frontera entre órdenes solo existe si el cliente dice "otra orden" en el momento exacto
 **Hallazgo del QA de estrés (2026-08-15, 6 personas × 1-10 órdenes):** los clientes humanos
 marcan el cambio de paciente de DOS formas que el flujo no soporta:
