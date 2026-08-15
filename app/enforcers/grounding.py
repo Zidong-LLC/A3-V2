@@ -45,9 +45,14 @@ def enforce_exam_type_grounding(ai_response: dict, prev_fields: dict,
             or prev.get("_profile_customizing")
             or _is_same_as_previous(user_message)):
         return ai_response
-    snapshot = prev.get("_prev_order_snapshot") or {}
-    if exam == snapshot.get("exam_type"):
-        return ai_response
+    # OJO: acá había una excepción — un exam_type igual al del snapshot pasaba sin anclaje.
+    # Es el ESPEJO de la excepción eliminada en el anclaje de selected_tests (ERR-114): si el
+    # análisis heredado sigue ACTIVO está en prev.exam_type y el primer guard ya lo dejó
+    # pasar; si NO está (orden nueva de la frontera), el modelo lo re-emite desde el
+    # historial, esta excepción lo bendecía, y el backstop de precio lo resolvía POR NOMBRE
+    # contra el catálogo — "Perfil Prequirúrgico I" matcheaba el 161 "Prequirúrgico X" de
+    # $90.000 (el match de ERR-041): la orden M2 del estrés salió con un perfil de $90k que
+    # nadie pidió. Un análisis que el cliente no nombró no entra, venga de donde venga.
     user_text = " ".join(
         [user_message] + [m.get("content", "") for m in history if m.get("role") == "user"]
     )
