@@ -88,6 +88,20 @@ def _order_summary_lines(fields: dict, header: str) -> list[str] | None:
     # Backstop de precio: asegurar que un perfil base elegido por texto tenga su código/precio
     # antes de calcular el total (si se agregaron análisis, no perder el valor del perfil).
     _resolve_profile_base_if_missing(fields)
+    # Y el equivalente para ANÁLISIS sueltos (QA de estrés 2026-08-15): si la orden llega a
+    # la puerta del dinero sin ningún ítem con precio pero su exam_type trae CÓDIGOS del
+    # catálogo ("1101 y 1701" quedó como texto porque el modelo no lo estructuró), se
+    # resuelven acá, determinístico. Sin esto la orden se registraba VACÍA y facturaba $0.
+    if (not fields.get("_selected_profile_code")
+            and not _as_text_items(fields.get("selected_tests"))):
+        _codigos = _profile_codes_from_text(str(fields.get("exam_type") or ""))
+        if _codigos:
+            try:
+                _filas = db.get_tests_by_codes(_codigos)
+            except Exception:
+                _filas = []
+            if _filas:
+                fields["selected_tests"] = [str(r.get("code")) for r in _filas]
 
     clinic_name = fields.get("clinic_name") or fields.get("_client_display_name") or "cliente registrado"
     analysis = fields.get("exam_type")
