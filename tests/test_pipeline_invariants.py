@@ -39,7 +39,11 @@ AGENT = APP / "agent.py"
 # está", "no va más") y ninguna lista de tokens las cubre — el modelo sí las entiende. Lo
 # único pre-LLM es que el atajo de despedida CEDE cuando hay un pedido abierto, para que el
 # turno llegue al modelo; eso no agrega returns.
-PRE_LLM_RETURNS_BASELINE = 43
+# 44 (2026-08-15, ERR-118): cierre determinístico del pedido cuando el ESTADO no admite otra
+# lectura — pedido abierto + orden registrada + forma de pago en el mensaje. Decide por
+# estado; el único texto que lee es la red de pago ya probada (QA 7/7). Pasar por el modelo
+# en ese estado rompía el cierre ("Contraentrega." → "¿Qué análisis o perfil desean?").
+PRE_LLM_RETURNS_BASELINE = 44
 
 
 def _process_turn_ast() -> tuple[ast.FunctionDef, int]:

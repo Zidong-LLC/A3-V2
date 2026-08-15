@@ -846,6 +846,21 @@ def _enforce_catalog_profile_code_selection(session: dict, ai_response: dict, us
     except Exception:
         return ai_response
     if not profiles:
+        # ERR-113/118.3 — códigos de ANÁLISIS sueltos en la primera captura ("necesito el
+        # 1101 y el 1701"): no hay perfil que resolver y, si el modelo no estructuraba los
+        # códigos, la orden quedaba VACÍA de forma intermitente (medido: ~1 de 3). Con
+        # códigos válidos del catálogo y sin análisis previo en la orden, la captura es
+        # determinística — el catálogo decide, no el modelo (L66).
+        if not (fields.get("exam_type") or fields.get("selected_tests")
+                or fields.get("_selected_profile_code")):
+            try:
+                rows = db.get_tests_by_codes(codes)
+            except Exception:
+                rows = []
+            if rows and len(rows) == len(codes):
+                _add_tests_to_order(fields, rows, "add")
+                return _analysis_settled_response(
+                    session, fields, f"Listo, registro {_format_test_items(rows)}.")
         return ai_response
 
     # PEDIDO MIXTO en la primera captura: "perfil 956, 2016 y 1901" — un perfil y dos

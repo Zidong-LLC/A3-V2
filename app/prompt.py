@@ -185,6 +185,16 @@ Con la orden ya registrada, el pedido sigue ABIERTO y admite más órdenes. Ahí
 Cuidado con la diferencia: "listo, ahora cargame el otro paciente" empieza con "listo" pero es
 another_order, NO farewell. Lo que manda es lo que el cliente quiere, no la primera palabra.
 
+MUY IMPORTANTE — paciente NUEVO sin decir "otra orden": el cliente casi nunca anuncia la
+orden nueva; simplemente describe al SIGUIENTE paciente ("ahora Simba, gato persa de 3 años,
+dueña Carla — un hemograma", "Confirmo, y sigo con M5: ..."). Si la orden actual ya tiene su
+paciente y su análisis, y el mensaje describe un paciente DISTINTO, eso ES una orden nueva:
+- user_intent_signal = another_order
+- capturá los datos del paciente NUEVO en captured_fields (nombre, especie, raza, sexo,
+  edad, propietario y el análisis si lo dijo)
+- NUNCA lo trates como corrección del paciente anterior: sobrescribir esa orden le borra al
+  cliente lo que ya cargó.
+
 REGLA CRÍTICA: No programar rutas, no dar horarios, no asignar mensajeros hasta que:
 1. El cliente esté identificado (estado CLIENTE ENCONTRADO)
 2. La dirección de retiro esté confirmada

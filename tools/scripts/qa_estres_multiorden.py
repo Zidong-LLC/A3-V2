@@ -213,8 +213,12 @@ def _run(nombre: str, estilo: str, plan: list, max_turns: int = 120) -> dict:
     cerrado = campos.get("_pedido_cerrado") is True
     if not cerrado:
         fallos.append("el pedido NO quedó cerrado")
-    if len(facturas) != 1:
-        fallos.append(f"facturas emitidas: {len(facturas)} (debe ser exactamente 1)")
+    # Un cliente puede cerrar a mitad y seguir cargando: eso abre OTRO pedido legítimo. La
+    # regla de dinero es 1 factura POR PEDIDO CERRADO, no 1 por conversación.
+    cerrados = sum(1 for p in (_state.get("pedidos") or {}).values()
+                   if p.get("status") in ("cerrado", "facturado"))
+    if len(facturas) != max(cerrados, 1):
+        fallos.append(f"facturas emitidas: {len(facturas)} para {cerrados} pedido(s) cerrado(s)")
     # Transcripción COMPLETA a archivo: el triage de una rotura necesita el contexto entero,
     # no los últimos 14 turnos.
     import os

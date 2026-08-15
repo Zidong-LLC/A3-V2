@@ -2709,7 +2709,7 @@ def _order_boundary_response(session: dict, ai_response: dict, prev: dict,
     cerrado = _base_route_response("(cierre por frontera)", actual)
     cerrado["phase"] = "fase_6_cierre"
     siguiente: dict = {}
-    if es_bloque:
+    if es_bloque or quiere_otra:
         for k in ("patient_name",) + _CAMPOS_PACIENTE:
             v = fields.get(k)
             if v and v != prev.get(k):
@@ -2861,6 +2861,18 @@ def process_turn(
     # va más") que ninguna lista de palabras cubre. El turno pasa al modelo y lo resuelve
     # `_enforce_open_pedido_close` con la señal de intención (decisión 011).
     _pedido_abierto = PEDIDOS_ENABLED and (session.get("captured_fields") or {}).get("_pedido_id")
+    # CIERRE DETERMINÍSTICO del pedido (QA de estrés 2026-08-15): con el pedido abierto, la
+    # orden actual YA registrada y la forma de pago en el mensaje, se cierra ACÁ, sin pasar
+    # por el modelo ni el pipeline. En el estrés, "Contraentrega." en ese estado terminaba en
+    # "¿Qué análisis o perfil desean?" — el modelo re-emitía nulls y algún empuje pisaba el
+    # cierre. El pago dicho con la orden cerrada no tiene otra lectura posible.
+    _campos_pedido = session.get("captured_fields") or {}
+    if (_pedido_abierto and _campos_pedido.get("_order_registered")
+            and _payment_method_from_text(user_message)):
+        db.save_message(chat_id, user_message, "user")
+        _cierre = _close_pedido_turn(session, dict(_campos_pedido),
+                                     _payment_method_from_text(user_message))
+        return _persist_turn(chat_id, user_message, _cierre)
     if session.get("phase_current") in TERMINAL_PHASES and _is_farewell(user_message) and not _pedido_abierto:
         db.save_message(chat_id, user_message, "user")
         db.save_message(chat_id, FAREWELL_REPLY, "bot")
