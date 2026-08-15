@@ -7,6 +7,7 @@ from app.config import PEDIDOS_ENABLED
 from app.text import as_text_items as _as_text_items, catalog_item_key as _catalog_item_key, money as _money, strip_price_text as _strip_price_text, tokenize as _tokenize
 from app.flow import (
     base_route_response as _base_route_response,
+    extra_analysis_offer as _extra_analysis_offer_text,
     estimated_total_text as _estimated_total_text,
     format_test_items as _format_test_items,
     missing_route_field as _missing_route_field,
@@ -21,6 +22,7 @@ from app.detectors import (
     _detect_correction_field,
     _detect_which_field_is_being_asked,
     _wants_to_change_client,
+    _wants_new_order_strict,
     _doesnt_know_what_to_ask,
     _is_affirmative_text,
     _is_ambiguous_profile_change,
@@ -147,6 +149,12 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
     # con el reorden C2 el atajo pre-LLM ya no intercepta antes — sin esta cesión, el paso
     # genérico se lo tragaba con '¿qué análisis agregas?' (mensaje corto, <8 tokens).
     if _wants_to_change_client(user_message):
+        return None
+    # Pedir OTRA ORDEN tampoco es de este carril (QA de estrés 2026-08-15, ERR-116): "otra
+    # orden" son 2 tokens, no matchea nada del catálogo y caía en la re-pregunta del paso 6 —
+    # el cliente quedaba en BUCLE y su pedido de 3 órdenes terminó con CERO registradas. Se
+    # cede el turno completo: la frontera de orden decide qué hacer con la actual.
+    if _wants_new_order_strict(user_message):
         return None
     # 1) Sigue al pago: dio el método o dijo que ya está. Un atajo solo traga el mensaje si
     # NO trae más que eso (L49): un 'no' incidental dentro de otra intención ('...esta orden
@@ -327,10 +335,9 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
     if len(_tokenize(user_message)) > 8:
         return None
 
-    # 6) No se entendió: aclarar sin perder el estado ni cerrar a ciegas.
-    return _base_route_response(
-        "¿Quieres agregar algún análisis más (decime cuál) o seguimos con el pago?", fields
-    )
+    # 6) No se entendió: aclarar sin perder el estado ni cerrar a ciegas. Pregunta CERRADA y
+    # sin prometer "el pago" (con pedidos no es el paso siguiente — resto de ERR-107/116).
+    return _base_route_response(_extra_analysis_offer_text(), fields)
 
 
 

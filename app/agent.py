@@ -52,6 +52,7 @@ from app.detectors import (
     _wants_partial_analysis_change,
     _removes_the_additions,
     _replaces_offered_analysis,
+    _wants_new_order_strict,
     _wants_to_change_analysis,
     _looks_like_catalog_profile,
     _looks_like_specific_profile_query,
@@ -2644,6 +2645,142 @@ def _persist_turn(chat_id: str, user_message: str, ai_response: dict) -> str:
     return ai_response["reply"]
 
 
+_CAMPOS_PACIENTE = ("species", "breed", "sex", "patient_age", "owner_name")
+
+
+def _order_boundary_response(session: dict, ai_response: dict, prev: dict,
+                             user_message: str) -> dict | None:
+    """FRONTERA DE ORDEN humana (ERR-117, decisión del usuario 2026-08-15): el cliente marca
+    el cambio de paciente como le sale, no con el protocolo registrar→"otra orden".
+
+    Dos disparadores, por SEÑAL + ESTADO (nunca por lista de palabras — L65):
+    A. Pide OTRA ORDEN a mitad de la actual (señal `another_order` o el detector de red).
+    B. Describe un paciente NUEVO en bloque: cambió el nombre Y ≥2 datos más del paciente en
+       el mismo turno, con la orden actual ya cargada (paciente + análisis). Antes esto se
+       leía como CORRECCIÓN y sobrescribía el formulario: en el QA de estrés un cliente cargó
+       5 pacientes y se registraron CERO órdenes.
+
+    Devuelve None si no hay frontera. Si la hay:
+    - orden actual COMPLETA → respuesta en fase_6_cierre con los campos ACTUALES (el
+      `_finalize_request` de siempre la registra, igual que un "sí") y `boundary_next` con
+      los datos del paciente nuevo para abrir la siguiente sin repreguntar nada.
+    - orden actual INCOMPLETA → pregunta determinística del campo que falta, nombrando al
+      paciente — nunca un bucle.
+    El llamador la resuelve por fuera del pipeline: es determinística de punta a punta y los
+    enforcers posteriores (captura de códigos del mensaje, confirmación) no deben tocarla —
+    los códigos del paciente NUEVO no pueden engancharse a la orden que se está cerrando.
+    """
+    if ai_response.get("intent") != "route_scheduling":
+        return None
+    if prev.get("_order_registered") or not (session.get("client_id") or prev.get("_client_found")):
+        return None
+    fields = ai_response.get("captured_fields") or {}
+    signal = ai_response.get("user_intent_signal")
+
+    quiere_otra = signal == "another_order" or _wants_new_order_strict(user_message)
+    nombre_nuevo = bool(fields.get("patient_name") and prev.get("patient_name")
+                        and str(fields["patient_name"]).strip().lower()
+                        != str(prev["patient_name"]).strip().lower())
+    cambiados = sum(1 for f in _CAMPOS_PACIENTE
+                    if fields.get(f) and fields.get(f) != prev.get(f))
+    orden_cargada = bool(prev.get("patient_name") and (
+        prev.get("exam_type") or prev.get("selected_tests") or prev.get("_selected_profile_code")))
+    es_bloque = (nombre_nuevo and cambiados >= 2 and orden_cargada
+                 and signal != "correction" and not _is_correction_request(user_message))
+    if not (quiere_otra or es_bloque):
+        return None
+
+    actual = dict(prev)
+    falta = _missing_route_field(session, actual)
+    # El cliente ya pasó a otro paciente: si lo único pendiente es la observación, la orden
+    # queda "sin observaciones" — hacerlo volver a un campo opcional sería el protocolo
+    # robótico que el usuario pidió eliminar.
+    if falta == "observations":
+        actual["observations"] = "sin observaciones"
+        falta = _missing_route_field(session, actual)
+
+    if falta:
+        paciente = actual.get("patient_name") or "este paciente"
+        resp = _base_route_response(
+            f"¡Con gusto cargamos otra! Para cerrar la de {paciente} me falta un dato. "
+            f"{_missing_route_field_question(falta)}", actual)
+        return resp
+
+    cerrado = _base_route_response("(cierre por frontera)", actual)
+    cerrado["phase"] = "fase_6_cierre"
+    siguiente: dict = {}
+    if es_bloque:
+        for k in ("patient_name",) + _CAMPOS_PACIENTE:
+            v = fields.get(k)
+            if v and v != prev.get(k):
+                siguiente[k] = v
+        # El análisis dicho en la MISMA frase es del paciente NUEVO, y se resuelve DEL
+        # MENSAJE contra el catálogo — no de los campos del modelo: en el turno del bloque el
+        # modelo suele estructurar solo al paciente, la orden nueva nacía sin análisis, y con
+        # la orden vacía la frontera SIGUIENTE no disparaba — en el maratón de 10 eso corrió
+        # todos los análisis una orden (+1) y perdió los de la primera de la cascada.
+        try:
+            especie = siguiente.get("species") or fields.get("species") or prev.get("species")
+            codes = _profile_codes_from_text(user_message)
+            perfiles = db.get_catalog_profiles_by_codes(codes, especie) if codes else []
+            cod_perfil = {str(p.get("code")) for p in perfiles}
+            if perfiles:
+                p0 = perfiles[0]
+                siguiente["_selected_profile_code"] = p0.get("code")
+                siguiente["_selected_profile_name"] = p0.get("name")
+                siguiente["_selected_profile_price"] = int(p0.get("price") or 0)
+                siguiente["exam_type"] = p0.get("name")
+            rows = db.list_catalog_tests(limit=5000)
+            codigos_test = {str(r.get("code")) for r in rows}
+            # SOLO códigos literales del mensaje: la resolución por NOMBRE sobre el bloque
+            # entero agarraba matches espurios (un '161' que nadie pidió). Si el cliente
+            # nombró el análisis sin código, la orden nueva lo pregunta y el flujo normal
+            # lo resuelve — perder un turno es mejor que registrar un análisis ajeno.
+            tests = [c for c in codes if c not in cod_perfil and c in codigos_test]
+            if tests:
+                siguiente["selected_tests"] = tests
+                if not perfiles:
+                    siguiente["exam_type"] = f"Perfil personalizado ({len(tests)} análisis)"
+        except Exception:  # sin catálogo, la orden nueva pedirá el análisis normalmente
+            pass
+    cerrado["boundary_next"] = siguiente
+    return cerrado
+
+
+def _consume_boundary_next(session: dict, ai_response: dict) -> None:
+    """Abre la orden SIGUIENTE tras el cierre por frontera: snapshot + reset + estables (sin
+    reofrecimiento en bloque: el cliente está en racha) + los datos que ya dio del paciente
+    nuevo, y la pregunta del primer campo que falte."""
+    siguiente = ai_response.pop("boundary_next", None)
+    if siguiente is None:
+        return
+    fields = ai_response.get("captured_fields") or {}
+    fields.pop("_order_registered", None)
+    _snap_keys = set(_ROUTE_REQUIRED_FIELDS) | {
+        "selected_tests", "removed_tests", "_selected_profile_code",
+        "_selected_profile_name", "_selected_profile_price", "_selected_profile_description",
+    }
+    snapshot = {k: v for k, v in fields.items() if k in _snap_keys and v}
+    _reset_order_fields(fields)
+    fields["_prev_order_snapshot"] = snapshot
+    _carry_over_stable_fields(fields)
+    fields.update(siguiente)
+    fields["_pending_intents"] = []
+
+    falta = _missing_route_field(session, fields)
+    nombre = siguiente.get("patient_name")
+    intro = f"Sigo con {nombre}: " if nombre else "Vamos con la siguiente orden. "
+    pregunta = _missing_route_field_question(falta) if falta else "¿Qué análisis o perfil desean?"
+    # El reply del cierre trae el "¿Necesitas cargar otra orden…?" al final: se reemplaza por
+    # la continuación — el cliente YA dijo que va otra.
+    reply = ai_response.get("reply") or ""
+    for cola in (PEDIDO_CLOSING_PROMPT, CLOSING_PROMPT):
+        reply = reply.replace(cola, "").rstrip()
+    ai_response["reply"] = f"{reply}\n\n{intro}{pregunta}"
+    ai_response["phase"] = "fase_2_recogida_datos"
+    ai_response["captured_fields"] = fields
+
+
 def _candado_provenancia_tests(fields: dict, prev_captured: dict, user_message: str) -> None:
     """Candado de provenancia (ERR-114): los análisis de la orden solo CRECEN por lo que el
     cliente acaba de decir o elegir. Un código nuevo respecto del estado previo se acepta
@@ -3337,6 +3474,20 @@ def process_turn(
     # siempre". Lo demás se revierte en silencio. Los caminos determinísticos de más abajo
     # agregan por sus propias vías (mensaje + catálogo) y no pasan por este filtro.
     _candado_provenancia_tests(fields, prev_captured, user_message)
+
+    # FRONTERA DE ORDEN (ERR-117): si el cliente pidió otra orden o describió un paciente
+    # nuevo en bloque, el turno se resuelve acá, determinístico y FUERA del pipeline — los
+    # enforcers de captura no pueden enganchar los códigos del paciente nuevo a la orden que
+    # se está cerrando, ni la confirmación pisar el cierre con su resumen.
+    _frontera = _order_boundary_response(session, ai_response, prev_captured, user_message)
+    if _frontera is not None:
+        if _frontera.get("phase") == "fase_6_cierre":
+            _frontera = _apply_route_closure_summary(_frontera)
+            _frontera = _finalize_request(chat_id, session, _frontera,
+                                          started_from_escalation,
+                                          session.get("phase_current", ""))
+            _consume_boundary_next(session, _frontera)
+        return _persist_turn(chat_id, user_message, _frontera)
 
     _merge_existing_route_fields(prev_captured, fields)
     _apply_common_order_fallbacks(fields, user_message)

@@ -499,7 +499,12 @@ el cliente sigue el protocolo exacto registrar→"otra orden". Con lenguaje huma
   actual y abrir la siguiente?
 **Estado:** ABIERTO — documentado, esperando decisión (2026-08-15).
 
-### ERR-116 — [ABIERTO] El carril de "agregar análisis al perfil" atrapa el flujo multi-orden
+### ERR-116 — [EN CURSO] El carril de "agregar análisis al perfil" atrapaba el flujo multi-orden
+**Fix aplicado (2026-08-15):** el carril cede ante "otra orden" con detector ESTRICTO
+(`_wants_new_order_strict`: el objeto debe ser la orden/el paciente — "quiero agregarle un
+analisis mas" sigue siendo del carril) y su re-pregunta usa la pregunta cerrada sin "pago".
+Verificado en re-estrés: el bucle desapareció (las personas ya registran órdenes por paciente).
+### ERR-116-original — [ABIERTO] El carril de "agregar análisis al perfil" atrapa el flujo multi-orden
 **Hallazgo del QA de estrés (2026-08-15):** el carril que responde *"¿Quieres agregar algún
 análisis más (decime cuál) o seguimos con el pago?"* (`_selected_profile_addition_response`,
 `enforcers/orden.py:318`) es la trampa donde cayeron 3 de las 5 personas fallidas:

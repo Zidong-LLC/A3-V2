@@ -538,6 +538,105 @@ def test_el_pago_final_tampoco_pierde_las_fichas_por_nulls(monkeypatch):
         "el resumen del pedido lista TODAS las órdenes aunque el modelo mande nulls"
 
 
+# ── 1i. La frontera de orden humana (ERR-117) ──────────────────────────────────
+
+def test_otra_orden_con_la_actual_completa_la_cierra_automaticamente():
+    """Decisión del usuario (2026-08-15): el cliente no tiene por qué confirmar con la
+    palabra exacta. "Otra orden" con la actual completa = confirmala y abrí la siguiente."""
+    prev = dict(ORDEN_COMPLETA)
+    ai = _resp({}, user_intent_signal="another_order", reply="(del modelo)")
+    out = agent._order_boundary_response(SESSION, ai, prev, "otra orden")
+    assert out is not None
+    assert out["phase"] == "fase_6_cierre"
+    assert out["boundary_next"] == {}
+    assert out["captured_fields"]["exam_type"] == ORDEN_COMPLETA["exam_type"]
+
+
+def test_otra_orden_con_solo_la_observacion_pendiente_no_vuelve_atras():
+    """Si lo único pendiente es la observación, queda "sin observaciones": hacer volver al
+    cliente por un campo opcional es el protocolo robótico que el usuario pidió eliminar."""
+    prev = {k: v for k, v in ORDEN_COMPLETA.items() if k != "observations"}
+    ai = _resp({}, user_intent_signal="another_order")
+    out = agent._order_boundary_response(SESSION, ai, prev, "va otro paciente")
+    assert out is not None and out["phase"] == "fase_6_cierre"
+    assert out["captured_fields"]["observations"] == "sin observaciones"
+
+
+def test_otra_orden_con_la_actual_incompleta_pide_el_campo_sin_bucle():
+    prev = {k: v for k, v in ORDEN_COMPLETA.items() if k != "patient_age"}
+    ai = _resp({}, user_intent_signal="another_order")
+    out = agent._order_boundary_response(SESSION, ai, prev, "otra orden")
+    assert out is not None
+    assert out["phase"] != "fase_6_cierre"
+    assert ORDEN_COMPLETA["patient_name"] in out["reply"], "nombra al paciente pendiente"
+    assert "edad" in out["reply"].lower()
+
+
+def test_paciente_nuevo_en_bloque_abre_orden_nueva_no_corrige():
+    """EL fallo estrella del estrés (masivo_5: 5 pacientes → 0 órdenes): "ahora P2, gato
+    criollo, 3 años, dueño B" se leía como corrección y sobrescribía el formulario."""
+    prev = dict(ORDEN_COMPLETA)
+    nuevos = {"patient_name": "P2", "species": "Felino", "breed": "Criollo",
+              "patient_age": "3 años", "owner_name": "B"}
+    ai = _resp(dict(ORDEN_COMPLETA, **nuevos), user_intent_signal="provides_requested_data")
+    out = agent._order_boundary_response(
+        SESSION, ai, prev, "ahora P2, gato criollo, 3 años, dueño B")
+    assert out is not None and out["phase"] == "fase_6_cierre"
+    # La orden que se CIERRA es la anterior, intacta:
+    assert out["captured_fields"]["patient_name"] == ORDEN_COMPLETA["patient_name"]
+    # Y el paciente nuevo viaja para la siguiente, sin repreguntar lo ya dicho:
+    assert out["boundary_next"]["patient_name"] == "P2"
+    assert out["boundary_next"]["species"] == "Felino"
+
+
+def test_correccion_marcada_no_abre_orden_nueva():
+    """Contraprueba: "perdón, me equivoqué, es Simba…" cambia varios campos pero ES una
+    corrección — el marcador la distingue del paciente nuevo."""
+    prev = dict(ORDEN_COMPLETA)
+    nuevos = {"patient_name": "Simba", "species": "Felino", "breed": "Persa"}
+    ai = _resp(dict(ORDEN_COMPLETA, **nuevos), user_intent_signal="correction")
+    out = agent._order_boundary_response(
+        SESSION, ai, prev, "perdón, me equivoqué: es Simba, gato persa")
+    assert out is None
+
+
+def test_orden_ya_registrada_no_dispara_la_frontera():
+    """El followup post-registro ya existe y funciona: la frontera no lo pisa."""
+    prev = dict(ORDEN_COMPLETA, _order_registered=True)
+    ai = _resp({}, user_intent_signal="another_order")
+    assert agent._order_boundary_response(SESSION, ai, prev, "otra orden") is None
+
+
+def test_consume_boundary_abre_la_siguiente_con_los_datos_dados():
+    ai = {"reply": "Quedó registrado: …\n\n" + agent.PEDIDO_CLOSING_PROMPT,
+          "captured_fields": dict(ORDEN_COMPLETA, _order_registered=True),
+          "boundary_next": {"patient_name": "P2", "species": "Felino"},
+          "phase": "fase_6_cierre"}
+    agent._consume_boundary_next(SESSION, ai)
+    cf = ai["captured_fields"]
+    assert cf["patient_name"] == "P2" and cf["species"] == "Felino"
+    assert not cf.get("_order_registered")
+    assert cf.get("requesting_doctor") == ORDEN_COMPLETA["requesting_doctor"], "estables siguen"
+    assert not cf.get("exam_type"), "el análisis de la orden anterior no se hereda acá"
+    assert "Sigo con P2" in ai["reply"]
+    assert agent.PEDIDO_CLOSING_PROMPT not in ai["reply"], "ya no ofrece 'otra orden': está en racha"
+
+
+def test_el_carril_de_agregado_cede_ante_otra_orden():
+    """ERR-116: "otra orden" (2 tokens) caía en la re-pregunta del carril y era un BUCLE."""
+    with patch.object(eorden.db, "get_tests_by_codes_or_names", return_value=[]), \
+         patch.object(eorden.db, "find_tests_by_area", return_value=(None, [])), \
+         patch.object(eorden.db, "list_catalog_tests", return_value=[]), \
+         patch.object(eorden.db, "get_catalog_profiles_by_codes", return_value=[]):
+        fields = dict(ORDEN_COMPLETA, _offering_extra_analysis=True)
+        assert eorden._handle_extra_analysis_answer(SESSION, fields, "otra orden") is None
+        # Y "quiero agregarle un analisis mas" NO es otra orden: sigue siendo del carril.
+        out = eorden._handle_extra_analysis_answer(
+            SESSION, dict(ORDEN_COMPLETA, _offering_extra_analysis=True),
+            "quiero agregarle un analisis mas a este perfil")
+        assert out is not None
+
+
 # ── 2. El pedido queda abierto y admite más órdenes ─────────────────────────────
 
 def test_pedir_otra_orden_mantiene_el_pedido_abierto():

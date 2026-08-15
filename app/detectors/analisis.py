@@ -487,6 +487,22 @@ def _removes_the_additions(text: str) -> bool:
                           "sacar", "sacame", "sácame", "elimina", "eliminar", "borra"})
 
 
+_ORDEN_OBJECT_TOKENS = frozenset({
+    "orden", "ordenes", "órdenes", "paciente", "pacientes", "pedido", "pedidos",
+    "animal", "mascota", "perro", "perra", "gato", "gata",
+})
+
+
+def _wants_new_order_strict(text: str) -> bool:
+    """Variante ACOTADA de `_explicitly_wants_another_order` para contextos donde el tema por
+    defecto es el ANÁLISIS (el carril de agregado, la frontera de orden). La amplia cuenta
+    "analisis" como objeto, y "quiero agregarle un analisis mas" disparaba como si fuera otra
+    ORDEN (QA de estrés 2026-08-15). Acá el objeto tiene que ser la orden/el paciente."""
+    if not _explicitly_wants_another_order(text):
+        return False
+    return bool(set(_tokenize(text)) & _ORDEN_OBJECT_TOKENS)
+
+
 def _wants_another_service_order(text: str) -> bool:
     return _explicitly_wants_another_order(text)
 

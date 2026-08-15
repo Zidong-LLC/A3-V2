@@ -110,6 +110,7 @@ from app.detectors.analisis import (  # noqa: F401
     _wants_profile_recommendation,
     _removes_the_additions,
     _replaces_offered_analysis,
+    _wants_new_order_strict,
     _wants_to_change_analysis,
     _wants_to_proceed_to_payment,
 )
