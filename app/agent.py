@@ -2677,6 +2677,22 @@ def _order_boundary_response(session: dict, ai_response: dict, prev: dict,
     fields = ai_response.get("captured_fields") or {}
     signal = ai_response.get("user_intent_signal")
 
+    # CANCELACIÓN de la orden EN CURSO (QA de estrés, ERR-119.2): "no, mejor esa no,
+    # borrala". Sin carril, el modelo improvisaba ("¿la dejo en pausa?") sin limpiar NADA, y
+    # esta misma frontera después insistía en cerrar la orden cancelada — duplicaciones.
+    # Señal-primero; solo aplica a una orden a medio cargar (lo registrado no se toca acá).
+    if (signal == "cancel" and prev.get("patient_name")
+            and not prev.get("_order_registered")):
+        actual = dict(prev)
+        nombre = actual.get("patient_name")
+        _reset_order_fields(actual)
+        actual["_prev_order_snapshot"] = {}
+        _carry_over_stable_fields(actual)
+        actual["_pending_intents"] = []
+        return _base_route_response(
+            f"Listo, descarto la orden de {nombre} — no queda registrada. "
+            "¿Cargamos otra orden, o cerramos el pedido?", actual)
+
     quiere_otra = signal == "another_order" or _wants_new_order_strict(user_message)
     nombre_nuevo = bool(fields.get("patient_name") and prev.get("patient_name")
                         and str(fields["patient_name"]).strip().lower()

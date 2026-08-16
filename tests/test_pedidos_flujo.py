@@ -885,3 +885,27 @@ def test_respuesta_lateral_con_precio_no_se_pisa():
     out = _turno_incoherente("provides_requested_data", 0.9,
                              reply="El cuadro hemático cuesta $14.000. ¿Seguimos?")
     assert "$14.000" in out["reply"]
+
+
+# ── Cancelación de la orden en curso (ERR-119.2) ───────────────────────────────
+
+def test_cancelar_la_orden_en_curso_la_descarta_de_verdad():
+    """"No, mejor esa no, borrala": el modelo improvisaba sin limpiar nada y la frontera
+    después insistía en cerrar la orden cancelada — duplicaciones en el estrés."""
+    prev = {k: v for k, v in ORDEN_COMPLETA.items() if k != "observations"}
+    ai = _resp({}, user_intent_signal="cancel", reply="(del modelo)")
+    out = agent._order_boundary_response(SESSION, ai, prev, "no, mejor esa no, borrala")
+    assert out is not None
+    cf = out["captured_fields"]
+    assert not cf.get("patient_name") and not cf.get("exam_type") and not cf.get("selected_tests")
+    assert cf.get("requesting_doctor") == ORDEN_COMPLETA["requesting_doctor"], "estables siguen"
+    assert ORDEN_COMPLETA["patient_name"] in out["reply"], "nombra lo que descarta"
+    assert "descarto" in out["reply"]
+
+
+def test_cancelar_no_toca_una_orden_ya_registrada():
+    """Lo registrado no se descarta por chat: eso es del pedido (cierre) o del dashboard."""
+    prev = dict(ORDEN_COMPLETA, _order_registered=True)
+    ai = _resp({}, user_intent_signal="cancel")
+    out = agent._order_boundary_response(SESSION, ai, prev, "cancelá eso")
+    assert out is None or "descarto" not in (out.get("reply") or "")
