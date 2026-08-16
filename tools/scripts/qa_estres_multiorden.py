@@ -328,11 +328,32 @@ def _run(nombre: str, estilo: str, plan: list, max_turns: int = 120) -> dict:
     requests = _state.get("requests") or []
     fallos = []
     todos_los_codigos_planeados = [set(c) for _, c in plan]
+
+    # Matching por PACIENTE, no por índice (Ronda 4): una orden faltante desplazaba todas
+    # las comparaciones siguientes y fabricaba cascadas de PERDIÓ/CONTAMINADA falsas
+    # (maratón: M5 "guardó" lo de M6, M6 lo de M7…). Fallback al índice si el nombre no está.
+    pacientes_plan = {p.strip().lower() for p, _ in plan}
+
+    def _nombre_req(r) -> str:
+        return ((r.get("captured_fields") or {}).get("patient_name") or "").strip().lower()
+
+    def _req_de(paciente: str, idx: int):
+        objetivo = paciente.strip().lower()
+        for r in requests:
+            if _nombre_req(r) == objetivo:
+                return r
+        # Fallback al índice SOLO si esa posición no pertenece a otro paciente del plan
+        # (cubre el registro con typo en el nombre sin robarle la orden a otro).
+        if idx < len(requests) and _nombre_req(requests[idx]) not in pacientes_plan:
+            return requests[idx]
+        return None
+
     for i, (paciente, esperados) in enumerate(plan):
-        if i >= len(requests):
+        req = _req_de(paciente, i)
+        if req is None:
             fallos.append(f"orden {i+1} ({paciente}): NO se registró")
             continue
-        guardados = _items_de_orden(requests[i])
+        guardados = _items_de_orden(req)
         faltan = set(esperados) - guardados
         if faltan:
             fallos.append(f"orden {i+1} ({paciente}): PERDIÓ {sorted(faltan)} (guardó {sorted(guardados)})")
