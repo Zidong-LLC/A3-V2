@@ -48,7 +48,10 @@ def _create_request_enriquecido(chat_id, session, ai, pedido_id=None):
     perfil = _dbmod._profile_event_payload(ai.get("captured_fields") or {})
     if info is not None:
         info["event_payload"] = {"profile": perfil} if perfil else {}
-        ai["_event_payload"] = info["event_payload"]  # para el veredicto por estado
+        # Sobre la COPIA congelada del harness — no sobre el dict vivo, que la frontera
+        # resetea después para la orden siguiente.
+        if _state.get("requests"):
+            _state["requests"][-1]["_event_payload"] = info["event_payload"]
     return info
 
 

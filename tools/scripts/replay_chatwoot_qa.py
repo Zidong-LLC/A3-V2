@@ -61,7 +61,13 @@ def _reset(chat_id):
 
 
 def _create_request(chat_id, session, ai, pedido_id=None):
-    _state["requests"].append(ai)
+    # DEEP-COPY: el pipeline sigue mutando `ai` después de registrar (la frontera resetea
+    # los campos para la orden siguiente) y el harness guardaba la REFERENCIA viva — el
+    # registro se vaciaba retroactivamente y el QA reportaba "PERDIÓ" órdenes que el agente
+    # registró perfectas (falso rojo, campaña 2026-08-15). La base real serializa al
+    # escribir; el harness tiene que congelar igual.
+    import copy
+    _state["requests"].append(copy.deepcopy(ai))
     n = len(_state["requests"])
     if pedido_id:
         _state.setdefault("pedido_requests", {}).setdefault(pedido_id, []).append(
