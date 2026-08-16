@@ -138,6 +138,15 @@ def _resolve_one(text: str, rows: list[dict], species: str | None) -> ResolveRes
     if not user_tokens:
         return ResolveResult(NONE)
 
+    # NOMBRE COMPLETO exacto primero (QA de cobertura 2026-08-15): hay análisis cuyo nombre
+    # entero está hecho de palabras filtradas — 'Estudio de Cálculo' ('estudio' estructural,
+    # 'cálculo' genérico) quedaba IRRESOLUBLE por nombre para siempre. Si lo que el cliente
+    # escribió ES el nombre de una fila del catálogo, esa fila gana sin pasar por el filtro.
+    for row in rows:
+        nombre_tokens = set(_tokens(str(row.get("name") or "")))
+        if nombre_tokens and nombre_tokens <= user_tokens and user_tokens <= nombre_tokens | STRUCTURAL_TOKENS:
+            return ResolveResult(EXACT, [row])
+
     # Solo el CONTENIDO distintivo nombra un análisis: sin verbos de pedido ('necesito'),
     # sustantivos genéricos ('prueba') ni palabras de área sueltas ('orina', 'sangre').
     # 'necesito una prueba de orina' NO nombra ningún test (match_tokens vacío) → NONE,

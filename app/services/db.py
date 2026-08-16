@@ -584,6 +584,13 @@ def find_catalog_profile(value: str | None, species: str | None = None) -> dict 
     )
 
     rows = query.execute().data or []
+    # NOMBRE EXACTO primero (QA de cobertura 2026-08-15, clase ERR-041): con el match difuso
+    # a secas, 'Perfil Prequirúrgico I' devolvía el X de $90.000, 'Perfil General' devolvía
+    # 'Panel Generales de Salud', y los numerales romanos I/II/III colisionaban entre sí.
+    # Si el cliente dijo el nombre COMPLETO de un perfil que existe, ese gana siempre.
+    for row in rows:
+        if _normalize_lookup_key(row.get("name")) == lookup:
+            return row
     for row in rows:
         if _catalog_profile_matches(value, row):
             return row

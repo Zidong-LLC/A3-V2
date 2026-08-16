@@ -479,6 +479,30 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-120 — [RESUELTO] Cobertura de datos: 5 filas reales del catálogo eran inalcanzables por nombre
+**Síntoma:** el QA exhaustivo nuevo (`tools/scripts/qa_cobertura_datos.py`, pedido del
+usuario 2026-08-15: "que no quiera testear un número de una clínica que no está detectada, o
+un análisis/perfil cargado que no acceda") recorrió TODAS las filas reales y encontró 5
+agujeros: (a) 4 perfiles devolvían OTRO perfil al buscarlos por su nombre completo — 151
+'Perfil General'→1339, **152 'Prequirúrgico I'→161 'Prequirúrgico X' de $90.000** (la misma
+colisión que fabricó el fantasma de ERR-041), 251 'Hemoparásitos I'→252, 302 'Felino II'→303;
+(b) el análisis 1603 'Estudio de Cálculo' NUNCA resolvía por nombre (status=none).
+**Causa raíz:** (a) `find_catalog_profile` solo tenía match difuso: normaliza numerales
+romanos (I→1, X→10) y acepta subcadenas, así que `perfil_prequirurgico_1` ⊂
+`perfil_prequirurgico_10` — el orden de las filas decidía cuál equivocado salía primero;
+(b) en `catalog._resolve_one` el nombre entero de 1603 se filtraba: 'estudio' es token
+estructural y 'cálculo' descriptor genérico → cero contenido distintivo → irresoluble.
+**Solución (misma idea en ambos):** el nombre COMPLETO exacto gana antes de cualquier
+heurística. En `db.find_catalog_profile`, pasada de igualdad con `_normalize_lookup_key`
+ANTES del difuso (el difuso sigue vivo para nombres parciales). En `catalog._resolve_one`,
+si los tokens del usuario cubren el nombre completo de una fila y los extras son solo
+estructurales → EXACT con esa fila, sin pasar por el filtro de genéricos (que sigue
+frenando 'una prueba de orina' — ERR-111 intacto).
+**Tests:** `tests/test_cobertura_nombre_exacto.py` (5) + re-corrida de cobertura: perfiles
+133/133 OK, análisis 159/159 OK. Suite completa 756 pass.
+**Estado:** RESUELTO (2026-08-16). El QA de cobertura queda como herramienta permanente:
+`python tools/scripts/qa_cobertura_datos.py [clientes|tests|perfiles]` — solo lecturas.
+
 ### ERR-119 — [EN CURSO] Campaña de 20 personas: rondas 1-2 y el hallazgo metodológico
 **Reparado en el ciclo (todo commiteado con tests):** (1) el "dominante de dinero" era FALSO
 ROJO del harness — guardaba la referencia viva y la frontera la vaciaba retroactivamente; con
