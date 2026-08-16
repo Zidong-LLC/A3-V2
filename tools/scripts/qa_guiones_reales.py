@@ -43,9 +43,22 @@ def _create_request_enriquecido(chat_id, session, ai, pedido_id=None):
 patch("app.services.db.create_request", side_effect=_create_request_enriquecido).start()
 
 
+def _one_shot(estado: dict, i: int, clave: str, valor):
+    """Un fraseo del plan se dice UNA vez; las repeticiones de la misma oferta reciben el
+    default (el 'agregado' en bucle registraba sodio y potasio infinitas veces)."""
+    if not valor or (i, clave) in estado["usados"]:
+        return None
+    estado["usados"].add((i, clave))
+    return valor
+
+
 def _cliente_de_reglas(bot: str, plan: list[dict], estado: dict) -> str | None:
     """Responde a la pregunta del bot con el dato del plan. Sin inventar NADA.
-    `estado` lleva el índice de la orden en curso y los one-shots ya usados."""
+
+    El bot acusa el campo anterior y pregunta el siguiente en el MISMO texto ("anoto Canino
+    como especie. ¿Cuál es la raza?"), así que gana la regla cuya clave aparece ÚLTIMA
+    (la pregunta va al final). Antes de eso, dos overrides: cierre terminal y la oferta de
+    otra orden (que menciona 'forma de pago' después y confundía el puntaje posicional)."""
     b = bot.lower()
     i = estado["orden"]
     orden = plan[i] if i < len(plan) else None
@@ -57,47 +70,44 @@ def _cliente_de_reglas(bot: str, plan: list[dict], estado: dict) -> str | None:
             estado["usados"].add(clave)
             return respuesta
 
-    # PRIORIDAD: lo compuesto primero (el resumen contiene los keywords de TODOS los
-    # campos; contestar por keyword de campo dentro del resumen desincroniza el guion).
     if "quedamos atentos" in b or "total del pedido" in b:
         return None  # pedido cerrado
-    if "resumo la orden" in b or "¿confirmas" in b or "¿confirmás" in b:
-        return (orden or {}).get("confirmacion") or "Sí, confirmo."
-    if "mantengo estos datos" in b or "quieres cambiar alguno" in b:
-        return (orden or {}).get("al_reofrecimiento") or "Confirmo esos datos."
-    if "otra orden" in b and ("forma de pago" in b or "necesitas" in b):
+    if "cargar otra orden" in b or "crear otra orden" in b or "escríbeme: otra orden" in b:
         if i + 1 < len(plan):
             estado["orden"] += 1
             return "Otra orden, por favor."
         return "Eso es todo."
-    if "forma de pago" in b or "cómo pagan" in b or "como pagan" in b:
-        return "Contraentrega."
-    if "agregamos otro análisis" in b or "quieres agregar" in b:
-        return (orden or {}).get("agregado") or "No, así está bien."
-    if "respóndeme con el número" in b or "con qué te ayudamos" in b:
-        return "1"
-    if "nit o el nombre" in b or "nombre exacto" in b:
-        return "Animal Pets"
-    if "¿es correcta" in b or "es correcta?" in b:
-        return "Sí, correcta."
-    if "observación" in b or "observaciones" in b:
-        return "Sin observaciones."
-    if "médico solicitante" in b:
-        return "Dr. Ruiz"
-    if "nombre del paciente" in b:
-        return orden["paciente"] if orden else "—"
-    if "especie" in b or "canino, felino" in b or "felino u otra" in b:
-        return orden["especie"]
-    if "raza" in b:
-        return orden["raza"]
-    if "macho o hembra" in b:
-        return orden["sexo"]
-    if "edad" in b:
-        return orden["edad"]
-    if "propietario" in b:
-        return orden["dueno"]
-    if "análisis o perfil desean" in b or "qué análisis" in b:
-        return orden["analisis"]
+
+    reglas = [
+        (("¿confirmas estos datos", "resumo la orden"),
+         lambda: (orden or {}).get("confirmacion") or "Sí, confirmo."),
+        (("quieres cambiar alguno", "mantengo estos datos"),
+         lambda: (orden or {}).get("al_reofrecimiento") or "Confirmo esos datos."),
+        (("forma de pago", "cómo pagan", "como pagan", "prefieres el pago", "pago en línea"), lambda: "Contraentrega."),
+        (("agregamos otro análisis", "quieres agregar"),
+         lambda: _one_shot(estado, i, "agregado", (orden or {}).get("agregado"))
+         or "No, así está bien."),
+        (("respóndeme con el número", "con qué te ayudamos"), lambda: "1"),
+        (("nit o el nombre", "nombre exacto"), lambda: "Animal Pets"),
+        (("¿es correcta", "es correcta?"), lambda: "Sí, correcta."),
+        (("observación", "observaciones"), lambda: "Sin observaciones."),
+        (("médico solicitante",), lambda: "Dr. Ruiz"),
+        (("nombre del paciente",), lambda: orden["paciente"] if orden else "—"),
+        (("especie",), lambda: orden["especie"]),
+        (("raza",), lambda: orden["raza"]),
+        (("macho o hembra", "sexo"), lambda: orden["sexo"]),
+        (("edad",), lambda: orden["edad"]),
+        (("propietario", "dueño"), lambda: orden["dueno"]),
+        (("análisis o perfil desean", "qué análisis", "análisis necesita"),
+         lambda: orden["analisis"]),
+    ]
+    candidatos = []
+    for claves, resp in reglas:
+        pos = max((b.rfind(c) for c in claves), default=-1)
+        if pos >= 0:
+            candidatos.append((pos, resp))
+    if candidatos:
+        return max(candidatos, key=lambda x: x[0])[1]()
     return None  # el bot no preguntó nada esperado: cortar y que lo diga el veredicto
 
 
@@ -193,6 +203,13 @@ def correr(nombre: str, plan: list[dict], max_turns: int = 60) -> list[str]:
         fallos.append("el pedido NO quedó cerrado")
     if len(facturas) != 1:
         fallos.append(f"facturas: {len(facturas)} (esperada 1)")
+    import os
+    logdir = os.environ.get("ESTRES_LOG_DIR") or str(RAIZ / "tools" / "scripts")
+    with open(Path(logdir) / f"guion_transcript_{nombre}.txt", "w", encoding="utf-8") as fh:
+        for w, t in transcript:
+            fh.write(f"{'CLIENTE' if w == 'C' else 'BOT'}: {t}
+
+")
     if fallos:
         print("  --- últimos turnos ---")
         for w, t in transcript[-10:]:

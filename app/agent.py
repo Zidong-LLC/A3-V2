@@ -2374,6 +2374,29 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
     # Señales con las que el cliente da por terminada la carga. `cancel` entra porque el
     # modelo la usa para "cerrame eso" / "terminala ahí": con la orden YA registrada no puede
     # anular nada, así que en este contexto significa cerrar el pedido, no cancelarlo.
+    # ESPERANDO EL PAGO, el pago es lo único pendiente (QA guiones 2026-08-16): la pregunta
+    # de cierre pide observación Y pago juntos; el cliente humano contesta solo la
+    # observación ("Sin observaciones.") y sin esta rama nada re-preguntaba — el modelo
+    # improvisaba "¿Qué análisis o perfil desean?" y llegó a DUPLICAR la orden registrada.
+    # Estado manda: pedido esperando pago + turno sin pago → se re-pregunta el pago, siempre.
+    if esperando_pago:
+        # Una pregunta lateral ("¿cuánto es el total?", "¿a qué hora pasan?") se responde
+        # ANTES de re-preguntar — repreguntar no es ignorar.
+        lateral = _operational_side_question_answer(user_message)
+        return {
+            **ai_response,
+            "reply": (f"{lateral}\n\n{PAYMENT_METHOD_QUESTION}" if lateral
+                      else PAYMENT_METHOD_QUESTION),
+            "phase": "fase_2_recogida_datos",
+            "intent": "route_scheduling",
+            "service_area": "route_scheduling",
+            "requires_handoff": False,
+            "handoff_area": None,
+            "captured_fields": _merge_sin_borrar(prev_fields, fields),
+            "message_mode": "flow_progress",
+            _SKIP_REQUEST_CREATION: True,
+        }
+
     # La red de frases solo aplica con la orden YA registrada (la oferta "¿otra orden… o
     # cerramos?" está en pantalla): "ya está, el dueño es Juan" a mitad de captura no cierra.
     wants_to_finish = (signal in ("farewell", "negate", "cancel") or _is_farewell(user_message)
@@ -3730,8 +3753,15 @@ def process_turn(
         and not prev_captured.get("_handoff_offer_pending")
         and (signal == "new_branch" or _wants_new_branch(user_message))
     ):
-        fields["_handoff_offer_pending"] = "branch"
-        return _persist_turn(chat_id, user_message, _base_route_response(NEW_BRANCH_OFFER_MESSAGE, fields))
+        if _user_gave_replacement_address(fields, prev_captured, user_message):
+            # "te di la de la nueva sucursal. Calle 45 Sur # 12-30" (ERR-129, segundo
+            # carril): la dirección ESCRITA es una corrección de dirección, no un alta de
+            # sede — se captura y el turno sigue su curso.
+            fields["_address_confirmation_pending"] = False
+            fields["_address_confirmed"] = True
+        else:
+            fields["_handoff_offer_pending"] = "branch"
+            return _persist_turn(chat_id, user_message, _base_route_response(NEW_BRANCH_OFFER_MESSAGE, fields))
 
     asked_field = _detect_which_field_is_being_asked(history)
     payment_answer = _payment_method_from_text(user_message)

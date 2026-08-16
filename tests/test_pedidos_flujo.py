@@ -719,12 +719,17 @@ def test_la_orden_siguiente_no_hereda_una_forma_de_pago():
     assert "forma de pago" not in out["reply"].lower()
 
 
-def test_la_pregunta_del_pago_no_se_repite():
-    """Con `_pedido_awaiting_payment` ya puesto, otro mensaje no vuelve a preguntar."""
+def test_esperando_el_pago_se_repregunta_cerrado():
+    """CAMBIO DE FILOSOFÍA (QA guiones 2026-08-16, mismo commit): antes este test exigía
+    dejar pasar la respuesta del modelo para no repetir la pregunta. Medido: el cliente
+    contesta solo la observación ("Sin observaciones.") a la pregunta doble del cierre, el
+    modelo improvisa "¿Qué análisis o perfil desean?" y la orden se DUPLICA. Esperando el
+    pago, un turno sin pago recibe SIEMPRE la re-pregunta cerrada del pago."""
     prev = {"_pedido_id": "ped-1", "_pedido_awaiting_payment": True}
     ai = _resp(dict(ORDEN_COMPLETA), user_intent_signal="farewell", reply="(del modelo)")
     out = agent._enforce_open_pedido_close(SESSION, ai, prev, "dale")
-    assert out["reply"] == "(del modelo)"
+    assert "pago" in out["reply"].lower()
+    assert out.get("skip_request_creation") or out.get(agent._SKIP_REQUEST_CREATION),         "el turno de re-pregunta no puede registrar nada"
 
 
 def test_el_cierre_del_pedido_no_registra_otra_orden():
