@@ -2785,6 +2785,55 @@ def _consume_boundary_next(session: dict, ai_response: dict) -> None:
     ai_response["captured_fields"] = fields
 
 
+def _enforce_comprehension_recheck(session: dict, ai_response: dict, prev_captured: dict,
+                                   user_message: str, history: list[dict]) -> dict:
+    """PARTE 2 — coherencia pregunta↔captura (pedido del usuario, 2026-08-15): "si no
+    entiende, que repregunte antes de avanzar a una etapa". Dispara solo ante INCOHERENCIA,
+    nunca por defecto, para no volver el flujo cargoso:
+
+    1. El modelo marcó `provides_requested_data` pero NINGÚN dato de la orden cambió — dice
+       que el cliente dio el dato y no capturó nada: contradicción.
+    2. `confidence` baja (<0.45) con el turno sin captura: el propio modelo admite que no
+       entendió — el schema siempre tuvo este campo y nadie lo leía.
+
+    En ambos casos se repregunta nombrando el dato pedido, determinístico. Si el turno
+    capturó algo, puso un menú, o trae una señal con carril propio (corrección, cierre,
+    otra orden…), este guard no interviene."""
+    if ai_response.get("intent") != "route_scheduling" or ai_response.get("requires_handoff"):
+        return ai_response
+    fields = ai_response.get("captured_fields") or {}
+    if not (session.get("client_id") or fields.get("_client_found")):
+        return ai_response
+    signal = ai_response.get("user_intent_signal")
+    if signal in ("correction", "farewell", "another_order", "cancel", "change_client",
+                  "negate", "affirm"):
+        return ai_response
+    asked = _detect_which_field_is_being_asked(history)
+    if not asked or asked == "client" or fields.get(asked):
+        return ai_response
+    _campos_orden = _ROUTE_ORDER_FIELDS_BEFORE_PAYMENT + ("selected_tests",
+                                                          "_selected_profile_code",
+                                                          "payment_method")
+    progreso = any(fields.get(f) and fields.get(f) != prev_captured.get(f)
+                   for f in _campos_orden)
+    if (progreso or fields.get("_test_menu_options") or fields.get("_profile_menu_options")
+            or fields.get("_awaiting_additional_test")):
+        return ai_response
+    # Una respuesta lateral legítima (precio, horario) responde y retoma: no se pisa.
+    if "$" in (ai_response.get("reply") or ""):
+        return ai_response
+    conf = ai_response.get("confidence")
+    dice_que_dio = signal == "provides_requested_data"
+    confianza_baja = isinstance(conf, (int, float)) and conf < 0.45
+    if not (dice_que_dio or confianza_baja):
+        return ai_response
+    ai_response["reply"] = ("Perdona, creo que no te entendí bien. "
+                            + _missing_route_field_question(asked))
+    ai_response["phase"] = "fase_2_recogida_datos"
+    ai_response["message_mode"] = "flow_progress"
+    return ai_response
+
+
 def _candado_provenancia_tests(fields: dict, prev_captured: dict, user_message: str) -> None:
     """Candado de provenancia (ERR-114): los análisis de la orden solo CRECEN por lo que el
     cliente acaba de decir o elegir. Un código nuevo respecto del estado previo se acepta
@@ -4208,6 +4257,7 @@ def process_turn(
     ai_response = _apply_route_closure_summary(ai_response)
     ai_response = _clarify_captured_field(ai_response, prev_captured)
     ai_response = _enforce_field_coherence(session, ai_response, prev_captured, user_message, history)
+    ai_response = _enforce_comprehension_recheck(session, ai_response, prev_captured, user_message, history)
     ai_response = _enforce_first_missing_after_progress(session, ai_response, prev_captured)
     ai_response = _resume_route_after_lateral_turn(session, ai_response)
     fields = ai_response.get("captured_fields", fields)

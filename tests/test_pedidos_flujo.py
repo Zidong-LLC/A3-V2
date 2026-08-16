@@ -830,3 +830,58 @@ def test_si_la_base_falla_el_cliente_igual_recibe_su_cierre(monkeypatch):
                                    "contraentrega")
     assert out["reply"].strip()
     assert out[agent._SKIP_REQUEST_CREATION] is True
+
+
+# ── PARTE 2: coherencia pregunta↔captura (el sistema de comprensión) ───────────
+
+def _turno_incoherente(signal, conf, reply="(del modelo)"):
+    fields = {k: v for k, v in ORDEN_COMPLETA.items() if k != "patient_age"}
+    ai = _resp({}, user_intent_signal=signal, reply=reply)
+    ai["confidence"] = conf
+    ai["captured_fields"] = dict(fields)
+    hist = [{"role": "bot", "content": "¿Qué edad tiene el paciente? Indícame número y unidad…"}]
+    return agent._enforce_comprehension_recheck(SESSION, ai, dict(fields), "eh no se", hist)
+
+
+def test_dice_que_dio_el_dato_sin_capturar_nada_repregunta():
+    """La contradicción exacta: el modelo marca provides_requested_data y ningún campo cambió.
+    Antes el flujo avanzaba a ciegas; ahora repregunta nombrando el dato pedido."""
+    out = _turno_incoherente("provides_requested_data", 0.9)
+    assert "no te entendí" in out["reply"]
+    assert "edad" in out["reply"].lower()
+
+
+def test_confianza_baja_sin_captura_repregunta():
+    """El schema siempre tuvo `confidence` y nadie lo leía. Baja + turno sin captura = el
+    propio modelo admite que no entendió: se repregunta en vez de avanzar."""
+    out = _turno_incoherente(None, 0.3)
+    assert "no te entendí" in out["reply"]
+
+
+def test_confianza_alta_sin_reclamo_no_interviene():
+    out = _turno_incoherente(None, 0.9)
+    assert out["reply"] == "(del modelo)"
+
+
+def test_turno_con_captura_no_se_toca():
+    """Si el turno capturó el dato, no hay incoherencia — cero fricción agregada."""
+    fields = dict(ORDEN_COMPLETA)
+    prev = {k: v for k, v in ORDEN_COMPLETA.items() if k != "patient_age"}
+    ai = _resp({}, user_intent_signal="provides_requested_data", reply="(del modelo)")
+    ai["confidence"] = 0.9
+    ai["captured_fields"] = dict(fields)
+    hist = [{"role": "bot", "content": "¿Qué edad tiene el paciente?"}]
+    out = agent._enforce_comprehension_recheck(SESSION, ai, prev, "3 años", hist)
+    assert out["reply"] == "(del modelo)"
+
+
+def test_senales_con_carril_propio_no_se_pisan():
+    for señal in ("correction", "farewell", "another_order", "negate", "affirm"):
+        out = _turno_incoherente(señal, 0.2)
+        assert out["reply"] == "(del modelo)", señal
+
+
+def test_respuesta_lateral_con_precio_no_se_pisa():
+    out = _turno_incoherente("provides_requested_data", 0.9,
+                             reply="El cuadro hemático cuesta $14.000. ¿Seguimos?")
+    assert "$14.000" in out["reply"]

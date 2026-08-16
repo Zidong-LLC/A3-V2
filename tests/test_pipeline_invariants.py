@@ -101,11 +101,12 @@ def test_no_signal_of_the_enum_is_dead_code():
 
     # Señales sin consumidor HOY. La lista solo puede ENCOGER: cada una que se cablee sale.
     #   - same_as_previous: hay `_is_same_as_previous` decidiendo por tokens en dos atajos pre-LLM.
-    #   - provides_requested_data: no lo lee nadie.
     # (`cancel` SÍ se consume, en app/detectors/orden.py:137, como veto de confirmación.)
     # `farewell` salió de esta lista el 2026-08-12: la lee `_enforce_open_pedido_close` para
     # cerrar el pedido sin depender de que el cliente diga la palabra exacta.
-    known_dead = {"provides_requested_data", "same_as_previous"}
+    # provides_requested_data revivió el 2026-08-15: la lee el guardrail de coherencia
+    # (_enforce_comprehension_recheck) para detectar "dice que dio el dato pero no capturó".
+    known_dead = {"same_as_previous"}
     code = "\n".join(p.read_text(encoding="utf-8") for p in APP.rglob("*.py")
                      if p.name not in ("schema.py", "prompt.py"))
     dead = {s for s in signals if f'"{s}"' not in code and f"'{s}'" not in code}

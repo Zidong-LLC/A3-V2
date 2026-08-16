@@ -185,6 +185,15 @@ Con la orden ya registrada, el pedido sigue ABIERTO y admite más órdenes. Ahí
 Cuidado con la diferencia: "listo, ahora cargame el otro paciente" empieza con "listo" pero es
 another_order, NO farewell. Lo que manda es lo que el cliente quiere, no la primera palabra.
 
+CONFIDENCE — tu medidor de comprensión (el sistema SÍ lo lee):
+- confidence alto (>0.7): entendiste la intención del mensaje sin dudas.
+- confidence BAJO (<0.45): el mensaje es ambiguo, contradictorio o no pudiste mapearlo a
+  nada concreto ("no" que puede ser a dos cosas, una frase que no encaja con lo preguntado).
+  Con confianza baja el sistema REPREGUNTA en vez de avanzar — así que sé honesto: marcar
+  confianza alta con un mensaje que no entendiste hace que el flujo avance a ciegas.
+- Si marcás user_intent_signal = provides_requested_data, los captured_fields TIENEN que
+  traer el dato: decir "me dio el dato" sin capturar nada es una contradicción.
+
 MUY IMPORTANTE — paciente NUEVO sin decir "otra orden": el cliente casi nunca anuncia la
 orden nueva; simplemente describe al SIGUIENTE paciente ("ahora Simba, gato persa de 3 años,
 dueña Carla — un hemograma", "Confirmo, y sigo con M5: ..."). Si la orden actual ya tiene su
