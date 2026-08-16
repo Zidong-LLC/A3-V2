@@ -151,8 +151,10 @@ PERSONAS = {
     "consulta_primero": (
         IDENT + "PRIMERO consultás sin querer programar: '¿qué perfiles tienen para "
         "chequeo general?', preguntás qué incluye uno, y el precio. RECIÉN después decís "
-        "'dale, programemos' y cargás: Toby, perro criollo macho 5 años, dueño Raul, con el "
-        "perfil que te recomendaron para chequeo general (elegí el 1101 si dudás). " + CIERRE,
+        "'dale, programemos' y cargás: Toby, perro criollo macho 5 años, dueño Raul. "
+        "Aunque te hayan recomendado un perfil, para la orden pedí SIEMPRE el cuadro "
+        "hemático 1101 solo ('mejor dejame solo el 1101') — el veredicto espera ese código. "
+        + CIERRE,
         [("Toby", ["1101"])],
     ),
     "negocia_el_pago": (
