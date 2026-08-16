@@ -207,9 +207,7 @@ def correr(nombre: str, plan: list[dict], max_turns: int = 60) -> list[str]:
     logdir = os.environ.get("ESTRES_LOG_DIR") or str(RAIZ / "tools" / "scripts")
     with open(Path(logdir) / f"guion_transcript_{nombre}.txt", "w", encoding="utf-8") as fh:
         for w, t in transcript:
-            fh.write(f"{'CLIENTE' if w == 'C' else 'BOT'}: {t}
-
-")
+            fh.write(f"{'CLIENTE' if w == 'C' else 'BOT'}: {t}\n\n")
     if fallos:
         print("  --- últimos turnos ---")
         for w, t in transcript[-10:]:
