@@ -3311,7 +3311,13 @@ def process_turn(
 
     if (session.get("phase_current") == CONFIRMATION_PHASE
             and session.get("intent_current") == "route_scheduling"
-            and (_is_correction_request(user_message) or _wants_to_change_analysis(user_message))):
+            and (_is_correction_request(user_message) or _wants_to_change_analysis(user_message))
+            # Si el mensaje trae CÓDIGOS del catálogo ("No, para P2 cargá los códigos 1101 y
+            # 1701"), este bloque determinístico no puede resolverlos y lo tragaba con la
+            # repregunta genérica "¿Qué dato quieres corregir?" (QA de estrés 2026-08-15,
+            # masivo_5 — de ahí cascadeó contaminación cruzada). Con códigos, el turno pasa
+            # al modelo y los carriles de catálogo los resuelven contra la base.
+            and not _profile_codes_from_text(user_message)):
         field = _detect_correction_field(user_message)
         # ERR-099: en el resumen, "quiero cambiar el cliente / soy Animal Pets" reescribía
         # solo clinic_name y dejaba client_id, tax_id, pickup_address y motorizado del
