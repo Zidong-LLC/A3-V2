@@ -479,7 +479,26 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
-### ERR-119 — [ABIERTO] Ronda 1 de la campaña de 20 personas: triage (corte 2026-08-15)
+### ERR-119 — [EN CURSO] Campaña de 20 personas: rondas 1-2 y el hallazgo metodológico
+**Reparado en el ciclo (todo commiteado con tests):** (1) el "dominante de dinero" era FALSO
+ROJO del harness — guardaba la referencia viva y la frontera la vaciaba retroactivamente; con
+deep-copy, el agente registraba PERFECTO (maratón 10/10 órdenes en la re-medición); (2) carril
+de cancelación de la orden en curso ("borrala" descarta de verdad, estables conservados);
+(3) la corrección en confirmación cede ante códigos del catálogo ("cargá los códigos 1101 y
+1701" ya no cae en la repregunta genérica — origen de la contaminación de masivo).
+**Ronda 2 (20 personas): 6/20 limpias — pero los fallos ROTAN entre rondas** (masivo_5 pasó
+de contaminación total a PERFECTO; maratón de 10/10 órdenes a 4/10; personas que pasaban
+fallan y viceversa). Sumando rondas, ~16/20 ya pasaron limpias al menos una vez. Diagnóstico:
+el resto es mayormente RUIDO DEL SIMULADOR (cliente-IA temp 0.9 se sale del plan distinto
+cada corrida — p.ej. identificarse mal y 0 órdenes), no bugs del agente.
+**Ajustes del instrumento para la vara "2 rondas limpias":** (a) el veredicto debe detectar
+corrida INVÁLIDA por descarrilamiento del sim (identificación fallida / [FIN] prematuro) y
+re-correrla en vez de contarla como fallo del agente; (b) bajar la temperatura del cliente-IA
+a ~0.6 para adherencia al plan conservando estilo sucio; (c) reintentos: persona roja se
+corre 2ª vez — rojo REPETIDO = bug real, rojo que rota = ruido.
+**Recurrentes reales que quedan (chicos):** Rocky pierde el agregado post-perfil con typo
+(2/4 rondas); cierre-sin-factura del maratón (1 corrida, sin log del motivo — vigilar).
+**Estado:** EN CURSO (2026-08-15) — próximo: ajustar instrumento → Ronda 3.
 **Resultado:** 7/20 perfectas (negocia_el_pago, correcciones_en_cadena, personaliza_perfil,
 bloque_partido, corrector, charlatan; maratón 9/10 — mejor marca). Parte 2 + frontera + puerta
 del dinero funcionando.
