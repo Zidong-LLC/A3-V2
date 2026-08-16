@@ -479,6 +479,19 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-129 — [RESUELTO] La dirección nueva escrita disparaba el cambio de sede en bucle infinito
+**Síntoma (cambia_direccion_sucursal, rojo 4/5 rondas, 0 órdenes):** "la dirección está
+mal, te di la de la nueva sucursal. Calle 45 Sur # 12-30" → "Claro, cambiamos de sede.
+¿NIT o nombre?" → "Animal Pets" → misma dirección vieja → mismo rechazo → BUCLE infinito
+determinístico. La dirección literal del mensaje se descartaba en cada vuelta.
+**Causa raíz:** el token 'sucursal' (_BRANCH_NOUN_TOKENS) pesaba más que la dirección
+escrita: el carril de cambio de sede re-identificaba sin mirar que el cliente YA dio el
+dato que le iban a preguntar.
+**Solución:** `_user_gave_replacement_address` — si el mensaje trae la dirección nueva
+ESCRITA (validada con `_address_written_by_user`), es corrección de dirección: se captura
+con confirmación y el turno sigue. El cambio de sede real (sin dirección) sigue intacto.
+**Tests:** en `test_senales_no_secuestradas.py`. **Estado:** RESUELTO (2026-08-16).
+
 ### ERR-128 — [RESUELTO] "No, así está bien" a la oferta de cierre dejaba el pedido abierto para siempre
 **Síntoma (Ronda 6 — 8 personas con "pedido NO cerrado"):** tras registrar la orden, a la
 oferta "¿otra orden… o cerramos el pedido?" el cliente contesta "No, así está bien" → el bot
