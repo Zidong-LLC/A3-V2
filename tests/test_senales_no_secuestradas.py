@@ -41,3 +41,27 @@ def test_farewell_no_dispara_el_menu_de_recomendacion():
         ai = _ai(signal)
         out = ayudas._enforce_analysis_help_fallback({"client_id": "c1"}, ai, {}, "Ya está, son todas las órdenes.", [])
         assert out is ai, f"con señal {signal} la red no debe interceptar"
+
+
+def test_no_asi_esta_bien_cierra_el_pedido_aunque_el_modelo_marque_affirm():
+    """ERR-128 (Ronda 6, 8 personas): a la oferta '¿otra orden… o cerramos?' el cliente dice
+    'No, así está bien' y el modelo lo marca affirm (lee la conformidad) — el pedido quedaba
+    abierto para siempre. La red de frases cierra, pero SOLO con la orden ya registrada."""
+    from unittest.mock import patch
+    from app import agent
+    from app.messages import PEDIDO_CLOSING_QUESTION
+
+    prev = {"_pedido_id": "ped-1", "_order_registered": True}
+    ai = {"intent": "route_scheduling", "captured_fields": dict(prev),
+          "reply": "¿Qué análisis o perfil desean?", "user_intent_signal": "affirm"}
+    with patch.object(agent, "PEDIDOS_ENABLED", True):
+        out = agent._enforce_open_pedido_close({"client_id": "c1"}, ai, prev, "No, así está bien.")
+    assert out["reply"] == PEDIDO_CLOSING_QUESTION
+
+    # A mitad de captura (orden NO registrada), "ya está, el dueño es Juan" NO cierra.
+    prev2 = {"_pedido_id": "ped-1"}
+    ai2 = {"intent": "route_scheduling", "captured_fields": dict(prev2),
+           "reply": "sigo", "user_intent_signal": "provides_requested_data"}
+    with patch.object(agent, "PEDIDOS_ENABLED", True):
+        out2 = agent._enforce_open_pedido_close({"client_id": "c1"}, ai2, prev2, "ya está, el dueño es Juan")
+    assert out2["reply"] == "sigo"

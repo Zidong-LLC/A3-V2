@@ -52,6 +52,7 @@ from app.detectors.orden import (  # noqa: F401
     _STABLE_ORDER_FIELDS,
     _accepts_handoff_offer,
     _confirms_order_now,
+    _says_thats_all,
     _detect_correction_field,
     _expresses_order_request,
     _is_correction_request,

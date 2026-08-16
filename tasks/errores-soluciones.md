@@ -479,6 +479,23 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-128 — [RESUELTO] "No, así está bien" a la oferta de cierre dejaba el pedido abierto para siempre
+**Síntoma (Ronda 6 — 8 personas con "pedido NO cerrado"):** tras registrar la orden, a la
+oferta "¿otra orden… o cerramos el pedido?" el cliente contesta "No, así está bien" → el bot
+respondía "¿Qué análisis o perfil desean?" (improvisación del modelo) y el pedido nunca
+cerraba ni facturaba. Visto por primera vez en Ronda 3 (especie_exotica); en la 6 el sim a
+temp 0.6 convergió en ese fraseo y pegó masivo.
+**Causa raíz:** el cierre del pedido dispara con señal negate/farewell/cancel — pero "No,
+así está bien" el modelo lo marca `affirm` (lee la conformidad, no la negación). La red de
+tokens (_is_farewell) tampoco lo cubría. Sin cierre, el turno se lo llevaba cualquier empuje.
+**Solución:** detector `_says_thats_all` (frases completas normalizadas: "así está bien",
+"eso es todo", "nada más", "ya está"…) como red del cierre, acotado a `_order_registered`
+(la oferta en pantalla): "ya está, el dueño es Juan" a mitad de captura NO cierra.
+**También en esta tanda:** la confirmación explícita ("Sí, confirmo esos datos") veta la
+salida farewell/negate del carril de ajuste (regresión de ERR-123 cazada en Ronda 5).
+**Tests:** en `test_senales_no_secuestradas.py` y `test_confirmacion_pago_adelantado.py`.
+**Estado:** RESUELTO (2026-08-16). Suite 772.
+
 ### ERR-126 — [EN CURSO] Rondas 3-4 con el instrumento afinado: 10/20 → 11/20, y el mapa de lo que queda
 **Instrumento (ya commiteado):** temp 0.6, corridas inválidas detectadas y re-corridas,
 reintento (rojo repetido = bug real), plantilla CIERRE sin contradicción, persona

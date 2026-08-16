@@ -123,6 +123,7 @@ from app.detectors import (
     _wants_to_reconsider_option,
     _accepts_handoff_offer,
     _confirms_order_now,
+    _says_thats_all,
 )
 from app.flow import (
     AGE_UNIT_TOKENS as _AGE_UNIT_TOKENS,
@@ -2363,7 +2364,10 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
     # Señales con las que el cliente da por terminada la carga. `cancel` entra porque el
     # modelo la usa para "cerrame eso" / "terminala ahí": con la orden YA registrada no puede
     # anular nada, así que en este contexto significa cerrar el pedido, no cancelarlo.
-    wants_to_finish = signal in ("farewell", "negate", "cancel") or _is_farewell(user_message)
+    # La red de frases solo aplica con la orden YA registrada (la oferta "¿otra orden… o
+    # cerramos?" está en pantalla): "ya está, el dueño es Juan" a mitad de captura no cierra.
+    wants_to_finish = (signal in ("farewell", "negate", "cancel") or _is_farewell(user_message)
+                       or (prev_fields.get("_order_registered") and _says_thats_all(user_message)))
     if wants_to_finish and not prev_fields.get("_pedido_awaiting_payment"):
         fields = _merge_sin_borrar(prev_fields, fields)
         fields["_pedido_awaiting_payment"] = True

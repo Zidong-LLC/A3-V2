@@ -173,6 +173,26 @@ def _accepts_handoff_offer(text: str, signal: str | None) -> bool:
     return bool(tokens & _HANDOFF_ACCEPT_TOKENS) or _is_affirmative_text(text)
 
 
+_THATS_ALL_PHRASES = (
+    "asi esta bien", "asi estamos bien", "eso es todo", "eso seria todo", "seria todo",
+    "es todo", "nada mas", "ya esta", "ya estamos", "dejalo asi", "asi dejalo",
+    "no mas ordenes", "no cargo mas", "ninguna mas", "ninguna otra", "no tengo mas",
+)
+
+
+def _says_thats_all(text: str) -> bool:
+    """¿El cliente da por terminada la carga ("No, así está bien", "eso es todo")?
+
+    Red del cierre del pedido (Ronda 6): a la oferta "¿otra orden… o cerramos?" el cliente
+    contesta "No, así está bien" y el modelo suele marcarla `affirm` (lee la conformidad),
+    no `negate` — la señal sola dejaba el pedido abierto y el turno se lo llevaba cualquier
+    otro empuje. Frases completas normalizadas, no tokens sueltos: un "no" pelado no alcanza
+    y "no, agregale una glucosa" no matchea ninguna."""
+    from app.text import ACCENT_TRANSLATION
+    norm = " ".join(t.translate(ACCENT_TRANSLATION) for t in _tokenize(text))
+    return any(p in norm for p in _THATS_ALL_PHRASES)
+
+
 def _confirms_order_now(ai_response: dict, user_message: str) -> bool:
     """¿El cliente confirma la orden en este turno? Fuente primaria: la lectura semántica
     de la IA (`user_intent_signal`); fallback: tokens de confirmación. Si la IA leyó OTRA
