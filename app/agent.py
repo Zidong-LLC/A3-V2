@@ -2685,8 +2685,11 @@ def _order_boundary_response(session: dict, ai_response: dict, prev: dict,
             and not prev.get("_order_registered")):
         actual = dict(prev)
         nombre = actual.get("patient_name")
+        # Los ESTABLES (médico, dirección) sobreviven a la cancelación: viajan por el
+        # snapshot igual que en el followup — lo descartado es el PACIENTE y su análisis.
+        _snap = {k: v for k, v in actual.items() if k in _CLIENT_MEMORY_FIELDS and v}
         _reset_order_fields(actual)
-        actual["_prev_order_snapshot"] = {}
+        actual["_prev_order_snapshot"] = _snap
         _carry_over_stable_fields(actual)
         actual["_pending_intents"] = []
         return _base_route_response(
