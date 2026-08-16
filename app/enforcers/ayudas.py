@@ -24,6 +24,11 @@ def _enforce_analysis_help_fallback(session: dict, ai_response: dict, prev_field
     menú detrás (no seleccionable y con riesgo de inventar precios). Ver RESUELTO-016."""
     if ai_response.get("intent") != "route_scheduling":
         return ai_response
+    # SEÑAL-PRIMERO (Ronda 3, confirmo_y_sigo): "Ya está, son todas las órdenes" con el
+    # análisis pendiente NO es "no sé qué pedir" — es cerrar/avanzar. Si el modelo leyó otra
+    # intención, esta red cede y la atiende su handler (cierre del pedido, frontera, etc.).
+    if ai_response.get("user_intent_signal") in {"farewell", "negate", "cancel", "another_order"}:
+        return ai_response
     fields = ai_response.get("captured_fields", {})
     if not (session.get("client_id") or fields.get("_client_found")):
         return ai_response

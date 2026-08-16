@@ -15,6 +15,7 @@ from app.detectors import (
     _is_bare_confirmation,
     _is_order_confirmation,
     _named_analysis_terms,
+    _payment_method_from_text,
     _profile_codes_from_text,
     _wants_partial_analysis_change,
 )
@@ -106,6 +107,16 @@ def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message:
     if not pending_action and _is_bare_confirmation(user_message):
         return None
 
+    # Un método de pago como respuesta al resumen NO es un pedido de análisis (Ronda 3,
+    # nit_con_formatos): "¿Confirmas estos datos?" → "Contraentrega." caía acá, el catálogo
+    # no reconocía nada y el carril respondía "¿Qué análisis quieres agregar?" en bucle —
+    # la orden no se registraba nunca. Cede al cierre determinístico, que lo lee como
+    # confirmación con el pago adelantado.
+    if (_payment_method_from_text(user_message)
+            and not _profile_codes_from_text(user_message)
+            and not _wants_partial_analysis_change(user_message)):
+        return None
+
     if not pending_action:
         # Habla de OTRO dato de la orden ("cambiá el médico"): no es de este carril.
         campo = _detect_correction_field(user_message)
@@ -131,7 +142,10 @@ def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message:
     # Se mira si nombró un CÓDIGO ("no, mejor el 1101" sí es un ajuste) y no los términos
     # sueltos: `_named_analysis_terms` devuelve palabras de la frase —"análisis" entre ellas—,
     # así que una negación que menciona la palabra volvía a caer en el carril.
-    if signal == "negate" or tokens & {"nada", "ninguno", "ninguna", "ningun", "ningún"}:
+    # `farewell` ("ya está, gracias") con la espera encendida es la MISMA salida que la
+    # negación: el cliente da por terminado, no va a nombrar un análisis (Ronda 3: el carril
+    # repreguntaba "¿Qué análisis quieres agregar?" sin salida posible).
+    if signal in ("negate", "farewell") or tokens & {"nada", "ninguno", "ninguna", "ningun", "ningún"}:
         if not _profile_codes_from_text(user_message):
             fields.pop("_awaiting_additional_test", None)
             fields.pop("_offering_extra_analysis", None)
@@ -243,9 +257,21 @@ def _enforce_confirmation_step(session: dict, ai_response: dict, fields: dict, p
     # con la orden completa, cerrar SIEMPRE acá, sin depender de que el modelo emita
     # la fase terminal. Antes el cierre quedaba a criterio del AI y, si no devolvía
     # fase_6_cierre, la orden se quedaba trabada en la confirmación sin registrarse.
+    # Pago como confirmación implícita (Ronda 3): al resumen "¿Confirmas estos datos?" el
+    # cliente responde "Contraentrega." — está confirmando Y adelantando el pago del pedido.
+    # Solo si el mensaje no trae NINGUNA otra intención (las señales de veto mandan).
+    pago_adelantado = (
+        previous_phase == CONFIRMATION_PHASE
+        and _payment_method_from_text(user_message)
+        and ai_response.get("user_intent_signal") not in {
+            "negate", "correction", "change_client", "another_order", "cancel"}
+        and not _detect_correction_field(user_message)
+    )
     if (previous_phase == CONFIRMATION_PHASE
-            and _confirms_order_now(ai_response, user_message)
+            and (_confirms_order_now(ai_response, user_message) or pago_adelantado)
             and not _missing_route_field(session, fields)):
+        if pago_adelantado and not fields.get("payment_method"):
+            fields["payment_method"] = _payment_method_from_text(user_message)
         operational_answer = _operational_side_question_answer(user_message)
         # Si confirmó y a la vez preguntó el precio, respondemos el valor REAL del análisis
         # ya elegido (no la respuesta genérica) antes del "Quedó registrado".

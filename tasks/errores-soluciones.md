@@ -479,6 +479,35 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-123 — [RESUELTO] El pago como respuesta al resumen caía al carril de agregado (bucle sin registro)
+**Síntoma (Ronda 3, nit_con_formatos — 0 órdenes, 0 facturas):** al resumen "¿Confirmas
+estos datos?" el cliente respondió "Contraentrega." → "¿Qué análisis quieres agregar?" →
+"Ya está, gracias." → la misma pregunta en BUCLE. La orden nunca se registró.
+**Causa raíz:** en `_confirmation_analysis_adjustment` cualquier texto que el catálogo no
+reconoce y no es confirmación/negación cae a la repregunta de agregado; un método de pago
+no es nada de eso. Y con la espera encendida, `farewell` no tenía salida del carril.
+**Solución (app/enforcers/confirmacion.py):** (1) el carril CEDE ante un método de pago sin
+análisis nombrado; (2) el cierre determinístico lee ese pago como confirmación implícita
+(con veto de señales negate/correction/…) y lo captura para el pedido; (3) `farewell` con la
+espera encendida sale igual que la negación (pregunta cerrada).
+**Tests:** `tests/test_confirmacion_pago_adelantado.py` (4). **Estado:** RESUELTO (2026-08-16).
+
+### ERR-124 — [RESUELTO] Dos atajos secuestraban el multi-orden por colisión de tokens
+**Síntoma (Ronda 3, confirmo_y_sigo — 0 de 4 órdenes):** (a) "Confirmo, y sigo con la
+siguiente orden: … código 1101" → el bot respondió "El número de tu orden más reciente es
+A3-2026-187" (la consulta de nº de orden disparó por 'orden'+'código'); (b) "Ya está, son
+todas las órdenes" con el análisis pendiente → menú "Lo que sueles pedir" + recomendación
+de perfiles (la red de ayuda del catálogo ignoraba la señal farewell).
+**Solución:** `_is_order_number_query` excluye 'siguiente/sigo/seguimos' y el patrón
+"código NNN[N]" (nombra un análisis); `_enforce_analysis_help_fallback` cede señal-primero
+ante farewell/negate/cancel/another_order.
+**Tests:** `tests/test_senales_no_secuestradas.py` (3).
+**Pendientes que la MISMA corrida dejó a la vista (sin ficha propia aún):** el bloque de la
+PRIMERA línea del chat (antes de identificarse) pierde el análisis (152 de C1); especie_exotica
+"No, así está bien" → "¿Qué análisis o perfil desean?"; cambia_direccion_sucursal trata la
+dirección nueva como cambio de sede y re-identifica en círculo; bloque_partido cerró pedido
+sin factura. **Estado:** RESUELTO lo reparado; pendientes en triage (2026-08-16).
+
 ### ERR-122 — [RESUELTO] 3 clínicas con nombre 100% genérico no se encontraban por su propio nombre
 **Síntoma:** el barrido final de clientes (con el verificador ya corregido) encontró que
 'Clinica Mascotas Veterinaria', 'Vet Clinic Veterinaria' y 'Tienda Veterinaria Mi Mascotas'

@@ -416,6 +416,14 @@ def _is_order_number_query(text: str) -> bool:
     tokens = set(_tokenize(text))
     if tokens & _ORDER_CREATE_TOKENS:
         return False
+    # "sigo con la SIGUIENTE orden" es avanzar, no preguntar un número (Ronda 3: el atajo
+    # respondía el nº de la orden anterior en medio de un multi-orden).
+    if tokens & {"siguiente", "sigo", "seguimos", "continuo", "continúo"}:
+        return False
+    # "código 1101" nombra un ANÁLISIS del catálogo (los códigos tienen 3-4 cifras), no
+    # pregunta el número de una orden ya creada.
+    if re.search(r"\b(?:codigo|código|cod)s?\.?\s*:?\s*\d{3,4}\b", (text or "").lower()):
+        return False
     return bool(tokens & _ORDER_QUERY_TOKENS) and bool(tokens & _ORDER_NUMBER_TOKENS)
 
 
