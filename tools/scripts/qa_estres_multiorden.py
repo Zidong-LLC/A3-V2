@@ -60,13 +60,13 @@ patch("app.services.db.create_request", side_effect=_create_request_enriquecido)
 IDENT = ("Sos de 'Animal Pets' (registrada). Identificate con ese nombre cuando te lo "
          "pidan y confirmá la dirección que el bot te ofrezca. Médico: Dr. Ruiz. ")
 CIERRE = ("REGLA DURA: tenés que cargar TODAS las órdenes del plan, EN ORDEN, una por una. "
-          "Si tu plan tiene UNA sola orden, NUNCA digas 'otra orden': registrada esa, pasá "
-          "directo al cierre. "
-          "Cuando el bot registre una orden y pregunte si cargás otra, decí 'otra orden' y "
-          "seguí con la SIGUIENTE del plan. NO menciones el pago hasta terminar la última. "
-          "Recién cuando la ÚLTIMA orden del plan esté registrada, decí con tus palabras que "
-          "ya está, y cuando pregunte el pago decí 'contraentrega'. Cuando el bot confirme "
-          "el cierre del pedido, escribí '[FIN]'. NUNCA escribas '[FIN]' antes de eso. ")
+          "SOLO SI tu plan tiene MÁS órdenes pendientes: cuando el bot registre una y "
+          "pregunte si cargás otra, decí 'otra orden' y seguí con la SIGUIENTE del plan. "
+          "Si la orden registrada era la ÚLTIMA (o la única) del plan, NUNCA digas 'otra "
+          "orden' ni inventes pacientes nuevos: decí con tus palabras que ya está. "
+          "NO menciones el pago hasta terminar la última; cuando pregunte el pago decí "
+          "'contraentrega'. Cuando el bot confirme el cierre del pedido, escribí '[FIN]'. "
+          "NUNCA escribas '[FIN]' antes de eso. ")
 
 # Cada persona: (estilo, plan de órdenes). Cada orden: (paciente, [códigos esperados]).
 # Los códigos son del catálogo REAL. El estilo NUNCA es un guion perfecto.
@@ -268,7 +268,7 @@ def _items_de_orden(ai: dict) -> set[str]:
     return items
 
 
-def _motivo_corrida_invalida(transcript: list, plan: list, n_requests: int) -> str | None:
+def _motivo_corrida_invalida(transcript: list, plan: list, requests: list) -> str | None:
     """Descarrilamiento del CLIENTE-IA (ruido del simulador), no fallo del agente — ERR-119.
 
     Criterio observable: hay una orden del plan sin registrar cuyos códigos el cliente
@@ -276,9 +276,17 @@ def _motivo_corrida_invalida(transcript: list, plan: list, n_requests: int) -> s
     salteado). Si el cliente nunca lo pidió, el agente no pudo perderlo."""
     dicho = " ".join(t.lower() for w, t in transcript if w == "user")
     for i, (pac, cods) in enumerate(plan):
-        if i >= n_requests and not any(c.lower() in dicho for c in cods):
+        if i >= len(requests) and not any(c.lower() in dicho for c in cods):
             return (f"orden {i+1} ({pac}): el cliente-IA nunca escribió ninguno de sus "
                     f"códigos {list(cods)} — descarrilamiento del sim")
+    # Órdenes EXTRA con paciente que el plan no contiene: el cliente-IA inventó una orden
+    # (el patrón "otra orden" de la plantilla vieja). El agente hizo bien en registrarla.
+    pacientes_plan = {p.strip().lower() for p, _ in plan}
+    for r in requests[len(plan):]:
+        paciente = ((r.get("captured_fields") or {}).get("patient_name") or "").strip().lower()
+        if paciente and paciente not in pacientes_plan:
+            return (f"orden extra para '{paciente}' que NO está en el plan — "
+                    f"el cliente-IA la inventó")
     return None
 
 
@@ -297,6 +305,11 @@ def _run(nombre: str, estilo: str, plan: list, max_turns: int = 120) -> dict:
                     + "; ".join(f"({i+1}) {pac}: códigos {','.join(cods)}"
                                 for i, (pac, cods) in enumerate(plan))
                     + ". Cargá una por una y recién al final el pago.")
+        if len(plan) == 1:
+            objetivo += (" TU PLAN TIENE UNA SOLA ORDEN: cuando el bot ofrezca agregar otro "
+                         "análisis u otra orden, decí 'no, así está bien' — JAMÁS digas "
+                         "'otra orden' ni inventes otro paciente. Registrada esa única "
+                         "orden, pasá al pago y cerrá.")
         transcript = []
         for _ in range(max_turns):
             msg = _cliente_simulado(estilo, transcript, objetivo)
@@ -351,7 +364,7 @@ def _run(nombre: str, estilo: str, plan: list, max_turns: int = 120) -> dict:
             fh.write(f"{'CLIENTE' if who == 'user' else 'BOT'}: {text}\n\n")
     return {"nombre": nombre, "fallos": fallos, "n_requests": len(requests),
             "transcript": transcript,
-            "invalida": _motivo_corrida_invalida(transcript, plan, len(requests)) if fallos else None}
+            "invalida": _motivo_corrida_invalida(transcript, plan, requests) if fallos else None}
 
 
 def _imprimir(r: dict, intento: int) -> None:
