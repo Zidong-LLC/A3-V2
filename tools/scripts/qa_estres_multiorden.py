@@ -122,6 +122,109 @@ PERSONAS = {
          ("M5", ["152", "1405"]), ("M6", ["1517"]), ("M7", ["152"]), ("M8", ["1101"]),
          ("M9", ["653", "1404"]), ("M10", ["1701"])],
     ),
+
+    # ── Campaña 20 personas (Fase 2, 2026-08-15) — patrones minados de conversaciones
+    # REALES de Chatwoot ("ya te lo dije", médico como identidad, consulta-primero,
+    # negociación de pago) + fichas ERR. Cliente-IA siempre; guion perfecto jamás. ──
+
+    "no_repite_datos": (
+        IDENT + "REGLA de tu personalidad: NUNCA repetís un dato que ya diste — si el bot "
+        "te lo vuelve a pedir contestás 'ya te lo dije' o 'ya te lo di' (patrón real de "
+        "Chatwoot). Plan: (1) Greta, perra bulldog hembra 7 años, dueña Anahi — perfil 152. "
+        "Datos del paciente en UN bloque; si repregunta algo del bloque, 'ya te lo dije'. "
+        + CIERRE,
+        [("Greta", ["152"])],
+    ),
+    "medico_como_identidad": (
+        "Sos el Dr. Diego Grillo y trabajás en Animal Pets. Al identificarte decís PRIMERO "
+        "tu nombre de médico ('Soy el Dr. Diego Grillo'); si el bot no te encuentra, recién "
+        "ahí aclarás 'trabajo en Animal Pets' (patrón real). Después: paciente Lolo, perra "
+        "pitbull hembra 8 años, dueño José, un pre quirúrgico — pedí recomendación y elegí "
+        "'el 152 creo q esta bien!'. " + CIERRE,
+        [("Lolo", ["152"])],
+    ),
+    "consulta_primero": (
+        IDENT + "PRIMERO consultás sin querer programar: '¿qué perfiles tienen para "
+        "chequeo general?', preguntás qué incluye uno, y el precio. RECIÉN después decís "
+        "'dale, programemos' y cargás: Toby, perro criollo macho 5 años, dueño Raul, con el "
+        "perfil que te recomendaron para chequeo general (elegí el 1101 si dudás). " + CIERRE,
+        [("Toby", ["1101"])],
+    ),
+    "negocia_el_pago": (
+        IDENT + "Cargás UNA orden (Kira, gata criolla hembra 4 años, dueña Sole, un 1101) y "
+        "al cerrar NEGOCIÁS el pago (patrón real): '¿cuáles son las formas de pago?', "
+        "'¿esas son las únicas opciones?', '¿transferencia por aplicación está bien?'. "
+        "Aceptá lo que el bot te explique y cerrá con transferencia o contraentrega. "
+        "Cuando el pedido cierre, '[FIN]'. ",
+        [("Kira", ["1101"])],
+    ),
+    "nit_con_formatos": (
+        "Te identificás con el NIT de Animal Pets escrito raro: primero '53.115.419-1' y si "
+        "no lo toma '53115419-1'. Médico Dr. Ruiz. Después: Bobi, perro criollo macho 3 "
+        "años, dueño Pol, perfil 152. " + CIERRE,
+        [("Bobi", ["152"])],
+    ),
+    "cambia_direccion_sucursal": (
+        IDENT + "Cuando el bot confirme la dirección registrada decís 'la dirección está "
+        "mal, te di la de la nueva sucursal' y dás una nueva: 'Calle 45 Sur # 12-30'. "
+        "Seguí normal: Nala, perra beagle hembra 2 años, dueño Tito, un 1101. " + CIERRE,
+        [("Nala", ["1101"])],
+    ),
+    "especie_exotica": (
+        IDENT + "Tu paciente NO es perro ni gato: 'es una vaca' (el bot debe anotar Bovino "
+        "Hembra solo con eso). Lola, sin raza ('ninguna'), 5 años, dueño Finca El Prado — "
+        "pedí 'algo básico de sangre' y elegí del menú el cuadro hemático (1101). " + CIERRE,
+        [("Lola", ["1101"])],
+    ),
+    "correcciones_en_cadena": (
+        IDENT + "Te equivocás y corregís TODO: decís médico 'dr peres' y lo corregís a "
+        "'dr ruiz'; paciente 'Roco'... 'perdón, es Rocco'; edad '3 años'... 'no, mentira, "
+        "4 años'; y en el RESUMEN corregís el sexo a hembra. Rocco, perro boxer, dueña November, "
+        "perfil 152. Confirmá cuando el resumen quede bien. " + CIERRE,
+        [("Rocco", ["152"])],
+    ),
+    "sintoma_y_area": (
+        IDENT + "No sabés códigos: pedís por necesidad — 'algo para revisar el riñón' para "
+        "Max (perro criollo macho 6 años, dueño Beto). El bot te va a ofrecer opciones: "
+        "elegí UNA del menú por su número de lista o nombre. " + CIERRE,
+        [("Max", [])],   # sin código esperado fijo: el check es que quede ≥1 ítem con precio
+    ),
+    "personaliza_perfil": (
+        IDENT + "Preguntás qué incluye el perfil 152, y lo personalizás: 'sacale la "
+        "creatinina y agregale una glucosa'. Paciente Uma, gata siames hembra 3 años, dueña "
+        "Rita. Revisá el total en el resumen y confirmá. " + CIERRE,
+        [("Uma", ["152"])],
+    ),
+    "bloque_partido": (
+        IDENT + "Cargás DOS órdenes pero SIEMPRE partís el bloque en dos mensajes: primero "
+        "el paciente ('ahora va Simba, gato persa macho 2 años, dueño Leo') y en el mensaje "
+        "SIGUIENTE el análisis ('para Simba un 1101'). Orden 1: Duke, perro pastor macho 4 "
+        "años, dueño Gus — perfil 152 (también partido en dos mensajes). " + CIERRE,
+        [("Duke", ["152"]), ("Simba", ["1101"])],
+    ),
+    "confirmo_y_sigo": (
+        IDENT + "Encadenás CUATRO órdenes usando SIEMPRE la muletilla 'confirmo, y sigo "
+        "con...' en el mismo mensaje (confirmás la anterior y das el paciente nuevo con su "
+        "análisis): (1) C1 perro criollo macho 2 años dueño A — perfil 152. (2) C2 gata "
+        "criolla hembra 3 años dueño B — 1101. (3) C3 perro boxer macho 4 años dueño C — "
+        "perfil 653. (4) C4 gata persa hembra 5 años dueño D — 1517. " + CIERRE,
+        [("C1", ["152"]), ("C2", ["1101"]), ("C3", ["653"]), ("C4", ["1517"])],
+    ),
+    "cancela_el_pedido": (
+        IDENT + "Cargás la orden de Thor (perro rottweiler macho 3 años, dueño Iván, perfil "
+        "152), la confirmás, y DESPUÉS te arrepentís de TODO: 'sabés qué, cancelá todo el "
+        "pedido, lo hacemos otro día'. Aceptá lo que el bot responda y despedite con "
+        "'[FIN]'. ",
+        [("Thor", ["152"])],
+    ),
+    "doble_intencion": (
+        IDENT + "En un MISMO mensaje pedís dos cosas: programar un análisis para Coco "
+        "(perro criollo macho 2 años, dueño Fer, un 1101) Y preguntar si ya están los "
+        "resultados de una muestra de la semana pasada. Insistí con los resultados si el "
+        "bot no te contesta eso. " + CIERRE,
+        [("Coco", ["1101"])],
+    ),
+
     "caotico": (
         IDENT + "Respondés desordenado: a veces contestás OTRA cosa de la que preguntan "
         "(si piden el propietario, respondés el análisis), intentás pagar a mitad de la "
