@@ -65,3 +65,21 @@ def test_no_asi_esta_bien_cierra_el_pedido_aunque_el_modelo_marque_affirm():
     with patch.object(agent, "PEDIDOS_ENABLED", True):
         out2 = agent._enforce_open_pedido_close({"client_id": "c1"}, ai2, prev2, "ya está, el dueño es Juan")
     assert out2["reply"] == "sigo"
+
+
+def test_direccion_escrita_gana_al_sustantivo_sucursal():
+    """ERR-129 (Ronda 7, bucle infinito): 'te di la de la nueva sucursal. Calle 45 Sur
+    # 12-30' — el carril de cambio de sede re-identificaba descartando la dirección
+    literal. La dirección escrita por el cliente es una corrección, no otra identidad."""
+    from app.agent import _user_gave_replacement_address
+
+    msg = "la dirección está mal, te di la de la nueva sucursal. Calle 45 Sur # 12-30."
+    fields = {"pickup_address": "Calle 45 Sur # 12-30"}
+    prev = {"pickup_address": "DG 51A SUR 61B-03"}
+    assert _user_gave_replacement_address(fields, prev, msg)
+    # Sin dirección escrita en el mensaje, el cambio de sede sigue siendo cambio de sede.
+    assert not _user_gave_replacement_address(
+        {"pickup_address": "CL 1 # 2-3"}, prev, "mandalo a la otra sucursal")
+    # La misma dirección re-capturada no es una corrección.
+    assert not _user_gave_replacement_address(
+        {"pickup_address": "DG 51A SUR 61B-03"}, prev, msg)

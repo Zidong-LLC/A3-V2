@@ -1017,6 +1017,16 @@ def _switch_client_keep_order(chat_id: str, session: dict, fields: dict, reply: 
     return _base_route_response(reply, fields)
 
 
+def _user_gave_replacement_address(fields: dict, prev: dict, user_message: str) -> bool:
+    """¿El mensaje trae ESCRITA una dirección nueva? "te di la de la nueva sucursal:
+    Calle 45 Sur # 12-30" es una CORRECCIÓN de dirección, no un cambio de identidad —
+    el sustantivo 'sucursal' no puede pesar más que la dirección literal (Ronda 7: el
+    carril de cambio de sede re-identificaba en bucle infinito descartándola)."""
+    nueva = fields.get("pickup_address")
+    return bool(nueva and not _same_text(nueva, prev.get("pickup_address"))
+                and _address_written_by_user(nueva, user_message))
+
+
 def _switch_branch_keep_order(chat_id: str, session: dict, fields: dict) -> dict:
     """Cambio de SEDE de la misma orden ('esta orden es para la otra sede')."""
     return _switch_client_keep_order(
@@ -3638,14 +3648,20 @@ def process_turn(
         and (session.get("client_id") or fields.get("_client_found"))
         and not prev_captured.get("_client_match_options")
     ):
-        base_fields = dict(prev_captured)
-        state.ConversationState(base_fields).clear_menus()
-        # El cambio de cliente resuelve cualquier oferta/espera abierta de análisis.
-        base_fields.pop("_offering_extra_analysis", None)
-        base_fields.pop("_awaiting_additional_test", None)
-        is_branch = bool(set(_tokenize(user_message)) & _BRANCH_NOUN_TOKENS)
-        switch = _switch_branch_keep_order if is_branch else _restart_identification_for_new_client
-        return _persist_turn(chat_id, user_message, switch(chat_id, session, base_fields))
+        if _user_gave_replacement_address(fields, prev_captured, user_message):
+            # Trajo la dirección nueva ESCRITA: se captura como corrección y el turno sigue
+            # su curso normal — nada que re-identificar.
+            fields["_address_confirmation_pending"] = False
+            fields["_address_confirmed"] = True
+        else:
+            base_fields = dict(prev_captured)
+            state.ConversationState(base_fields).clear_menus()
+            # El cambio de cliente resuelve cualquier oferta/espera abierta de análisis.
+            base_fields.pop("_offering_extra_analysis", None)
+            base_fields.pop("_awaiting_additional_test", None)
+            is_branch = bool(set(_tokenize(user_message)) & _BRANCH_NOUN_TOKENS)
+            switch = _switch_branch_keep_order if is_branch else _restart_identification_for_new_client
+            return _persist_turn(chat_id, user_message, switch(chat_id, session, base_fields))
 
     # 3.3 — another_order SEÑAL-PRIMERO (reorden C1): tras una orden registrada, cualquier
     # fraseo de "necesito otra orden" lo lee el modelo; los tokens quedan de RED para
