@@ -210,11 +210,14 @@ PERSONAS = {
         [("Duke", ["152"]), ("Simba", ["1101"])],
     ),
     "confirmo_y_sigo": (
-        IDENT + "Encadenás CUATRO órdenes usando SIEMPRE la muletilla 'confirmo, y sigo "
-        "con...' en el mismo mensaje (confirmás la anterior y das el paciente nuevo con su "
-        "análisis): (1) C1 perro criollo macho 2 años dueño A — perfil 152. (2) C2 gata "
-        "criolla hembra 3 años dueño B — 1101. (3) C3 perro boxer macho 4 años dueño C — "
-        "perfil 653. (4) C4 gata persa hembra 5 años dueño D — 1517. " + CIERRE,
+        IDENT + "Encadenás CUATRO órdenes con la muletilla 'confirmo, y sigo con...'. "
+        "IMPORTANTE: la muletilla va SOLO cuando el bot te muestra el RESUMEN de la orden o "
+        "te da su número — ahí confirmás y das el paciente siguiente en el mismo mensaje. "
+        "Mientras el bot te pregunta datos sueltos (dirección, médico, edad…), respondés "
+        "SOLO ese dato, sin adelantar la orden siguiente. Plan: (1) C1 perro criollo macho "
+        "2 años dueño A — perfil 152. (2) C2 gata criolla hembra 3 años dueño B — 1101. "
+        "(3) C3 perro boxer macho 4 años dueño C — perfil 653. (4) C4 gata persa hembra "
+        "5 años dueño D — 1517. " + CIERRE,
         [("C1", ["152"]), ("C2", ["1101"]), ("C3", ["653"]), ("C4", ["1517"])],
     ),
     "cancela_el_pedido": (
@@ -278,6 +281,10 @@ def _motivo_corrida_invalida(transcript: list, plan: list, requests: list) -> st
     salteado). Si el cliente nunca lo pidió, el agente no pudo perderlo."""
     dicho = " ".join(t.lower() for w, t in transcript if w == "user")
     for i, (pac, cods) in enumerate(plan):
+        # `any()` sobre lista vacía es False → sin este guard, una orden SIN códigos
+        # esperados (p. ej. sintoma_y_area elige del menú) siempre daba "inválida".
+        if not cods:
+            continue
         if i >= len(requests) and not any(c.lower() in dicho for c in cods):
             return (f"orden {i+1} ({pac}): el cliente-IA nunca escribió ninguno de sus "
                     f"códigos {list(cods)} — descarrilamiento del sim")

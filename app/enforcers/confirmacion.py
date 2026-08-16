@@ -145,7 +145,11 @@ def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message:
     # `farewell` ("ya está, gracias") con la espera encendida es la MISMA salida que la
     # negación: el cliente da por terminado, no va a nombrar un análisis (Ronda 3: el carril
     # repreguntaba "¿Qué análisis quieres agregar?" sin salida posible).
-    if signal in ("negate", "farewell") or tokens & {"nada", "ninguno", "ninguna", "ningun", "ningún"}:
+    # Pero una CONFIRMACIÓN explícita ("Sí, confirmo esos datos") nunca es esta salida,
+    # aunque el modelo la marque farewell (Ronda 5: caía en "no me quedó claro" y el
+    # cliente terminó cancelando el pedido entero).
+    if ((signal in ("negate", "farewell") or tokens & {"nada", "ninguno", "ninguna", "ningun", "ningún"})
+            and not _is_order_confirmation(user_message)):
         if not _profile_codes_from_text(user_message):
             fields.pop("_awaiting_additional_test", None)
             fields.pop("_offering_extra_analysis", None)

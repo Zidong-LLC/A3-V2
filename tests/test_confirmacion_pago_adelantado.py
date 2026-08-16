@@ -88,3 +88,13 @@ def test_pago_mas_pedido_de_analisis_no_cede():
             SESSION, _ai(fields), fields, "fase_4_confirmacion",
             "contraentrega, y agregale una glucosa")
     assert "0201" in (fields.get("selected_tests") or []) or "glucosa" in out["reply"].lower()
+
+
+def test_confirmacion_explicita_cierra_aunque_la_senal_sea_farewell():
+    """Ronda 5 (cancela_el_pedido): 'Sí, confirmo esos datos.' con señal farewell caía en
+    'no me quedó claro' — el cliente terminó cancelando. La confirmación explícita SIEMPRE
+    cierra, sin importar cómo etiquete el modelo."""
+    fields = dict(BASE, payment_method="contraentrega")
+    out = _step(fields, "Sí, confirmo esos datos.", signal="farewell")
+    assert out["phase"] == "fase_6_cierre", out["reply"]
+    assert CONFIRMATION_AMBIGUOUS_QUESTION not in out["reply"]
