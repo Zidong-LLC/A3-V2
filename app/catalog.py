@@ -46,6 +46,12 @@ STRUCTURAL_TOKENS = frozenset(_FILLER | _ANALYSIS_NOUNS | _REQUEST_WORDS)
 # el cuadro'). SOLOS nunca nombran un test — la auditoría de trampas léxicas (ERR-064)
 # mostró que 'cálculo' suelto auto-agregaba un test de $83.000. Solo cuentan como APOYO
 # junto a una palabra distintiva del dominio ('cuadro HEMÁTICO' sí nombra).
+SPECIES_WORDS = frozenset({
+    "canino", "canina", "caninos", "caninas", "felino", "felina", "felinos", "felinas",
+    "perro", "perra", "perros", "perras", "gato", "gata", "gatos", "gatas",
+    "bovino", "bovina", "equino", "equina", "ave", "aves", "exotico", "exotica",
+})
+
 GENERIC_DESCRIPTORS = frozenset({
     "basico", "basica", "basicos", "basicas", "completo", "completa", "general",
     "generales", "total", "totales", "parcial", "parciales", "panel", "paneles",
@@ -146,6 +152,16 @@ def _resolve_one(text: str, rows: list[dict], species: str | None) -> ResolveRes
         nombre_tokens = set(_tokens(str(row.get("name") or "")))
         if nombre_tokens and nombre_tokens <= user_tokens and user_tokens <= nombre_tokens | STRUCTURAL_TOKENS:
             return ResolveResult(EXACT, [row])
+
+    # ESPECIE sola no nombra un test (QA guiones 2026-08-16): el cliente responde 'Canino'
+    # a la pregunta de especie y resolvía AMBIGUOUS con 'T4 Total Canino', 'Coronavirus
+    # Canino'… — menú de análisis en vez de capturar la especie. La palabra de especie
+    # sigue desambiguando cuando acompaña contenido real ('coronavirus felino' → EXACT).
+    _muletillas = {"es", "un", "una", "el", "la", "mi", "si", "no"}
+    contenido = {t for t in user_tokens
+                 if t not in STRUCTURAL_TOKENS and t not in GENERIC_DESCRIPTORS and t not in _muletillas}
+    if contenido and contenido <= SPECIES_WORDS:
+        return ResolveResult(NONE)
 
     # Solo el CONTENIDO distintivo nombra un análisis: sin verbos de pedido ('necesito'),
     # sustantivos genéricos ('prueba') ni palabras de área sueltas ('orina', 'sangre').

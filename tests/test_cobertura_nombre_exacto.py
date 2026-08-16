@@ -141,3 +141,17 @@ def test_nit_limpio_alcanza_la_fila_con_mugre_de_excel():
     assert "789838306.0" in candidatos
     # Y el espejo original sigue: escribir la mugre alcanza la fila limpia.
     assert "789838306" in db._nit_candidates("789838306.0")
+
+
+def test_especie_sola_no_nombra_un_test():
+    """ERR-130 (QA guiones): responder 'Canino' a la pregunta de especie resolvía un menú
+    AMBIGUO de análisis ('T4 Total Canino', 'Coronavirus Canino'…). Especie sola → NONE;
+    con contenido real sigue desambiguando."""
+    filas = [
+        {"code": "1503", "name": "T4 Total Canino", "category": "Endocrinología", "price": 35000},
+        {"code": "2002", "name": "Coronavirus Canino (Antígeno)", "category": "Infecciosas", "price": 47000},
+    ]
+    for q in ("Canino", "felino", "es un canino"):
+        assert not catalog.resolve_tests(q, filas, None).tests, q
+    r = catalog.resolve_tests("t4 canino", filas, None)
+    assert [str(t["code"]) for t in r.tests] == ["1503"]
