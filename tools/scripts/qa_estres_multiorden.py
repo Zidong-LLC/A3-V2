@@ -57,6 +57,8 @@ patch("app.services.db.create_request", side_effect=_create_request_enriquecido)
 IDENT = ("Sos de 'Animal Pets' (registrada). Identificate con ese nombre cuando te lo "
          "pidan y confirmá la dirección que el bot te ofrezca. Médico: Dr. Ruiz. ")
 CIERRE = ("REGLA DURA: tenés que cargar TODAS las órdenes del plan, EN ORDEN, una por una. "
+          "Si tu plan tiene UNA sola orden, NUNCA digas 'otra orden': registrada esa, pasá "
+          "directo al cierre. "
           "Cuando el bot registre una orden y pregunte si cargás otra, decí 'otra orden' y "
           "seguí con la SIGUIENTE del plan. NO menciones el pago hasta terminar la última. "
           "Recién cuando la ÚLTIMA orden del plan esté registrada, decí con tus palabras que "

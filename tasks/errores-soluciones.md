@@ -479,6 +479,26 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-119 — [ABIERTO] Ronda 1 de la campaña de 20 personas: triage (corte 2026-08-15)
+**Resultado:** 7/20 perfectas (negocia_el_pago, correcciones_en_cadena, personaliza_perfil,
+bloque_partido, corrector, charlatan; maratón 9/10 — mejor marca). Parte 2 + frontera + puerta
+del dinero funcionando.
+**Pendientes reales, por prioridad:**
+1. **DINERO — "dos códigos sueltos en el bloque"** (Misu/P2/M3, idéntico y reproducible): el
+   bloque "paciente + 1101 y 1701" abre la orden y los códigos terminan en [] pese al seed de
+   la frontera y la puerta del dinero (exam queda "Perfil personalizado (2 análisis)" SIN
+   códigos en el texto → la puerta no puede recuperarlos). Cazar quién vacía selected_tests
+   tras el seed — transcripts de ronda1_d. Variante: agregado post-perfil con typo (Rocky).
+2. **La cancelación no limpia** (caotico, cancela_el_pedido): "borrala" → "Entendido, la
+   quito" (improvisado por el modelo, sin carril determinístico) → la frontera después
+   insiste en cerrar la orden cancelada → duplicaciones. Falta carril de cancelación que
+   resetee los campos de la orden en curso.
+3. masivo_5: "facturas 0 para 1 pedido cerrado" — cierre sin factura, revisar líneas.
+4. Falsos rojos de plantilla (5 personas de 1 orden dijeron "otra orden" por seguir el
+   template): plantilla CIERRE corregida — re-correr A/B afectadas.
+**Vara vigente:** 20/20 dinero limpio en 2 rondas consecutivas → recién ahí prueba humana.
+**Estado:** ABIERTO — en ciclo de la Fase 3 (2026-08-15).
+
 ### ERR-118 — [ABIERTO] Estado del estrés multi-orden tras la frontera humana (corte 2026-08-15)
 **Trayectoria medida** (QA de estrés, veredicto por estado): masivo_5 0/5 → **4/5**;
 maraton_10 1/10 → 4/10 con corrimiento +1 persistente. El bucle de "otra orden" está muerto,
