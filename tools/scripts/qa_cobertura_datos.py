@@ -34,6 +34,63 @@ def _sin_tildes(s: str) -> str:
 def qa_clientes() -> list[str]:
     """Cada cliente real debe encontrarse por su propio nombre (exacto, minúsculas, sin
     tildes) y por su NIT (crudo y sin puntos/guiones)."""
+    # Caché de LECTURA solo para este barrido: las funciones reales de matching disparan
+    # ~19.000 consultas de red (la tabla entera por cada búsqueda de nombre; ~8 queries por
+    # NIT). Se baja la tabla UNA vez y se sirven las consultas desde memoria con la misma
+    # semántica (eq = igualdad exacta, ilike 'x-%' = prefijo, case-insensitive). El código
+    # de producción y sus funciones de matching quedan intactos — solo cambia el transporte.
+    filas_cache = db._fetch_all_active_clients("id, clinic_name, tax_id, phone, address, zone, email")
+    db._fetch_all_active_clients = lambda select_fields="*": filas_cache
+
+    class _TablaEnMemoria:
+        def __init__(self, rows):
+            self._rows = rows
+            self._filtros = []
+
+        def select(self, *_a, **_k):
+            return self
+
+        def limit(self, *_a, **_k):
+            return self
+
+        def range(self, lo, hi):
+            self._filtros.append(("range", lo, hi))
+            return self
+
+        def eq(self, col, val):
+            self._filtros.append(("eq", col, val))
+            return self
+
+        def ilike(self, col, pat):
+            self._filtros.append(("ilike", col, pat))
+            return self
+
+        def execute(self):
+            rows = self._rows
+            for f in self._filtros:
+                if f[0] == "eq":
+                    _, col, val = f
+                    # la caché ya es solo-activos y no trae is_active: ese filtro pasa
+                    rows = [r for r in rows if col not in r or str(r.get(col)) == str(val)]
+                elif f[0] == "ilike":
+                    _, col, pat = f
+                    pref = pat.rstrip("%").lower()
+                    rows = [r for r in rows if str(r.get(col) or "").lower().startswith(pref)]
+                elif f[0] == "range":
+                    _, lo, hi = f
+                    rows = rows[lo:hi + 1]
+            return type("R", (), {"data": list(rows)})()
+
+    class _ClienteEnMemoria:
+        def __init__(self, real):
+            self._real = real
+
+        def table(self, nombre):
+            if nombre == "clients":
+                return _TablaEnMemoria(filas_cache)
+            return self._real.table(nombre)
+
+    db._client = _ClienteEnMemoria(db._client)
     fallos = []
     filas = db.list_rows("clients", limit=2000) if hasattr(db, "list_rows") else None
     if filas is None:

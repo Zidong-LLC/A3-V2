@@ -479,6 +479,24 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-122 — [RESUELTO] 3 clínicas con nombre 100% genérico no se encontraban por su propio nombre
+**Síntoma:** el barrido final de clientes (con el verificador ya corregido) encontró que
+'Clinica Mascotas Veterinaria', 'Vet Clinic Veterinaria' y 'Tienda Veterinaria Mi Mascotas'
+NO aparecían ni en el top 5 al buscar su nombre EXACTO — la veterinaria escribiendo su
+propio nombre veía 5 opciones ajenas.
+**Causa raíz:** sus nombres enteros son palabras genéricas ('clinica', 'veterinaria',
+'mascotas', 'tienda') — el filtro de muletillas más el puntaje difuso de `_name_match_score`
+rankeaban a otras clínicas por encima. Misma clase que ERR-120: lo completo-exacto perdía
+contra heurísticas pensadas para lo parcial.
+**Solución:** en `find_client_matches`, igualdad compacta del nombre COMPLETO (normalizado,
+sin tildes/símbolos) → score infinito, queda primera siempre. El difuso sigue intacto para
+nombres parciales/deformados.
+**Resultado del barrido:** 842 clientes activos × nombre (exacto/minúsculas/sin tildes) +
+NIT (crudo/sin guion/sin .0) → **841/842 al 100%**. El único fallo restante es dato basura:
+'Infinito Vet' con NIT placeholder '1-R' (limpieza de datos propuesta en ERR-121).
+**Tests:** `test_clinica_con_nombre_generico_se_encuentra_por_su_nombre_exacto` + difuso vivo.
+**Estado:** RESUELTO (2026-08-16). Suite 757 pass.
+
 ### ERR-121 — [RESUELTO] 16 clientes con NIT sucio de Excel eran inalcanzables por su NIT real
 **Síntoma:** el barrido de clientes del QA de cobertura encontró 16 filas activas con el NIT
 guardado con mugre de importación desde Excel — '789838306.0' (Animal Depot), Policlinica 20

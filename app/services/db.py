@@ -350,9 +350,18 @@ def find_client_matches(name: str | None = None, limit: int = 5) -> list[dict]:
     if not q_tokens:
         return []
 
+    # NOMBRE COMPLETO exacto gana siempre (QA de cobertura 2026-08-16, ERR-122): hay clínicas
+    # cuyo nombre entero es de palabras genéricas ('Clinica Mascotas Veterinaria') — el
+    # puntaje difuso rankeaba a OTRAS por encima y la clínica escribiendo su propio nombre
+    # exacto ni aparecía entre las opciones.
+    q_compact_all = "".join(q_tokens_all)
+
     scored: list[tuple[float, str, dict]] = []
     for c in _fetch_all_active_clients("id, clinic_name, tax_id, phone, address, zone, email"):
-        score = _name_match_score(q_tokens, q_compact, c.get("clinic_name"))
+        if q_compact_all and _compact_lookup_key(c.get("clinic_name")) == q_compact_all:
+            score = float("inf")
+        else:
+            score = _name_match_score(q_tokens, q_compact, c.get("clinic_name"))
         if score > 0:
             scored.append((score, c.get("clinic_name") or "", c))
 

@@ -105,6 +105,34 @@ def test_el_filtro_de_genericos_sigue_frenando_lo_vago():
     assert not res.tests
 
 
+CLINICAS = [
+    {"id": "c1", "clinic_name": "Mascotas Express", "tax_id": "1"},
+    {"id": "c2", "clinic_name": "Mis Mascotas y Yo", "tax_id": "2"},
+    {"id": "c3", "clinic_name": "Clinica Mascotas Veterinaria", "tax_id": "3"},
+    {"id": "c4", "clinic_name": "Mascotas Pet Shop", "tax_id": "4"},
+    {"id": "c5", "clinic_name": "Ama Tu Mascota SAS", "tax_id": "5"},
+    {"id": "c6", "clinic_name": "Mascotas y + Cotas", "tax_id": "6"},
+]
+
+
+def test_clinica_con_nombre_generico_se_encuentra_por_su_nombre_exacto():
+    """ERR-122: 'Clinica Mascotas Veterinaria' es TODO palabras genéricas — el puntaje
+    difuso rankeaba a otras clínicas por encima y la propia ni aparecía en el top 5.
+    El nombre completo exacto (normalizado) debe quedar PRIMERO."""
+    with patch.object(db, "_fetch_all_active_clients", return_value=CLINICAS):
+        m = db.find_client_matches("Clinica Mascotas Veterinaria")
+        assert m and m[0]["id"] == "c3", [c["clinic_name"] for c in m]
+        # minúsculas y sin tildes también son "exacto"
+        m2 = db.find_client_matches("clinica mascotas veterinaria")
+        assert m2 and m2[0]["id"] == "c3"
+
+
+def test_el_difuso_de_clientes_sigue_vivo_para_nombres_parciales():
+    with patch.object(db, "_fetch_all_active_clients", return_value=CLINICAS):
+        m = db.find_client_matches("mascotas express")
+        assert m and m[0]["id"] == "c1"
+
+
 def test_nit_limpio_alcanza_la_fila_con_mugre_de_excel():
     """ERR-121: 16 filas reales tienen el NIT guardado como '789838306.0' (import de Excel).
     El cliente escribe su NIT limpio → los candidatos deben incluir la variante sucia.
