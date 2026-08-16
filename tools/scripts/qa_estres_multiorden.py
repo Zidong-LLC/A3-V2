@@ -58,7 +58,8 @@ def _create_request_enriquecido(chat_id, session, ai, pedido_id=None):
 patch("app.services.db.create_request", side_effect=_create_request_enriquecido).start()
 
 IDENT = ("Sos de 'Animal Pets' (registrada). Identificate con ese nombre cuando te lo "
-         "pidan y confirmá la dirección que el bot te ofrezca. Médico: Dr. Ruiz. ")
+         "pidan y confirmá la dirección que el bot te ofrezca. Médico: Dr. Ruiz. "
+         "JAMÁS digas que sos cliente nuevo o no registrado: SÍ estás registrado. ")
 CIERRE = ("REGLA DURA: tenés que cargar TODAS las órdenes del plan, EN ORDEN, una por una. "
           "SOLO SI tu plan tiene MÁS órdenes pendientes: cuando el bot registre una y "
           "pregunte si cargás otra, decí 'otra orden' y seguí con la SIGUIENTE del plan. "
@@ -288,6 +289,11 @@ def _motivo_corrida_invalida(transcript: list, plan: list, requests: list) -> st
         if i >= len(requests) and not any(c.lower() in dicho for c in cods):
             return (f"orden {i+1} ({pac}): el cliente-IA nunca escribió ninguno de sus "
                     f"códigos {list(cods)} — descarrilamiento del sim")
+    # [FIN] prematuro en la oferta de cierre: todas las órdenes registradas y el ÚLTIMO
+    # mensaje es del BOT ofreciendo cerrar — el cliente-IA se fue sin contestar. El agente
+    # hizo su parte; en producción lo levanta el barrido de 1h.
+    if len(requests) >= len(plan) and transcript and transcript[-1][0] == "bot"             and ("otra orden" in transcript[-1][1] and "forma de pago" in transcript[-1][1]):
+        return "el cliente-IA se fue con la oferta de cierre en pantalla ([FIN] prematuro)"
     # Órdenes EXTRA con paciente que el plan no contiene: el cliente-IA inventó una orden
     # (el patrón "otra orden" de la plantilla vieja). El agente hizo bien en registrarla.
     pacientes_plan = {p.strip().lower() for p, _ in plan}
