@@ -2397,10 +2397,16 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
             _SKIP_REQUEST_CREATION: True,
         }
 
-    # La red de frases solo aplica con la orden YA registrada (la oferta "¿otra orden… o
-    # cerramos?" está en pantalla): "ya está, el dueño es Juan" a mitad de captura no cierra.
-    wants_to_finish = (signal in ("farewell", "negate", "cancel") or _is_farewell(user_message)
-                       or (prev_fields.get("_order_registered") and _says_thats_all(user_message)))
+    # TODO el cierre exige la orden en curso YA registrada (QA guiones 2026-08-16, DINERO):
+    # "Sin observaciones." respondiendo la pregunta de observación de la orden es señal
+    # `negate` — sin este guard el cierre saltaba la confirmación y cerró el pedido con 1
+    # orden, DESCARTANDO la orden de Misu cargada completa (1101+1701 cotizados, jamás
+    # registrados ni facturados). Con una orden a medio camino, el turno sigue su flujo.
+    wants_to_finish = (
+        bool(prev_fields.get("_order_registered"))
+        and (signal in ("farewell", "negate", "cancel") or _is_farewell(user_message)
+             or _says_thats_all(user_message))
+    )
     if wants_to_finish and not prev_fields.get("_pedido_awaiting_payment"):
         fields = _merge_sin_borrar(prev_fields, fields)
         fields["_pedido_awaiting_payment"] = True

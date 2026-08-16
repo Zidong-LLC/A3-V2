@@ -664,8 +664,11 @@ def test_cargar_otro_paciente_no_cierra_el_pedido():
 
 @pytest.mark.parametrize("signal", ["farewell", "negate", "cancel"])
 def test_terminar_de_cargar_dispara_la_pregunta_del_pago(signal):
-    """El cliente da por terminada la carga de mil formas; la señal del modelo es la fuente."""
-    prev = {"_pedido_id": "ped-1"}
+    """El cliente da por terminada la carga de mil formas; la señal del modelo es la fuente.
+    `_order_registered` en la fixture porque el cierre EXIGE la orden en curso registrada
+    (QA guiones 2026-08-16: "Sin observaciones." es negate y sin ese guard el cierre
+    descartaba una orden cargada completa sin registrarla ni facturarla)."""
+    prev = {"_pedido_id": "ped-1", "_order_registered": True}
     ai = _resp(dict(ORDEN_COMPLETA), user_intent_signal=signal)
     out = agent._enforce_open_pedido_close(SESSION, ai, prev, "eso sería todo")
     assert out["reply"] == PEDIDO_CLOSING_QUESTION
@@ -736,7 +739,7 @@ def test_el_cierre_del_pedido_no_registra_otra_orden():
     """Guard del turno de cierre: llega a fase terminal pero sus órdenes YA se registraron una
     por una. Sin esta marca `_finalize_request` leía 'entró a cierre' y creaba una orden más
     — en la prueba con sinónimos llegó a duplicar la misma orden cuatro veces."""
-    prev = {"_pedido_id": "ped-1"}
+    prev = {"_pedido_id": "ped-1", "_order_registered": True}
     ai = _resp(dict(ORDEN_COMPLETA), user_intent_signal="farewell")
     out = agent._enforce_open_pedido_close(SESSION, ai, prev, "eso es todo")
     assert out[agent._SKIP_REQUEST_CREATION] is True
@@ -914,3 +917,14 @@ def test_cancelar_no_toca_una_orden_ya_registrada():
     ai = _resp({}, user_intent_signal="cancel")
     out = agent._order_boundary_response(SESSION, ai, prev, "cancelá eso")
     assert out is None or "descarto" not in (out.get("reply") or "")
+
+
+def test_negate_con_orden_a_medio_camino_no_cierra_el_pedido():
+    """ERR-132 (QA guiones, DINERO): 'Sin observaciones.' respondiendo la pregunta de la
+    ORDEN es señal negate — el cierre saltaba la confirmación y cerró el pedido con 1 orden,
+    descartando la orden de Misu cargada completa (1101+1701 cotizados, jamás registrados).
+    Con la orden en curso SIN registrar, el cierre no dispara por señal ni por frase."""
+    prev = {"_pedido_id": "ped-1"}  # sin _order_registered: hay una orden a medio camino
+    ai = _resp(dict(ORDEN_COMPLETA), user_intent_signal="negate", reply="(del modelo)")
+    out = agent._enforce_open_pedido_close(SESSION, ai, prev, "Sin observaciones.")
+    assert out["reply"] == "(del modelo)", "el turno debe seguir su flujo (confirmación)"
