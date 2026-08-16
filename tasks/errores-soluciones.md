@@ -479,6 +479,30 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-126 — [EN CURSO] Rondas 3-4 con el instrumento afinado: 10/20 → 11/20, y el mapa de lo que queda
+**Instrumento (ya commiteado):** temp 0.6, corridas inválidas detectadas y re-corridas,
+reintento (rojo repetido = bug real), plantilla CIERRE sin contradicción, persona
+consulta_primero determinística, veredicto por PACIENTE (no por índice — las cascadas de
+CONTAMINADA del maratón eran corrimiento).
+**Reparado tras la Ronda 3 (fichas ERR-123/124/125):** pago adelantado en confirmación;
+consulta de nº de orden y red de ayuda ya no secuestran el multi-orden; puerta del dinero
+del NIT. Efecto medido en Ronda 4: bloque_partido, cambia_direccion_sucursal,
+especie_exotica y charlatan pasaron a limpio.
+**Rojos REPETIDOS de la Ronda 4 (bugs reales, por prioridad):**
+1. **DINERO — orden registrada "sin especificar"** (consulta_primero): cierra el pedido con
+   la orden sin análisis en el payload → 0 líneas → sin factura. El 1101 pedido tras la
+   consulta nunca aterriza.
+2. **Rocky** (apurado_typos): 'agreagar sodio y potasio' post-perfil — PERDIÓ 1404/1405
+   (el recurrente conocido, sigue).
+3. **confirmo_y_sigo**: C1 ya registra (fixes 124), pero C2–C4 no — el encadenado
+   "confirmo y sigo con…" no abre las siguientes.
+4. **cancela_el_pedido**: tras cancelar y re-arrancar, la orden nueva (Thor) no registra y
+   el pedido no cierra.
+5. **medico_como_identidad / nit_con_formatos**: 1 orden registrada pero el pedido nunca
+   cierra (la despedida/cierre se pierde — revisar transcripts).
+6. masivo_5/maraton_10: re-medir con el veredicto por paciente antes de diagnosticar.
+**Estado:** EN CURSO (2026-08-16) — próximo: fixes 1-2 → Ronda 5.
+
 ### ERR-125 — [RESUELTO] Pedido cerrado SIN factura: NIT ausente al cierre (el recurrente por fin con log)
 **Síntoma (Ronda 3, bloque_partido ×2 intentos, y 1 vez en maraton_10):** cierre perfecto en
 texto (resumen + total) pero 0 facturas. El log por fin lo cazó: "pedidos: … sin NIT del
