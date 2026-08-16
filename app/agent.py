@@ -2545,6 +2545,13 @@ def _try_invoice_pedido(pedido_id: str | None, fields: dict) -> None:
             return
         nit = fields.get("tax_id")
         if not nit:
+            # Puerta del dinero (Ronda 3, bloque_partido: pedido cerrado SIN factura): si
+            # algún carril de identificación no copió el NIT al estado, se re-resuelve
+            # contra la base con el nombre YA identificado antes de renunciar a facturar.
+            nombre = fields.get("clinic_name") or fields.get("_client_display_name")
+            cliente = db.find_client_exact(nombre) if nombre else None
+            nit = (cliente or {}).get("tax_id")
+        if not nit:
             logger.warning("pedidos: %s sin NIT del cliente, no se factura", pedido_id)
             return
         name = fields.get("clinic_name") or fields.get("_client_display_name") or "Cliente A3"

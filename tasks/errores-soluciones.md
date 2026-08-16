@@ -479,6 +479,20 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-125 — [RESUELTO] Pedido cerrado SIN factura: NIT ausente al cierre (el recurrente por fin con log)
+**Síntoma (Ronda 3, bloque_partido ×2 intentos, y 1 vez en maraton_10):** cierre perfecto en
+texto (resumen + total) pero 0 facturas. El log por fin lo cazó: "pedidos: … sin NIT del
+cliente, no se factura". Era el recurrente "cierre-sin-factura" que veníamos vigilando.
+**Causa raíz (dos capas):** (1) `find_client_matches("Animal Pets, registrada")` → [] — la
+muletilla no estaba en los stopwords y el score exige todas las palabras (la identificación
+tardaba más turnos y en algún camino el `tax_id` no quedaba copiado); (2) `_try_invoice_pedido`
+renunciaba si el estado no traía `tax_id`, aunque el cliente estuviera identificado.
+**Solución:** stopwords ampliados (registrada/os/as, ya, estamos, acá, aquí) + puerta del
+dinero en `_try_invoice_pedido`: sin `tax_id` en el estado, re-resuelve contra la base con
+el nombre YA identificado (`find_client_exact`) antes de renunciar. Sin NIT ni nombre sigue
+sin facturar (visible para operaciones) — la red no inventa.
+**Tests:** `tests/test_nit_puerta_dinero_pedido.py` (3). **Estado:** RESUELTO (2026-08-16).
+
 ### ERR-123 — [RESUELTO] El pago como respuesta al resumen caía al carril de agregado (bucle sin registro)
 **Síntoma (Ronda 3, nit_con_formatos — 0 órdenes, 0 facturas):** al resumen "¿Confirmas
 estos datos?" el cliente respondió "Contraentrega." → "¿Qué análisis quieres agregar?" →

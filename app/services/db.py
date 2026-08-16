@@ -332,6 +332,11 @@ def _name_match_score(q_tokens: list[str], q_compact: str, candidate: str | None
 _CLIENT_QUERY_STOPWORDS = frozenset({
     "soy", "somos", "de", "del", "la", "el", "los", "las", "mi", "es", "una", "un",
     "veterinaria", "clinica", "consultorio", "hospital", "centro", "vet",
+    # "Animal Pets, registrada" / "somos Animal Pets, ya registrados" (Ronda 3,
+    # bloque_partido): las muletillas dejaban el lookup en [] porque el score exige
+    # TODAS las palabras en el nombre del candidato.
+    "registrada", "registrado", "registradas", "registrados", "registro",
+    "ya", "estamos", "aca", "acá", "aqui", "aquí",
 })
 
 
