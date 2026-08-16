@@ -140,8 +140,11 @@ def _cliente_simulado(persona_desc, transcript, objetivo_con_datos):
         messages.append({"role": "user" if who == "bot" else "assistant", "content": text})
     if not transcript:
         messages.append({"role": "user", "content": "(inicia tú la conversación)"})
+    # 0.6 (antes 0.9) — ERR-119: a 0.9 el cliente-IA se salía del plan distinto en cada
+    # corrida (identificarse mal, saltear órdenes) y los fallos ROTABAN entre rondas por
+    # ruido del simulador. 0.6 conserva el estilo sucio con adherencia al plan.
     resp = _oai.chat.completions.create(
-        model=OPENAI_MODEL, messages=messages, temperature=0.9, max_completion_tokens=120,
+        model=OPENAI_MODEL, messages=messages, temperature=0.6, max_completion_tokens=120,
     )
     return resp.choices[0].message.content.strip()
 

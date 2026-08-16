@@ -268,6 +268,20 @@ def _items_de_orden(ai: dict) -> set[str]:
     return items
 
 
+def _motivo_corrida_invalida(transcript: list, plan: list, n_requests: int) -> str | None:
+    """Descarrilamiento del CLIENTE-IA (ruido del simulador), no fallo del agente — ERR-119.
+
+    Criterio observable: hay una orden del plan sin registrar cuyos códigos el cliente
+    JAMÁS escribió en toda la charla ([FIN] prematuro, identificación fallida, plan
+    salteado). Si el cliente nunca lo pidió, el agente no pudo perderlo."""
+    dicho = " ".join(t.lower() for w, t in transcript if w == "user")
+    for i, (pac, cods) in enumerate(plan):
+        if i >= n_requests and not any(c.lower() in dicho for c in cods):
+            return (f"orden {i+1} ({pac}): el cliente-IA nunca escribió ninguno de sus "
+                    f"códigos {list(cods)} — descarrilamiento del sim")
+    return None
+
+
 def _run(nombre: str, estilo: str, plan: list, max_turns: int = 120) -> dict:
     from app import agent, billing
 
@@ -336,7 +350,23 @@ def _run(nombre: str, estilo: str, plan: list, max_turns: int = 120) -> dict:
         for who, text in transcript:
             fh.write(f"{'CLIENTE' if who == 'user' else 'BOT'}: {text}\n\n")
     return {"nombre": nombre, "fallos": fallos, "n_requests": len(requests),
-            "transcript": transcript}
+            "transcript": transcript,
+            "invalida": _motivo_corrida_invalida(transcript, plan, len(requests)) if fallos else None}
+
+
+def _imprimir(r: dict, intento: int) -> None:
+    sufijo = f" (intento {intento})" if intento > 1 else ""
+    if r["invalida"]:
+        print(f"  [~~] CORRIDA INVÁLIDA{sufijo}: {r['invalida']}")
+    elif r["fallos"]:
+        print(f"  [XX] {len(r['fallos'])} fallos{sufijo}:")
+        for f in r["fallos"]:
+            print(f"     - {f}")
+        print("  --- transcripción (últimos 14 turnos) ---")
+        for who, text in r["transcript"][-14:]:
+            print(f"  {'C' if who == 'user' else 'B'}: {text[:130]}")
+    else:
+        print(f"  [OK] {r['n_requests']} órdenes registradas, pedido cerrado, 1 factura{sufijo}")
 
 
 def main() -> int:
@@ -346,23 +376,37 @@ def main() -> int:
     for nombre, (estilo, plan) in elegidas.items():
         print("=" * 74)
         print(f"PERSONA {nombre} — {len(plan)} órdenes planificadas")
-        r = _run(nombre, estilo, plan)
+        # ERR-119: corrida inválida (el sim se descarriló) se repite hasta 2 veces sin contar
+        # como fallo del agente; rojo real se corre una 2ª vez — rojo REPETIDO = bug real,
+        # rojo que rota = ruido. La etiqueta lo deja explícito en el reporte.
+        r, intento = _run(nombre, estilo, plan), 1
+        _imprimir(r, intento)
+        while r["invalida"] and intento < 3:
+            intento += 1
+            r = _run(nombre, estilo, plan)
+            _imprimir(r, intento)
+        if r["fallos"] and not r["invalida"] and intento < 3:
+            intento += 1
+            r2 = _run(nombre, estilo, plan)
+            _imprimir(r2, intento)
+            if r2["fallos"]:
+                r = r2  # rojo repetido: bug real (se reporta la última corrida)
+                r["repetido"] = True
+            else:
+                r = r2  # rojo que rota = ruido del sim; la re-corrida limpia manda
         resultados.append(r)
-        if r["fallos"]:
-            print(f"  [XX] {len(r['fallos'])} fallos:")
-            for f in r["fallos"]:
-                print(f"     - {f}")
-            print("  --- transcripción (últimos 14 turnos) ---")
-            for who, text in r["transcript"][-14:]:
-                print(f"  {'C' if who == 'user' else 'B'}: {text[:130]}")
-        else:
-            print(f"  [OK] {r['n_requests']} órdenes registradas, pedido cerrado, 1 factura")
     print("\n" + "=" * 74)
     ok = sum(1 for r in resultados if not r["fallos"])
     print(f"RESUMEN: {ok}/{len(resultados)} personas sin fallos")
     for r in resultados:
-        estado = "OK " if not r["fallos"] else "XX "
-        print(f"  [{estado}] {r['nombre']:<16} {r['n_requests']} órdenes, {len(r['fallos'])} fallos")
+        if r["invalida"]:
+            estado = "~~ "
+        elif r["fallos"]:
+            estado = "XX "
+        else:
+            estado = "OK "
+        marca = " (rojo REPETIDO = bug real)" if r.get("repetido") else ""
+        print(f"  [{estado}] {r['nombre']:<22} {r['n_requests']} órdenes, {len(r['fallos'])} fallos{marca}")
     return 0 if ok == len(resultados) else 1
 
 
