@@ -86,8 +86,10 @@ PERSONAS = {
         "5 años, dueño Mario — pedí el perfil 152, agregale una glucosa, y EN EL RESUMEN "
         "decí 'mejor no, sacale la glucosa' y confirmá sin ella. Decí primero que el médico "
         "es 'dr peres' y corregite a 'dr ruiz' antes del resumen. "
-        "(2) Simba, gato persa macho 3 años, dueña Carla — decí 'todo igual menos el "
-        "análisis' cuando reofrezca, y pedí el 1101. " + CIERRE,
+        "(2) Simba, gato persa macho 3 años, dueña Carla — cuando el bot te muestre el "
+        "bloque 'Mantengo estos datos… ¿Confirmas o quieres cambiar alguno?', respondé AHÍ "
+        "'todo igual menos el análisis, quiero el 1101' (NUNCA contestes 'confirmo' pelado "
+        "a ese bloque: incluiría el análisis viejo). " + CIERRE,
         [("Nina", ["152"]), ("Simba", ["1101"])],
     ),
     "charlatan": (
