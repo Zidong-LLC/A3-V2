@@ -1327,11 +1327,18 @@ def _event_test_rows(items: list[str]) -> list[dict]:
 def _profile_event_payload(fields: dict) -> dict | None:
     code = fields.get("_selected_profile_code")
     name = fields.get("_selected_profile_name") or fields.get("exam_type")
-    if not code and not name:
+    added_items = _as_catalog_item_list(fields.get("selected_tests"))
+    # Con análisis sueltos guardados el payload SALE aunque exam_type haya quedado vacío
+    # (Ronda 4, consulta_primero: la orden se registró con el 1101 en selected_tests pero
+    # sin exam_type → payload None → pedido cerrado "sin especificar" y SIN factura).
+    # El dinero sigue a lo que quedó guardado, no a un campo de display.
+    if not code and not name and not added_items:
         return None
+    if not name and added_items:
+        name = f"Perfil personalizado ({len(added_items)} análisis)"
 
     base_price = _as_int(fields.get("_selected_profile_price"))
-    added_tests = _event_test_rows(_as_catalog_item_list(fields.get("selected_tests")))
+    added_tests = _event_test_rows(added_items)
     removed_tests = _event_test_rows(_as_catalog_item_list(fields.get("removed_tests")))
     if not code and not base_price and added_tests:
         # Perfil PERSONALIZADO (solo pruebas sueltas): el total persistido debe ser el

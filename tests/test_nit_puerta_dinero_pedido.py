@@ -56,3 +56,18 @@ def test_sin_nit_ni_nombre_sigue_sin_facturar_y_sin_romper():
          patch.object(agent.db, "find_client_exact", return_value=None):
         agent._try_invoice_pedido("ped-2", {"_pedido_profiles": [{"total_estimated": 1}],
                                             "_pedido_ordenes": [{}]})
+
+
+def test_payload_sale_con_analisis_sueltos_sin_exam_type():
+    """ERR-127 (Ronda 4, consulta_primero): la orden se registró con el 1101 en
+    selected_tests pero exam_type vacío → payload None → pedido cerrado 'sin especificar'
+    y SIN factura. El dinero sigue a lo GUARDADO, no a un campo de display."""
+    with patch.object(db, "get_tests_by_codes_or_names",
+                      return_value=[{"code": "1101", "name": "Cuadro Hemático Completo",
+                                     "price": 14000}]):
+        p = db._profile_event_payload({"selected_tests": ["1101"]})
+    assert p is not None
+    assert p["total_estimated"] == 14000
+    assert p["base_profile"]["name"] == "Perfil personalizado (1 análisis)"
+    # Sin NADA guardado sigue sin inventar payload.
+    assert db._profile_event_payload({}) is None
