@@ -190,6 +190,12 @@ def _nit_candidates(tax_id: str) -> list[str]:
     if raw.endswith(".0"):
         add(_normalize_nit(raw[:-2]))
 
+    # Espejo del caso anterior (QA de cobertura 2026-08-16): 16 filas reales quedaron con el
+    # NIT guardado como '789838306.0' (artefacto de importación desde Excel). El cliente
+    # escribe su NIT limpio — hay que probar también la variante con la mugre.
+    if clean.isdigit():
+        add(f"{clean}.0")
+
     if len(compact) > 1 and compact[:-1].isdigit():
         base = compact[:-1]
         dv = compact[-1]

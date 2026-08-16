@@ -47,13 +47,16 @@ def qa_clientes() -> list[str]:
             variantes += [("nombre exacto", nombre), ("nombre minúsculas", nombre.lower()),
                           ("nombre sin tildes", _sin_tildes(nombre.lower()))]
         if nit:
-            variantes += [("nit", nit), ("nit sin signos", nit.replace(".", "").replace("-", "").replace(" ", ""))]
+            variantes += [("nit", nit), ("nit sin guion", nit.split("-")[0])]
+            if nit.endswith(".0"):
+                # Mugre de importación (ERR-121): el cliente escribe su NIT REAL, sin el .0
+                variantes += [("nit real sin .0", nit[:-2])]
         for etiqueta, consulta in variantes:
             try:
-                m = db.find_client_matches(clinic_name=consulta) if "nombre" in etiqueta \
-                    else db.find_client_matches(tax_id=consulta)
-            except TypeError:
-                m = db.find_client_matches(consulta)
+                # El camino REAL de cada dato: nombre → find_client_matches (difuso,
+                # identificación); NIT → find_clients_by_tax_id (sedes por NIT).
+                m = db.find_client_matches(consulta) if "nombre" in etiqueta \
+                    else db.find_clients_by_tax_id(consulta)
             except Exception as exc:
                 fallos.append(f"cliente '{nombre}' ({etiqueta}): EXCEPCIÓN {exc}")
                 continue

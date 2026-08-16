@@ -479,6 +479,24 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-121 — [RESUELTO] 16 clientes con NIT sucio de Excel eran inalcanzables por su NIT real
+**Síntoma:** el barrido de clientes del QA de cobertura encontró 16 filas activas con el NIT
+guardado con mugre de importación desde Excel — '789838306.0' (Animal Depot), Policlinica 20
+de Julio, Happy Dog, las dos sedes de Vet Vida, etc. Un cliente que escribe su NIT REAL
+('789838306') obtenía []: NO IDENTIFICADO — exactamente el miedo del usuario ("que no quiera
+testear un número de una clínica que no está detectada").
+**Causa raíz:** `_nit_candidates` ya toleraba el sentido inverso (cliente escribe '.0' de
+más → prueba sin el sufijo), pero no el directo: fila sucia + NIT limpio no generaba ningún
+candidato que la alcanzara.
+**Solución:** espejo mínimo en `_nit_candidates` (app/services/db.py): si el NIT limpio es
+numérico, probar también la variante `{nit}.0`. Verificado 16/16 contra la base real; los 9
+NIT con dígito-letra ('5231967-L') ya resolvían por el candidato base.
+**Pendiente de DATOS (no de código):** conviene limpiar los 16 `.0` en Supabase y revisar
+los placeholders ('1-R' de Infinito Vet, '11111-W' de Cuatro Patas, y 'Dra Helen Dayana…'
+que tiene un NOMBRE en el campo tax_id) — a proponer al usuario, la base no se toca sin OK.
+**Tests:** `test_nit_limpio_alcanza_la_fila_con_mugre_de_excel` (+ el espejo original).
+**Estado:** RESUELTO en código (2026-08-16); limpieza de datos propuesta.
+
 ### ERR-120 — [RESUELTO] Cobertura de datos: 5 filas reales del catálogo eran inalcanzables por nombre
 **Síntoma:** el QA exhaustivo nuevo (`tools/scripts/qa_cobertura_datos.py`, pedido del
 usuario 2026-08-15: "que no quiera testear un número de una clínica que no está detectada, o

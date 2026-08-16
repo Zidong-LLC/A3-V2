@@ -103,3 +103,13 @@ def test_el_filtro_de_genericos_sigue_frenando_lo_vago():
     """El carril exacto no puede reabrir ERR-111: 'una prueba de orina' NO nombra un test."""
     res = catalog.resolve_tests("necesito una prueba de orina", TESTS_CATALOGO, None)
     assert not res.tests
+
+
+def test_nit_limpio_alcanza_la_fila_con_mugre_de_excel():
+    """ERR-121: 16 filas reales tienen el NIT guardado como '789838306.0' (import de Excel).
+    El cliente escribe su NIT limpio → los candidatos deben incluir la variante sucia.
+    El espejo (cliente escribe '.0', fila limpia) ya existía; este es el sentido inverso."""
+    candidatos = db._nit_candidates("789838306")
+    assert "789838306.0" in candidatos
+    # Y el espejo original sigue: escribir la mugre alcanza la fila limpia.
+    assert "789838306" in db._nit_candidates("789838306.0")
