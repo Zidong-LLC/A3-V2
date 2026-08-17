@@ -335,6 +335,12 @@ def _payment_method_from_text(text: str) -> str | None:
     if "contraentrega" in tokens or "efectivo" in tokens or (
             "contra" in tokens and {"entrega", "entregar", "entregarla"} & tokens):
         return "contraentrega"
+    # El ECO de nuestra propia opción (ERR-137): la pregunta dice "contraentrega con el
+    # motorizado" y el cliente elige repitiendo esa parte ("con el motorizado", "al
+    # motorizado"). El modelo lo entiende; esta red respalda el turno en que no lo marque.
+    # Solo AFIRMACIONES: "¿el motorizado llega hoy?" es una consulta operativa, no un pago.
+    if ({"motorizado", "mensajero", "domiciliario"} & tokens) and "?" not in (text or ""):
+        return "contraentrega"
     if "pse" in tokens or "transferencia" in tokens or "tarjeta" in tokens:
         return "pago_linea"
     if ({"pago", "pagar"} & tokens) and ({"linea", "línea", "online"} & tokens):

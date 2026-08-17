@@ -2189,6 +2189,14 @@ def _replace_courier_commitment(reply: str) -> str:
 # a propósito: no es estado de la conversación, así que no va al catálogo de flags de state.py.
 _SKIP_REQUEST_CREATION = "skip_request_creation"
 
+# CONTRATO DEL TURNO RESUELTO (ERR-137): cuando un handler produce la respuesta FINAL del
+# turno (cierre del pedido, repregunta cerrada del cierre), la marca con esta clave y el
+# pipeline la devuelve INTACTA — ningún enforcer posterior puede pisarla. Nació de un cierre
+# perfecto (pedido facturado) cuyo resumen fue reemplazado por "¿Qué análisis o perfil
+# desean?" por un empuje que corría después: el cliente creyó que falló lo que funcionó.
+# Clave efímera de RESPUESTA (sin "_": no viaja en captured_fields ni sobrevive al turno).
+_TURN_RESOLVED = "turn_resolved"
+
 
 def _current_pedido_id(chat_id: str, session: dict) -> str | None:
     """Pedido abierto del chat; lo abre si es la primera orden. Un fallo de la base no puede
@@ -2393,6 +2401,7 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
         lateral = _operational_side_question_answer(user_message)
         return {
             **ai_response,
+            _TURN_RESOLVED: True,
             "reply": (f"{lateral}\n\n{PAYMENT_METHOD_QUESTION}" if lateral
                       else PAYMENT_METHOD_QUESTION),
             "phase": "fase_2_recogida_datos",
@@ -2428,6 +2437,7 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
         fields.pop("_pedido_offer_pending", None)
         return {
             **ai_response,
+            _TURN_RESOLVED: True,
             # A3 pidió (reunión 28/07) poder dejar una observación del PEDIDO antes de cerrar.
             # Va en el mismo turno que el pago para no agregar un paso más: el cliente que no
             # tiene nada que observar responde solo la forma de pago y sigue de largo.
@@ -2475,6 +2485,7 @@ def _enforce_pedido_offer_pending_guard(prev_captured: dict, ai_response: dict) 
         return ai_response
     return {
         **ai_response,
+        _TURN_RESOLVED: True,
         "reply": PEDIDO_OFFER_REASK,
         "phase": "fase_2_recogida_datos",
         "intent": "route_scheduling",
@@ -2587,6 +2598,7 @@ def _close_pedido_turn(session: dict, fields: dict, payment_method: str) -> dict
     fields.pop("_pedido_awaiting_payment", None)
     fields["_pedido_cerrado"] = True
     return {
+        _TURN_RESOLVED: True,
         "reply": f"{cuerpo}\n\nQuedamos atentos. 🙂",
         # El pedido se cierra en fase terminal, pero sin crear una orden nueva: las órdenes
         # ya se registraron una por una al confirmarlas.
@@ -2923,6 +2935,10 @@ def _enforce_comprehension_recheck(session: dict, ai_response: dict, prev_captur
     En ambos casos se repregunta nombrando el dato pedido, determinístico. Si el turno
     capturó algo, puso un menú, o trae una señal con carril propio (corrección, cierre,
     otra orden…), este guard no interviene."""
+    # Contrato del turno RESUELTO (ERR-137): una respuesta final no se pisa con una
+    # repregunta. Cinturón redundante con el retorno temprano del pipeline.
+    if ai_response.get(_TURN_RESOLVED):
+        return ai_response
     if ai_response.get("intent") != "route_scheduling" or ai_response.get("requires_handoff"):
         return ai_response
     fields = ai_response.get("captured_fields") or {}
@@ -4365,6 +4381,12 @@ def process_turn(
     # Va ANTES del paso de pago: con un pedido abierto, la forma de pago cierra el PEDIDO
     # entero, no la orden suelta (decisión 011).
     ai_response = _enforce_open_pedido_close(session, ai_response, prev_captured, user_message)
+    if ai_response.get(_TURN_RESOLVED):
+        # Turno RESUELTO (contrato ERR-137): la respuesta final del camino del pedido no la
+        # pisa ningún enforcer posterior. _finalize_request sería no-op (lleva el skip
+        # marker y las órdenes ya están registradas) y el cierre del pipeline es
+        # _persist_turn — este retorno es equivalente exacto, sin el riesgo del pisotón.
+        return _persist_turn(chat_id, user_message, ai_response)
     fields = ai_response.get("captured_fields", fields)
     ai_response = _enforce_payment_step(session, ai_response, fields, user_message)
     ai_response = _enforce_profile_customization_changes(ai_response, prev_captured, user_message)

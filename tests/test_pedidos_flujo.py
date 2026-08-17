@@ -1009,3 +1009,61 @@ def test_guard_de_oferta_pisa_cualquier_pregunta_de_captura_final():
     ai4 = {"intent": "route_scheduling", "captured_fields": dict(prev, patient_name="Rex"),
            "reply": "¿Cuál es la raza del paciente?", "user_intent_signal": None}
     assert agent._enforce_pedido_offer_pending_guard(prev, ai4) is ai4
+
+
+def test_contrato_turno_resuelto_las_respuestas_finales_van_marcadas():
+    """ERR-137: el cierre del pedido FUNCIONÓ (facturado en la base) pero un empuje
+    posterior pisó el resumen con '¿Qué análisis o perfil desean?' — el cliente creyó que
+    falló lo que funcionó. Las 4 respuestas finales del camino del pedido llevan la marca
+    del contrato; el pipeline las retorna intactas."""
+    # 1) Cierre del pedido (con la factura parcheada — regla dura Alegra)
+    from unittest.mock import patch
+    with patch.object(agent.db, "close_pedido", lambda *a, **k: None), \
+         patch.object(agent.db, "list_pedido_requests", lambda *a, **k: []), \
+         patch.object(agent, "ALEGRA_ENABLED", False):
+        out = agent._close_pedido_turn(SESSION, {"_pedido_id": "ped-1"}, "contraentrega")
+    assert out.get(agent._TURN_RESOLVED) is True
+
+    # 2) Re-pregunta del pago (esperando_pago)
+    prev = {"_pedido_id": "ped-1", "_pedido_awaiting_payment": True}
+    ai = _resp(dict(prev), user_intent_signal="farewell", reply="(del modelo)")
+    out2 = agent._enforce_open_pedido_close(SESSION, ai, prev, "dale")
+    assert out2.get(agent._TURN_RESOLVED) is True
+
+    # 3) Pregunta de cierre (wants_to_finish)
+    prev3 = {"_pedido_id": "ped-1", "_order_registered": True}
+    ai3 = _resp(dict(prev3), user_intent_signal="farewell", reply="(del modelo)")
+    out3 = agent._enforce_open_pedido_close(SESSION, ai3, prev3, "eso es todo")
+    assert out3.get(agent._TURN_RESOLVED) is True
+
+    # 4) Repregunta de la oferta pendiente
+    prev4 = {"_pedido_id": "ped-1", "_pedido_offer_pending": True}
+    ai4 = {"intent": "route_scheduling", "captured_fields": dict(prev4),
+           "reply": "¿Cuál es el nombre del paciente?", "user_intent_signal": None}
+    out4 = agent._enforce_pedido_offer_pending_guard(prev4, ai4)
+    assert out4.get(agent._TURN_RESOLVED) is True
+
+
+def test_los_empujes_ceden_ante_un_turno_resuelto():
+    """El caso literal de ERR-137: el resumen de cierre no puede ser pisado por el empuje
+    del faltante ni por la repregunta de coherencia."""
+    from app.enforcers.flujo import _enforce_first_missing_after_progress
+
+    resuelto = {agent._TURN_RESOLVED: True, "intent": "route_scheduling",
+                "reply": "Listo, cerramos el pedido con 2 órdenes…",
+                "captured_fields": {"payment_method": "contraentrega", "exam_type": None},
+                "phase": "fase_6_cierre"}
+    assert _enforce_first_missing_after_progress(SESSION, dict(resuelto), {}) == resuelto
+    assert agent._enforce_comprehension_recheck(SESSION, dict(resuelto), {}, "con el motorizado", []) == resuelto
+
+
+def test_red_de_pago_reconoce_el_eco_de_nuestra_opcion():
+    """'con el motorizado' repite la opción de NUESTRA pregunta ('contraentrega con el
+    motorizado') — la red lo resuelve como contraentrega."""
+    from app.detectors import _payment_method_from_text
+
+    assert _payment_method_from_text("con el motorizado") == "contraentrega"
+    assert _payment_method_from_text("al motorizado cuando pase") == "contraentrega"
+    assert _payment_method_from_text("con el mensajero esta bien") == "contraentrega"
+    assert _payment_method_from_text("¿el motorizado llega hoy?") is None  # pregunta operativa, no un pago
+    assert _payment_method_from_text("un perfil 152") is None

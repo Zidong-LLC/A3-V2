@@ -84,7 +84,8 @@ def _cliente_de_reglas(bot: str, plan: list[dict], estado: dict) -> str | None:
          lambda: (orden or {}).get("confirmacion") or "Sí, confirmo."),
         (("quieres cambiar alguno", "mantengo estos datos"),
          lambda: (orden or {}).get("al_reofrecimiento") or "Confirmo esos datos."),
-        (("forma de pago", "cómo pagan", "como pagan", "prefieres el pago", "pago en línea"), lambda: "Contraentrega."),
+        (("forma de pago", "cómo pagan", "como pagan", "prefieres el pago", "pago en línea"),
+         lambda: (plan[0].get("pago") if plan else None) or "Contraentrega."),
         (("agregamos otro análisis", "quieres agregar"),
          lambda: _one_shot(estado, i, "agregado", (orden or {}).get("agregado"))
          or "No, así está bien."),
@@ -133,6 +134,13 @@ ESCENARIOS = {
          "edad": "2 años", "dueno": "Tito", "analisis": "El 1101",
          "al": [("¿es correcta", "la dirección está mal, te di la de la nueva sucursal. Calle 45 Sur # 12-30.")],
          "esperado": ["1101"]},
+    ],
+    "cierre_con_motorizado": [  # ERR-137: elige el pago repitiendo NUESTRA opción y con
+        # fraseo libre en la oferta — el turno resuelto no puede ser pisado por un empuje
+        {"paciente": "Kira", "especie": "Felino", "raza": "Criollo", "sexo": "Hembra",
+         "edad": "4 años", "dueno": "Sole", "analisis": "El 1101",
+         "al": [("cargar otra orden", "no, esa es la última")],
+         "pago": "con el motorizado", "esperado": ["1101"]},
     ],
     "multi_orden_3": [
         {"paciente": "Rocky", "especie": "Canino", "raza": "Boxer", "sexo": "Macho",

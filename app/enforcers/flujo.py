@@ -84,6 +84,10 @@ def _correction_ack_text(corrected: list[str], fields: dict) -> str:
 
 
 def _enforce_first_missing_after_progress(session: dict, ai_response: dict, prev_fields: dict) -> dict:
+    # Contrato del turno RESUELTO (ERR-137): una respuesta final no se pisa con un empuje.
+    # Cinturón redundante con el retorno temprano del pipeline — protege reordenamientos.
+    if ai_response.get("turn_resolved"):
+        return ai_response
     if ai_response.get("intent") != "route_scheduling" or ai_response.get("requires_handoff"):
         return ai_response
     if ai_response.get("phase") in TERMINAL_PHASES or ai_response.get("phase") == CONFIRMATION_PHASE:
