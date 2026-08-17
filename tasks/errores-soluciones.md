@@ -479,7 +479,20 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
-### ERR-138 — [RESUELTO] "Todo igual MENOS el análisis" — el carril de "el mismo" invertía la excepción
+### HITO — Agente conversacional APROBADO por prueba humana (2026-08-17)
+**Prueba final del usuario, verificada por ESTADO:** 2 órdenes (José A3-2026-193, Simón
+A3-2026-194), pedido `facturado` contraentrega, borrador Alegra id 7, y el resumen de
+cierre completo con TOTAL $48.000 mostrado al cliente. El usuario verificó además la
+distribución en Alegra. Campaña: ERR-107 → ERR-138 (~25 bugs reales reparados con test),
+suite 783, guiones reales 6/6 con modelo. **El flujo núcleo (identificar → N órdenes →
+cerrar → facturar) queda APROBADO.**
+**Pendientes para el 100% (registrados, no bloquean el núcleo):** guiones de resultados /
+pagos→contabilidad / cliente nuevo / particular; webhook Chatwoot bajo estrés; deploy a
+Render; plataforma (descuentos editables, login real del portal, cierre manual de pedidos,
+datos con decisión humana pendiente); pulidos UX menores (fraseos de resumen, clinic_name
+contaminado). QA con modelo sigue pausado salvo pedido explícito.
+
+### ERR-138 — [RESUELTO]### ERR-138 — [RESUELTO] "Todo igual MENOS el análisis" — el carril de "el mismo" invertía la excepción
 **Síntoma (guiones tras ERR-137):** el handler del reofrecimiento limpiaba bien el análisis
 ante "todo igual menos el análisis", pero el carril de "el mismo" (`_resolve_same_as_previous`)
 lo RE-ASIGNABA desde el snapshot: el token "igual" ganaba y la excepción "menos" se
