@@ -17,6 +17,15 @@ directamente, lo que hace que Chatwoot deje de ver las conversaciones.**
 
 ## Pasos obligatorios al iniciar sesión
 
+### 0. Verificar que NO haya un Flask previo vivo (ERR-136)
+En Windows DOS Flask pueden bindear :5000 a la vez: un huérfano de otra sesión sigue
+sirviendo código VIEJO y "los fixes no funcionan". Antes de levantar:
+```bash
+netstat -ano | findstr :5000
+```
+Si hay algún PID escuchando, matarlo (`taskkill /F /PID XXXX`) antes del paso 1.
+El script `verify_chatwoot_telegram_agent.py` ahora FALLA si detecta ≠ 1 listener.
+
 ### 1. Levantar Flask (Terminal 1)
 ```bash
 cd "c:\Users\Artel\Downloads\A3 V2"

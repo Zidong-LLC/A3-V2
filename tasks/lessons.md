@@ -754,3 +754,10 @@ errores". Un cliente de reglas (fraseos fijos de conversaciones reales, respuest
 En su primer día cazó 3 bugs que 9 rondas de estrés no aislaron (ERR-130/131/132, uno de
 pérdida silenciosa de dinero). Regla: la IA explora; las reglas certifican.
 
+## L69 — Si un fix testeado "no cambia nada" en vivo, verificá QUÉ proceso responde (2026-08-17)
+ERR-134/135 estaban bien y en verde; dos pruebas humanas seguidas "fallaron igual" porque un
+Flask huérfano de otra sesión seguía escuchando :5000 con código viejo (Windows permite el
+doble bind). Se quemaron dos ciclos de reparación contra un proceso fantasma. Antes de tocar
+más código ante un "sigue igual": netstat al puerto, contar listeners, confirmar el PID que
+sirve. El verificador de sesión ahora lo chequea solo.
+

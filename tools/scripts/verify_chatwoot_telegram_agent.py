@@ -55,8 +55,36 @@ def _domain(url: str) -> str:
     return parsed.netloc or url
 
 
+def _flask_listeners_on_5000() -> list[str]:
+    """PIDs escuchando en :5000. En Windows DOS Flask pueden bindear 0.0.0.0:5000 a la vez
+    (ERR-136, 2026-08-17): un huérfano de una sesión anterior siguió sirviendo código VIEJO
+    y los fixes desplegados 'no funcionaban' — las conexiones caían en cualquiera de los dos."""
+    import subprocess
+    try:
+        out = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, timeout=15).stdout
+    except Exception:
+        return []
+    pids = []
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) >= 5 and parts[0] == "TCP" and parts[1].endswith(":5000") \
+                and "LISTENING" in line and parts[-1] not in pids:
+            pids.append(parts[-1])
+    return pids
+
+
 def main() -> int:
     load_dotenv()
+
+    pids = _flask_listeners_on_5000()
+    if len(pids) != 1:
+        if not pids:
+            print("FAIL: no hay ningún proceso escuchando en :5000 — levantá Flask primero.")
+        else:
+            print(f"FAIL: hay {len(pids)} procesos escuchando en :5000 (PIDs {', '.join(pids)}).")
+            print("Un huérfano de otra sesión sirve código VIEJO y roba conexiones (ERR-136).")
+            print(f"Matalos TODOS y relanzá uno: taskkill /F " + " ".join(f"/PID {p}" for p in pids))
+        return 1
 
     chatwoot_url = _required_env("CHATWOOT_URL").rstrip("/")
     account_id = _required_env("CHATWOOT_ACCOUNT_ID")

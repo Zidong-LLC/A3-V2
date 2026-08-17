@@ -479,6 +479,19 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-136 — [RESUELTO] Dos Flask en :5000 — el huérfano servía código viejo y "los fixes no funcionaban"
+**Síntoma:** ERR-134 y ERR-135, testeados en verde, "no cambiaban nada" en la prueba por
+Telegram — las mismas respuestas rotas de versiones anteriores.
+**Análisis deductivo:** con ERR-135 activo la respuesta observada era IMPOSIBLE → el código
+que respondía no era el desplegado. `netstat`: DOS python.exe escuchando 0.0.0.0:5000 (en
+Windows ambos logran bindear) — un huérfano de una sesión anterior de Claude Code (los
+"orphaned tasks" se marcan stopped pero el proceso puede seguir vivo) robaba conexiones con
+código pre-fix.
+**Fix:** matar TODOS los listeners y levantar UNO (verificado: 1 PID, health 200 local y
+ngrok). **Prevención:** `verify_chatwoot_telegram_agent.py` FALLA si detecta ≠ 1 listener
+en :5000 (con los PID y el comando para matarlos); paso 0 nuevo en el runbook.
+**Clase:** infraestructura de pruebas, no bug del agente. **Estado:** RESUELTO (2026-08-17).
+
 ### ERR-135 — [RESUELTO] "forma de pago" tras la oferta descarrilaba al médico (tres capas)
 **Síntoma (prueba humana, 2ª pasada 2026-08-17):** tras registrar a Mimi, el usuario
 respondió a la oferta con "forma de pago" (citando la propia oferta) → "Perdona, creo que
