@@ -79,7 +79,8 @@ def _cliente_de_reglas(bot: str, plan: list[dict], estado: dict) -> str | None:
         return "Eso es todo."
 
     reglas = [
-        (("¿confirmas estos datos", "resumo la orden"),
+        (("¿confirmas estos datos", "resumo la orden", "resumen para confirmar",
+          "¿confirmas para dejarlo", "quieres corregir algún dato", "confirmas para registrar"),
          lambda: (orden or {}).get("confirmacion") or "Sí, confirmo."),
         (("quieres cambiar alguno", "mantengo estos datos"),
          lambda: (orden or {}).get("al_reofrecimiento") or "Confirmo esos datos."),

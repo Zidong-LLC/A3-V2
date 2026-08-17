@@ -479,6 +479,49 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-132 — [RESUELTO] "Sin observaciones." cerraba el pedido DESCARTANDO la orden cargada (dinero)
+**Síntoma (QA guiones, corridas C/D — reproducible):** la 2ª orden quedó cargada completa
+(1101+1701 cotizados con descuento) y al responder "Sin observaciones." a la pregunta de la
+ORDEN, el cierre del pedido la tomó como "terminé de cargar" (señal negate), saltó la
+confirmación y cerró el pedido con 1 sola orden: la orden jamás se registró ni facturó.
+Pérdida silenciosa de orden y de plata.
+**Solución:** TODO el disparo del cierre (señales negate/farewell/cancel y frases) exige
+`_order_registered` — con una orden a medio camino el turno sigue a la confirmación.
+Fixtures de los tests del cierre actualizadas al estado real en el mismo commit.
+**Tests:** `test_negate_con_orden_a_medio_camino_no_cierra_el_pedido` + 4 actualizados.
+**Estado:** RESUELTO (2026-08-16). Re-verificación con guiones pendiente de OK del usuario
+(QA con modelo pausado por consumo de tokens, 2026-08-17).
+
+### ERR-131 — [RESUELTO] Esperando el pago, un turno sin pago dejaba improvisar al modelo (duplicación)
+**Síntoma (QA guiones):** la pregunta de cierre pide observación Y pago juntos; el cliente
+contesta solo "Sin observaciones." → nada re-preguntaba el pago → el modelo improvisó "¿Qué
+análisis o perfil desean?" y llegó a DUPLICAR la orden registrada.
+**Solución:** con `_pedido_awaiting_payment`, un turno sin pago recibe SIEMPRE la
+re-pregunta cerrada del pago (lateral respondida antes si la hay). Cambio de filosofía
+documentado en el test del carril (antes exigía no repetir la pregunta).
+**También:** la dirección escrita gana al carril de ALTA de sede (2ª variante de ERR-129).
+**Tests:** `test_esperando_el_pago_se_repregunta_cerrado`. **Estado:** RESUELTO (2026-08-16).
+
+### ERR-130 — [RESUELTO] "Canino" como respuesta de especie abría un menú de análisis
+**Síntoma (QA guiones, 1ª corrida):** el cliente responde "Canino" a la pregunta de especie
+y el bot ofrece menú de análisis ("T4 Total Canino", "Coronavirus Canino"…) — la palabra de
+especie sola resolvía AMBIGUOUS contra el catálogo.
+**Solución (app/catalog.py):** especie sola (con muletillas es/un/el…) → NONE; con contenido
+real sigue desambiguando ("t4 canino" → EXACT 1503). Cobertura re-verificada 159/159.
+**Tests:** `test_especie_sola_no_nombra_un_test`. **Estado:** RESUELTO (2026-08-16).
+
+### ERR-133 — [CERRADO PARCIAL] Corte de la campaña de QA (2026-08-17): estado y pendientes
+**Instrumento definitivo:** `tools/scripts/qa_guiones_reales.py` — cliente de REGLAS (sin
+IA), fraseos de conversaciones reales, veredicto por estado. Reemplaza al estrés cliente-IA
+como vara (el usuario: "que no se invente errores la IA"). 4/5 guiones estables en corridas
+repetidas; multi_orden_3 reparado con ERR-132 y pendiente de re-verificación.
+**PAUSA (regla del usuario 2026-08-17):** NO correr QA que consuma OpenAI sin su OK
+explícito (alto uso de tokens). Libres: pytest (774), cobertura de datos, análisis.
+**Pendientes al reanudar:** (1) corridas E/F de guiones 5/5×2; (2) guiones de las otras 3
+funciones (resultados, pagos→contabilidad, cliente nuevo, particular); (3) webhook Chatwoot
+end-to-end; (4) cierre real de un pedido en Alegra (borrador, con aviso); (5) prueba humana
+= puerta final. **Estado:** EN PAUSA a pedido del usuario — prueba humana en curso.
+
 ### ERR-129 — [RESUELTO] La dirección nueva escrita disparaba el cambio de sede en bucle infinito
 **Síntoma (cambia_direccion_sucursal, rojo 4/5 rondas, 0 órdenes):** "la dirección está
 mal, te di la de la nueva sucursal. Calle 45 Sur # 12-30" → "Claro, cambiamos de sede.

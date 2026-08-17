@@ -744,3 +744,13 @@ marca nueva, la pregunta obligatoria es: ¿qué pasa con esto cuando la orden ci
 ERR-076 era correcto dentro de la orden; nadie se preguntó qué pasaba si el insumo venía de
 OTRA. Un dato sin dueño (¿de qué orden es este texto?) tarde o temprano se aplica donde no
 corresponde.
+
+## L68 — El cliente de QA debe ser de REGLAS, no otra IA (2026-08-17)
+El cliente-IA del estrés rindió 7 bugs reales y después su ruido dominó el veredicto: los
+fallos rotaban entre rondas por descarrilamientos del simulador, no del agente. El usuario
+lo nombró exacto: "quiero resolver problemas que saltan realmente, no que la IA se invente
+errores". Un cliente de reglas (fraseos fijos de conversaciones reales, respuesta por la
+ÚLTIMA pregunta del texto del bot) hace que cada rojo sea un bug reproducible del agente.
+En su primer día cazó 3 bugs que 9 rondas de estrés no aislaron (ERR-130/131/132, uno de
+pérdida silenciosa de dinero). Regla: la IA explora; las reglas certifican.
+
