@@ -1158,9 +1158,25 @@ def _resolve_same_as_previous(fields: dict, user_message: str, history: list[dic
     def _recall(field_name: str):
         return prev_snapshot.get(field_name) or memory.get(field_name)
 
+    # EXCEPCIÓN EN LA ORACIÓN (ERR-138): "todo igual MENOS el análisis" — el conector de
+    # excepción parte la frase: lo que viene DESPUÉS no es "el mismo", es lo que CAMBIA.
+    # Sin esto, el token "igual" invertía el pedido: este carril re-asignaba desde el
+    # snapshot exactamente el campo que el cliente excluyó (y que el handler del
+    # reofrecimiento acababa de limpiar). Se lee la estructura, no palabras sueltas.
+    excepcion = re.search(r"\b(menos|excepto|salvo|pero no)\b(.+)$", (user_message or "").lower())
+    campo_excluido = None
+    if excepcion:
+        cola = excepcion.group(2)
+        campo_excluido = _extract_same_as_field(cola) or _detect_correction_field(cola)
+        if campo_excluido:
+            _clear_field_for_correction(fields, campo_excluido)
+
     asked_field = _detect_which_field_is_being_asked(history)
     explicit_field = _extract_same_as_field(user_message)
-    explicit_fields = [f for f in _extract_same_as_fields(user_message) if f != "patient_name"]
+    if explicit_field == campo_excluido:
+        explicit_field = None
+    explicit_fields = [f for f in _extract_same_as_fields(user_message)
+                       if f != "patient_name" and f != campo_excluido]
     mentions_change = bool(set(_tokenize(user_message)) & _CHANGE_TOKENS)
     # Si el mensaje trae señal de cambio ("...solo CAMBIA el paciente") y el campo nombrado
     # NO es el que se preguntó, ese campo es lo que CAMBIA, no "el mismo": el "mismo" se
@@ -1172,10 +1188,13 @@ def _resolve_same_as_previous(fields: dict, user_message: str, history: list[dic
         field = asked_field
     else:
         field = explicit_field or asked_field
+    if field == campo_excluido:
+        field = None
     if not field:
         return None
 
-    fields_to_set = explicit_fields if len(explicit_fields) > 1 else [field]
+    fields_to_set = [f for f in (explicit_fields if len(explicit_fields) > 1 else [field])
+                     if f != campo_excluido]
     assigned = [(f, _recall(f)) for f in fields_to_set if _recall(f)]
     if not assigned:
         return None

@@ -479,7 +479,35 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
-### ERR-136 — [RESUELTO] Dos Flask en :5000 — el huérfano servía código viejo y "los fixes no funcionaban"
+### ERR-138 — [RESUELTO] "Todo igual MENOS el análisis" — el carril de "el mismo" invertía la excepción
+**Síntoma (guiones tras ERR-137):** el handler del reofrecimiento limpiaba bien el análisis
+ante "todo igual menos el análisis", pero el carril de "el mismo" (`_resolve_same_as_previous`)
+lo RE-ASIGNABA desde el snapshot: el token "igual" ganaba y la excepción "menos" se
+descartaba — Misu y Toby salieron con el 152 de Rocky en vez de sus análisis.
+**Solución (estructura de la oración, no keywords):** el conector de excepción
+(menos/excepto/salvo/pero no) parte la frase — el campo nombrado DESPUÉS jamás se asigna
+como "el mismo", se limpia (con su paquete completo si es el análisis) y el flujo lo
+pregunta. "El mismo médico" sin excepción sigue resolviendo igual.
+**Tests:** `test_todo_igual_menos_el_analisis_no_reasigna_el_analisis` (3 casos). Guion
+multi_orden_3 re-verificado con modelo real: OK. Suite 783.
+**Estado:** RESUELTO (2026-08-17).
+
+### ERR-137 — [RESUELTO] El pipeline pisaba la respuesta FINAL correcta — contrato del turno resuelto
+**Síntoma (prueba humana):** "con el motorizado" fue ENTENDIDO (pedido facturado a las
+22:04, verificado en base) pero el bot mostró "¿Qué análisis o perfil desean?" — un empuje
+posterior reemplazó el resumen terminal. El cliente creyó que falló lo que funcionó. La
+clase que se venía repitiendo: comprensión bien, maquinaria pisándola.
+**Solución (contrato general, no otra keyword):** las respuestas FINALES del camino del
+pedido (cierre, pregunta de cierre, re-pregunta del pago, repregunta de la oferta) llevan
+la marca `turn_resolved` y el pipeline las retorna INTACTAS (retorno post-modelo
+equivalente exacto: `_finalize_request` era no-op con el skip marker). Cinturones
+redundantes en los dos empujes históricos. Respaldo: la red del pago reconoce el eco de
+NUESTRA opción ("con el motorizado" → contraentrega, solo afirmaciones).
+**Tests:** contrato (4 respuestas marcadas + empujes ceden) + red del pago. Guion nuevo
+`cierre_con_motorizado` (el caso literal del usuario) en verde con modelo real. Suite 782.
+**Estado:** RESUELTO (2026-08-17). Guiones 6/6 tras ERR-138.
+
+### ERR-136 — [RESUELTO]### ERR-136 — [RESUELTO] Dos Flask en :5000 — el huérfano servía código viejo y "los fixes no funcionaban"
 **Síntoma:** ERR-134 y ERR-135, testeados en verde, "no cambiaban nada" en la prueba por
 Telegram — las mismas respuestas rotas de versiones anteriores.
 **Análisis deductivo:** con ERR-135 activo la respuesta observada era IMPOSIBLE → el código

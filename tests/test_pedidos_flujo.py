@@ -1067,3 +1067,28 @@ def test_red_de_pago_reconoce_el_eco_de_nuestra_opcion():
     assert _payment_method_from_text("con el mensajero esta bien") == "contraentrega"
     assert _payment_method_from_text("¿el motorizado llega hoy?") is None  # pregunta operativa, no un pago
     assert _payment_method_from_text("un perfil 152") is None
+
+
+def test_todo_igual_menos_el_analisis_no_reasigna_el_analisis():
+    """ERR-138: 'Todo igual menos el análisis' — el carril de 'el mismo' re-asignaba desde
+    el snapshot EXACTAMENTE el campo que la oración excluyó (invertía el 'menos'). El
+    conector de excepción parte la frase: lo excluido nunca se asigna y queda limpio."""
+    fields = {"_prev_order_snapshot": {"exam_type": "Perfil Prequirúrgico I",
+                                       "_selected_profile_code": "152",
+                                       "requesting_doctor": "Dr. Ruiz"},
+              "exam_type": "Perfil Prequirúrgico I", "_selected_profile_code": "152"}
+    res = agent._resolve_same_as_previous(fields, "Todo igual menos el análisis", [])
+    assert res is None or res.get("field") != "exam_type"
+    assert not fields.get("_selected_profile_code"), "el paquete excluido debe quedar limpio"
+
+    # Sin excepción, 'el mismo médico' sigue resolviendo normal.
+    fields2 = {"_prev_order_snapshot": {"requesting_doctor": "Dr. Ruiz"}}
+    res2 = agent._resolve_same_as_previous(fields2, "el mismo médico", [])
+    assert res2 and res2["field"] == "requesting_doctor" and res2["value"] == "Dr. Ruiz"
+
+    # 'todo igual menos el médico': el médico excluido se pregunta, no se hereda.
+    fields3 = {"_prev_order_snapshot": {"requesting_doctor": "Dr. Ruiz",
+                                        "pickup_address": "CL 1 # 2-3"}}
+    res3 = agent._resolve_same_as_previous(fields3, "todo igual menos el médico", [])
+    assert res3 is None or res3.get("field") != "requesting_doctor"
+    assert not fields3.get("requesting_doctor")
