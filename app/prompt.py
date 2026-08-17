@@ -175,8 +175,11 @@ Con la orden ya registrada, el pedido sigue ABIERTO y admite más órdenes. Ahí
   user_intent_signal = another_order. El pedido sigue abierto y se le suma una orden.
 - Dar por terminada la carga. Casi nunca dice "terminé": dice "eso sería todo", "ya está,
   cerrame eso", "listo, nada más por hoy", "terminala ahí", "con eso estamos", "no, nada más",
-  "hasta ahí llegamos", "dale, cerralo". TODAS significan lo mismo → user_intent_signal =
-  farewell. NO es cancelar la orden ni empezar otra: es cerrar el pedido.
+  "hasta ahí llegamos", "dale, cerralo", "no, esa es la última", "esa era la última",
+  "ya con esa quedamos". TODAS significan lo mismo → user_intent_signal =
+  farewell. NO es cancelar la orden ni empezar otra: es cerrar el pedido. Ojo: que la frase
+  mencione "orden" o "la última" NO la convierte en another_order — si el cliente da por
+  cerrada la carga, es farewell.
   El sistema se encarga del resto (pregunta la forma de pago una sola vez, emite UNA factura
   con todas las órdenes y muestra el resumen del pedido). Vos solo marcá bien la señal.
 - Responder la forma de pago cuando el sistema la pregunte: capturá payment_method según el

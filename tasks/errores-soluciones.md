@@ -479,6 +479,23 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-134 — [RESUELTO] "no esa es la ultima" no cerraba: la oferta de cierre ahora es una pregunta cerrada con red de estado
+**Síntoma (prueba humana del usuario, 2026-08-17):** tras registrar la última orden, el
+cliente respondió a la oferta "¿otra orden… o cerramos?" con "no esa es la ultima" → el bot
+contestó "¿Qué análisis o perfil desean?" y el pedido nunca cerró ni facturó. El usuario:
+"no puede haber una palabra clave fija — la IA tiene que entender a qué se refiere".
+**Causa raíz:** el fraseo no matcheó ni la señal del modelo ni la red de frases, y la
+improvisación del modelo (una pregunta de captura) pasó de largo por el pipeline.
+**Solución (comprensión + estado, sin palabras clave):** (1) PASO 6 del prompt: más
+ejemplos de la clase ("esa es la última") y regla explícita de que mencionar "orden/última"
+no es another_order; (2) `_pedido_offer_pending` — la oferta queda como pregunta CERRADA
+pendiente; si el turno no capturó paciente nuevo y la respuesta en curso es una pregunta de
+captura NUESTRA (plantilla propia), se repregunta la oferta cerrada (PEDIDO_OFFER_REASK).
+La señal sigue siendo la fuente primaria; las laterales pasan intactas.
+**Tests:** `test_oferta_pendiente_repregunta_cerrado_en_vez_de_reabrir_captura` +
+`test_farewell_con_oferta_pendiente_cierra_normal`. Suite 777.
+**Estado:** RESUELTO (2026-08-17) — pendiente re-prueba humana del usuario.
+
 ### ERR-132 — [RESUELTO] "Sin observaciones." cerraba el pedido DESCARTANDO la orden cargada (dinero)
 **Síntoma (QA guiones, corridas C/D — reproducible):** la 2ª orden quedó cargada completa
 (1101+1701 cotizados con descuento) y al responder "Sin observaciones." a la pregunta de la

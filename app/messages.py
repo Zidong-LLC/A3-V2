@@ -111,6 +111,11 @@ PEDIDO_CLOSING_PROMPT = (
 # Último turno antes de cerrar: observación del PEDIDO (opcional) + forma de pago. Van
 # juntas a propósito — A3 pidió poder dejar una observación general (reunión 28/07), y
 # preguntarla en un turno aparte le agregaba un paso a quien no tiene nada que observar.
+PEDIDO_OFFER_REASK = (
+    "Perdona, no me quedó claro: ¿cargamos otra orden para otro paciente, "
+    "o cerramos el pedido y pasamos al pago?"
+)
+
 PEDIDO_CLOSING_QUESTION = (
     "Listo. ¿Alguna observación para el pedido? Y decime cómo prefieres el pago: "
     "contraentrega con el motorizado o pago en línea."

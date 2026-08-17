@@ -928,3 +928,39 @@ def test_negate_con_orden_a_medio_camino_no_cierra_el_pedido():
     ai = _resp(dict(ORDEN_COMPLETA), user_intent_signal="negate", reply="(del modelo)")
     out = agent._enforce_open_pedido_close(SESSION, ai, prev, "Sin observaciones.")
     assert out["reply"] == "(del modelo)", "el turno debe seguir su flujo (confirmación)"
+
+
+def test_oferta_pendiente_repregunta_cerrado_en_vez_de_reabrir_captura():
+    """ERR-134 (prueba humana 2026-08-17): tras registrar la última orden, 'no esa es la
+    ultima' no matcheó señal ni red y la improvisación reabrió la captura ('¿Qué análisis o
+    perfil desean?') — el pedido nunca cerró. Con la oferta pendiente y sin paciente nuevo,
+    una pregunta de captura NUESTRA se reemplaza por la repregunta CERRADA."""
+    from app.messages import PEDIDO_OFFER_REASK
+
+    prev = {"_pedido_id": "ped-1", "_order_registered": True, "_pedido_offer_pending": True,
+            "patient_name": "Tito"}
+    ai = _resp(dict(prev), user_intent_signal=None, reply="¿Qué análisis o perfil desean?")
+    out = agent._enforce_open_pedido_close(SESSION, ai, prev, "no esa es la ultima")
+    assert out["reply"] == PEDIDO_OFFER_REASK
+    assert out.get(agent._SKIP_REQUEST_CREATION) is True
+
+    # Con un paciente NUEVO capturado (el cliente arrancó otra orden), la red CEDE.
+    ai2 = _resp(dict(prev, patient_name="Michi"), user_intent_signal=None,
+                reply="¿Qué análisis o perfil desean?")
+    out2 = agent._enforce_open_pedido_close(SESSION, ai2, prev, "va otra: Michi")
+    assert out2["reply"] == "¿Qué análisis o perfil desean?"
+
+    # Una respuesta que NO es pregunta de captura (lateral respondida) pasa intacta.
+    ai3 = _resp(dict(prev), user_intent_signal=None, reply="El total va en $58.000.")
+    out3 = agent._enforce_open_pedido_close(SESSION, ai3, prev, "¿cuánto va todo?")
+    assert out3["reply"] == "El total va en $58.000."
+
+
+def test_farewell_con_oferta_pendiente_cierra_normal():
+    """La señal sigue siendo la fuente primaria: farewell con la oferta pendiente va al
+    cierre (pregunta del pago), no a la repregunta."""
+    prev = {"_pedido_id": "ped-1", "_order_registered": True, "_pedido_offer_pending": True}
+    ai = _resp(dict(prev), user_intent_signal="farewell", reply="(del modelo)")
+    out = agent._enforce_open_pedido_close(SESSION, ai, prev, "no, esa es la última")
+    assert out["reply"] == PEDIDO_CLOSING_QUESTION
+    assert "_pedido_offer_pending" not in out["captured_fields"]

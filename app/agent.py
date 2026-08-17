@@ -223,7 +223,7 @@ from app.messages import (
     CLIENT_RETRY_NOT_FOUND_MESSAGE, CLIENT_IDENTIFIER_RETRY_MESSAGE,
     POST_TERMINAL_GREETING_REPLY, RESULTS_PENDING_MESSAGE, OPTION_RECONSIDER_MESSAGE,
     ORDER_NUMBER_NEEDS_CLIENT_MESSAGE, ORDER_NUMBER_NOT_FOUND_MESSAGE, FAREWELL_REPLY,
-    CLOSING_PROMPT, PEDIDO_CLOSING_PROMPT, PEDIDO_CLOSING_QUESTION, PAYMENT_METHOD_QUESTION, PAYMENT_ONLINE_HANDOFF_MESSAGE,
+    CLOSING_PROMPT, PEDIDO_CLOSING_PROMPT, PEDIDO_CLOSING_QUESTION, PEDIDO_OFFER_REASK, PAYMENT_METHOD_QUESTION, PAYMENT_ONLINE_HANDOFF_MESSAGE,
     EXTRA_ANALYSIS_OFFER, EXTRA_ANALYSIS_AMBIGUOUS_QUESTION,
     NO_COURIER_HANDOFF_MESSAGE, AGE_QUESTION, CORRECTION_PROMPT,
     ADVISOR_ASSIGNMENT_LINE,
@@ -2263,6 +2263,9 @@ def _finalize_request(chat_id: str, session: dict, ai_response: dict, started_fr
         if pedido_id:
             campos = ai_response.setdefault("captured_fields", {})
             campos["_pedido_id"] = pedido_id
+            # La oferta es una pregunta CERRADA pendiente (ERR-134): el próximo turno tiene
+            # que resolverla (otra orden / cerrar) o repreguntarla — nunca improvisar.
+            campos["_pedido_offer_pending"] = True
             # Se acumulan las líneas de cada orden para facturarlas juntas al cerrar el
             # pedido. Se guarda el `profile` ya resuelto (con códigos y precios del catálogo)
             # y no una referencia a la orden: así la factura no depende de releer eventos.
@@ -2368,7 +2371,9 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
     pago_en_el_texto = _payment_method_from_text(user_message)
     payment_method = fields.get("payment_method") or pago_en_el_texto
     if payment_method and (esperando_pago or pago_en_el_texto):
-        return _close_pedido_turn(session, _merge_sin_borrar(prev_fields, fields), payment_method)
+        merged = _merge_sin_borrar(prev_fields, fields)
+        merged.pop("_pedido_offer_pending", None)
+        return _close_pedido_turn(session, merged, payment_method)
 
     # Terminó de cargar órdenes pero todavía no dijo cómo paga: se le pregunta UNA vez.
     # Señales con las que el cliente da por terminada la carga. `cancel` entra porque el
@@ -2410,6 +2415,7 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
     if wants_to_finish and not prev_fields.get("_pedido_awaiting_payment"):
         fields = _merge_sin_borrar(prev_fields, fields)
         fields["_pedido_awaiting_payment"] = True
+        fields.pop("_pedido_offer_pending", None)
         return {
             **ai_response,
             # A3 pidió (reunión 28/07) poder dejar una observación del PEDIDO antes de cerrar.
@@ -2429,6 +2435,34 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
             "message_mode": "flow_progress",
             _SKIP_REQUEST_CREATION: True,
         }
+
+    # Red de ESTADO (ERR-134, prueba humana 2026-08-17): la oferta "¿otra orden o cerramos?"
+    # es una pregunta CERRADA pendiente. "no esa es la ultima" no matcheó señal ni red y la
+    # improvisación del modelo reabrió la captura ("¿Qué análisis o perfil desean?") — el
+    # pedido nunca cerró. Sin palabras clave del cliente: si la oferta sigue pendiente, el
+    # turno no capturó un paciente nuevo y la respuesta en curso es una pregunta de captura
+    # NUESTRA (plantilla propia, determinística), se repregunta la oferta cerrada. El
+    # cliente contesta con sus palabras y la señal del modelo o el pago resuelven el
+    # turno siguiente.
+    if prev_fields.get("_pedido_offer_pending"):
+        reply_actual = str(ai_response.get("reply") or "")
+        preguntas_de_captura = ("¿Qué análisis o perfil desean?",
+                                "¿Cuál es el nombre del paciente?")
+        nuevo_paciente = bool(fields.get("patient_name")) and \
+            fields.get("patient_name") != prev_fields.get("patient_name")
+        if not nuevo_paciente and any(q in reply_actual for q in preguntas_de_captura):
+            return {
+                **ai_response,
+                "reply": PEDIDO_OFFER_REASK,
+                "phase": "fase_2_recogida_datos",
+                "intent": "route_scheduling",
+                "service_area": "route_scheduling",
+                "requires_handoff": False,
+                "handoff_area": None,
+                "captured_fields": _merge_sin_borrar(prev_fields, fields),
+                "message_mode": "flow_progress",
+                _SKIP_REQUEST_CREATION: True,
+            }
     return ai_response
 
 
