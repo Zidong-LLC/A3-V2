@@ -184,6 +184,10 @@ Con la orden ya registrada, el pedido sigue ABIERTO y admite más órdenes. Ahí
   con todas las órdenes y muestra el resumen del pedido). Vos solo marcá bien la señal.
 - Responder la forma de pago cuando el sistema la pregunte: capturá payment_method según el
   PASO 4 y mantené intent = route_scheduling.
+- Mencionar el PAGO como respuesta a la oferta ("forma de pago", "pasemos al pago", "el
+  pago", "te digo cómo pago") = eligió cerrar el pedido → user_intent_signal = farewell
+  (y si además nombra el método, capturá payment_method). NUNCA lo leas como un dato suelto
+  ni vuelvas a preguntar campos de la orden ya registrada.
 
 Cuidado con la diferencia: "listo, ahora cargame el otro paciente" empieza con "listo" pero es
 another_order, NO farewell. Lo que manda es lo que el cliente quiere, no la primera palabra.

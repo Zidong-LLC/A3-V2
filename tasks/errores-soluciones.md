@@ -479,6 +479,26 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-135 — [RESUELTO] "forma de pago" tras la oferta descarrilaba al médico (tres capas)
+**Síntoma (prueba humana, 2ª pasada 2026-08-17):** tras registrar a Mimi, el usuario
+respondió a la oferta con "forma de pago" (citando la propia oferta) → "Perdona, creo que
+no te entendí bien. ¿Cuál es el médico solicitante?" — el pedido no avanzó al pago.
+**Causa raíz (3 capas):** (1) `_detect_which_field_is_being_asked` matcheaba sus patrones
+en CUALQUIER parte del último mensaje — el resumen "Quedó registrado: … Médico solicitante:
+Dr. Araujo…" fabricó un `asked=requesting_doctor` basura; (2) el guardrail de coherencia,
+con ese dato, repreguntó el campo equivocado; (3) la red ERR-134 corría ANTES del guardrail
+en el pipeline y solo matcheaba 2 plantillas literales — no vio la respuesta final.
+**Solución:** (1) el detector lee SOLO el último segmento interrogativo (¿…?), con fallback
+a la oración inmediatamente previa ("Tenemos como domicilio…: ¿Es correcta?") — sana a
+TODOS sus consumidores; (2) la red extraída a `_enforce_pedido_offer_pending_guard` al
+FINAL del pipeline, detectando el campo con el detector (sin plantillas); (3) el TEMA del
+pago ("pago/pagar" sin método, con la orden registrada) resuelve la oferta →
+PEDIDO_CLOSING_QUESTION; (4) PASO 6 del prompt enseña la clase (mención del pago = cerrar).
+**Tests:** `test_forma_de_pago_con_oferta_pendiente_resuelve_el_cierre`,
+`test_guard_de_oferta_pisa_cualquier_pregunta_de_captura_final`, detector re-testeado
+(resumen→None, pregunta real→campo, "¿Es correcta?"→pickup_address). Suite 779.
+**Estado:** RESUELTO (2026-08-17) — pendiente re-prueba humana.
+
 ### ERR-134 — [RESUELTO] "no esa es la ultima" no cerraba: la oferta de cierre ahora es una pregunta cerrada con red de estado
 **Síntoma (prueba humana del usuario, 2026-08-17):** tras registrar la última orden, el
 cliente respondió a la oferta "¿otra orden… o cerramos?" con "no esa es la ultima" → el bot

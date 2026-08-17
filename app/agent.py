@@ -377,6 +377,9 @@ _ORDER_RESET_FIELDS = frozenset({
     "_profile_options_offered", "_diagnostic_label", "_prev_order_snapshot",
     "_test_menu_options", "_test_menu_adds_to_profile", "_awaiting_additional_test",
     "_offering_extra_analysis",
+    # Al abrir otra orden, la oferta de cierre quedó resuelta ("va otra") — si la marca
+    # sobrevive, la red de la oferta (ERR-134/135) pisa las preguntas de la orden nueva.
+    "_pedido_offer_pending",
     # ERR-114 — el carril del pedido MIXTO. `_mixed_request_text` guarda el TEXTO del pedido
     # original de la orden ("un prequirúrgico, sodio y potasio") para re-escanearlo al fijar
     # el perfil (fix de ERR-076, correcto DENTRO de una orden). Fuera de esta lista, la marca
@@ -2407,10 +2410,17 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
     # `negate` — sin este guard el cierre saltaba la confirmación y cerró el pedido con 1
     # orden, DESCARTANDO la orden de Misu cargada completa (1101+1701 cotizados, jamás
     # registrados ni facturados). Con una orden a medio camino, el turno sigue su flujo.
+    #
+    # El TEMA del pago también resuelve la oferta (ERR-135, prueba humana): "forma de pago"
+    # cita las palabras de la PROPIA oferta ("…seguimos con la forma de pago…") — con la
+    # orden registrada, mencionar el pago sin dar el método es elegir cerrar. Anclado al
+    # estado, no una keyword suelta: a mitad de captura no dispara nada.
+    tema_pago = bool(set(_tokenize(user_message)) & {"pago", "pagar", "pagamos", "pagos"}) \
+        and not pago_en_el_texto
     wants_to_finish = (
         bool(prev_fields.get("_order_registered"))
         and (signal in ("farewell", "negate", "cancel") or _is_farewell(user_message)
-             or _says_thats_all(user_message))
+             or _says_thats_all(user_message) or tema_pago)
     )
     if wants_to_finish and not prev_fields.get("_pedido_awaiting_payment"):
         fields = _merge_sin_borrar(prev_fields, fields)
@@ -2436,34 +2446,45 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
             _SKIP_REQUEST_CREATION: True,
         }
 
-    # Red de ESTADO (ERR-134, prueba humana 2026-08-17): la oferta "¿otra orden o cerramos?"
-    # es una pregunta CERRADA pendiente. "no esa es la ultima" no matcheó señal ni red y la
-    # improvisación del modelo reabrió la captura ("¿Qué análisis o perfil desean?") — el
-    # pedido nunca cerró. Sin palabras clave del cliente: si la oferta sigue pendiente, el
-    # turno no capturó un paciente nuevo y la respuesta en curso es una pregunta de captura
-    # NUESTRA (plantilla propia, determinística), se repregunta la oferta cerrada. El
-    # cliente contesta con sus palabras y la señal del modelo o el pago resuelven el
-    # turno siguiente.
-    if prev_fields.get("_pedido_offer_pending"):
-        reply_actual = str(ai_response.get("reply") or "")
-        preguntas_de_captura = ("¿Qué análisis o perfil desean?",
-                                "¿Cuál es el nombre del paciente?")
-        nuevo_paciente = bool(fields.get("patient_name")) and \
-            fields.get("patient_name") != prev_fields.get("patient_name")
-        if not nuevo_paciente and any(q in reply_actual for q in preguntas_de_captura):
-            return {
-                **ai_response,
-                "reply": PEDIDO_OFFER_REASK,
-                "phase": "fase_2_recogida_datos",
-                "intent": "route_scheduling",
-                "service_area": "route_scheduling",
-                "requires_handoff": False,
-                "handoff_area": None,
-                "captured_fields": _merge_sin_borrar(prev_fields, fields),
-                "message_mode": "flow_progress",
-                _SKIP_REQUEST_CREATION: True,
-            }
     return ai_response
+
+
+def _enforce_pedido_offer_pending_guard(prev_captured: dict, ai_response: dict) -> dict:
+    """Red de ESTADO al FINAL del pipeline (ERR-134/135): la oferta "¿otra orden o
+    cerramos?" es una pregunta CERRADA pendiente y NINGUNA respuesta puede reabrir la
+    captura de campos mientras siga sin resolverse.
+
+    Corre al final a propósito: en la prueba humana, "forma de pago" pasó intacta por el
+    cierre y fue el guardrail de coherencia (que corre después) el que fabricó "¿Cuál es el
+    médico solicitante?" — una red que mira la respuesta a mitad del pipeline no ve la
+    definitiva. Sin palabras del cliente: decide el estado + una pregunta de campo NUESTRA
+    (detectada con `_detect_which_field_is_being_asked` sobre la propia respuesta). Las
+    laterales y la pregunta del pago pasan intactas."""
+    if not PEDIDOS_ENABLED or not prev_captured.get("_pedido_offer_pending"):
+        return ai_response
+    if ai_response.get("user_intent_signal") == "another_order":
+        return ai_response
+    fields = ai_response.get("captured_fields", {})
+    nuevo_paciente = bool(fields.get("patient_name")) and \
+        fields.get("patient_name") != prev_captured.get("patient_name")
+    if nuevo_paciente:
+        return ai_response
+    reply = str(ai_response.get("reply") or "")
+    campo = _detect_which_field_is_being_asked([{"role": "bot", "content": reply}])
+    if campo in (None, "payment_method"):
+        return ai_response
+    return {
+        **ai_response,
+        "reply": PEDIDO_OFFER_REASK,
+        "phase": "fase_2_recogida_datos",
+        "intent": "route_scheduling",
+        "service_area": "route_scheduling",
+        "requires_handoff": False,
+        "handoff_area": None,
+        "captured_fields": _merge_sin_borrar(prev_captured, fields),
+        "message_mode": "flow_progress",
+        _SKIP_REQUEST_CREATION: True,
+    }
 
 
 _PEDIDO_STALE_HOURS = 1
@@ -4381,6 +4402,7 @@ def process_turn(
     ai_response = _enforce_field_coherence(session, ai_response, prev_captured, user_message, history)
     ai_response = _enforce_comprehension_recheck(session, ai_response, prev_captured, user_message, history)
     ai_response = _enforce_first_missing_after_progress(session, ai_response, prev_captured)
+    ai_response = _enforce_pedido_offer_pending_guard(prev_captured, ai_response)
     ai_response = _resume_route_after_lateral_turn(session, ai_response)
     fields = ai_response.get("captured_fields", fields)
 

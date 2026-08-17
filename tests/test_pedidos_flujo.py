@@ -939,20 +939,21 @@ def test_oferta_pendiente_repregunta_cerrado_en_vez_de_reabrir_captura():
 
     prev = {"_pedido_id": "ped-1", "_order_registered": True, "_pedido_offer_pending": True,
             "patient_name": "Tito"}
+    # ERR-135: la red vive ahora en su propio enforcer al FINAL del pipeline.
     ai = _resp(dict(prev), user_intent_signal=None, reply="¿Qué análisis o perfil desean?")
-    out = agent._enforce_open_pedido_close(SESSION, ai, prev, "no esa es la ultima")
+    out = agent._enforce_pedido_offer_pending_guard(prev, ai)
     assert out["reply"] == PEDIDO_OFFER_REASK
     assert out.get(agent._SKIP_REQUEST_CREATION) is True
 
     # Con un paciente NUEVO capturado (el cliente arrancó otra orden), la red CEDE.
     ai2 = _resp(dict(prev, patient_name="Michi"), user_intent_signal=None,
                 reply="¿Qué análisis o perfil desean?")
-    out2 = agent._enforce_open_pedido_close(SESSION, ai2, prev, "va otra: Michi")
+    out2 = agent._enforce_pedido_offer_pending_guard(prev, ai2)
     assert out2["reply"] == "¿Qué análisis o perfil desean?"
 
     # Una respuesta que NO es pregunta de captura (lateral respondida) pasa intacta.
     ai3 = _resp(dict(prev), user_intent_signal=None, reply="El total va en $58.000.")
-    out3 = agent._enforce_open_pedido_close(SESSION, ai3, prev, "¿cuánto va todo?")
+    out3 = agent._enforce_pedido_offer_pending_guard(prev, ai3)
     assert out3["reply"] == "El total va en $58.000."
 
 
@@ -964,3 +965,47 @@ def test_farewell_con_oferta_pendiente_cierra_normal():
     out = agent._enforce_open_pedido_close(SESSION, ai, prev, "no, esa es la última")
     assert out["reply"] == PEDIDO_CLOSING_QUESTION
     assert "_pedido_offer_pending" not in out["captured_fields"]
+
+
+def test_forma_de_pago_con_oferta_pendiente_resuelve_el_cierre():
+    """ERR-135: 'forma de pago' cita la propia oferta — con la orden registrada, mencionar
+    el pago sin el método es elegir cerrar: pregunta de cierre, no un descarrile."""
+    prev = {"_pedido_id": "ped-1", "_order_registered": True, "_pedido_offer_pending": True}
+    ai = _resp(dict(prev), user_intent_signal=None, reply="(del modelo)")
+    out = agent._enforce_open_pedido_close(SESSION, ai, prev, "forma de pago")
+    assert out["reply"] == PEDIDO_CLOSING_QUESTION
+    # A mitad de captura (sin _order_registered), 'el pago' no dispara nada.
+    prev2 = {"_pedido_id": "ped-1"}
+    ai2 = _resp(dict(prev2), user_intent_signal=None, reply="sigo")
+    out2 = agent._enforce_open_pedido_close(SESSION, ai2, prev2, "y el pago cuando?")
+    assert out2["reply"] == "sigo"
+
+
+def test_guard_de_oferta_pisa_cualquier_pregunta_de_captura_final():
+    """ERR-135: el guard corre al FINAL del pipeline y detecta el campo con el detector
+    (no con plantillas literales) — 'Perdona… ¿Cuál es el médico solicitante?' del
+    guardrail de coherencia también se reemplaza por la repregunta cerrada."""
+    from app.messages import PEDIDO_OFFER_REASK
+
+    prev = {"_pedido_id": "ped-1", "_pedido_offer_pending": True, "patient_name": "Mimi"}
+    ai = {"intent": "route_scheduling", "captured_fields": dict(prev),
+          "reply": "Perdona, creo que no te entendí bien. ¿Cuál es el médico solicitante?",
+          "user_intent_signal": "provides_requested_data"}
+    out = agent._enforce_pedido_offer_pending_guard(prev, ai)
+    assert out["reply"] == PEDIDO_OFFER_REASK
+
+    # La pregunta del PAGO es la dirección correcta: pasa intacta.
+    ai2 = {"intent": "route_scheduling", "captured_fields": dict(prev),
+           "reply": "¿Cómo prefieres el pago: contraentrega o pago en línea?",
+           "user_intent_signal": None}
+    assert agent._enforce_pedido_offer_pending_guard(prev, ai2) is ai2
+
+    # Una lateral respondida (sin pregunta de campo) pasa intacta.
+    ai3 = {"intent": "route_scheduling", "captured_fields": dict(prev),
+           "reply": "El total del pedido va en $72.000.", "user_intent_signal": None}
+    assert agent._enforce_pedido_offer_pending_guard(prev, ai3) is ai3
+
+    # Con paciente NUEVO capturado (arrancó otra orden), el guard cede.
+    ai4 = {"intent": "route_scheduling", "captured_fields": dict(prev, patient_name="Rex"),
+           "reply": "¿Cuál es la raza del paciente?", "user_intent_signal": None}
+    assert agent._enforce_pedido_offer_pending_guard(prev, ai4) is ai4

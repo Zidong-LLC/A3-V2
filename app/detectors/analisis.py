@@ -238,7 +238,23 @@ def _last_bot_message(history: list[dict]) -> str:
 
 
 def _detect_which_field_is_being_asked(history: list[dict]) -> str | None:
-    bot_msg = _last_bot_message(history).lower()
+    """Qué campo está preguntando el ÚLTIMO mensaje del bot.
+
+    Matchea SOLO dentro del último segmento interrogativo (¿…?): un resumen ("Quedó
+    registrado: … - Médico solicitante: Dr. Araujo …") contiene los rótulos de TODOS los
+    campos, y matchear en el texto entero fabricaba un `asked` basura — con eso el guardrail
+    de coherencia repreguntó "¿Cuál es el médico solicitante?" a un cliente que pedía pasar
+    al pago (ERR-135, prueba humana 2026-08-17). Sin pregunta, no hay campo preguntado."""
+    completo = _last_bot_message(history).lower()
+    inicio = completo.rfind("¿")
+    if inicio < 0:
+        return None
+    fin = completo.find("?", inicio)
+    pregunta = completo[inicio:fin if fin >= 0 else None]
+    # Preguntas que no nombran el campo ("¿Es correcta?"): el campo está en la oración
+    # inmediatamente anterior ("Tenemos como domicilio de retiro: … ¿Es correcta?").
+    previas = [s for s in completo[:inicio].replace("\n", ".").split(".") if s.strip()]
+    contexto = previas[-1] if previas else ""
     field_patterns = [
         ("medico solicitante", "requesting_doctor"),
         ("médico solicitante", "requesting_doctor"),
@@ -263,7 +279,10 @@ def _detect_which_field_is_being_asked(history: list[dict]) -> str | None:
         ("contraentrega", "payment_method"),
     ]
     for pattern, field in field_patterns:
-        if pattern in bot_msg:
+        if pattern in pregunta:
+            return field
+    for pattern, field in field_patterns:
+        if pattern in contexto:
             return field
     return None
 

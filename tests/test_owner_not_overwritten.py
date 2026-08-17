@@ -23,10 +23,12 @@ ACUSE_CON_PREGUNTA_DE_OBSERVACIONES = (
 )
 
 
-def test_detector_still_sees_owner_in_the_acknowledgement():
-    """El detector sigue confundido (no se tocó): por eso hace falta el blindaje."""
+def test_detector_lee_la_pregunta_no_el_acuse():
+    """ERR-135: el detector ahora matchea SOLO el segmento interrogativo — el acuse
+    ('registro Luciano como propietario') ya no fabrica owner_name; la pregunta real
+    es la de observaciones. El blindaje de _says_no_owner sigue vigente igual."""
     assert agent._detect_which_field_is_being_asked(
-        _history(ACUSE_CON_PREGUNTA_DE_OBSERVACIONES)) == "owner_name"
+        _history(ACUSE_CON_PREGUNTA_DE_OBSERVACIONES)) == "observations"
     assert agent._says_no_owner("No, no tengo ninguna observación") is True
 
 
