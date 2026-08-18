@@ -10,6 +10,7 @@ from app.health import check_all
 from app.services import telegram, chatwoot
 from app.services.db import get_or_create_session
 from app.services.debounce import MessageDebouncer
+import app.pricing  # registra el provider de tramos de descuento en rules
 from app.platform_api import platform_api
 from app.dashboard import dashboard
 from app.dashboard_results import dashboard_results

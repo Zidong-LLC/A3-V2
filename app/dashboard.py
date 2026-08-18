@@ -16,9 +16,10 @@ from app.config import (
     ALEGRA_PRODUCTION,
     DASHBOARD_ADMIN_PASSWORD,
     DASHBOARD_ADMIN_USER,
+    DISCOUNT_TIERS,
 )
 from app.services import db, alegra
-from app import territory, billing
+from app import pricing, territory, billing
 
 dashboard = Blueprint("dashboard", __name__)
 
@@ -195,6 +196,7 @@ def _empty_context(error: str | None = None) -> dict:
         "profile_categories": [],
         "profile_species": [],
         "catalog_species_options": sorted(_CATALOG_SPECIES),
+        "discount_tiers_rows": [{"min_tests": m, "pct": p} for m, p in DISCOUNT_TIERS],
         "sample_requirements": [],
         "approval_rows": [],
         "reviewed_approval_rows": [],
@@ -1469,6 +1471,7 @@ def build_dashboard_context() -> dict:
         "profile_categories": sorted({row["category"] for row in builder_items if row.get("category")}),
         "profile_species": sorted({row["species"] for row in builder_items if row.get("species")}),
         "catalog_species_options": sorted(_CATALOG_SPECIES),
+        "discount_tiers_rows": [{"min_tests": m, "pct": p} for m, p in pricing.get_discount_tiers()],
         "sample_requirements": sorted({row["sample"] for row in analysis_rows if row.get("sample") and row.get("sample") != "Sin muestra definida"}),
         "approval_rows": approval_rows,
         "reviewed_approval_rows": reviewed_rows,
@@ -2271,6 +2274,55 @@ def update_catalog_item():
         por=session.get("dashboard_username"),
     )
     return jsonify({"ok": True, "item": actualizado})
+
+
+@dashboard.post("/api/dashboard/discount-tiers")
+@_login_required
+def update_discount_tiers():
+    """Reemplaza los tramos del descuento por volumen (pedido de A3, llamada 6).
+
+    Los tramos vivían hardcodeados en config.py y cambiarlos exigía deploy. Editar
+    un descuento mueve plata: validación dura, auditoría en catalog_audit con el
+    valor anterior, e invalidación del cache que usa el agente (app/pricing.py).
+    """
+    payload = request.get_json(silent=True) or {}
+    tiers = payload.get("tiers") if isinstance(payload.get("tiers"), list) else None
+    if not tiers:
+        return jsonify({"error": "Falta la lista de tramos"}), 400
+
+    parsed: list[dict] = []
+    prev_min, prev_pct = 0, -1.0
+    for item in tiers:
+        try:
+            min_tests = int(item.get("min_tests"))
+            pct = float(item.get("pct"))
+        except (TypeError, ValueError, AttributeError):
+            return jsonify({"error": "Cada tramo necesita min_tests entero y pct numérico"}), 400
+        if not 2 <= min_tests <= 99:
+            return jsonify({"error": f"Mínimo de pruebas fuera de rango (2-99): {min_tests}"}), 400
+        if not 0 <= pct <= 0.9:
+            return jsonify({"error": f"Porcentaje fuera de rango (0-0.9): {pct}"}), 400
+        if min_tests <= prev_min:
+            return jsonify({"error": "Los tramos deben ir con mínimos ascendentes y sin repetir"}), 400
+        if pct < prev_pct:
+            return jsonify({"error": "El porcentaje no puede bajar al subir el tramo"}), 400
+        prev_min, prev_pct = min_tests, pct
+        parsed.append({"min_tests": min_tests, "pct": pct})
+
+    try:
+        anteriores = db.list_discount_tiers()
+        guardados = db.replace_discount_tiers(parsed, session.get("dashboard_username"))
+    except Exception:
+        return jsonify({"error": "No se pudieron guardar los tramos"}), 503
+
+    db.log_catalog_change(
+        "discount_tiers", "tiers",
+        antes={"tiers": anteriores},
+        despues={"tiers": parsed},
+        por=session.get("dashboard_username"),
+    )
+    pricing.invalidate_discount_tiers_cache()
+    return jsonify({"ok": True, "tiers": guardados})
 
 
 @dashboard.post("/api/dashboard/sample-status")

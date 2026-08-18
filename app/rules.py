@@ -43,12 +43,25 @@ ESCALATED_PHASES = {"fase_7_escalado"}
 TERMINAL_PHASES = DONE_PHASES | ESCALATED_PHASES
 
 
+# Provider opcional de tramos (inyectado por app/pricing.py al importarse).
+# rules sigue puro: no importa pricing ni hace I/O; sin provider registrado se
+# usa la constante DISCOUNT_TIERS, comportamiento idéntico al histórico.
+_tiers_provider = None
+
+
+def set_discount_tiers_provider(fn) -> None:
+    global _tiers_provider
+    _tiers_provider = fn
+
+
 def calculate_discount(num_tests: int, subtotal: int) -> int:
-    """Descuento por volumen según los tramos de DISCOUNT_TIERS.
+    """Descuento por volumen según los tramos vigentes (tabla discount_tiers
+    vía provider, o DISCOUNT_TIERS de config como fallback).
     Aplica el porcentaje del mayor tramo cuyo mínimo de pruebas se alcanza.
     Si no hay tramos configurados, no hay descuento."""
+    tiers = _tiers_provider() if _tiers_provider else DISCOUNT_TIERS
     pct = 0.0
-    for min_tests, tier_pct in sorted(DISCOUNT_TIERS):
+    for min_tests, tier_pct in sorted(tiers):
         if num_tests >= min_tests:
             pct = tier_pct
     return int(round(subtotal * pct))

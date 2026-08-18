@@ -1193,6 +1193,31 @@ def get_catalog_item(tabla: str, code: str) -> dict | None:
     return (result.data or [None])[0]
 
 
+def list_discount_tiers() -> list[dict]:
+    """Tramos del descuento por volumen (tabla discount_tiers), ordenados por
+    mínimo de pruebas. Vacío si la migración 021 no corrió — app/pricing.py
+    cae al fallback de config.DISCOUNT_TIERS."""
+    result = (
+        _client.table("discount_tiers")
+        .select("min_tests, pct")
+        .order("min_tests")
+        .execute()
+    )
+    return result.data or []
+
+
+def replace_discount_tiers(tiers: list[dict], updated_by: str | None) -> list[dict]:
+    """Reemplaza TODOS los tramos (son ~14 filas: delete-all + insert es más
+    simple y atómico a nivel de resultado que un diff fila a fila)."""
+    _client.table("discount_tiers").delete().neq("min_tests", -1).execute()
+    payload = [
+        {"min_tests": int(t["min_tests"]), "pct": float(t["pct"]), "updated_by": updated_by or "operator"}
+        for t in tiers
+    ]
+    result = _client.table("discount_tiers").insert(payload).execute()
+    return result.data or []
+
+
 def delete_custom_profile(profile_id: str) -> bool:
     result = _client.table("client_custom_profiles").delete().eq("id", profile_id).execute()
     return bool(result.data)

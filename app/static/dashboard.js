@@ -610,4 +610,50 @@
     });
   });
 
+
+  // ── Descuentos por volumen editables ────────────────────────────────────────
+  // Los tramos viven en discount_tiers (migración 021); el % se muestra como
+  // porcentaje (12) y viaja como fracción (0.12). El server valida en serio.
+  (() => {
+    const card = document.querySelector('[data-discount-card]');
+    if (!card) return;
+    const rowsBox = card.querySelector('[data-discount-rows]');
+    const flag = card.querySelector('[data-discount-flag]');
+    const saveBtn = card.querySelector('[data-discount-save]');
+
+    card.querySelector('[data-tier-add]').addEventListener('click', () => {
+      const tr = document.createElement('tr');
+      tr.setAttribute('data-discount-row', '');
+      tr.innerHTML = '<td><input class="cell-input" data-tier-min type="number" min="2" max="99"></td>'
+        + '<td><input class="cell-input" data-tier-pct type="number" step="0.5" min="0" max="90"></td>'
+        + '<td><button type="button" class="ghost-btn" data-tier-remove title="Quitar tramo">✕</button></td>';
+      rowsBox.appendChild(tr);
+    });
+
+    rowsBox.addEventListener('click', (ev) => {
+      const btn = ev.target.closest('[data-tier-remove]');
+      if (btn) btn.closest('tr').remove();
+    });
+
+    saveBtn.addEventListener('click', async () => {
+      const tiers = [];
+      rowsBox.querySelectorAll('[data-discount-row]').forEach((tr) => {
+        const min = parseInt(tr.querySelector('[data-tier-min]').value, 10);
+        const pct = parseFloat(tr.querySelector('[data-tier-pct]').value);
+        if (!Number.isNaN(min) && !Number.isNaN(pct)) tiers.push({ min_tests: min, pct: pct / 100 });
+      });
+      flag.textContent = 'Guardando…';
+      saveBtn.disabled = true;
+      try {
+        await postJsonSafe('/api/dashboard/discount-tiers', { tiers });
+        flag.textContent = 'Guardado';
+        setTimeout(() => { flag.textContent = ''; }, 1500);
+      } catch (err) {
+        flag.textContent = err.message || 'No se pudo guardar';
+      } finally {
+        saveBtn.disabled = false;
+      }
+    });
+  })();
+
 })();

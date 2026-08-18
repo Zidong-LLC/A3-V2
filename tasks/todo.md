@@ -14,7 +14,7 @@ configurado). Módulos de alcance agregado quedan afuera (material de negociaci�
       `login.html`; eliminar `services/portal_auth.py` y `create_portal_user.py`; alias
       `client_name_matches` en db.py; conftest fuerza `PORTAL_DEMO_MODE=false`; reescribir
       `tests/test_portal_auth.py` (multi-sede, anti fuerza bruta, rate limit)
-- [ ] **Fase 2 — Auto-asignación por zona**: `app/zone_routing.py` puro +
+- [x] **Fase 2 — Auto-asignación por zona** (commit 09bbba8, 800 passed): `app/zone_routing.py` puro +
       `_auto_assign_courier` en db.py (persiste `assigned_by='auto_zone'`) + bugfix
       confirm-suggestions (dashboard.js:237) + `tests/test_zone_auto_assignment.py`
 - [ ] **Fase 3 — Descuentos editables**: migración 021 `discount_tiers` (avisar antes de

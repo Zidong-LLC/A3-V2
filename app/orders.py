@@ -3,7 +3,7 @@ confirmación y cierre, menús de categoría y capturas de selección de perfil.
 import re
 
 from app import catalog, state
-from app.config import DISCOUNT_TIERS, PEDIDOS_ENABLED
+from app.config import PEDIDOS_ENABLED
 from app.text import (
     tokenize as _tokenize, money as _money, as_text_items as _as_text_items,
     catalog_item_key as _catalog_item_key, strip_price_text as _strip_price_text,
