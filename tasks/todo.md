@@ -2,6 +2,30 @@
 
 ---
 
+## Plataforma al 100% — 4 features (2026-08-18) — EN CURSO
+
+Plan aprobado: `~/.claude/plans/wise-petting-wren.md`. Alcance decidido por el usuario:
+descuentos editables, TAT/tendencias, asignación automática por zona, y login del portal
+por **nombre de veterinaria + NIT** (reemplaza email/contraseña de Supabase Auth, nunca
+configurado). Módulos de alcance agregado quedan afuera (material de negociación con A3).
+1 commit local por fase, sin push.
+
+- [ ] **Fase 1 — Login portal veterinaria + NIT**: reescribir `app/portal/auth.py` y
+      `login.html`; eliminar `services/portal_auth.py` y `create_portal_user.py`; alias
+      `client_name_matches` en db.py; conftest fuerza `PORTAL_DEMO_MODE=false`; reescribir
+      `tests/test_portal_auth.py` (multi-sede, anti fuerza bruta, rate limit)
+- [ ] **Fase 2 — Auto-asignación por zona**: `app/zone_routing.py` puro +
+      `_auto_assign_courier` en db.py (persiste `assigned_by='auto_zone'`) + bugfix
+      confirm-suggestions (dashboard.js:237) + `tests/test_zone_auto_assignment.py`
+- [ ] **Fase 3 — Descuentos editables**: migración 021 `discount_tiers` (avisar antes de
+      ejecutar en Supabase) + `app/pricing.py` (cache TTL 60 s, fallback a constante) +
+      provider en rules.py + endpoint/UI patrón catálogo + `tests/test_discount_tiers.py`
+- [ ] **Fase 4 — TAT y tendencias**: `app/dashboard_metrics.py` puro (eventos ya cargados)
+      + 2 widgets con ApexCharts + bugfix savePrefs sin `order` +
+      `tests/test_dashboard_metrics.py`
+
+---
+
 ## Fix: ERR-080/081/082 — chat real 10, errores no registrados (2026-07-22) — EN CURSO
 
 Plan aprobado: `~/.claude/plans/pod-s-detectar-qu-pas-replicated-cosmos.md`.

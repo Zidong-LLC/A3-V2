@@ -18,13 +18,27 @@
 
     <form method="post" action="{{ url_for('portal.login') }}" class="login-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <label>Correo electrónico
-        <input name="email" type="email" autocomplete="username" required>
-      </label>
-      <label>Contraseña
-        <input name="password" type="password" autocomplete="current-password" required>
-      </label>
-      <button type="submit">Ingresar</button>
+      {% if sedes and sedes|length > 1 %}
+        <input type="hidden" name="clinic_name" value="{{ clinic_name }}">
+        <input type="hidden" name="nit" value="{{ nit }}">
+        <p>Tu NIT tiene varias sedes registradas. Elige con cuál quieres entrar:</p>
+        {% for sede in sedes %}
+          <label class="sede-option">
+            <input type="radio" name="client_id" value="{{ sede.id }}" {% if loop.first %}checked{% endif %}>
+            {{ sede.clinic_name }}{% if sede.address %} — {{ sede.address }}{% endif %}
+          </label>
+        {% endfor %}
+        <button type="submit">Entrar con esta sede</button>
+        <p><a href="{{ url_for('portal.login') }}">Volver</a></p>
+      {% else %}
+        <label>Nombre de la veterinaria
+          <input name="clinic_name" type="text" autocomplete="organization" value="{{ clinic_name or '' }}" required>
+        </label>
+        <label>NIT
+          <input name="nit" type="text" inputmode="numeric" autocomplete="off" value="{{ nit or '' }}" required>
+        </label>
+        <button type="submit">Ingresar</button>
+      {% endif %}
       {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
     </form>
   </main>

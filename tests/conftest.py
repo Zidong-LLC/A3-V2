@@ -28,7 +28,10 @@ def pytest_configure(config):
     os.environ.setdefault("APP_TIMEZONE",              "America/Bogota")
     os.environ.setdefault("CUTOFF_TIME",               "17:30")
     os.environ.setdefault("DASHBOARD_ADMIN_PASSWORD",  "test-secret")
-    os.environ.setdefault("SUPABASE_ANON_KEY",         "test-anon-key")
+    # El .env real trae PORTAL_DEMO_MODE=true y load_dotenv() no pisa variables ya
+    # definidas: fijarlo acá evita que el login demo pegue a Supabase en los tests.
+    os.environ.setdefault("PORTAL_DEMO_MODE",          "false")
+    os.environ.setdefault("PORTAL_DEMO_CLIENT_ID",     "")
     # La API interna es fail-closed: sin token queda cerrada (503). Los tests la
     # ejercitan con token para probar el camino real, no un bypass.
     os.environ.setdefault("PLATFORM_API_TOKEN",        "test-platform-token")

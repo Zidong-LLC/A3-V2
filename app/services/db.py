@@ -172,6 +172,11 @@ def _name_matches(query: str | None, candidate: str | None) -> bool:
     )
 
 
+# Alias público para consumidores fuera de services (portal): misma regla de
+# coincidencia de nombre que usa la identificación del agente.
+client_name_matches = _name_matches
+
+
 def _nit_candidates(tax_id: str) -> list[str]:
     raw = (tax_id or "").strip()
     clean = _normalize_nit(raw)
