@@ -20,9 +20,16 @@ configurado). Módulos de alcance agregado quedan afuera (material de negociaci�
 - [x] **Fase 3 — Descuentos editables** (commit 16ceca2, 815 passed; migración 021 SIN ejecutar en Supabase — pedir OK): migración 021 `discount_tiers` (avisar antes de
       ejecutar en Supabase) + `app/pricing.py` (cache TTL 60 s, fallback a constante) +
       provider en rules.py + endpoint/UI patrón catálogo + `tests/test_discount_tiers.py`
-- [ ] **Fase 4 — TAT y tendencias**: `app/dashboard_metrics.py` puro (eventos ya cargados)
-      + 2 widgets con ApexCharts + bugfix savePrefs sin `order` +
-      `tests/test_dashboard_metrics.py`
+- [x] **Fase 4 — TAT y tendencias** (commit 52c3e2b, 824 passed; smoke /dashboard y /muestras OK)
+
+**Resultados (2026-08-18):** 4 fases completas en 4 commits locales (839f9b7, 09bbba8,
+16ceca2, 52c3e2b). Suite: 783 → 824 passed (41 tests nuevos), 0 regresiones; los 6
+fallos por red pre-existentes de test_portal_auth/test_dashboard quedaron resueltos por
+el fix del conftest. 2 bugs adyacentes reparados (confirm-suggestions 404 silencioso;
+savePrefs de widgets rechazado por falta de `order`). PENDIENTES: (1) ejecutar la
+migración 021 en el SQL Editor de Supabase — requiere OK del usuario; (2) smoke manual
+en vivo: login del portal con NIT real multi-sede, edición de tramos → cotización del
+agente, y verificar la fila `auto_zone` tras una orden de un cliente sin asignación.
 
 ---
 
