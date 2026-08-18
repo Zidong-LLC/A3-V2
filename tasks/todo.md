@@ -17,7 +17,7 @@ configurado). Módulos de alcance agregado quedan afuera (material de negociaci�
 - [x] **Fase 2 — Auto-asignación por zona** (commit 09bbba8, 800 passed): `app/zone_routing.py` puro +
       `_auto_assign_courier` en db.py (persiste `assigned_by='auto_zone'`) + bugfix
       confirm-suggestions (dashboard.js:237) + `tests/test_zone_auto_assignment.py`
-- [ ] **Fase 3 — Descuentos editables**: migración 021 `discount_tiers` (avisar antes de
+- [x] **Fase 3 — Descuentos editables** (commit 16ceca2, 815 passed; migración 021 SIN ejecutar en Supabase — pedir OK): migración 021 `discount_tiers` (avisar antes de
       ejecutar en Supabase) + `app/pricing.py` (cache TTL 60 s, fallback a constante) +
       provider en rules.py + endpoint/UI patrón catálogo + `tests/test_discount_tiers.py`
 - [ ] **Fase 4 — TAT y tendencias**: `app/dashboard_metrics.py` puro (eventos ya cargados)

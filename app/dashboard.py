@@ -19,7 +19,7 @@ from app.config import (
     DISCOUNT_TIERS,
 )
 from app.services import db, alegra
-from app import pricing, territory, billing
+from app import dashboard_metrics, pricing, territory, billing
 
 dashboard = Blueprint("dashboard", __name__)
 
@@ -197,6 +197,11 @@ def _empty_context(error: str | None = None) -> dict:
         "profile_species": [],
         "catalog_species_options": sorted(_CATALOG_SPECIES),
         "discount_tiers_rows": [{"min_tests": m, "pct": p} for m, p in DISCOUNT_TIERS],
+        "exec_tat_avg_hours": None,
+        "exec_tat_count": 0,
+        "exec_tat_stages": [],
+        "exec_requests_daily": [],
+        "exec_tat_weekly": [],
         "sample_requirements": [],
         "approval_rows": [],
         "reviewed_approval_rows": [],
@@ -1492,6 +1497,7 @@ def build_dashboard_context() -> dict:
     # Panel Ejecutivo — métricas adicionales
     exec_data = _build_executive_panel(requests_rows, request_events)
     context.update(exec_data)
+    context.update(dashboard_metrics.build_tat_and_trends(requests_rows, request_events))
     _billing_rows = _safe_fetch(lambda: db.list_all_cached_invoices("total, invoice_date, client_name"), [])
     _raw_billing = _compute_invoice_metrics(_billing_rows)
     context["exec_billing"] = {

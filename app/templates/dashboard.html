@@ -257,6 +257,38 @@
 
         </div>{# /exec-main-grid #}
 
+        {# ── TAT: tiempo de proceso ── #}
+        <div data-widget="tat" class="exec-widget">
+          <article class="card">
+            <div class="card-head simple"><h3>Tiempo de proceso (TAT)</h3><span class="table-counter">{{ context.exec_tat_count }} con ciclo completo</span></div>
+            {% if context.exec_tat_avg_hours is not none %}
+            <p><strong>{{ context.exec_tat_avg_hours }} h</strong> promedio de solicitud a procesada</p>
+            {% if context.exec_tat_stages %}
+            <div class="lead-bars">
+              {% for st in context.exec_tat_stages %}
+              <div class="lead-row">
+                <span>{{ st.label }}</span>
+                <div class="lead-track"><b style="width:{{ st.width }}%"></b></div>
+                <strong>{{ st.avg_hours }} h</strong>
+              </div>
+              {% endfor %}
+            </div>
+            {% endif %}
+            {% else %}<p class="muted-text">Aún no hay órdenes con ciclo completo para medir.</p>{% endif %}
+          </article>
+        </div>
+
+        {# ── Tendencias ── #}
+        <div data-widget="trends" class="exec-widget">
+          <article class="card">
+            <div class="card-head simple"><h3>Tendencias</h3><span class="table-counter">30 días</span></div>
+            <div id="chart-requests-daily"></div>
+            <div id="chart-tat-weekly"></div>
+            {% if not context.exec_requests_daily %}<p class="muted-text">Sin datos todavía.</p>{% endif %}
+          </article>
+        </div>
+        <script type="application/json" id="exec-metrics-data">{{ {"daily": context.exec_requests_daily, "weekly": context.exec_tat_weekly} | tojson }}</script>
+
         {# ── Actividad reciente ── #}
         <div data-widget="activity" class="exec-widget">
           <article class="card">
@@ -299,6 +331,8 @@
           <li class="cols-item" data-wid="billing_mini"><label><input type="checkbox"><span>Facturacion</span></label></li>
           <li class="cols-item" data-wid="top_clients"><label><input type="checkbox"><span>Top clientes</span></label></li>
           <li class="cols-item" data-wid="activity"><label><input type="checkbox"><span>Actividad reciente</span></label></li>
+          <li class="cols-item" data-wid="tat"><label><input type="checkbox"><span>Tiempo de proceso (TAT)</span></label></li>
+          <li class="cols-item" data-wid="trends"><label><input type="checkbox"><span>Tendencias</span></label></li>
         </ul>
       </div>
       {% endif %}

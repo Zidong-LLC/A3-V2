@@ -369,7 +369,7 @@
   const STORAGE_KEY = 'exec_widgets_v1';
   const TABLE_ID = 'exec_widgets';
   const SERVER_ENDPOINT = '/api/dashboard/column-prefs';
-  const ALL_WIDS = ['kpi_ops', 'kpi_biz', 'alerts', 'pipeline', 'requests_recent', 'samples_state', 'courier_load', 'billing_mini', 'top_clients', 'activity'];
+  const ALL_WIDS = ['kpi_ops', 'kpi_biz', 'alerts', 'pipeline', 'requests_recent', 'samples_state', 'courier_load', 'billing_mini', 'top_clients', 'activity', 'tat', 'trends'];
   let saveTimer = null;
 
   const loadPrefs = () => {
@@ -383,7 +383,9 @@
     saveTimer = setTimeout(() => {
       fetch(SERVER_ENDPOINT, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ table_id: TABLE_ID, prefs }),
+        // El server exige visible Y order (400 si falta): sin order la
+        // persistencia server-side fallaba en silencio por el catch.
+        body: JSON.stringify({ table_id: TABLE_ID, prefs: { visible: prefs.visible, order: prefs.order || prefs.visible } }),
       }).catch(() => {});
     }, 600);
   };
@@ -654,6 +656,38 @@
         saveBtn.disabled = false;
       }
     });
+  })();
+
+
+  // ── Tendencias del Panel Ejecutivo (ApexCharts, ya cargado por CDN) ─────────
+  (() => {
+    const dataNode = document.getElementById('exec-metrics-data');
+    if (!dataNode || !window.ApexCharts) return;
+    let metrics;
+    try { metrics = JSON.parse(dataNode.textContent); } catch { return; }
+
+    const dailyNode = document.getElementById('chart-requests-daily');
+    if (dailyNode && (metrics.daily || []).length) {
+      new ApexCharts(dailyNode, {
+        chart: { type: 'bar', height: 200, toolbar: { show: false } },
+        series: [{ name: 'Solicitudes', data: metrics.daily.map(d => d.count) }],
+        xaxis: { categories: metrics.daily.map(d => d.date.slice(5)), labels: { rotate: -45, style: { fontSize: '10px' } } },
+        dataLabels: { enabled: false },
+        title: { text: 'Solicitudes por día (30 días)', style: { fontSize: '12px' } },
+      }).render();
+    }
+
+    const weeklyNode = document.getElementById('chart-tat-weekly');
+    if (weeklyNode && (metrics.weekly || []).length) {
+      new ApexCharts(weeklyNode, {
+        chart: { type: 'line', height: 180, toolbar: { show: false } },
+        series: [{ name: 'TAT promedio (h)', data: metrics.weekly.map(w => w.avg_hours) }],
+        xaxis: { categories: metrics.weekly.map(w => w.week) },
+        stroke: { curve: 'smooth', width: 3 },
+        markers: { size: 4 },
+        title: { text: 'TAT promedio por semana', style: { fontSize: '12px' } },
+      }).render();
+    }
   })();
 
 })();
