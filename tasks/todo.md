@@ -26,10 +26,12 @@ configurado). Módulos de alcance agregado quedan afuera (material de negociaci�
 16ceca2, 52c3e2b). Suite: 783 → 824 passed (41 tests nuevos), 0 regresiones; los 6
 fallos por red pre-existentes de test_portal_auth/test_dashboard quedaron resueltos por
 el fix del conftest. 2 bugs adyacentes reparados (confirm-suggestions 404 silencioso;
-savePrefs de widgets rechazado por falta de `order`). PENDIENTES: (1) ejecutar la
-migración 021 en el SQL Editor de Supabase — requiere OK del usuario; (2) smoke manual
-en vivo: login del portal con NIT real multi-sede, edición de tramos → cotización del
-agente, y verificar la fila `auto_zone` tras una orden de un cliente sin asignación.
+savePrefs de widgets rechazado por falta de `order`). Migración 021 EJECUTADA con OK del
+usuario (2026-08-18, vía apply_supabase_migration.py, status 201): 14 tramos sembrados,
+verificado en solo lectura que pricing lee la tabla y calculate_discount da idéntico
+(12% para 2 pruebas). PENDIENTE: smoke manual en vivo — login del portal con NIT real
+multi-sede, edición de tramos → cotización del agente, y fila `auto_zone` tras una
+orden de un cliente sin asignación.
 
 ---
 
