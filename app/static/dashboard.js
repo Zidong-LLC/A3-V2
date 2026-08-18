@@ -234,7 +234,7 @@
           const select = row.querySelector('select[data-kind="assignment"]');
           if (select && select.value) updates.push({client_id: row.dataset.clientId, courier_id: select.value});
         });
-        const res = await fetch('/api/dashboard/confirm-suggestions', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({updates})});
+        const res = await fetch('/api/dashboard/confirm-suggested-assignments', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({assignments: updates})});
         if (!res.ok) throw new Error((await res.json()).error || 'Error');
         if (flag) flag.textContent = 'Sugerencias guardadas';
         setTimeout(() => location.reload(), 1000);

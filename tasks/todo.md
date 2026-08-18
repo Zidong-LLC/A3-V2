@@ -10,7 +10,7 @@ por **nombre de veterinaria + NIT** (reemplaza email/contraseña de Supabase Aut
 configurado). Módulos de alcance agregado quedan afuera (material de negociación con A3).
 1 commit local por fase, sin push.
 
-- [ ] **Fase 1 — Login portal veterinaria + NIT**: reescribir `app/portal/auth.py` y
+- [x] **Fase 1 — Login portal veterinaria + NIT** (commit 839f9b7, 787 passed): reescribir `app/portal/auth.py` y
       `login.html`; eliminar `services/portal_auth.py` y `create_portal_user.py`; alias
       `client_name_matches` en db.py; conftest fuerza `PORTAL_DEMO_MODE=false`; reescribir
       `tests/test_portal_auth.py` (multi-sede, anti fuerza bruta, rate limit)

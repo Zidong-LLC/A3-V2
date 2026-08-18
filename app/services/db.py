@@ -1,3 +1,4 @@
+import logging
 import re
 import difflib
 import unicodedata
@@ -12,8 +13,11 @@ from app.rules import (
 # flujo determinístico: si acá dijera "$14,000 COP", el modelo imitaría ese formato al
 # escribir texto libre y el precio saldría distinto según quién lo redacte.
 from app.text import money
+from app import zone_routing
 
 _client: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
+logger = logging.getLogger(__name__)
 
 
 def ping() -> bool:
@@ -1412,6 +1416,32 @@ def get_courier_for_client(client_id: str) -> dict | None:
     return None
 
 
+def _auto_assign_courier(client_id: str) -> dict | None:
+    """Asignación automática por zona cuando el cliente no tiene motorizado en
+    client_courier_assignment. Resuelve la zona desde address/zone del cliente
+    (cascada determinista, sin geocoding) y PERSISTE el resultado con
+    assigned_by='auto_zone': las órdenes siguientes salen de la tabla, igual
+    que una asignación manual (invariante: motorizado determinista por tabla).
+    Nunca lanza — cualquier fallo devuelve None y la orden escala como hoy."""
+    try:
+        client = get_client_by_id(client_id)
+        if not client:
+            return None
+        resolved = zone_routing.resolve_zone_courier(
+            address=client.get("address"),
+            zone_text=client.get("zone"),
+            coverage_rows=list_courier_locality_coverage(),
+            zone_rows=list_territorial_zones(),
+        )
+        if not resolved:
+            return None
+        upsert_client_assignment(client_id, resolved["courier_id"], assigned_by="auto_zone")
+        return get_courier_for_client(client_id)
+    except Exception as exc:
+        logger.warning("auto-asignación por zona falló para %s: %s", client_id, exc)
+        return None
+
+
 def list_active_couriers(limit: int = 500) -> list[dict]:
     result = (
         _client.table("couriers")
@@ -1737,7 +1767,7 @@ def create_request(chat_id: str, session: dict, ai_response: dict,
     }
 
     if intent == "route_scheduling" and client_id:
-        courier = get_courier_for_client(client_id)
+        courier = get_courier_for_client(client_id) or _auto_assign_courier(client_id)
         if courier:
             request_data["assigned_courier_id"] = courier["id"]
             request_data["status"] = "assigned"
