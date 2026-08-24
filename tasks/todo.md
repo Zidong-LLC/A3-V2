@@ -1071,3 +1071,16 @@ modelo real al terminar (autorizado).
   + evento 'corrected') con flujo corregir→confirmar→aplicar; ítem 5 = era el CHECK
   (el silencio reversible ERR-088 funciona — repro mecánico con silencio en 3/3);
   ítems 8-9 y parte del 5 eran checks pre-pedidos, actualizados al contrato vigente.
+
+
+---
+
+## 2026-08-24 — Repro del test en vivo contra el código nuevo (pedido del usuario)
+
+- [x] Conversación real del 21/08 recuperada de la BD y reproducida (5 pasadas)
+- [x] Los 4 fallos del test original: RESUELTOS en la repro (bucle de la oferta,
+      952+1903 juntos, heredado no secuestra, 1903 existe con precio)
+- [x] 3 bugs de dinero nuevos cazados y corregidos (ERR-146)
+- [x] Resultado final: 3/3 órdenes registradas (Joy con 952 + 1903, $90.000 íntegros
+      + agregado), pedido listo para el pago
+- [ ] Prueba en vivo del usuario por Telegram (reiniciar Flask antes)

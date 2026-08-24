@@ -3632,3 +3632,34 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
   `_match_client` con 3+ chars.
 - **Tests:** suite 894 passed; `validate_flows.py` 33/35 en tanda completa + O y X
   re-validados OK.
+
+
+---
+
+## ERR-146 — Repro del test en vivo (chat 1, 21/08) contra el código nuevo: 3 bugs de dinero cazados
+
+- **Fecha:** 2026-08-24 · **Estado:** RESUELTO (repro final: las 3 órdenes registradas, totales íntegros)
+- **Método:** se reprodujo la conversación REAL del test en vivo del usuario (39 turnos,
+  recuperada de `conversation_messages`) contra el código nuevo — lecturas de catálogo/
+  cliente reales de Supabase, escrituras en memoria (`reproduce_chat_vivo.py`). Los 4
+  fallos del test original ya fluían bien; la repro destapó 3 bugs nuevos:
+  1. **Quitar un AGREGADO restaba su precio del perfil base** — `_add_tests_to_order`
+     lo sacaba de selected Y lo metía en removed (Toxicológico $90.000 → $38.000). Fix:
+     `elif` (un agregado que se quita solo sale de la lista).
+  2. **"Saca el 653 y cámbialo POR el 1903" quitaba el 1903** (la víctima ausente hacía
+     que el quitador resolviera el único código presente: el destino). Fix: helper
+     compartido `_apply_removal_with_target` (orders.py) usado por los DOS carriles que
+     quitan por código (confirmación y oferta, ERR-072): el código tras "por" queda,
+     víctimas ausentes se avisan.
+  3. **"Contra entrega" en plena confirmación cerraba el pedido DESCARTANDO la orden a
+     medio camino** (Joy, cotizada y jamás registrada). Fix: la rama del pago del
+     enforcer exige que no haya orden en curso sin registrar (exceptúa
+     `_pedido_awaiting_payment`, residuo de la última registrada).
+  + "No ese sácalo" con señal `correction` ya no cede al pipeline (la remoción es del
+    carril de la oferta) y los removibles listan nombres reales del catálogo.
+- **Lección de herramienta:** un heredoc bash convirtió `\b` del regex en un BACKSPACE
+  literal (``) — la condición nunca matcheaba y el fix parecía no aplicar. Los
+  scripts de cirugía con regex van con Write a scratchpad, nunca por heredoc.
+- **Tests:** `test_reemplazo_por_destino.py` (3) + suite 897 passed. Repro final:
+  Orión (1802), Lulú (653), Joy (952 + 1903 agregado) — 3/3 órdenes, sin restas
+  fantasma, pedido listo para cerrar con pago.
