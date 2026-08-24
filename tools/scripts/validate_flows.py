@@ -240,6 +240,9 @@ _PATCHES = {
     "get_pedido_profiles": dict(side_effect=lambda pid, con_request_id=False: []),
     "list_pedido_requests": dict(side_effect=lambda pid: list(_state.get("requests", []))),
     "list_stale_pedidos": dict(side_effect=lambda horas=1, limit=20: []),
+    "update_request_order_fields": dict(side_effect=lambda rid, cambios: (
+        _state["requests"][-1]["captured_fields"].update(cambios)
+        if _state.get("requests") else None)),
     "create_pending_client_review": dict(side_effect=lambda cl, rv: _state["pending_clients"].append((cl, rv))),
     "get_last_order_for_client": dict(return_value={"order_number": "A3-2026-001", "exam_type": "hemograma"}),
     "list_catalog_breeds": dict(return_value=BREEDS),

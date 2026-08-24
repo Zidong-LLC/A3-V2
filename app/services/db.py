@@ -1840,6 +1840,27 @@ def create_request(chat_id: str, session: dict, ai_response: dict,
     return {"request_id": request_id, "order_number": order_number, "event_payload": event_payload}
 
 
+_REQUEST_UPDATABLE_COLUMNS = frozenset({
+    "exam_type", "patient_name", "species", "patient_age", "owner_name", "pickup_address",
+})
+
+
+def update_request_order_fields(request_id: str, cambios: dict) -> None:
+    """Corrección POST-CIERRE de una orden ya registrada (guiones M/M2, 2026-08-24).
+    Actualiza solo columnas reales de `requests`; TODO cambio (columna o no, ej. el
+    médico que vive en el event_payload) queda auditado con un evento `corrected`."""
+    if not cambios:
+        return
+    columnas = {k: v for k, v in cambios.items() if k in _REQUEST_UPDATABLE_COLUMNS}
+    if columnas:
+        _client.table("requests").update(columnas).eq("id", request_id).execute()
+    _client.table("request_events").insert({
+        "request_id": request_id,
+        "event_type": "corrected",
+        "event_payload": {"changes": cambios},
+    }).execute()
+
+
 # ── Pedidos (decisión 011) ──────────────────────────────────────────────────────
 # El PEDIDO agrupa las órdenes de una sesión de carga y es la unidad que se factura: una
 # forma de pago y una factura para todas sus órdenes. Estas funciones son la capa de datos;

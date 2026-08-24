@@ -109,6 +109,9 @@ FLAGS_CIERRE = frozenset({
     # Jerarquía de pedidos (decisión 011): el pedido abierto al que se van colgando las
     # órdenes, y la marca de que ya se cerró y facturó.
     "_pedido_id", "_pedido_cerrado", "_pedido_awaiting_payment", "_pedido_offer_pending", "_pedido_profiles", "_pedido_ordenes",
+    # Corrección POST-CIERRE (2026-08-24, guiones M/M2): el id/número de la última orden
+    # registrada y las dos marcas del flujo corregir→confirmar→actualizar.
+    "_last_request_id", "_last_order_number", "_post_close_correction_field", "_post_close_correction",
 })
 KNOWN_FLAGS = FLAGS_IDENTIFICACION | FLAGS_ANALISIS | FLAGS_DIRECCION | FLAGS_CIERRE
 

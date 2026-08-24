@@ -377,6 +377,7 @@ _ORDER_RESET_FIELDS = frozenset({
     "_profile_options_offered", "_diagnostic_label", "_prev_order_snapshot",
     "_test_menu_options", "_test_menu_adds_to_profile", "_awaiting_additional_test",
     "_offering_extra_analysis",
+        "_post_close_correction_field", "_post_close_correction",
     # Al abrir otra orden, la oferta de cierre quedó resuelta ("va otra") — si la marca
     # sobrevive, la red de la oferta (ERR-134/135) pisa las preguntas de la orden nueva.
     "_pedido_offer_pending",
@@ -2153,6 +2154,14 @@ def _extract_correction_value(field: str, text: str) -> str | None:
     if not match:
         return None
     value = match.group(1).strip(" .,:;-\"'¿?¡!")
+    # El regex matchea el PRIMER conector de la frase: "corrige el paciente: ahora se
+    # llama Rocky" capturaba "ahora se llama Rocky" entero. Se refina hacia adentro
+    # mientras el valor siga conteniendo un conector (máx 3 pasadas).
+    for _ in range(3):
+        inner = _CORRECTION_VALUE_RE.search(value)
+        if not inner:
+            break
+        value = inner.group(1).strip(" .,:;-\"'¿?¡!")
     value = _CORRECTION_VALUE_NOISE_RE.sub("", value).strip()
     if not value or len(value) < 2:
         return None
@@ -2282,6 +2291,11 @@ def _finalize_request(chat_id: str, session: dict, ai_response: dict, started_fr
     # seguimiento ("creamos otra orden... ¿médico?") en vez de escalar.
     if ai_response.get("intent") == "route_scheduling":
         ai_response.setdefault("captured_fields", {})["_order_registered"] = True
+        # Para la corrección POST-CIERRE (guiones M/M2): sin el id, un "corrige el
+        # paciente" después del registro no tenía a qué orden apuntar.
+        if isinstance(order_info, dict):
+            ai_response["captured_fields"]["_last_request_id"] = order_info.get("request_id")
+            ai_response["captured_fields"]["_last_order_number"] = order_info.get("order_number")
     if ai_response.get("intent") == "route_scheduling" and session.get("client_id"):
         courier = db.get_courier_for_client(session["client_id"])
         if courier:
@@ -2392,6 +2406,27 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
     # Pedir otra orden gana siempre: el pedido sigue abierto y se le cuelga una orden más.
     if signal == "another_order" or _explicitly_wants_another_order(user_message):
         return ai_response
+
+    # "Sí, confirmo" PELADO respondiendo a "¿otra orden... o cerramos el pedido?" es
+    # ambiguo: no dice cuál de las dos. Antes caía al vacío (nadie lo atendía y el
+    # first-missing preguntaba "¿Qué análisis o perfil desean?", o el modelo repetía el
+    # resumen — QA2/QA4). Se re-pregunta desambiguando, determinístico.
+    if (prev_fields.get("_pedido_offer_pending")
+            and (signal == "affirm" or _is_affirmative_text(user_message))
+            and _is_bare_confirmation(user_message)):
+        return {
+            **ai_response,
+            _TURN_RESOLVED: True,
+            "reply": PEDIDO_OFFER_REASK,
+            "phase": "fase_2_recogida_datos",
+            "intent": "route_scheduling",
+            "service_area": "route_scheduling",
+            "requires_handoff": False,
+            "handoff_area": None,
+            "captured_fields": _merge_sin_borrar(prev_fields, fields),
+            "message_mode": "flow_progress",
+            _SKIP_REQUEST_CREATION: True,
+        }
 
     # ¿Dio la forma de pago? La fuente primaria es lo que capturó el MODELO; el detector de
     # texto es la red para cuando no la marcó.
@@ -3239,7 +3274,15 @@ def process_turn(
     entry_intent = session.get("intent_current")
     if session.get("phase_current") in TERMINAL_PHASES:
         _prev_snapshot = {k: v for k, v in prev_captured.items() if k in _ROUTE_REQUIRED_FIELDS and v}
+        # La oferta "¿otra orden o cerramos el pedido?" sigue SIN respuesta en este turno:
+        # borrarla acá dejaba al "sí, confirmo" ambiguo caer al vacío (QA2/QA4 del
+        # checkpoint 2026-08-24 — respondía "¿Qué análisis o perfil desean?" o repetía el
+        # resumen). Se preserva mientras el pedido siga abierto; la limpian quienes la
+        # RESUELVEN: el enforcer del cierre del pedido o la apertura de la orden nueva.
+        _offer_sin_resolver = prev_captured.get("_pedido_offer_pending") and _pedido_abierto
         _reset_order_fields(prev_captured)
+        if _offer_sin_resolver:
+            prev_captured["_pedido_offer_pending"] = True
         prev_captured["_prev_order_snapshot"] = _prev_snapshot
         session["phase_current"] = "fase_1_clasificacion"
         session["intent_current"] = "unknown"
@@ -3499,6 +3542,113 @@ def process_turn(
 
     signal = ai_response.get("user_intent_signal")
 
+    # ══ CORRECCIÓN POST-CIERRE (2026-08-24, guiones M/M2 — tanda pre-lanzamiento):
+    # la orden YA registrada se puede corregir. Flujo en dos pasos, sin escribir BD a
+    # ciegas: (1) resumen corregido + "¿Confirmas estos datos?"; (2) el "sí" aplica el
+    # UPDATE con evento de auditoría. Antes, "corrige el paciente: ahora se llama Rocky"
+    # tras el cierre caía al first-missing ("¿Qué análisis o perfil desean?") y el dato
+    # se perdía. Señal-primero (correction) con _is_correction_request de red.
+
+    # Paso 2 — cambio propuesto en pantalla: el "sí" lo aplica; el "no" lo descarta.
+    _pcc = prev_captured.get("_post_close_correction")
+    if isinstance(_pcc, dict) and _pcc.get("request_id"):
+        campos_pcc = dict(prev_captured)
+        campos_pcc.pop("_post_close_correction", None)
+        if signal == "affirm" or _is_order_confirmation(user_message) or _is_affirmative_text(user_message):
+            db.update_request_order_fields(_pcc["request_id"], {_pcc["field"]: _pcc["value"]})
+            snap_pcc = dict(campos_pcc.get("_prev_order_snapshot") or {})
+            snap_pcc[_pcc["field"]] = _pcc["value"]
+            campos_pcc["_prev_order_snapshot"] = snap_pcc
+            etiqueta = _FIELD_LABELS.get(_pcc["field"], _pcc["field"])
+            numero = campos_pcc.get("_last_order_number")
+            orden_txt = f"La orden {numero}" if numero else "La orden"
+            cola = PEDIDO_CLOSING_PROMPT if _pedido_abierto else CLOSING_PROMPT
+            return _persist_turn(chat_id, user_message, _base_route_response(
+                f"Listo, corregido: {etiqueta} → {_pcc['value']}. {orden_txt} quedó actualizada.\n\n{cola}",
+                campos_pcc,
+            ))
+        if signal == "negate" or _is_negative_text(user_message):
+            cola = PEDIDO_CLOSING_PROMPT if _pedido_abierto else CLOSING_PROMPT
+            return _persist_turn(chat_id, user_message, _base_route_response(
+                f"Listo, dejo la orden como estaba.\n\n{cola}", campos_pcc,
+            ))
+        # Otra cosa (p. ej. corrige OTRO dato): descartar la propuesta y seguir el pipeline.
+        prev_captured.pop("_post_close_correction", None)
+
+    # Paso 1b — preguntamos el dato nuevo y este turno lo trae.
+    _pcc_field = prev_captured.get("_post_close_correction_field")
+    if _pcc_field and prev_captured.get("_last_request_id"):
+        _modelo_val = fields.get(_pcc_field)
+        if _modelo_val == prev_captured.get(_pcc_field):
+            _modelo_val = None  # arrastre del merge, no una captura nueva
+        _pcc_value = _modelo_val or _extract_correction_value(_pcc_field, user_message)
+        if not _pcc_value and len(_tokenize(user_message)) <= 4 and not _is_negative_text(user_message):
+            _pcc_value = user_message.strip().strip('.').strip()
+        campos_pcc = dict(prev_captured)
+        campos_pcc.pop("_post_close_correction_field", None)
+        if _pcc_value:
+            snap_pcc = dict(campos_pcc.get("_prev_order_snapshot") or {})
+            resumen_pcc = _route_confirmation_summary({**snap_pcc, _pcc_field: _pcc_value})
+            etiqueta = _FIELD_LABELS.get(_pcc_field, _pcc_field)
+            cuerpo = resumen_pcc or f"- {etiqueta}: {_pcc_value}"
+            reply_pcc = f"Quedaría así:\n{cuerpo}"
+            if "¿Confirmas" not in reply_pcc:
+                reply_pcc += "\n¿Confirmas estos datos?"
+            campos_pcc["_post_close_correction"] = {
+                "field": _pcc_field, "value": _pcc_value,
+                "request_id": campos_pcc.get("_last_request_id"),
+            }
+            return _persist_turn(chat_id, user_message, _base_route_response(reply_pcc, campos_pcc))
+        if _is_negative_text(user_message):
+            cola = PEDIDO_CLOSING_PROMPT if _pedido_abierto else CLOSING_PROMPT
+            return _persist_turn(chat_id, user_message, _base_route_response(
+                f"Listo, dejo la orden como estaba.\n\n{cola}", campos_pcc,
+            ))
+        # Sin valor reconocible: se re-pregunta una vez más.
+        campos_pcc["_post_close_correction_field"] = _pcc_field
+        etiqueta = _FIELD_LABELS.get(_pcc_field, _pcc_field)
+        return _persist_turn(chat_id, user_message, _base_route_response(
+            f"¿Cuál es el dato correcto para {etiqueta}?", campos_pcc,
+        ))
+
+    # Paso 1 — el turno de la corrección, recién cerrada la orden (fase de ENTRADA
+    # terminal). Con códigos de catálogo o cambio de cliente cede a sus flujos.
+    if (_turn_prev_phase.get() in TERMINAL_PHASES
+            and entry_intent == "route_scheduling"
+            and prev_captured.get("_last_request_id")
+            and (signal == "correction" or _is_correction_request(user_message))
+            and not _profile_codes_from_text(user_message)
+            and not _wants_to_change_client(user_message)):
+        _pcc_field = _detect_correction_field(user_message)
+        if _pcc_field:
+            _modelo_val = fields.get(_pcc_field)
+            if _modelo_val == prev_captured.get(_pcc_field):
+                _modelo_val = None
+            _pcc_value = _modelo_val or _extract_correction_value(_pcc_field, user_message)
+            campos_pcc = dict(prev_captured)
+            if _pcc_value:
+                snap_pcc = dict(campos_pcc.get("_prev_order_snapshot") or {})
+                resumen_pcc = _route_confirmation_summary({**snap_pcc, _pcc_field: _pcc_value})
+                etiqueta = _FIELD_LABELS.get(_pcc_field, _pcc_field)
+                cuerpo = resumen_pcc or f"- {etiqueta}: {_pcc_value}"
+                reply_pcc = f"Quedaría así:\n{cuerpo}"
+                if "¿Confirmas" not in reply_pcc:
+                    reply_pcc += "\n¿Confirmas estos datos?"
+                campos_pcc["_post_close_correction"] = {
+                    "field": _pcc_field, "value": _pcc_value,
+                    "request_id": campos_pcc.get("_last_request_id"),
+                }
+                return _persist_turn(chat_id, user_message, _base_route_response(reply_pcc, campos_pcc))
+            etiqueta = _FIELD_LABELS.get(_pcc_field, _pcc_field)
+            campos_pcc["_post_close_correction_field"] = _pcc_field
+            return _persist_turn(chat_id, user_message, _base_route_response(
+                f"Claro, ¿cuál es el dato correcto para {etiqueta}?", campos_pcc,
+            ))
+        campos_pcc = dict(prev_captured)
+        return _persist_turn(chat_id, user_message, _base_route_response(
+            "Claro, ¿qué dato de la orden quieres corregir?", campos_pcc,
+        ))
+
     # Etapa 3a — FASE TERMINAL señal-primero (refactor de comprensión 2026-08-21): los
     # carriles pre-LLM del post-cierre (despedida, saludo, lateral operativa, cierre
     # "quedamos atentos", negativa y reptiles/handoff) se degradaron a este handler. B12
@@ -3528,6 +3678,16 @@ def process_turn(
                 ai_response["phase"] = _turn_prev_phase.get()
                 ai_response["message_mode"] = "side_question"
                 return _persist_turn(chat_id, user_message, ai_response)
+            # Afirmación PELADA con la oferta del pedido sin resolver: ambigua ("sí"
+            # ¿a otra orden o a cerrar?). Re-pregunta determinística ANTES de que el
+            # anti-bucle la cuente como turno perdido y escale a un asesor.
+            if (_pedido_abierto and prev_captured.get("_pedido_offer_pending")
+                    and (signal == "affirm" or _is_affirmative_text(user_message))
+                    and _is_bare_confirmation(user_message)):
+                return _persist_turn(
+                    chat_id, user_message,
+                    _base_route_response(PEDIDO_OFFER_REASK, dict(prev_captured)),
+                )
             _close_words = {"cierra", "cerrar", "cerramos", "cierralo", "ciérralo", "cerrada", "cerrado"}
             _wants_other = (signal == "another_order" or _explicitly_wants_another_order(user_message)
                             or _wants_another_service_order(user_message))

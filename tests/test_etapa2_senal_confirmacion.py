@@ -37,7 +37,7 @@ ORDEN_COMPLETA = {
 
 
 def _run_turn(msg, signal, captured, phase="fase_2_recogida_datos", history=None,
-              client_id="cli-A"):
+              client_id="cli-A", return_db=False):
     session = {
         "external_chat_id": "c1", "client_id": client_id, "channel": "telegram",
         "phase_current": phase, "intent_current": "route_scheduling",
@@ -75,6 +75,8 @@ def _run_turn(msg, signal, captured, phase="fase_2_recogida_datos", history=None
         reply = agent.process_turn("c1", msg)
     persisted = (fake_db.update_session.call_args[0][1]
                  if fake_db.update_session.call_args else {})
+    if return_db:
+        return reply, persisted, fake_db
     return reply, persisted
 
 
