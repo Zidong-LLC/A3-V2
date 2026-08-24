@@ -9,6 +9,7 @@ Recorre conversaciones completas (multi-turno) y detecta automáticamente:
 
 Uso:  python tools/scripts/validate_flows.py
 """
+import copy as _copy
 import re
 import sys
 from pathlib import Path
@@ -212,9 +213,33 @@ _PATCHES = {
     "find_client_matches": dict(side_effect=lambda q, limit=6: [CLIENT] if _match_client(q) else []),
     "find_clients_by_tax_id": dict(side_effect=lambda t: [CLIENT] if _norm(t) == _norm(CLIENT["tax_id"]) else []),
     "get_courier_for_client": dict(return_value=COURIER),
-    "create_request": dict(side_effect=lambda c, s, ai: (
-        _state["requests"].append(ai), {"request_id": f"req-{len(_state['requests'])}",
+    # deepcopy: la BD real serializa al insertar; guardar la referencia viva hacía que
+    # las mutaciones posteriores del cierre (limpiar campos para la orden siguiente del
+    # pedido) vaciaran la orden ya "guardada" y los checks dieran falso negativo.
+    "create_request": dict(side_effect=lambda c, s, ai, pedido_id=None: (
+        _state["requests"].append(_copy.deepcopy(ai)), {"request_id": f"req-{len(_state['requests'])}",
                                         "order_number": f"A3-2026-00{len(_state['requests'])}"})[1]),
+    # ── Pedidos en memoria (decisión 011): el harness quedó pre-pedidos y el cierre
+    # explotaba con TypeError en create_request, mientras las llamadas de pedidos NO
+    # mockeadas golpeaban Supabase real (uuid inválido). Estado en _state["pedidos"].
+    "create_pedido": dict(side_effect=lambda client_id, chat_id, entry_channel="telegram": (
+        _state.setdefault("pedidos", []).append({
+            "id": f"pedido-qa-{len(_state.get('pedidos', [])) + 1}", "status": "abierto",
+            "external_chat_id": chat_id, "client_id": client_id, "payment_method": None,
+            "created_at": "2026-08-21T00:00:00+00:00"}),
+        _state["pedidos"][-1])[1]),
+    "get_open_pedido": dict(side_effect=lambda chat_id: next(
+        (p for p in _state.get("pedidos", [])
+         if p["external_chat_id"] == chat_id and p["status"] == "abierto"), None)),
+    "get_pedido": dict(side_effect=lambda pid: next(
+        (p for p in _state.get("pedidos", []) if p["id"] == pid), None)),
+    "close_pedido": dict(side_effect=lambda pid, payment_method=None: next(
+        (p.update(status="cerrado", payment_method=payment_method) or p
+         for p in _state.get("pedidos", []) if p["id"] == pid), None)),
+    "mark_pedido_invoiced": dict(side_effect=lambda pid, invoice_id: None),
+    "get_pedido_profiles": dict(side_effect=lambda pid, con_request_id=False: []),
+    "list_pedido_requests": dict(side_effect=lambda pid: list(_state.get("requests", []))),
+    "list_stale_pedidos": dict(side_effect=lambda horas=1, limit=20: []),
     "create_pending_client_review": dict(side_effect=lambda cl, rv: _state["pending_clients"].append((cl, rv))),
     "get_last_order_for_client": dict(return_value={"order_number": "A3-2026-001", "exam_type": "hemograma"}),
     "list_catalog_breeds": dict(return_value=BREEDS),
