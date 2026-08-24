@@ -2809,8 +2809,18 @@ pegada) y la lección [[L51]] (validar con el chat real, no con mocks).
 - Progreso (2026-07-07): migrado el CIERRE de orden (`_confirms_order_now` en `_enforce_confirmation_step`) a `user_intent_signal=affirm` como fuente primaria, con salvaguardas (no cierra si la IA leyó correccion/negacion/cambio/otra orden/cancelar). Cierra confirmaciones fuera de lista ("me sirve así, avancemos"). Test: `test_profile_price_resolution::test_confirmation_closes_on_affirm_signal_outside_token_list`.
 - **Hallazgo arquitectonico clave (por qué el plan previo se estancó):** el grueso de los detectores de Etapa 2/3 vive en la cascada PRE-LLM de `process_turn` (~40 `if token: return` ANTES de llamar al modelo), donde `user_intent_signal` todavía NO existe. Solo los detectores POST-LLM (como el cierre) pueden usar la señal limpiamente. Completar Etapa 2-4 requiere PRIMERO reordenar el pipeline para que el LLM corra antes de los atajos de token — eso ES la Fase 3 (FSM/reorden). Etapa 2 y Fase 3 están acopladas; NO son independientes como asumía el plan previo.
 **Progreso 2026-08-21 (Etapa 2 COMPLETADA):** con Fase 3 ya cerrada, se retomó la migración señal-primero. Convertidos al molde C1/C2/C3: el bloque de la reoferta de estables (_stable_confirm_pending), las correcciones en fase CONFIRMACIÓN (cambio de cliente + campo) y la oferta de análisis extra (con `signal` en la firma del carril). PRE_LLM_RETURNS_BASELINE 44→35. Antes: `tokenize` normaliza tildes (Etapa N) con invariante propio. Tests: test_etapa2_senal_confirmacion.py (mecánica con señal fingida, L51). Etapa 3 COMPLETADA el mismo día: fase terminal (despedida/saludo/lateral/cierre/negativa/reptiles), smalltalk y 'el de siempre' post-modelo; same_as_previous revivida (known_dead vacío); baseline 35→24. Pendiente: Etapa 4 (pre-identificación/catálogo) + checkpoint con modelo real (validate_flows) con OK del usuario.
-
-- Estado: en progreso (cierre migrado; el resto depende del reorden del pipeline — Fase 3). Requiere validacion en vivo con modelo real de que la señal se llena bien antes de seguir.
+**Progreso 2026-08-24 (Etapa 4a COMPLETADA — refactor CERRADO en código):** checkpoint con
+modelo real de las Etapas 0-3 (35 guiones, harness reparado a pedidos): 22/35 OK; contraste
+sobre el tag `punto-guardado-agente-2026-08-21` demostró que 10 de los 13 fallos son
+PREEXISTENTES (issues idénticos en el BASE), 3 flakiness del modelo (V/QA2/QA4, repros
+mecánicos idénticos) y UNA regresión real (guion X → ERR-144, corregida en `ddb4cb2`).
+Luego Etapa 4a: los seis carriles de catálogo/laterales (14/15/16/17/21/22) movidos JUNTOS
+post-modelo antes de la frontera de orden (commit `16463bd`). **Metas del plan cumplidas:
+PRE_LLM_RETURNS_BASELINE 44→13 (≤14) y known_dead vacío.** Decisión 4b registrada: los
+carriles restantes (nº orden, cliente final, menú de bienvenida, dije/dicho) deciden por
+ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline). Suite 879.
+- Estado: código COMPLETO — pendiente el checkpoint post-4a con modelo real (solo con OK
+  del usuario, regla de tokens) y la prueba en vivo por Telegram (reiniciar Flask antes).
 
 ---
 
