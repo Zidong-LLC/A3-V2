@@ -36,7 +36,7 @@ ORDEN_COMPLETA = {
 }
 
 
-def _run_turn(msg, signal, captured, phase="fase_2_recogida_datos"):
+def _run_turn(msg, signal, captured, phase="fase_2_recogida_datos", history=None):
     session = {
         "external_chat_id": "c1", "client_id": "cli-A", "channel": "telegram",
         "phase_current": phase, "intent_current": "route_scheduling",
@@ -44,7 +44,7 @@ def _run_turn(msg, signal, captured, phase="fase_2_recogida_datos"):
     }
     fake_db = MagicMock()
     fake_db.get_or_create_session.return_value = session
-    fake_db.get_recent_messages.return_value = [
+    fake_db.get_recent_messages.return_value = history or [
         {"role": "user", "content": "hola"}, {"role": "bot", "content": "¿confirmas?"},
     ]
     fake_db.get_client_memory.return_value = None

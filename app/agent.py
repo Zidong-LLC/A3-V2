@@ -3093,16 +3093,6 @@ def process_turn(
         _cierre = _close_pedido_turn(session, dict(_campos_pedido),
                                      _payment_method_from_text(user_message))
         return _persist_turn(chat_id, user_message, _cierre)
-    if session.get("phase_current") in TERMINAL_PHASES and _is_farewell(user_message) and not _pedido_abierto:
-        db.save_message(chat_id, user_message, "user")
-        db.save_message(chat_id, FAREWELL_REPLY, "bot")
-        return FAREWELL_REPLY
-
-    if session.get("phase_current") in TERMINAL_PHASES and _is_greeting_only(user_message):
-        db.save_message(chat_id, user_message, "user")
-        db.save_message(chat_id, POST_TERMINAL_GREETING_REPLY, "bot")
-        return POST_TERMINAL_GREETING_REPLY
-
     # Consulta del número de orden: responder con el dato real de la BD, nunca inventarlo
     if _is_order_number_query(user_message):
         db.save_message(chat_id, user_message, "user")
@@ -3121,11 +3111,6 @@ def process_turn(
         fields = dict(prev_captured)
         fields["_blocked"] = True
         return _persist_turn(chat_id, user_message, _unsupported_final_user_response(fields))
-
-    if session.get("intent_current") == "route_scheduling" and _looks_off_topic_smalltalk(user_message):
-        response = _active_route_smalltalk_response(session, dict(prev_captured))
-        if response:
-            return _persist_turn(chat_id, user_message, response)
 
     # Opción 2 del menú (consultar resultados): aún no se resuelve por este medio.
     # Se intercepta acá para no arrastrar el flujo de programación de recogida.
@@ -3340,85 +3325,12 @@ def process_turn(
     # Se reofrecieron médico/dirección/pago de la orden anterior: el usuario confirma
     # o pide cambiar uno. Determinístico, sin llamar al AI.
 
-    # "el de siempre" / "el mismo" para un campo del que NO hay dato recordado: pedirlo
-    # normal, en vez de que el modelo reofrezca otro dato disponible (p. ej. la dirección).
-    if (
-        session.get("intent_current") == "route_scheduling"
-        and session.get("phase_current") not in TERMINAL_PHASES
-        and (session.get("client_id") or prev_captured.get("_client_found"))
-        and _is_same_as_previous(user_message)
-        # 'Antes quiero cambiar el cliente' matchea _is_same_as_previous por la palabra
-        # 'antes' (= 'el de antes'), pero es un CAMBIO DE CLIENTE, no un 'el de siempre'.
-        # Al degradar el atajo pre-LLM de cambio de cliente (reorden C2), este bloque quedó
-        # expuesto a esos mensajes: ceder para que la señal del modelo mande (ERR-072).
-        and not _wants_to_change_client(user_message)
-        # Solo para un "el de siempre / el mismo" CORTO: si la frase es larga, puede traer
-        # el dato concreto (ej. "...soy el Dr. Gastón") — dejar que el LLM y los fallbacks lo
-        # capturen en vez de cortar acá y repreguntar.
-        and len(_tokenize(user_message)) <= 6
-    ):
-        asked = _detect_which_field_is_being_asked(history)
-        mem = prev_captured.get("_client_memory") or {}
-        snap = prev_captured.get("_prev_order_snapshot") or {}
-        if asked and not mem.get(asked) and not snap.get(asked):
-            ai_response = _base_route_response(_missing_route_field_question(asked), dict(prev_captured))
-            return _persist_turn(chat_id, user_message, ai_response)
-
     # Flujo B — captura de datos del cliente nuevo en curso (Sección 9).
     # Compatibilidad: sesiones viejas con el flujo B de cliente nuevo (removido).
     # Se limpian sus marcas y se sigue el flujo normal, que escala si no está registrado.
     if prev_captured.get("_nc_capturing"):
         for key in [k for k in list(prev_captured) if k.startswith("_nc_")]:
             prev_captured.pop(key, None)
-
-    if session.get("phase_current") in TERMINAL_PHASES and session.get("intent_current") == "route_scheduling":
-        # Con un PEDIDO abierto, un mensaje que trae la forma de pago NO es una pregunta
-        # lateral aunque la mencione: "les pagamos cuando pasen a recoger" describe CUÁNDO
-        # paga, no pregunta el horario. Este atajo lo leía como consulta de logística y
-        # respondía sobre la hora, dejando el pedido sin cobrar (QA de pago 6/7).
-        if not (_pedido_abierto and _payment_method_from_text(user_message)):
-            operational_answer = _operational_side_question_answer(user_message)
-        else:
-            operational_answer = None
-        if operational_answer:
-            ai_response = _base_route_response(f"{operational_answer}\n\n{CLOSING_PROMPT}", dict(prev_captured))
-            ai_response["phase"] = session.get("phase_current")
-            ai_response["message_mode"] = "side_question"
-            return _persist_turn(chat_id, user_message, ai_response)
-
-        # Con un PEDIDO abierto este atajo CEDE. Decide por lista de palabras y responde
-        # "quedamos atentos" sin que el modelo vea el turno: con pedidos eso deja el pedido
-        # abierto y SIN FACTURAR justo cuando el cliente dijo que terminó. Medido: era la
-        # causa de 6 de los 10 fallos del QA semántico de cierre (decisión 011).
-        close_words = {"cierra", "cerrar", "cerramos", "cierralo", "ciérralo", "cerrada", "cerrado"}
-        if not _pedido_abierto and not _explicitly_wants_another_order(user_message) and (
-            _is_order_confirmation(user_message) or set(_tokenize(user_message)) & close_words
-        ):
-            if _is_affirmative_text(user_message):
-                reply = "Perfecto, quedamos atentos. Si necesitas otra orden, dime 'otra orden para otro paciente'."
-            else:
-                reply = "La orden ya quedó registrada. Si necesitas otra orden, dime 'otra orden para otro paciente'."
-            ai_response = _base_route_response(reply, dict(prev_captured))
-            ai_response["phase"] = session.get("phase_current")
-            return _persist_turn(chat_id, user_message, ai_response)
-
-        if _wants_another_service_order(user_message):
-            if _wants_to_change_client(user_message):
-                return _persist_turn(
-                    chat_id, user_message,
-                    _restart_identification_for_new_client(chat_id, session, prev_captured),
-                )
-            return _persist_turn(chat_id, user_message, _begin_followup_order(prev_captured, user_message))
-        # Con un PEDIDO abierto, un "no, nada más" NO es una despedida: es el cliente
-        # diciendo que terminó de cargar órdenes, o sea el momento exacto de cobrar. Este
-        # atajo cede y el turno sigue al modelo (decisión 011).
-        if _is_negative_text(user_message) and not _pedido_abierto:
-            db.save_message(chat_id, user_message, "user")
-            db.save_message(chat_id, FAREWELL_REPLY, "bot")
-            return FAREWELL_REPLY
-        tokens = set(_tokenize(user_message))
-        if tokens & {"reptil", "reptiles"} or (tokens & {"hacen", "atienden"} and tokens & _ANALYSIS_TOKENS):
-            return _persist_turn(chat_id, user_message, _unknown_handoff_response(dict(prev_captured)))
 
     # Reorden 3.3 (C1): el atajo pre-LLM de "otra orden" por tokens se DEGRADÓ — el turno
     # llega al modelo y el handler post-modelo actúa señal-primero (another_order) con los
@@ -3437,6 +3349,9 @@ def process_turn(
 
     # Nueva orden en misma sesión: fase terminal + no es despedida -> limpiar datos de la orden anterior
     just_closed_order = False
+    # Etapa 3: la intención de ENTRADA, antes de que el reset de abajo la mute a
+    # 'unknown' — el handler post-LLM de fase terminal decide con ella.
+    entry_intent = session.get("intent_current")
     if session.get("phase_current") in TERMINAL_PHASES:
         _prev_snapshot = {k: v for k, v in prev_captured.items() if k in _ROUTE_REQUIRED_FIELDS and v}
         _reset_order_fields(prev_captured)
@@ -3512,26 +3427,6 @@ def process_turn(
                     "\nPerfiles sugeridos por necesidad diagnóstica (etiquetas): " + ", ".join(labels)
                 )
 
-    if (
-        session.get("intent_current") == "route_scheduling"
-        and (prev_captured.get("_prev_order_snapshot") or prev_captured.get("_client_memory"))
-        and session.get("phase_current") not in TERMINAL_PHASES
-    ):
-        same_resolution = _resolve_same_as_previous(prev_captured, user_message, history)
-        if same_resolution:
-            fields = dict(prev_captured)
-            fields[same_resolution["field"]] = same_resolution["value"]
-            if "_prev_order_snapshot" not in fields and prev_captured.get("_prev_order_snapshot"):
-                fields["_prev_order_snapshot"] = prev_captured["_prev_order_snapshot"]
-            # "El mismo / esa misma" cuando hay dirección registrada o recordada CONFIRMA la
-            # dirección de retiro. Sin esto, la bandera _address_confirmation_pending quedaba
-            # pegada y el bot volvía a pedir la dirección turnos después (RESUELTO-010).
-            if fields.get("pickup_address") and fields.get("_address_confirmation_pending"):
-                fields["_address_confirmation_pending"] = False
-                fields["_address_confirmed"] = True
-            ai_response = _base_route_response(same_resolution["reply"], fields)
-            ai_response["captured_fields"] = fields
-            return _persist_turn(chat_id, user_message, ai_response)
 
     # Memoria: solo reofrecer el dato del PRÓXIMO campo que falta, y solo si está
     # recordado. Así "el de siempre" para el médico no reofrece la dirección (#3).
@@ -3592,6 +3487,104 @@ def process_turn(
     _apply_no_owner_shortcut(fields, prev_captured, user_message, history)
 
     signal = ai_response.get("user_intent_signal")
+
+    # Etapa 3a — FASE TERMINAL señal-primero (refactor de comprensión 2026-08-21): los
+    # carriles pre-LLM del post-cierre (despedida, saludo, lateral operativa, cierre
+    # "quedamos atentos", negativa y reptiles/handoff) se degradaron a este handler. B12
+    # ya reseteó la sesión a fase_1 (just_closed_order): la fase de ENTRADA vive en
+    # _turn_prev_phase y la intención de entrada en entry_intent. La señal manda
+    # (farewell/negate/affirm) y las listas quedan de red. "Otra orden" NO vive acá: la
+    # maneja C1 (another_order) más abajo con su red ampliada; con PEDIDO abierto cede
+    # todo al enforcer del cierre del pedido (decisión 011).
+    if _turn_prev_phase.get() in TERMINAL_PHASES:
+        if (signal == "farewell" or _is_farewell(user_message)) and not _pedido_abierto:
+            db.save_message(chat_id, user_message, "user")
+            db.save_message(chat_id, FAREWELL_REPLY, "bot")
+            return FAREWELL_REPLY
+        if _is_greeting_only(user_message):
+            db.save_message(chat_id, user_message, "user")
+            db.save_message(chat_id, POST_TERMINAL_GREETING_REPLY, "bot")
+            return POST_TERMINAL_GREETING_REPLY
+        if entry_intent == "route_scheduling":
+            # Con un PEDIDO abierto, un mensaje que trae la forma de pago NO es una
+            # pregunta lateral: describe CUÁNDO paga (QA de pago 6/7).
+            if not (_pedido_abierto and _payment_method_from_text(user_message)):
+                operational_answer = _operational_side_question_answer(user_message)
+            else:
+                operational_answer = None
+            if operational_answer:
+                ai_response = _base_route_response(f"{operational_answer}\n\n{CLOSING_PROMPT}", dict(prev_captured))
+                ai_response["phase"] = _turn_prev_phase.get()
+                ai_response["message_mode"] = "side_question"
+                return _persist_turn(chat_id, user_message, ai_response)
+            _close_words = {"cierra", "cerrar", "cerramos", "cierralo", "ciérralo", "cerrada", "cerrado"}
+            _wants_other = (signal == "another_order" or _explicitly_wants_another_order(user_message)
+                            or _wants_another_service_order(user_message))
+            if not _pedido_abierto and not _wants_other and (
+                _is_order_confirmation(user_message)
+                or set(_tokenize(user_message)) & _close_words
+                or (signal == "affirm" and _is_bare_confirmation(user_message))
+            ):
+                if _is_affirmative_text(user_message) or signal == "affirm":
+                    reply = "Perfecto, quedamos atentos. Si necesitas otra orden, dime 'otra orden para otro paciente'."
+                else:
+                    reply = "La orden ya quedó registrada. Si necesitas otra orden, dime 'otra orden para otro paciente'."
+                ai_response = _base_route_response(reply, dict(prev_captured))
+                ai_response["phase"] = _turn_prev_phase.get()
+                return _persist_turn(chat_id, user_message, ai_response)
+            # "No, nada más" (o negate del modelo con cualquier fraseo) → despedida.
+            # Con pedido abierto NO: es el momento exacto de cobrar (decisión 011).
+            if (signal == "negate" or _is_negative_text(user_message)) and not _pedido_abierto and not _wants_other:
+                db.save_message(chat_id, user_message, "user")
+                db.save_message(chat_id, FAREWELL_REPLY, "bot")
+                return FAREWELL_REPLY
+            _tokens_terminal = set(_tokenize(user_message))
+            if _tokens_terminal & {"reptil", "reptiles"} or (
+                    _tokens_terminal & {"hacen", "atienden"} and _tokens_terminal & _ANALYSIS_TOKENS):
+                return _persist_turn(chat_id, user_message, _unknown_handoff_response(dict(prev_captured)))
+
+    # Etapa 3b — "el de siempre" señal-primero: consume `same_as_previous` (letra muerta
+    # del enum hasta hoy) con la resolución determinística de snapshot/memoria como
+    # ACCIÓN. Con señal no aplica el tope de 6 tokens (el modelo leyó la oración entera);
+    # la red de tokens lo conserva. Si no hay dato recordado para el campo preguntado,
+    # se re-pregunta normal en vez de reofrecer otro dato (comportamiento del atajo).
+    if (session.get("intent_current") == "route_scheduling"
+            and _turn_prev_phase.get() not in TERMINAL_PHASES
+            and (signal == "same_as_previous" or _is_same_as_previous(user_message))
+            and not _wants_to_change_client(user_message)):
+        if prev_captured.get("_prev_order_snapshot") or prev_captured.get("_client_memory"):
+            same_resolution = _resolve_same_as_previous(prev_captured, user_message, history)
+            if same_resolution:
+                fields = dict(prev_captured)
+                fields[same_resolution["field"]] = same_resolution["value"]
+                if "_prev_order_snapshot" not in fields and prev_captured.get("_prev_order_snapshot"):
+                    fields["_prev_order_snapshot"] = prev_captured["_prev_order_snapshot"]
+                # "El mismo / esa misma" con dirección recordada CONFIRMA la dirección
+                # de retiro (RESUELTO-010).
+                if fields.get("pickup_address") and fields.get("_address_confirmation_pending"):
+                    fields["_address_confirmation_pending"] = False
+                    fields["_address_confirmed"] = True
+                ai_response = _base_route_response(same_resolution["reply"], fields)
+                ai_response["captured_fields"] = fields
+                return _persist_turn(chat_id, user_message, ai_response)
+        if ((session.get("client_id") or prev_captured.get("_client_found"))
+                and (signal == "same_as_previous" or len(_tokenize(user_message)) <= 6)):
+            asked = _detect_which_field_is_being_asked(history)
+            mem = prev_captured.get("_client_memory") or {}
+            snap = prev_captured.get("_prev_order_snapshot") or {}
+            if asked and not mem.get(asked) and not snap.get(asked):
+                ai_response = _base_route_response(_missing_route_field_question(asked), dict(prev_captured))
+                return _persist_turn(chat_id, user_message, ai_response)
+
+    # Etapa 3c — smalltalk en ruta activa: movido post-modelo (el turno ya fue leído).
+    # Solo la RED de tokens a propósito: la señal off_topic la disputa el anti-bucle
+    # (_offtrack_count → handoff a la 3.ª), que debe seguir contando estos turnos.
+    if (session.get("intent_current") == "route_scheduling"
+            and _turn_prev_phase.get() not in TERMINAL_PHASES
+            and _looks_off_topic_smalltalk(user_message)):
+        response = _active_route_smalltalk_response(session, dict(prev_captured))
+        if response:
+            return _persist_turn(chat_id, user_message, response)
 
     # Recién cerramos una orden y el usuario hace una consulta que no encaja en los 4
     # servicios (señal off_topic/unclear) sin pedir otra orden: derivar de una a una
@@ -3761,7 +3754,8 @@ def process_turn(
     # parcialmente reiniciada cuenta por intent_current). Misma acción determinística:
     # _begin_followup_order (nueva orden conservando cliente y datos estables).
     if (
-        (signal == "another_order" or _explicitly_wants_another_order(user_message))
+        (signal == "another_order" or _explicitly_wants_another_order(user_message)
+         or _wants_another_service_order(user_message))
         and ai_response.get("intent") == "route_scheduling"
         and not ai_response.get("requires_handoff")
         and (prev_captured.get("_order_registered") or just_closed_order)

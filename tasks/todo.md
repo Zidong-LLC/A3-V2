@@ -21,8 +21,11 @@ Metas: `PRE_LLM_RETURNS_BASELINE` 44→≤14, `known_dead` vacío, validate_flow
       `_handle_extra_analysis_answer` recibe `signal` (correction cede, negate/farewell
       cierran, affirm pregunta cuál). Baseline 44→35. Tests:
       test_etapa2_senal_confirmacion.py (8). Suite 868 passed
-- [ ] **Etapa 3 — Fase terminal y memoria**: 3a (5 carriles terminales juntos), 3b
-      (`same_as_previous` consumida — vacía known_dead), 3c (despedida/saludo/smalltalk)
+- [x] **Etapa 3 — Fase terminal y memoria**: post-cierre completo (despedida, saludo,
+      lateral, "quedamos atentos", negativa, reptiles) + smalltalk + "el de siempre" en
+      handlers post-modelo; `same_as_previous` REVIVIDA (known_dead vacío — ya sin tope
+      de 6 tokens cuando la señal viene); "otra orden" terminal absorbida por C1 con red
+      ampliada. Baseline 35→24. Tests: test_etapa3_terminal_memoria.py (6). Suite 874
 - [ ] **Etapa 4 — Pre-identificación y catálogo**: 4a (info servicio/laterales/muestrario),
       4b (ramas lingüísticas de mixtos restantes)
 - [ ] **Checkpoints con modelo real** (validate_flows, SOLO con OK del usuario): al cerrar

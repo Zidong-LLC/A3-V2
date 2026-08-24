@@ -50,7 +50,12 @@ AGENT = APP / "agent.py"
 # cliente + corrección de campo, 3 returns) y el call-site de la oferta de análisis extra
 # (1 return). Ahora el MODELO lee esos turnos ("la dejamos así", "me equivoqué en algo",
 # "si análisis quiero perfil 653") y los tokens quedan de red.
-PRE_LLM_RETURNS_BASELINE = 35
+# 35 -> 24 el 2026-08-21 (Etapa 3): fase terminal y memoria. Se degradaron los carriles
+# post-cierre (despedida, saludo, lateral, "quedamos atentos", negativa, reptiles), el
+# smalltalk en ruta activa y los dos carriles de "el de siempre" (que además REVIVEN la
+# señal same_as_previous, hasta hoy letra muerta del enum). "Otra orden" en terminal la
+# absorbe C1 con su red ampliada (_wants_another_service_order).
+PRE_LLM_RETURNS_BASELINE = 24
 
 
 def _process_turn_ast() -> tuple[ast.FunctionDef, int]:
@@ -113,7 +118,9 @@ def test_no_signal_of_the_enum_is_dead_code():
     # cerrar el pedido sin depender de que el cliente diga la palabra exacta.
     # provides_requested_data revivió el 2026-08-15: la lee el guardrail de coherencia
     # (_enforce_comprehension_recheck) para detectar "dice que dio el dato pero no capturó".
-    known_dead = {"same_as_previous"}
+    # same_as_previous salió de esta lista el 2026-08-21 (Etapa 3b): la consume el
+    # handler post-modelo de "el de siempre" con la resolución de snapshot/memoria.
+    known_dead = set()
     code = "\n".join(p.read_text(encoding="utf-8") for p in APP.rglob("*.py")
                      if p.name not in ("schema.py", "prompt.py"))
     dead = {s for s in signals if f'"{s}"' not in code and f"'{s}'" not in code}
