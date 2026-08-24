@@ -59,7 +59,7 @@ def test_saca_x_y_cambialo_por_y_en_un_turno():
         {}, fields, "Saca el análisis 653 y cámbialo por el 1903", None)
 
     assert response is not None
-    assert "quito 653" in response["reply"]
+    assert "quito 653" in response["reply"].lower()
     assert "1903" in response["reply"]
     assert fields["_selected_profile_code"] == "952", "el adicional pasa a ser la base"
     assert not fields.get("_extra_profiles")
@@ -73,7 +73,7 @@ def test_codigo_pelado_responde_a_que_quieres_quitar():
     response = confirmacion._confirmation_analysis_adjustment({}, fields, "653", None)
 
     assert response is not None
-    assert "quito 653" in response["reply"]
+    assert "quito 653" in response["reply"].lower()
     assert fields["_selected_profile_code"] == "952"
     assert not fields.get("_awaiting_additional_test")
 

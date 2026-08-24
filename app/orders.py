@@ -352,6 +352,58 @@ def _unknown_catalog_codes(fields: dict, user_message: str) -> list[str]:
     return [c for c in codes if c not in known]
 
 
+_REPLACEMENT_TARGET_RE = re.compile(r"\bpor\s+(?:el\s+|la\s+|un\s+|una\s+)?([0-9]{3,4})\b")
+
+
+def _apply_removal_with_target(fields: dict, user_message: str) -> str | None:
+    """Reemplazo con DESTINO explícito (repro del test en vivo, 2026-08-24): en
+    "saca el 653 y cámbialo POR el 1903", el código tras "por" debe QUEDAR en la
+    orden — nunca leerse como otra víctima. Quita las víctimas presentes, avisa las
+    ausentes y asegura el destino (test o perfil). Devuelve el acuse, o None si el
+    mensaje no trae el patrón "por <código>"."""
+    m = _REPLACEMENT_TARGET_RE.search((user_message or "").lower())
+    if not m:
+        return None
+    destino = m.group(1)
+    victimas = [c for c in re.findall(r"\b\d{3,4}\b", user_message) if c != destino]
+    if not victimas:
+        return None
+    partes = []
+    for v in victimas:
+        quitados = _remove_order_items_by_code(fields, v)
+        if quitados:
+            partes.append("quito " + ", ".join(
+                f"{q['code']} {q['name']}".strip() for q in quitados))
+        else:
+            partes.append(f"el {v} no está en esta orden")
+    seleccionados = _as_text_items(fields.get("selected_tests"))
+    extras = [str(p.get("code")) for p in fields.get("_extra_profiles") or []]
+    if (destino in seleccionados or destino in extras
+            or str(fields.get("_selected_profile_code")) == destino):
+        partes.append(f"el {destino} ya está en la orden")
+    else:
+        rows = db.get_tests_by_codes_or_names([destino])
+        if rows:
+            _add_tests_to_order(fields, rows, "add")
+            partes.append(f"agrego {_format_test_items(rows)}")
+        else:
+            perfiles = db.get_catalog_profiles_by_codes([destino])
+            if perfiles:
+                perfil = perfiles[0]
+                if fields.get("_selected_profile_code"):
+                    nuevos = list(fields.get("_extra_profiles") or [])
+                    nuevos.append({"code": perfil.get("code"), "name": perfil.get("name"),
+                                   "price": int(perfil.get("price") or 0)})
+                    fields["_extra_profiles"] = nuevos
+                else:
+                    _store_selected_profile_fields(fields, perfil)
+                partes.append(f"agrego {perfil.get('code')} {perfil.get('name')}")
+            else:
+                partes.append(f"el {destino} no está en el catálogo")
+    texto = "; ".join(partes) + "."
+    return texto[0].upper() + texto[1:]
+
+
 def _order_removable_items(fields: dict) -> list[dict]:
     """ERR-143: los ítems de la orden que se pueden quitar, en orden de mención en el
     resumen: perfil base, perfiles adicionales y análisis sueltos. [{'code','name'}]."""

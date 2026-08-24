@@ -22,6 +22,7 @@ from app.detectors import (
 from app.menus import _store_selected_profile_fields
 from app.laterales import _operational_side_question_answer
 from app.orders import (
+    _apply_removal_with_target,
     _add_tests_to_order,
     _area_options_for_profile_addition,
     _clear_inherited_analysis,
@@ -221,6 +222,19 @@ def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message:
     # poner Y en el mismo turno) se perdía entero. Va ANTES de la resolución por nombre
     # para que el código a PONER no se lea como otro código a quitar.
     if action == "remove":
+        # Reemplazo con DESTINO ("saca el 653 y cámbialo POR el 1903"): el helper
+        # compartido respeta el código tras "por" (repro 2026-08-24; antes este
+        # quitador leía TODOS los códigos del texto como víctimas y quitaba el 1903).
+        _reemplazo = _apply_removal_with_target(fields, user_message)
+        if _reemplazo:
+            fields.pop("_awaiting_additional_test", None)
+            fields.pop("_correction_pending", None)
+            fields.pop("_offering_extra_analysis", None)
+            summary = _route_confirmation_summary(fields)
+            texto = f"{_reemplazo}\n{summary}" if summary else _reemplazo
+            response = _base_route_response(texto, fields)
+            response["phase"] = CONFIRMATION_PHASE
+            return response
         quitados = _remove_order_items_by_code(fields, user_message)
         if quitados:
             resto = [c for c in _profile_codes_from_text(user_message)
