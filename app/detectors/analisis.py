@@ -18,6 +18,8 @@ _ANALYSIS_ADD_REMOVE_TOKENS = frozenset({
     "anadir", "añade", "añadile", "sumar", "suma", "sumale", "incluir", "incluye", "incluile",
     "quitar", "quita", "quitale", "quítale", "sacar", "saca", "sacale", "sácale",
     "retirar", "retira", "remover", "remueve",
+    # ERR-143: clíticos — sin esto "no ese sácalo" tomaba el atajo al pago por el "no".
+    "sacalo", "sácalo", "sacala", "sácala", "quitalo", "quítalo", "quitala", "quítala",
 })
 
 
@@ -87,13 +89,42 @@ _ACTION_STOPWORDS = frozenset({
 
 
 _REMOVE_TOKENS = frozenset({"quitar", "quita", "quitale", "quítale", "sacar", "saca", "sacale",
-                            "sácale", "sin", "menos", "retirar", "remover", "remueve"})
+                            "sácale", "sin", "menos", "retirar", "remover", "remueve",
+                            # ERR-143: las formas con CLÍTICO ("no, ese sácalo") no estaban
+                            # en ninguna lista y el pedido de quitar pasaba de largo.
+                            "sacalo", "sácalo", "sacala", "sácala", "quitalo", "quítalo",
+                            "quitala", "quítala", "eliminalo", "elimínalo", "borralo", "bórralo"})
+
+
+# ERR-143: pronombres de referencia ("ese", "eso") y verbos de quitar INEQUÍVOCOS para la
+# remoción anafórica. Excluye "sin"/"menos" a propósito: "está sin observaciones" no es
+# un pedido de quitar.
+_ANAPHORIC_PRONOUNS = frozenset({"ese", "eso", "esa", "este", "esto", "esta", "aquel", "aquello"})
+_ANAPHORIC_REMOVE_VERBS = frozenset({
+    "quitar", "quita", "quitale", "quítale", "quitalo", "quítalo", "quitala", "quítala",
+    "sacar", "saca", "sacale", "sácale", "sacalo", "sácalo", "sacala", "sácala",
+    "eliminalo", "elimínalo", "borralo", "bórralo", "retirar", "remover", "remueve",
+})
+
+
+def _is_anaphoric_removal(text: str) -> bool:
+    """ERR-143 ('No ese sácalo', test en vivo 2026-08-21): pide QUITAR por referencia
+    ("ese", "eso") sin nombrar código ni análisis. El llamador resuelve el referente
+    contra los ítems de la orden: uno solo → se quita; varios → se pregunta cuál."""
+    tokens = set(_tokenize(text))
+    if not (tokens & _ANAPHORIC_REMOVE_VERBS):
+        return False
+    if _profile_codes_from_text(text):
+        return False
+    return bool(tokens & _ANAPHORIC_PRONOUNS)
 
 
 _PROCEED_TO_PAYMENT_TOKENS = frozenset({
     "no", "nada", "ninguno", "ninguna", "listo", "lista", "seguimos", "sigamos", "sigue",
     "continuemos", "continua", "continúa", "ya", "pago", "paga", "pagar", "cerramos",
     "cierra", "finalizar", "terminar", "eso", "suficiente", "completo", "completa",
+    # ERR-142 (test en vivo 2026-08-21): "Avanzamos" respondía a la oferta y caía en bucle.
+    "avanzamos", "avancemos", "avanza",
 })
 
 
@@ -101,7 +132,34 @@ _PROCEED_TO_PAYMENT_PHRASES = (
     "asi esta", "asi está", "esta bien", "está bien", "asi nomas", "nada mas", "nada más",
     "es todo", "con eso", "sigamos con el pago", "seguimos con el pago", "vamos al pago",
     "asi quedamos", "ya esta", "ya está", "dejalo asi", "déjalo así",
+    # ERR-142: la conjugación que usa el PROPIO bot en su pregunta ("¿…o la dejamos así?")
+    # no estaba en la lista — el cliente respondía con la frase del bot y no se le entendía.
+    "la dejamos asi", "la dejamos así", "lo dejamos asi", "lo dejamos así",
+    "dejemoslo asi", "dejémoslo así", "dejemosla asi", "dejémosla así",
 )
+
+# ERR-142: tokens de "dejar así" con la orden/frase en el medio ("Dejamos esta orden así"):
+# la frase contigua no alcanza, se detecta por el par dejar+así presente en el mensaje.
+_LEAVE_IT_TOKENS = frozenset({"dejamos", "dejemos", "dejalo", "déjalo", "dejala", "déjala",
+                              "dejemoslo", "dejémoslo", "dejemosla", "dejémosla"})
+_LEAVE_IT_AS_IS = frozenset({"asi", "así"})
+
+
+def _proceed_phrase_in_text(text: str) -> bool:
+    """¿El mensaje contiene una FRASE explícita de cierre de la oferta ("déjalo así",
+    "es todo", "la dejamos así")? A diferencia de los tokens sueltos, una frase explícita
+    es inequívoca: el llamador la usa para eximir del tope de longitud (ERR-142 — "Déjalo
+    así está bien eso es todo" son 7 palabras y el tope de 6 la descartaba).
+
+    Las frases que mencionan el PAGO quedan excluidas a propósito: "no seguimos con el
+    pago, te estoy diciendo" es genuinamente ambigua y el tope de longitud es justamente
+    la red que la manda a repreguntar (ERR-093) — la exención no puede pisarla."""
+    ordered = _tokenize(text)
+    normalized = " ".join(ordered)
+    if any(p in normalized for p in _PROCEED_TO_PAYMENT_PHRASES if "pago" not in p):
+        return True
+    tokens = set(ordered)
+    return bool(tokens & _LEAVE_IT_TOKENS) and bool(tokens & _LEAVE_IT_AS_IS)
 
 
 
@@ -318,6 +376,9 @@ def _wants_to_proceed_to_payment(text: str) -> bool:
         return False
     normalized = " ".join(ordered)  # ORDENADO: las frases necesitan el orden original
     if any(p in normalized for p in _PROCEED_TO_PAYMENT_PHRASES):
+        return True
+    # ERR-142: "Dejamos esta orden así" — el par dejar+así con palabras en el medio.
+    if (tokens & _LEAVE_IT_TOKENS) and (tokens & _LEAVE_IT_AS_IS):
         return True
     return bool(tokens & _PROCEED_TO_PAYMENT_TOKENS)
 

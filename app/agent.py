@@ -389,6 +389,9 @@ _ORDER_RESET_FIELDS = frozenset({
     # determinístico leyendo residuo de la orden anterior (diagnóstico instrumentado,
     # 2026-08-15). Sus dos hermanas del mismo carril se limpian por la misma razón.
     "_mixed_request_text", "_pending_ambiguous_items", "_pending_offer_count",
+    # ERR-139: ni la marca de análisis heredado ni los perfiles ADICIONALES pueden cruzar la
+    # frontera entre órdenes — los extras de una orden vieja renacían en la nueva con su costo.
+    "_analysis_inherited", "_extra_profiles",
 })
 
 _IDENTIFICATION_RETRY_RESET_FIELDS = frozenset({
@@ -1059,6 +1062,11 @@ def _start_followup_service_order_response(fields: dict, user_message: str = "")
                   "_selected_profile_name", "_selected_profile_price", "_selected_profile_description"):
             if snap.get(k):
                 fields[k] = snap[k]
+        # ERR-139: marcar que este análisis es HEREDADO y aún no confirmado. Si más adelante
+        # el cliente DECLARA su análisis ("el análisis es 952"), reemplaza al heredado en vez
+        # de sumarse (caso Joy 2026-08-21: la orden salió $58.000 más cara con el perfil del
+        # paciente anterior que el cliente nunca pidió para esta orden).
+        fields["_analysis_inherited"] = True
         # Si el análisis reofrecido es un perfil del catálogo, marcarlo como "ya ofrecido"
         # para que un ajuste parcial ('el mismo pero sin X') active la personalización del
         # perfil base por el camino existente, en vez de empezar de cero.
@@ -3398,6 +3406,8 @@ def process_turn(
         # modelo sabe leer y este atajo no: se le cede el turno y los enforcers de catálogo
         # resuelven el código contra el catálogo real, igual que en cualquier otra vía.
         if _is_bare_confirmation(user_message):
+            # Confirmó los datos reofrecidos: el análisis heredado queda ACEPTADO como propio.
+            prev_captured.pop("_analysis_inherited", None)
             missing = _missing_route_field(session, prev_captured)
             question = _missing_route_field_question(missing) if missing else "¿Qué análisis o perfil desean?"
             guide = "Listo. Para esta orden cambia normalmente el paciente, el propietario y el análisis. "

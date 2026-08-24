@@ -96,6 +96,10 @@ FLAGS_ANALISIS = frozenset({
     # Perfiles ADICIONALES elegidos en la misma frase que el base ("1, 3 y 6"): van con su
     # precio de catálogo porque un código de perfil no resuelve como análisis (ERR-077).
     "_extra_profiles",
+    # ERR-139: el análisis vigente viene HEREDADO de la orden anterior (reoferta de estables)
+    # y el cliente todavía no lo confirmó ni eligió otro. Mientras esté encendida, una
+    # DECLARACIÓN de análisis ("el análisis es 952") lo REEMPLAZA en vez de sumarse.
+    "_analysis_inherited",
 })
 FLAGS_DIRECCION = frozenset({"_address_confirmation_pending", "_address_confirmed"})
 FLAGS_CIERRE = frozenset({

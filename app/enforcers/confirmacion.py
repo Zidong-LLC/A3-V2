@@ -24,12 +24,16 @@ from app.laterales import _operational_side_question_answer
 from app.orders import (
     _add_tests_to_order,
     _area_options_for_profile_addition,
+    _clear_inherited_analysis,
     _price_answer_for_order,
+    _remove_order_items_by_code,
     _route_closure_summary,
     _route_confirmation_summary,
+    _unknown_catalog_codes,
 )
 from app.messages import CONFIRMATION_AMBIGUOUS_QUESTION, PAYMENT_ONLINE_HANDOFF_MESSAGE
 from app.services import db
+from app.enforcers.orden import _ADD_ANALYSIS_TOKENS
 
 CONFIRMATION_PHASE = state.Phase.CONFIRMACION.value
 
@@ -58,6 +62,13 @@ def _add_profile_in_confirmation(fields: dict, user_message: str) -> dict | None
         return None
 
     code = str(profile.get("code"))
+    # ERR-139: el análisis vigente fue HEREDADO de la orden anterior y el cliente DECLARA
+    # el suyo sin verbo de agregar → reemplaza al heredado en vez de sumarse (caso Joy).
+    if (fields.pop("_analysis_inherited", None)
+            and fields.get("_selected_profile_code")
+            and code != str(fields.get("_selected_profile_code"))
+            and not (set(_tokenize(user_message)) & _ADD_ANALYSIS_TOKENS)):
+        _clear_inherited_analysis(fields)
     if fields.get("_selected_profile_code"):
         extras = list(fields.get("_extra_profiles") or [])
         already = code == str(fields.get("_selected_profile_code")) or any(
@@ -81,6 +92,45 @@ def _add_profile_in_confirmation(fields: dict, user_message: str) -> dict | None
     )
     response["phase"] = CONFIRMATION_PHASE
     return response
+
+
+def _add_codes_after_removal(fields: dict, codes: list[str]) -> tuple[list[str], list[str]]:
+    """ERR-141 (parte del reemplazo): agrega los códigos que quedaron tras quitar en la
+    misma frase ('saca el 653 y cámbialo por el 1903'). Perfil → base o adicional según
+    haya base; análisis → suelto (sembrando exam_type si quedó vacío). Devuelve
+    (agregados_descriptos, codigos_desconocidos)."""
+    added: list[str] = []
+    unknown: list[str] = []
+    for code in codes:
+        try:
+            perfiles = db.get_catalog_profiles_by_codes([code], fields.get("species"))
+        except Exception:
+            perfiles = []
+        if perfiles:
+            p = perfiles[0]
+            if fields.get("_selected_profile_code"):
+                extras = list(fields.get("_extra_profiles") or [])
+                if str(p.get("code")) != str(fields.get("_selected_profile_code")) and not any(
+                        str(x.get("code")) == str(p.get("code")) for x in extras):
+                    extras.append({"code": p.get("code"), "name": p.get("name"),
+                                   "price": int(p.get("price") or 0)})
+                    fields["_extra_profiles"] = extras
+            else:
+                _store_selected_profile_fields(fields, p)
+            added.append(f"{p.get('code')} {p.get('name')}")
+            continue
+        try:
+            rows = db.get_tests_by_codes_or_names([code])
+        except Exception:
+            rows = []
+        if rows:
+            _add_tests_to_order(fields, rows, "add")
+            if not fields.get("exam_type"):
+                fields["exam_type"] = rows[0].get("name")
+            added.append(f"{rows[0].get('code')} {rows[0].get('name')}")
+        else:
+            unknown.append(code)
+    return added, unknown
 
 
 def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message: str, signal: str | None) -> dict | None:
@@ -159,8 +209,39 @@ def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message:
             response["phase"] = CONFIRMATION_PHASE
             return response
     action = pending_action or "add"
-    if tokens & {"quitar", "quita", "quitale", "quítale", "sacar", "saca", "sin", "menos", "retirar", "remover"}:
+    if tokens & {"quitar", "quita", "quitale", "quítale", "sacar", "saca", "sin", "menos", "retirar", "remover",
+              # ERR-143: formas con clítico ("sácalo") — no estaban y el pedido pasaba de largo
+              "sacalo", "sácalo", "sacala", "sácala", "quitalo", "quítalo", "quitala", "quítala"}:
         action = "remove"
+
+    # ERR-141 (test en vivo 2026-08-21): QUITAR por CÓDIGO. El código viene en la MISMA
+    # frase ('Saca el análisis 653 y cámbialo por el 1903') o es la respuesta pelada a
+    # '¿Qué análisis quieres quitar?' ('653'). Antes este carril solo resolvía TESTS por
+    # nombre: un PERFIL a quitar repreguntaba para siempre, y el reemplazo (quitar X +
+    # poner Y en el mismo turno) se perdía entero. Va ANTES de la resolución por nombre
+    # para que el código a PONER no se lea como otro código a quitar.
+    if action == "remove":
+        quitados = _remove_order_items_by_code(fields, user_message)
+        if quitados:
+            resto = [c for c in _profile_codes_from_text(user_message)
+                     if c not in {q["code"] for q in quitados}]
+            agregados, desconocidos = _add_codes_after_removal(fields, resto) if resto else ([], [])
+            fields.pop("_awaiting_additional_test", None)
+            fields.pop("_correction_pending", None)
+            fields.pop("_offering_extra_analysis", None)
+            intro = "Listo, quito " + ", ".join(f"{q['code']} {q['name']}" for q in quitados) + "."
+            if agregados:
+                intro += " Y en su lugar agrego " + ", ".join(agregados) + "."
+            if desconocidos:
+                # ERR-140: el reemplazo pedía un código que no existe — avisarlo y esperar.
+                fields["_awaiting_additional_test"] = "add"
+                intro += (" El código " + " y el ".join(desconocidos)
+                          + " no está en el catálogo. ¿Me confirmas el código o me dices el nombre?")
+            summary = _route_confirmation_summary(fields)
+            texto = f"{intro}\n{summary}" if summary and not desconocidos else intro
+            response = _base_route_response(texto, fields)
+            response["phase"] = CONFIRMATION_PHASE
+            return response
 
     # Al AGREGAR, la mención de un ÁREA ('agregale un análisis de orina') va al menú de
     # esa área ANTES que cualquier match difuso por nombre ('orina' → Cortisol; chat 4).
@@ -200,6 +281,17 @@ def _confirmation_analysis_adjustment(session: dict, fields: dict, user_message:
             profile_response = _add_profile_in_confirmation(fields, user_message)
             if profile_response:
                 return profile_response
+        # ERR-140: nombró un CÓDIGO que no existe en el catálogo — avisarlo en vez de
+        # repreguntar a ciegas (el 1903 pedido 3 veces murió en silencio, test 2026-08-21).
+        desconocidos = _unknown_catalog_codes(fields, user_message)
+        if desconocidos:
+            fields["_awaiting_additional_test"] = action
+            response = _base_route_response(
+                "El código " + " y el ".join(desconocidos) + " no está en el catálogo. "
+                "¿Me confirmas el código, o me dices el nombre del análisis y te lo busco?",
+                fields)
+            response["phase"] = CONFIRMATION_PHASE
+            return response
         fields["_awaiting_additional_test"] = action
         ask = "¿Qué análisis quieres quitar?" if action == "remove" else "¿Qué análisis quieres agregar?"
         response = _base_route_response(f"Claro. {ask}", fields)

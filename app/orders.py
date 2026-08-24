@@ -316,8 +316,107 @@ def _clear_field_for_correction(fields: dict, field: str) -> None:
             # análisis, el TEXTO de su pedido anterior no puede re-escanearse al fijar el
             # nuevo perfil — resucitaba los análisis viejos con su costo.
             "_mixed_request_text", "_pending_ambiguous_items", "_pending_offer_count",
+            # ERR-139: cambiar el análisis también suelta los perfiles ADICIONALES y la marca
+            # de heredado — un cambio total no puede dejar extras de la versión anterior.
+            "_extra_profiles", "_analysis_inherited",
         ):
             fields.pop(key, None)
+
+
+def _clear_inherited_analysis(fields: dict) -> None:
+    """ERR-139: limpia el paquete de análisis HEREDADO de la orden anterior (perfil base,
+    agregados, sueltos y extras) para que la DECLARACIÓN del cliente lo reemplace en vez
+    de sumarse. Caso Joy (test en vivo 2026-08-21): 'El análisis es 952' con el 653
+    heredado terminó en una orden de $148.000 en vez de $90.000."""
+    _clear_field_for_correction(fields, "exam_type")
+
+
+def _unknown_catalog_codes(fields: dict, user_message: str) -> list[str]:
+    """ERR-140: códigos numéricos del mensaje que NO existen ni como perfil ni como
+    análisis del catálogo. El 1903 pedido 3 veces en el test en vivo (2026-08-21) murió
+    en silencio: el bot debe avisar 'ese código no lo tengo' en vez de ignorarlo.
+    Ante cualquier fallo de infra devuelve [] — avisar es secundario, nunca rompe el turno."""
+    codes = _profile_codes_from_text(user_message)
+    if not codes:
+        return []
+    known: set[str] = set()
+    try:
+        known.update(str(p.get("code"))
+                     for p in db.get_catalog_profiles_by_codes(codes, None))
+        known.update(str(t.get("code")) for t in db.get_tests_by_codes_or_names(codes))
+    except Exception:
+        return []
+    return [c for c in codes if c not in known]
+
+
+def _order_removable_items(fields: dict) -> list[dict]:
+    """ERR-143: los ítems de la orden que se pueden quitar, en orden de mención en el
+    resumen: perfil base, perfiles adicionales y análisis sueltos. [{'code','name'}]."""
+    items: list[dict] = []
+    if fields.get("_selected_profile_code"):
+        items.append({"code": str(fields["_selected_profile_code"]),
+                      "name": fields.get("_selected_profile_name") or ""})
+    for p in fields.get("_extra_profiles") or []:
+        items.append({"code": str(p.get("code")), "name": p.get("name") or ""})
+    for t in _as_text_items(fields.get("selected_tests")):
+        items.append({"code": str(t), "name": str(t)})
+    return items
+
+
+def _remove_order_items_by_code(fields: dict, user_message: str) -> list[dict]:
+    """ERR-141: quita de la orden los ítems nombrados por CÓDIGO en el mensaje ('saca el
+    653', o el '653' pelado respondiendo a '¿Qué análisis quieres quitar?'). Cubre el
+    perfil BASE (promoviendo el primer adicional si lo hay), los perfiles ADICIONALES y
+    los análisis sueltos. Devuelve los quitados [{'code','name'}]; [] si ningún código
+    del mensaje estaba en la orden (el llamador decide qué repreguntar)."""
+    codes = _profile_codes_from_text(user_message)
+    if not codes:
+        return []
+    removed: list[dict] = []
+    for code in codes:
+        base = str(fields.get("_selected_profile_code") or "")
+        extras = list(fields.get("_extra_profiles") or [])
+        if code and code == base:
+            removed.append({"code": code,
+                            "name": fields.get("_selected_profile_name") or code})
+            for key in ("_selected_profile_code", "_selected_profile_name",
+                        "_selected_profile_price", "_selected_profile_description",
+                        "_profile_detail_offered", "_profile_detail_confirmed"):
+                fields.pop(key, None)
+            fields["exam_type"] = None
+            fields["removed_tests"] = None
+            if extras:
+                # El primer adicional pasa a ser el nuevo perfil base.
+                promoted = extras.pop(0)
+                _store_selected_profile_fields(fields, promoted)
+                if extras:
+                    fields["_extra_profiles"] = extras
+                else:
+                    fields.pop("_extra_profiles", None)
+            continue
+        hit = next((p for p in extras if str(p.get("code")) == code), None)
+        if hit:
+            extras.remove(hit)
+            if extras:
+                fields["_extra_profiles"] = extras
+            else:
+                fields.pop("_extra_profiles", None)
+            removed.append({"code": code, "name": hit.get("name") or code})
+            continue
+        selected = _as_text_items(fields.get("selected_tests"))
+        if code in selected:
+            try:
+                rows = db.get_tests_by_codes_or_names([code])
+            except Exception:
+                rows = []
+            if rows:
+                _add_tests_to_order(fields, rows, "remove")
+                removed.append({"code": code, "name": rows[0].get("name") or code})
+            else:
+                selected.remove(code)
+                fields["selected_tests"] = selected
+                removed.append({"code": code, "name": code})
+    return removed
 
 
 

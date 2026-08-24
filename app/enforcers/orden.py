@@ -54,6 +54,10 @@ from app.menus import (
 from app.orders import (
     _scan_ambiguous_terms, _menu_for_ambiguous_term,
     _add_tests_to_order,
+    _clear_inherited_analysis,
+    _order_removable_items,
+    _remove_order_items_by_code,
+    _unknown_catalog_codes,
     _analysis_settled_response,
     _order_confirmation_response,
     _area_options_for_profile_addition,
@@ -67,6 +71,7 @@ from app.messages import (
 )
 from app.rules import calculate_custom_profile_total
 from app.services import db
+from app.detectors.analisis import _proceed_phrase_in_text, _is_anaphoric_removal
 
 
 _ADD_ANALYSIS_TOKENS = frozenset({"poner", "pon", "ponme", "ponle", "poné", "agrega", "agregá",
@@ -98,6 +103,18 @@ def _attach_profiles_by_code(fields: dict, user_message: str) -> tuple[list[dict
         profiles = db.get_catalog_profiles_by_codes(codes, fields.get("species"))
     except Exception:
         return [], []
+    # ERR-139 (caso Joy, test en vivo 2026-08-21): el análisis vigente fue HEREDADO de la
+    # orden anterior y el cliente DECLARA el suyo ("el análisis es 952") sin verbo de
+    # agregar: REEMPLAZA al heredado en vez de sumarse — la orden salía $58.000 más cara
+    # con un perfil que el cliente nunca pidió para este paciente. Con verbo de agregar
+    # ("agregale el 952") la suma sobre el heredado se respeta (intención explícita).
+    if profiles:
+        inherited = fields.pop("_analysis_inherited", None)
+        if (inherited and fields.get("_selected_profile_code")
+                and not (set(_tokenize(user_message)) & _ADD_ANALYSIS_TOKENS)
+                and any(str(p.get("code")) != str(fields.get("_selected_profile_code"))
+                        for p in profiles)):
+            _clear_inherited_analysis(fields)
     attached, already = [], []
     for profile in profiles:
         code = str(profile.get("code"))
@@ -114,6 +131,35 @@ def _attach_profiles_by_code(fields: dict, user_message: str) -> tuple[list[dict
             _store_selected_profile_fields(fields, profile)
         attached.append(profile)
     return attached, already
+
+
+def _anaphoric_removal_response(session: dict, fields: dict) -> dict | None:
+    """ERR-143: resuelve el referente de 'ese sácalo' contra los ítems de la orden.
+    UN ítem → se quita directo (referente inequívoco); varios → pregunta cerrada con la
+    lista (ante la duda se PREGUNTA, no se adivina); ninguno → None (no aplica)."""
+    items = _order_removable_items(fields)
+    if not items:
+        return None
+    if len(items) == 1:
+        unico = items[0]
+        quitados = (_remove_order_items_by_code(fields, unico["code"])
+                    if unico["code"].isdigit() else [])
+        if not quitados:
+            selected = _as_text_items(fields.get("selected_tests"))
+            if unico["code"] in selected:
+                selected.remove(unico["code"])
+                fields["selected_tests"] = selected
+                quitados = [unico]
+        if quitados:
+            fields.pop("_awaiting_additional_test", None)
+            return _analysis_settled_response(
+                session, fields,
+                "Listo, quito " + ", ".join(f"{q['code']} {q['name']}".strip() for q in quitados) + ".")
+        return None
+    fields["_awaiting_additional_test"] = "remove"
+    listado = "; ".join(f"{i['code']} {i['name']}".strip() for i in items)
+    return _base_route_response(
+        f"Claro, ¿cuál quito? En la orden tienes: {listado}. Dime el código.", fields)
 
 
 def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str) -> dict | None:
@@ -160,8 +206,12 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
     # NO trae más que eso (L49): un 'no' incidental dentro de otra intención ('...esta orden
     # va a nombre de otra clínica, no de animal pets') no debe cerrar la oferta y saltar al
     # pago — verificado en vivo con modelo real (3.3).
+    # ERR-142: una FRASE explícita de cierre ("déjalo así está bien eso es todo") exime del
+    # tope de 6 tokens — el tope sigue protegiendo el caso del 'no' incidental en frases
+    # con OTRA intención, pero no puede descartar una frase de cierre inequívoca.
     if _wants_to_proceed_to_payment(user_message) and (
         _payment_method_from_text(user_message) or len(_tokenize(user_message)) <= 6
+        or _proceed_phrase_in_text(user_message)
     ):
         fields.pop("_offering_extra_analysis", None)
         if _payment_method_from_text(user_message):
@@ -232,17 +282,39 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
     #     que puede dar el cliente: gana. ERR-080 ya cubrió esto para la confirmación; acá se
     #     cierra el carril de la oferta, donde el cliente pidió el 903 dos veces y la orden
     #     cerró sin él (simulación con cliente humano sobre datos reales, 2026-08-12).
+    # ERR-141/143 (carril de la OFERTA): la espera de remoción quedó armada ('¿cuál
+    # quito?') y la respuesta trae el CÓDIGO — debe QUITAR, nunca caer al carril de
+    # agregar y responder "ese ya está en la orden" (bucle del test en vivo 2026-08-21).
+    if fields.get("_awaiting_additional_test") == "remove":
+        quitados = _remove_order_items_by_code(fields, user_message)
+        if quitados:
+            fields.pop("_awaiting_additional_test", None)
+            return _analysis_settled_response(
+                session, fields,
+                "Listo, quito " + ", ".join(f"{q['code']} {q['name']}".strip() for q in quitados) + ".")
+
     if not (tokens & _REMOVE_TOKENS):
         added_profiles, repeated_profiles = _attach_profiles_by_code(fields, user_message)
+        # ERR-140: un código que NO existe en el catálogo no puede morir en silencio — el
+        # 1903 pedido 3 veces sin respuesta dejó al cliente dando vueltas (test 2026-08-21).
+        desconocidos = _unknown_catalog_codes(fields, user_message)
+        aviso = (" El código " + " y el ".join(desconocidos)
+                 + " no está en el catálogo.") if desconocidos else ""
         if added_profiles:
             fields.pop("_awaiting_additional_test", None)
             return _analysis_settled_response(
-                session, fields, f"Listo, agrego {_format_profile_items(added_profiles)}.")
+                session, fields,
+                f"Listo, agrego {_format_profile_items(added_profiles)}.{aviso}")
         if repeated_profiles:
             fields.pop("_awaiting_additional_test", None)
             return _analysis_settled_response(
                 session, fields,
-                f"Ese ya está en la orden: {_format_profile_items(repeated_profiles)}.")
+                f"Ese ya está en la orden: {_format_profile_items(repeated_profiles)}.{aviso}")
+        if desconocidos:
+            return _base_route_response(
+                "El código " + " y el ".join(desconocidos) + " no está en el catálogo. "
+                "¿Me confirmas el código, o me dices el nombre del análisis y te lo busco?",
+                fields)
 
     # 3) Pide recomendación / no sabe / 'otro perfil' -> lista de perfiles por especie.
     species = fields.get("species")
@@ -287,6 +359,20 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
             _add_tests_to_order(fields, rows, "remove")
             fields.pop("_awaiting_additional_test", None)
             return _analysis_settled_response(session, fields, f"Listo, quito {_format_test_items(rows)}.")
+        # ERR-141 (carril de la OFERTA): quitar un PERFIL por código ('saca el 653') no
+        # resuelve como test — se quita contra los ítems de la propia orden.
+        quitados = _remove_order_items_by_code(fields, user_message)
+        if quitados:
+            fields.pop("_awaiting_additional_test", None)
+            return _analysis_settled_response(
+                session, fields,
+                "Listo, quito " + ", ".join(f"{q['code']} {q['name']}".strip() for q in quitados) + ".")
+        # ERR-143: '¡No, ese sácalo!' — remoción ANAFÓRICA, sin nombre ni código. Antes el
+        # pedido pasaba de largo y el flujo seguía como si nada (test en vivo 2026-08-21).
+        if _is_anaphoric_removal(user_message):
+            anaphoric = _anaphoric_removal_response(session, fields)
+            if anaphoric:
+                return anaphoric
     elif analysis_terms:
         result = catalog.resolve_tests(user_message, db.list_catalog_tests(limit=5000), fields.get("species"))
         if result.status == catalog.EXACT:
