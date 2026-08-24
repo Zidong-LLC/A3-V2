@@ -1044,17 +1044,30 @@ agente — mismos fallos que el BASE + 1 regresión cazada y corregida. Suite: 8
 Pedido: ajustar todos los errores que quedaron para lanzar al público; check final con
 modelo real al terminar (autorizado).
 
-- [ ] 1. "sí, confirmo" ambiguo tras la oferta del pedido cae al vacío (QA2/QA4/A/F/U):
+- [x] 1. "sí, confirmo" ambiguo tras la oferta del pedido cae al vacío (QA2/QA4/A/F/U):
       con `_pedido_offer_pending` + afirmación pelada → re-pregunta determinística
       (¿otra orden o cerramos? forma de pago)
-- [ ] 2. M/M2: corrección post-cierre ("corrige el paciente: ahora se llama Rocky")
+- [x] 2. M/M2: corrección post-cierre ("corrige el paciente: ahora se llama Rocky")
       responde "¿Qué análisis o perfil desean?" y la corrección se pierde
-- [ ] 3. G: la frontera multiorden dispara "¡Con gusto cargamos otra!" con "necesito un
+- [x] 3. G: la frontera multiorden dispara "¡Con gusto cargamos otra!" con "necesito un
       perfil renal para un paciente" SIN orden previa cargada
-- [ ] 4. T: el handoff anti-bucle en preventa crea una solicitud sin cliente identificado
-- [ ] 5. B: tras derivar cliente nuevo, respuestas duplicadas y silencio sin `_blocked`
-- [ ] 6. U: perfil elegido del menú por categoría queda sin código/precio real
-- [ ] 7. QA1: bucle de correcciones encadenadas de raza (residual documentado)
-- [ ] 8. F: revisar check "pago en línea no derivó a contabilidad"
-- [ ] 9. Checks del guion A al contrato de pedidos (harness, no producto)
-- [ ] Check final: validate_flows completo con modelo real (autorizado por el usuario)
+- [x] 4. T: el handoff anti-bucle en preventa crea una solicitud sin cliente identificado
+- [x] 5. B: tras derivar cliente nuevo, respuestas duplicadas y silencio sin `_blocked`
+- [x] 6. U: perfil elegido del menú por categoría queda sin código/precio real
+- [x] 7. QA1: bucle de correcciones encadenadas de raza (residual documentado)
+- [x] 8. F: revisar check "pago en línea no derivó a contabilidad"
+- [x] 9. Checks del guion A al contrato de pedidos (harness, no producto)
+- [x] **Check final: 35/35 flujos OK con modelo real** (corrida completa 33/35 +
+      O y X en verde tras los últimos fixes; récord — el baseline histórico era
+      18-20/24). Rondas en commits `38d7ef1`, `2391b8f`, `f952a66` y el fix de O.
+      Ronda 2: escalera del re-ask (2ª afirmación → pago), silencio de cliente
+      nuevo blindado ('sí' pelado no reabre), categoría por mención de perfil (W),
+      corrección post-cierre robusta contra re-emisiones del historial (M2),
+      re-preguntas de dirección (V), identificación (T) y comprensión (O) que
+      alternan fraseo — nunca la misma plantilla dos veces seguidas.
+- Resueltos en commits `38d7ef1` (1-2) y `2391b8f` (3-9). Suite 891 passed.
+  Detalle: ítem 1 = _pedido_offer_pending sobrevive al reset B12 + re-pregunta
+  determinística (3a y enforcer); ítem 2 = update_request_order_fields (UPDATE columnas
+  + evento 'corrected') con flujo corregir→confirmar→aplicar; ítem 5 = era el CHECK
+  (el silencio reversible ERR-088 funciona — repro mecánico con silencio en 3/3);
+  ítems 8-9 y parte del 5 eran checks pre-pedidos, actualizados al contrato vigente.

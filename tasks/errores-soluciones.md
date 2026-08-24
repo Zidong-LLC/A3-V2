@@ -3601,3 +3601,34 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
 - **Cómo se cazó:** corrida de contraste de los 13 guiones fallidos sobre el tag
   `punto-guardado-agente-2026-08-21` con el harness reparado — el método a repetir para
   separar regresión de preexistente/flaky.
+
+
+---
+
+## ERR-145 — Tanda pre-lanzamiento: los 11 fallos restantes del checkpoint, cerrados
+
+- **Fecha:** 2026-08-24 · **Estado:** RESUELTO (check final 35/35 con modelo real)
+- **Pedido:** cerrar todos los errores pendientes para lanzar el agente al público.
+- **Fixes de producto** (commits `38d7ef1`, `2391b8f`, `f952a66` + fix O):
+  1. Oferta del pedido: `_pedido_offer_pending` sobrevive al reset de B12; afirmación
+     pelada → re-pregunta desambiguando UNA vez; a la segunda asume "eso es todo" y
+     pregunta la forma de pago (`_pedido_offer_reasked`).
+  2. Corrección post-cierre (M/M2): resumen corregido → confirmación → UPDATE de la
+     orden registrada (`db.update_request_order_fields`, columnas + evento `corrected`);
+     el valor del modelo no vale si coincide con el estado o el snapshot (re-emisión del
+     historial); un valor nuevo sobre la propuesta la reemplaza.
+  3. Frontera multiorden exige orden EN CURSO con contenido (G).
+  4. El handoff anti-bucle en preventa no crea solicitudes vacías (T).
+  5. Un "sí"/"no" PELADO tras la derivación no reabre el silencio ERR-088 (B) —
+     `_norm("sí")="s"` matcheaba por substring; candidatos <3 chars tampoco.
+  6. La vía de CATEGORÍA pisa el menú genérico activo (U) y también dispara con la
+     mención de perfil/perfiles (W): "el 1" elige del menú correcto (701, no 401).
+  7. Corregir un dato (cambio de valor) cuenta como progreso en el anti-bucle (QA1).
+  8. Re-preguntas que alternan fraseo — nunca idénticas dos veces seguidas:
+     identificación (T), comprensión/especie (O); la de dirección reconoce el área
+     pedida en el mismo mensaje (V).
+- **Checks del harness actualizados** al contrato de pedidos: A (cierre en el turno del
+  pago), B (silencio reversible), F (pago en línea), X (formato $40.000 del repo),
+  `_match_client` con 3+ chars.
+- **Tests:** suite 894 passed; `validate_flows.py` 33/35 en tanda completa + O y X
+  re-validados OK.
