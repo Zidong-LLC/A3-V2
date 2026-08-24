@@ -141,3 +141,36 @@ def test_an_order_never_closes_with_an_unresolved_request():
     out = agent._prevent_incomplete_route_closure({"client_id": "c1"}, ai, fields)
     assert "quedó registrado" not in out["reply"].lower()
     assert out["phase"] != "fase_6_cierre"
+
+
+def test_ningun_vocabulario_depende_de_tildes():
+    """Etapa N del refactor de comprensión (2026-08-21): `tokenize` normaliza tildes, así
+    que una entrada de vocabulario que SOLO exista acentuada ("sácalo" sin "sacalo") es
+    código muerto — nunca matchea un token. La gente escribe sin tildes (ERR-142/143:
+    "sácalo" y "déjalo así" no estaban en ninguna lista en su forma llana y el bot no
+    entendió al cliente). Este lint exige el par llano de toda entrada acentuada."""
+    import importlib
+
+    acc = str.maketrans("áéíóúüñ", "aeiouun")
+    modulos = [
+        "app.detectors.basico", "app.detectors.cliente", "app.detectors.orden",
+        "app.detectors.direccion", "app.detectors.perfil", "app.detectors.analisis",
+        "app.catalog", "app.laterales", "app.menus", "app.orders", "app.flow",
+        "app.species", "app.enforcers.orden", "app.enforcers.confirmacion",
+        "app.enforcers.ayudas", "app.enforcers.flujo", "app.agent",
+    ]
+    huerfanas = []
+    for modname in modulos:
+        mod = importlib.import_module(modname)
+        for name, val in vars(mod).items():
+            if isinstance(val, (frozenset, set, tuple)) and val and all(
+                    isinstance(x, str) for x in val):
+                for entry in val:
+                    llana = entry.translate(acc)
+                    if llana != entry and llana not in val:
+                        huerfanas.append(f"{modname}.{name}: {entry!r} (falta {llana!r})")
+    assert not huerfanas, (
+        "\n\nEstas entradas de vocabulario SOLO existen con tilde y ya no matchean nada "
+        "(tokenize normaliza):\n  " + "\n  ".join(sorted(huerfanas)) +
+        "\nAgregá el par sin tilde en el mismo set (o escribí la entrada directamente llana).\n"
+    )

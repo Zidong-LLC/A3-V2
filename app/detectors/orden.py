@@ -17,7 +17,7 @@ _CONFIRM_ORDER_TOKENS = frozenset({
 
 _ORDER_REQUEST_TOKENS = frozenset({
     "quiero", "necesito", "deseo", "dame", "hazme", "registra", "registrame",
-    "regístrame", "anota", "anótalo", "apunta", "agenda", "agendame", "agéndame",
+    "regístrame", "anota", "anotalo", "anótalo", "apunta", "agenda", "agendame", "agéndame",
     "confirmo", "solicito", "pedimos", "programa", "programame", "prográmame",
     "confirmame", "confírmame", "confirmas", "confirmás", "confirma",
 })
@@ -54,7 +54,7 @@ def _is_order_confirmation(text: str) -> bool:
 _CONFIRMATION_FILLERS = frozenset({
     "por", "favor", "gracias", "muchas", "muy", "amable", "ya", "esta", "está", "asi", "así",
     "eso", "esa", "ese", "todo", "y", "pero", "que", "es", "la", "el", "lo", "un", "una",
-    "señor", "señora", "amigo", "amiga", "pues", "entonces", "bueno",
+    "señor", "senor", "señora", "senora", "amigo", "amiga", "pues", "entonces", "bueno",
 })
 
 

@@ -3,7 +3,7 @@ from app.text import tokenize as _tokenize
 
 _PROFILE_CUSTOMIZE_TOKENS = frozenset({
     "personalizar", "personalizarlo", "modificar", "ajustar", "ajustarlo",
-    "agregar", "agrega", "agregarle", "agregale", "agregarlo", "añadir", "sumar", "incluir", "quitar", "quita",
+    "agregar", "agrega", "agregarle", "agregale", "agregarlo", "añadir", "anadir", "sumar", "incluir", "quitar", "quita",
     "sacar", "saca", "retirar", "remover", "cambiar",
 })
 

@@ -9,11 +9,13 @@ agente entienda la oración completa (typos, sin tildes, cualquier fraseo) y dej
 parchear listas de tokens. Retoma ABIERTO-003/ERR-011 con el molde C1/C2/C3 ya validado.
 Metas: `PRE_LLM_RETURNS_BASELINE` 44→≤14, `known_dead` vacío, validate_flows ≥18-20/24.
 
-- [ ] **Etapa 0 — PUNTO DE GUARDADO**: 4 commits temáticos locales (visual / fixes
-      ERR-139…143 / catálogo 022 / docs) + tag `punto-guardado-agente-2026-08-21` +
-      suite verde sobre el tag
-- [ ] **Etapa N — Normalización de tildes**: `tokenize` aplica ACCENT_TRANSLATION siempre;
-      poda de duplicados con/sin tilde; invariante nuevo "vocabularios sin tildes"
+- [x] **Etapa 0 — PUNTO DE GUARDADO**: 4 commits temáticos locales (ea89c8e visual,
+      e898759 fixes ERR-139…143, 8c4d47e catálogo 022, 70c27bd docs) + tag
+      `punto-guardado-agente-2026-08-21` en 70c27bd + suite 859 verde sobre el tag
+- [x] **Etapa N — Normalización de tildes**: `tokenize` normaliza SIEMPRE (ñ→n incluida,
+      consistente en ambos lados); 7 entradas tilde-only completadas con su par llano;
+      invariante nuevo `test_ningun_vocabulario_depende_de_tildes` (introspección de 17
+      módulos). Suite 860 passed
 - [ ] **Etapa 2 — Confirmación y oferta señal-primero**: grupos 2a (correcciones en
       confirmación + stable_confirm) y 2b (oferta con `signal` en la firma)
 - [ ] **Etapa 3 — Fase terminal y memoria**: 3a (5 carriles terminales juntos), 3b

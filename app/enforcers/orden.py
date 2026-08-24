@@ -74,7 +74,7 @@ from app.services import db
 from app.detectors.analisis import _proceed_phrase_in_text, _is_anaphoric_removal
 
 
-_ADD_ANALYSIS_TOKENS = frozenset({"poner", "pon", "ponme", "ponle", "poné", "agrega", "agregá",
+_ADD_ANALYSIS_TOKENS = frozenset({"poner", "pon", "ponme", "ponle", "poné", "pone", "agrega", "agregá",
                                   "agregar", "agregale", "agrégale", "sumar", "suma", "sumale",
                                   "cambia", "cambiá", "cambiar", "reemplaza", "reemplazar"})
 

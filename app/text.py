@@ -11,7 +11,15 @@ ACCENT_TRANSLATION = str.maketrans("áéíóúüñ", "aeiouun")
 
 
 def tokenize(text: str) -> list[str]:
-    return re.findall(r"[a-z0-9áéíóúñü]+", text.lower())
+    """Tokens en minúsculas y SIN tildes (Etapa N del refactor de comprensión, 2026-08-21).
+
+    Antes conservaba los acentos y cada lista de vocabulario tenía que duplicar
+    "sácalo/sacalo, análisis/analisis…" — y una variante no listada rompía el detector
+    (la gente escribe sin tildes). Ahora la normalización vive acá, una sola vez, igual
+    que en `catalog.py::_norm`: los sets comparan contra tokens ya normalizados y la
+    tilde deja de importar. La ñ→n es deliberada y consistente en ambos lados
+    ("años" en un set se normaliza igual que el token "anos" del mensaje)."""
+    return re.findall(r"[a-z0-9]+", text.lower().translate(ACCENT_TRANSLATION))
 
 
 def money(value: int | None) -> str:

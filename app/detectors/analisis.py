@@ -15,7 +15,7 @@ _PARTIAL_KEEP_MARKERS = frozenset({"pero", "salvo", "excepto", "menos", "sin", "
 
 _ANALYSIS_ADD_REMOVE_TOKENS = frozenset({
     "agregar", "agrega", "agregale", "agrégale", "agregarle", "agregarlo", "añadir",
-    "anadir", "añade", "añadile", "sumar", "suma", "sumale", "incluir", "incluye", "incluile",
+    "anadir", "añade", "anade", "añadile", "anadile", "sumar", "suma", "sumale", "incluir", "incluye", "incluile",
     "quitar", "quita", "quitale", "quítale", "sacar", "saca", "sacale", "sácale",
     "retirar", "retira", "remover", "remueve",
     # ERR-143: clíticos — sin esto "no ese sácalo" tomaba el atajo al pago por el "no".
