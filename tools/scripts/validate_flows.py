@@ -319,14 +319,21 @@ def main():
             out = []
             if len(_state["requests"]) != 1:
                 out.append(f"esperaba 1 orden creada, hay {len(_state['requests'])}")
-            closing = replies[14] or ""
+            # Decisión 011 (pedidos): la orden cierra en el turno del PAGO (replies[13],
+            # "contraentrega"); el "sí, confirmo" siguiente responde a la oferta del pedido.
+            closing = replies[13] or ""
             if "A3-2026" not in closing:
                 out.append("el cierre no incluye el número de orden")
             if "Quedó registrado" not in closing:
                 out.append("el cierre no muestra el resumen")
+            # El followup ya recarga los estables solo (médico incluido): la memoria se
+            # valida en la SESIÓN, y la conversación debe seguir con la orden nueva.
             second = replies[16] or ""
-            if "Laura" not in second and "Méndez" not in second.replace("Mendez", "Méndez"):
-                out.append(f"'el de siempre' no reofreció el médico recordado: '{second[:80]}'")
+            doctor = _state["session"]["captured_fields"].get("requesting_doctor") or ""
+            if "Laura" not in doctor and "Méndez" not in doctor:
+                out.append(f"'el de siempre' no conservó el médico recordado: {doctor!r}")
+            if not second.strip():
+                out.append("'el de siempre' dejó la conversación sin respuesta")
             return out
 
         results.append(_run_conversation(
@@ -350,8 +357,11 @@ def main():
                 out.append(f"cliente nuevo no escaló (phase={_state['session']['phase_current']})")
             if replies[-1] is not None:
                 out.append("la sesión no quedó bloqueada tras derivar (siguió respondiendo)")
-            if not (_state["session"]["captured_fields"].get("_blocked")):
-                out.append("falta el flag _blocked en la sesión")
+            # ERR-088: el silencio del cliente nuevo derivado es REVERSIBLE
+            # (_escalated_unfound_client), no el bloqueo duro _blocked del particular.
+            if not (_state["session"]["captured_fields"].get("_escalated_unfound_client")
+                    or _state["session"]["captured_fields"].get("_blocked")):
+                out.append("falta la marca de silencio tras derivar")
             return out
 
         results.append(_run_conversation(
@@ -415,7 +425,10 @@ def main():
                 out.append(f"sexo esperado Hembra, quedó {f.get('sex')!r}")
             if "mes" not in (f.get("patient_age") or ""):
                 out.append(f"edad esperada en meses, quedó {f.get('patient_age')!r}")
-            if _state["session"]["phase_current"] != "fase_7_escalado":
+            # Decisión 011 (pedidos): el pago en línea ya no corta a fase_7 — la orden se
+            # registra, contabilidad contacta por el link y el pedido sigue abierto.
+            pago_reply = next((r for r in replies if r and "contabilidad" in r.lower()), None)
+            if _state["session"]["phase_current"] != "fase_7_escalado" and not pago_reply:
                 out.append("pago en línea no derivó a contabilidad")
             return out
 

@@ -2875,7 +2875,13 @@ def _order_boundary_response(session: dict, ai_response: dict, prev: dict,
             f"Listo, descarto la orden de {nombre} — no queda registrada. "
             "¿Cargamos otra orden, o cerramos el pedido?", actual)
 
-    quiere_otra = signal == "another_order" or _wants_new_order_strict(user_message)
+    # (2026-08-24, guion G — pre-lanzamiento) Sin una orden EN CURSO con contenido no
+    # hay frontera que marcar: "necesito un perfil renal para un paciente" recién
+    # identificado ES la primera orden, y este carril respondía "¡Con gusto cargamos
+    # otra! ... ¿Cuál es la dirección?" descarrilando la conversación desde el turno 5.
+    _hay_orden_en_curso = bool(prev.get("patient_name") or prev.get("exam_type")
+                               or prev.get("selected_tests") or prev.get("_selected_profile_code"))
+    quiere_otra = (signal == "another_order" or _wants_new_order_strict(user_message))         and _hay_orden_en_curso
     nombre_nuevo = bool(fields.get("patient_name") and prev.get("patient_name")
                         and str(fields["patient_name"]).strip().lower()
                         != str(prev["patient_name"]).strip().lower())
@@ -3494,28 +3500,34 @@ def process_turn(
     if (entry_intent == "route_scheduling"
             and (session.get("client_id") or prev_captured.get("_client_found"))
             and prev_captured.get("species")
-            and not prev_captured.get("_profile_menu_options")
             and not _wants_partial_analysis_change(user_message)
             and (_wants_profile_recommendation(user_message)
                  or (_doesnt_know_what_to_ask(user_message)
                      and _detect_which_field_is_being_asked(history) == "exam_type"))):
         # Si nombró una categoría del catálogo (ej. 'recomiéndame un prequirúrgico'),
         # ofrecer los perfiles armados de ESA categoría, no la lista genérica (ERR-045).
+        # (2026-08-24, guion U — pre-lanzamiento) La vía de CATEGORÍA pisa también un
+        # menú genérico ya en pantalla: "cuál me recomiendas pre quirúrgico?" con el
+        # menú de canino activo no refrescaba _profile_menu_options y "el 1" del turno
+        # siguiente elegía del menú VIEJO (quedaba 401 en vez de 701).
         category_response = _category_profiles_menu_response(prev_captured, user_message)
         if category_response:
             return _persist_turn(chat_id, user_message, category_response)
-        rec_profiles = db.list_catalog_profiles_for_species(prev_captured.get("species"), limit=6)
-        if rec_profiles:
-            _clear_field_for_correction(prev_captured, "exam_type")
-            _store_profile_menu_options(prev_captured, rec_profiles)
-            return _persist_turn(
-                chat_id, user_message,
-                _base_route_response(
-                    _format_profile_recommendation(prev_captured.get("species"), rec_profiles,
-                                                   prev_captured.get("_client_favorite_profiles")),
-                    prev_captured,
-                ),
-            )
+        if not prev_captured.get("_profile_menu_options"):
+            # Sin categoría nombrada y con un menú ya ofrecido, la selección (o el
+            # pipeline) resuelven — no se re-recomienda encima.
+            rec_profiles = db.list_catalog_profiles_for_species(prev_captured.get("species"), limit=6)
+            if rec_profiles:
+                _clear_field_for_correction(prev_captured, "exam_type")
+                _store_profile_menu_options(prev_captured, rec_profiles)
+                return _persist_turn(
+                    chat_id, user_message,
+                    _base_route_response(
+                        _format_profile_recommendation(prev_captured.get("species"), rec_profiles,
+                                                       prev_captured.get("_client_favorite_profiles")),
+                        prev_captured,
+                    ),
+                )
 
     diagnostic_profile_response = _diagnostic_label_profile_turn(session, prev_captured, user_message)
     if diagnostic_profile_response:
@@ -3980,8 +3992,14 @@ def process_turn(
         # (el cliente está dando datos del paciente aunque sea en otro orden del que pedimos):
         # NO cuenta como turno perdido. El anti-bucle solo debe disparar cuando NO hay avance,
         # para no escalar a un humano a alguien que sí está colaborando con la orden.
-        progressed = sum(1 for k in _ROUTE_REQUIRED_FIELDS if fields.get(k)) > \
-            sum(1 for k in _ROUTE_REQUIRED_FIELDS if prev_captured.get(k))
+        # (2026-08-24, guion QA1 — pre-lanzamiento) Progreso también es CORREGIR un
+        # dato: "no perdón, es criollo" / "me equivoqué, es un Holstein" cambian el
+        # valor sin subir el conteo, y tres correcciones seguidas escalaban a un asesor
+        # a alguien que estaba colaborando con la orden.
+        progressed = any(
+            fields.get(k) and fields.get(k) != prev_captured.get(k)
+            for k in _ROUTE_REQUIRED_FIELDS
+        )
         if progressed:
             fields["_offtrack_count"] = 0
         else:
@@ -3989,6 +4007,11 @@ def process_turn(
             if offtrack >= 3:
                 fields.pop("_offtrack_count", None)
                 ai_response = _unknown_handoff_response(fields)
+                # (2026-08-24, guion T — pre-lanzamiento) En PREVENTA (sin cliente
+                # identificado) el handoff del anti-bucle deriva a un humano pero NO
+                # crea una solicitud: quedaba una fila vacía sin cliente en requests.
+                if not session.get("client_id"):
+                    ai_response[_SKIP_REQUEST_CREATION] = True
                 ai_response = _finalize_request(
                     chat_id, session, ai_response, started_from_escalation, session.get("phase_current", ""),
                 )

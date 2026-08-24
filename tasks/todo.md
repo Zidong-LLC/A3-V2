@@ -1035,3 +1035,26 @@ agente — mismos fallos que el BASE + 1 regresión cazada y corregida. Suite: 8
       ~$0.4-1.4) — SOLO con OK explícito del usuario (regla de tokens).
 - [ ] Prueba en vivo del usuario por Telegram (reiniciar Flask antes: el proceso de
       fondo corre código pre-refactor).
+
+
+---
+
+## 2026-08-24 — Tanda pre-lanzamiento: cerrar los fallos restantes del checkpoint (OK del usuario)
+
+Pedido: ajustar todos los errores que quedaron para lanzar al público; check final con
+modelo real al terminar (autorizado).
+
+- [ ] 1. "sí, confirmo" ambiguo tras la oferta del pedido cae al vacío (QA2/QA4/A/F/U):
+      con `_pedido_offer_pending` + afirmación pelada → re-pregunta determinística
+      (¿otra orden o cerramos? forma de pago)
+- [ ] 2. M/M2: corrección post-cierre ("corrige el paciente: ahora se llama Rocky")
+      responde "¿Qué análisis o perfil desean?" y la corrección se pierde
+- [ ] 3. G: la frontera multiorden dispara "¡Con gusto cargamos otra!" con "necesito un
+      perfil renal para un paciente" SIN orden previa cargada
+- [ ] 4. T: el handoff anti-bucle en preventa crea una solicitud sin cliente identificado
+- [ ] 5. B: tras derivar cliente nuevo, respuestas duplicadas y silencio sin `_blocked`
+- [ ] 6. U: perfil elegido del menú por categoría queda sin código/precio real
+- [ ] 7. QA1: bucle de correcciones encadenadas de raza (residual documentado)
+- [ ] 8. F: revisar check "pago en línea no derivó a contabilidad"
+- [ ] 9. Checks del guion A al contrato de pedidos (harness, no producto)
+- [ ] Check final: validate_flows completo con modelo real (autorizado por el usuario)

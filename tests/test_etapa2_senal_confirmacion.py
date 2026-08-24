@@ -37,7 +37,7 @@ ORDEN_COMPLETA = {
 
 
 def _run_turn(msg, signal, captured, phase="fase_2_recogida_datos", history=None,
-              client_id="cli-A", return_db=False):
+              client_id="cli-A", return_db=False, ai_fields=None):
     session = {
         "external_chat_id": "c1", "client_id": client_id, "channel": "telegram",
         "phase_current": phase, "intent_current": "route_scheduling",
@@ -70,8 +70,10 @@ def _run_turn(msg, signal, captured, phase="fase_2_recogida_datos", history=None
             if name.startswith("app") and hasattr(mod, "db") and id(mod) not in seen:
                 seen.add(id(mod))
                 stack.enter_context(patch.object(mod, "db", fake_db))
-        stack.enter_context(patch.object(
-            agent.ai, "generate_turn", return_value=_neutral_ai_response(signal)))
+        _ai = _neutral_ai_response(signal)
+        if ai_fields:
+            _ai["captured_fields"] = dict(ai_fields)
+        stack.enter_context(patch.object(agent.ai, "generate_turn", return_value=_ai))
         reply = agent.process_turn("c1", msg)
     persisted = (fake_db.update_session.call_args[0][1]
                  if fake_db.update_session.call_args else {})
