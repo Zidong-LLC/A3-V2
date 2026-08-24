@@ -53,6 +53,7 @@ from app.menus import (
 )
 from app.orders import (
     _apply_removal_with_target,
+    _REPLACEMENT_TARGET_RE,
     _scan_ambiguous_terms, _menu_for_ambiguous_term,
     _add_tests_to_order,
     _clear_inherited_analysis,
@@ -311,7 +312,7 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
             # Reemplazo con DESTINO ("saca el 653 y cámbialo POR el 1903") no es una
             # respuesta simple a "¿cuál quito?": cede al carril del reemplazo de abajo,
             # que respeta el código tras "por" (repro 2026-08-24, 2ª pasada).
-            and not re.search(r"por\s+(?:el\s+|la\s+)?[0-9]{3,4}", user_message.lower())):
+            and not _REPLACEMENT_TARGET_RE.search(user_message.lower())):
         quitados = _remove_order_items_by_code(fields, user_message)
         if quitados:
             fields.pop("_awaiting_additional_test", None)
