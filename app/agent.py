@@ -3157,85 +3157,6 @@ def process_turn(
     # guards de lista de coincidencias). La protección ERR-037 queda como BYPASS abajo:
     # el atajo de servicio no intercepta a quien declara no estar registrado.
 
-    if (
-        not session.get("client_id")
-        and not any(prev_captured.get(k) for k in ("clinic_name", "tax_id", "_client_match_options"))
-        and not (_has_client_marker(user_message) or _extract_tax_id_candidate(user_message, allow_unlabeled=True))
-        # Si ya pedimos el NIT/nombre, lo que diga el usuario es su identificación: que el
-        # LLM lea el mensaje COMPLETO (no que un token suelto como "Colombia" lo desvíe a
-        # una respuesta de cortesía). El atajo de servicio solo aplica al contacto inicial.
-        and not _awaiting_client_identifier(history)
-        # ERR-037 (bypass del reorden C3): "no estamos registrados, ¿recogen muestras?"
-        # NO se responde con la frase del motorizado — va al modelo para que el handler
-        # de cliente nuevo escale a recepción (regla de negocio invariante).
-        and not _claims_unregistered_client(user_message)
-    ):
-        info_response = _pre_identification_service_info_response(user_message, dict(prev_captured))
-        if info_response:
-            if not info_response.pop("_skip_resume", False):
-                info_response = _resume_route_after_lateral_turn(session, info_response)
-            return _persist_turn(chat_id, user_message, info_response)
-
-    if session.get("intent_current") == "route_scheduling" and (session.get("client_id") or prev_captured.get("_client_found")):
-        # Precio REAL del catálogo primero: un análisis puntual, el total de los elegidos o
-        # el perfil ya seleccionado. Va antes de la respuesta genérica ("depende del análisis")
-        # para que "¿cuánto sale el hemograma?" o "¿cuánto serían todos?" se respondan con valor.
-        # Si el mensaje ADEMÁS pide/ordena los análisis ("quiero X y Y, ¿cuánto el total?"),
-        # NO es solo una consulta: el pipeline captura la selección y el total sale del
-        # cálculo estructurado (QA-6: la respuesta de precio se tragaba la elección).
-        price_fields = dict(prev_captured)
-        price_answer = _catalog_price_answer(price_fields, user_message)
-        if (price_answer and not _payment_method_from_text(user_message)
-                and not _expresses_order_request(user_message)):
-            response = _base_route_response(price_answer, price_fields)
-            response["message_mode"] = "side_question"
-            response = _resume_route_after_lateral_turn(session, response)
-            return _persist_turn(chat_id, user_message, response)
-        operational_answer = _operational_side_question_answer(user_message)
-        if operational_answer and not _payment_method_from_text(user_message):
-            response = _base_route_response(operational_answer, dict(prev_captured))
-            response["message_mode"] = "side_question"
-            response = _resume_route_after_lateral_turn(session, response)
-            return _persist_turn(chat_id, user_message, response)
-        # Con el reofrecimiento de datos estables pendiente, la respuesta del cliente es
-        # sobre ESOS datos, no una pregunta de catálogo. "Todo igual menos el TIPO de
-        # ANÁLISIS" caía acá por las palabras "tipo" + "análisis" y se le contestaba con el
-        # muestrario general, sin limpiar el perfil de la orden anterior; ese perfil heredado
-        # después apagaba los cuatro enforcers que debían ofrecer el menú (prueba real, chat 4).
-        if _is_catalog_overview_question(user_message) and not prev_captured.get("_stable_confirm_pending"):
-            fields = dict(prev_captured)
-            analysis_in_progress = bool(
-                fields.get("_selected_profile_code") or _as_text_items(fields.get("selected_tests"))
-            )
-            # Con un análisis/perfil en curso, una pregunta de catálogo NUNCA pisa la
-            # orden: el menú queda marcado para AGREGAR (chat 4: el muestrario general
-            # borraba selected_tests y el agregado se perdía del total).
-            if analysis_in_progress:
-                area_resp = _area_options_for_profile_addition(fields, user_message)
-                if area_resp:
-                    return _persist_turn(chat_id, user_message, area_resp)
-                choices = _catalog_overview_choices(db.list_catalog_tests(limit=500))
-                if choices:
-                    _store_test_menu_options(fields, choices)
-                    fields["_test_menu_adds_to_profile"] = True
-                    return _persist_turn(
-                        chat_id, user_message,
-                        _base_route_response(_test_catalog_overview_reply(choices), fields),
-                    )
-                return _persist_turn(
-                    chat_id, user_message,
-                    _base_route_response(_test_catalog_overview_reply([]), fields),
-                )
-            # Área específica nombrada ('¿qué análisis de orina hacen?') → opciones de
-            # ESA área, no el muestrario general de todas las áreas.
-            area, area_tests = db.find_tests_by_area(user_message, fields.get("species"), limit=10)
-            if area and area_tests:
-                return _persist_turn(
-                    chat_id, user_message,
-                    _test_options_response(fields, area_tests, _test_area_suggestion_reply(area, area_tests)),
-                )
-            return _persist_turn(chat_id, user_message, _catalog_overview_response(fields))
-
     # Reorden 3.3 (C2): el atajo pre-LLM de cambio de cliente/sede por tokens se DEGRADÓ —
     # el turno llega al modelo y el handler post-modelo actúa señal-primero (change_client)
     # con los mismos tokens de red y guards. La protección contra la selección espuria por
@@ -3284,42 +3205,6 @@ def process_turn(
             prev_captured.pop("_test_menu_options", None)
             prev_captured.pop("_test_menu_adds_to_profile", None)
         # (preguntó otra cosa): seguir el pipeline normal.
-
-    # Pedido de recomendación de análisis ('no sé / qué me recomiendas') en cualquier punto
-    # de una ruta con especie ya conocida. Va ANTES de los detectores de corrección, que
-    # confundían 'no sé... perro' con una corrección del paciente ('no' = corregir, 'perro'
-    # = paciente) y borraban el paciente en vez de recomendar. Limpia el análisis previo
-    # (clave en multiorden: no arrastrar un perfil de otra especie) y ofrece perfiles de la
-    # especie. No aplica a un ajuste PARCIAL ('el mismo pero sin X').
-    if (session.get("intent_current") == "route_scheduling"
-            and (session.get("client_id") or prev_captured.get("_client_found"))
-            and prev_captured.get("species")
-            and not prev_captured.get("_profile_menu_options")
-            and not _wants_partial_analysis_change(user_message)
-            and (_wants_profile_recommendation(user_message)
-                 or (_doesnt_know_what_to_ask(user_message)
-                     and _detect_which_field_is_being_asked(history) == "exam_type"))):
-        # Si nombró una categoría del catálogo (ej. 'recomiéndame un prequirúrgico'),
-        # ofrecer los perfiles armados de ESA categoría, no la lista genérica (ERR-045).
-        category_response = _category_profiles_menu_response(prev_captured, user_message)
-        if category_response:
-            return _persist_turn(chat_id, user_message, category_response)
-        rec_profiles = db.list_catalog_profiles_for_species(prev_captured.get("species"), limit=6)
-        if rec_profiles:
-            _clear_field_for_correction(prev_captured, "exam_type")
-            _store_profile_menu_options(prev_captured, rec_profiles)
-            return _persist_turn(
-                chat_id, user_message,
-                _base_route_response(
-                    _format_profile_recommendation(prev_captured.get("species"), rec_profiles,
-                                                   prev_captured.get("_client_favorite_profiles")),
-                    prev_captured,
-                ),
-            )
-
-    diagnostic_profile_response = _diagnostic_label_profile_turn(session, prev_captured, user_message)
-    if diagnostic_profile_response:
-        return _persist_turn(chat_id, user_message, diagnostic_profile_response)
 
     # Confirmación en bloque de datos estables al iniciar una orden de seguimiento.
     # Se reofrecieron médico/dirección/pago de la orden anterior: el usuario confirma
@@ -3466,6 +3351,132 @@ def process_turn(
     # siempre". Lo demás se revierte en silencio. Los caminos determinísticos de más abajo
     # agregan por sus propias vías (mensaje + catálogo) y no pasan por este filtro.
     _candado_provenancia_tests(fields, prev_captured, user_message)
+
+    # ══ Etapa 4a — CATÁLOGO Y LATERALES post-modelo (refactor de comprensión,
+    # 2026-08-24, ficha ABIERTO-003): los seis carriles pre-LLM que competían por las
+    # preguntas de servicio/catálogo (info pre-identificación, precio real, lateral
+    # operativa, muestrario, recomendación de perfiles y etiqueta diagnóstica) se
+    # movieron JUNTOS acá (lección ERR-072). El MODELO ya leyó el turno; las acciones
+    # canónicas (con datos de BD) y sus detectores quedan idénticos — lo que cambia es
+    # QUIÉN ve el mensaje primero, no QUÉ se responde. Van ANTES de la frontera de
+    # orden para preservar la precedencia que tenían pre-LLM. Los gates leen
+    # entry_intent (la intención de ENTRADA, pre-reset de B12) y prev_captured, que en
+    # fase terminal ya viene reseteado por B12 — las laterales post-cierre las maneja
+    # el handler de fase terminal (Etapa 3a), como siempre.
+    if (
+        not session.get("client_id")
+        and not any(prev_captured.get(k) for k in ("clinic_name", "tax_id", "_client_match_options"))
+        and not (_has_client_marker(user_message) or _extract_tax_id_candidate(user_message, allow_unlabeled=True))
+        # Si ya pedimos el NIT/nombre, lo que diga el usuario es su identificación: que el
+        # LLM lea el mensaje COMPLETO (no que un token suelto como "Colombia" lo desvíe a
+        # una respuesta de cortesía). El atajo de servicio solo aplica al contacto inicial.
+        and not _awaiting_client_identifier(history)
+        # ERR-037 (bypass del reorden C3): "no estamos registrados, ¿recogen muestras?"
+        # NO se responde con la frase del motorizado — va al modelo para que el handler
+        # de cliente nuevo escale a recepción (regla de negocio invariante).
+        and not _claims_unregistered_client(user_message)
+    ):
+        info_response = _pre_identification_service_info_response(user_message, dict(prev_captured))
+        if info_response:
+            if not info_response.pop("_skip_resume", False):
+                info_response = _resume_route_after_lateral_turn(session, info_response)
+            return _persist_turn(chat_id, user_message, info_response)
+
+    if entry_intent == "route_scheduling" and (session.get("client_id") or prev_captured.get("_client_found")):
+        # Precio REAL del catálogo primero: un análisis puntual, el total de los elegidos o
+        # el perfil ya seleccionado. Va antes de la respuesta genérica ("depende del análisis")
+        # para que "¿cuánto sale el hemograma?" o "¿cuánto serían todos?" se respondan con valor.
+        # Si el mensaje ADEMÁS pide/ordena los análisis ("quiero X y Y, ¿cuánto el total?"),
+        # NO es solo una consulta: el pipeline captura la selección y el total sale del
+        # cálculo estructurado (QA-6: la respuesta de precio se tragaba la elección).
+        price_fields = dict(prev_captured)
+        price_answer = _catalog_price_answer(price_fields, user_message)
+        if (price_answer and not _payment_method_from_text(user_message)
+                and not _expresses_order_request(user_message)):
+            response = _base_route_response(price_answer, price_fields)
+            response["message_mode"] = "side_question"
+            response = _resume_route_after_lateral_turn(session, response)
+            return _persist_turn(chat_id, user_message, response)
+        operational_answer = _operational_side_question_answer(user_message)
+        if operational_answer and not _payment_method_from_text(user_message):
+            response = _base_route_response(operational_answer, dict(prev_captured))
+            response["message_mode"] = "side_question"
+            response = _resume_route_after_lateral_turn(session, response)
+            return _persist_turn(chat_id, user_message, response)
+        # Con el reofrecimiento de datos estables pendiente, la respuesta del cliente es
+        # sobre ESOS datos, no una pregunta de catálogo. "Todo igual menos el TIPO de
+        # ANÁLISIS" caía acá por las palabras "tipo" + "análisis" y se le contestaba con el
+        # muestrario general, sin limpiar el perfil de la orden anterior; ese perfil heredado
+        # después apagaba los cuatro enforcers que debían ofrecer el menú (prueba real, chat 4).
+        if _is_catalog_overview_question(user_message) and not prev_captured.get("_stable_confirm_pending"):
+            fields = dict(prev_captured)
+            analysis_in_progress = bool(
+                fields.get("_selected_profile_code") or _as_text_items(fields.get("selected_tests"))
+            )
+            # Con un análisis/perfil en curso, una pregunta de catálogo NUNCA pisa la
+            # orden: el menú queda marcado para AGREGAR (chat 4: el muestrario general
+            # borraba selected_tests y el agregado se perdía del total).
+            if analysis_in_progress:
+                area_resp = _area_options_for_profile_addition(fields, user_message)
+                if area_resp:
+                    return _persist_turn(chat_id, user_message, area_resp)
+                choices = _catalog_overview_choices(db.list_catalog_tests(limit=500))
+                if choices:
+                    _store_test_menu_options(fields, choices)
+                    fields["_test_menu_adds_to_profile"] = True
+                    return _persist_turn(
+                        chat_id, user_message,
+                        _base_route_response(_test_catalog_overview_reply(choices), fields),
+                    )
+                return _persist_turn(
+                    chat_id, user_message,
+                    _base_route_response(_test_catalog_overview_reply([]), fields),
+                )
+            # Área específica nombrada ('¿qué análisis de orina hacen?') → opciones de
+            # ESA área, no el muestrario general de todas las áreas.
+            area, area_tests = db.find_tests_by_area(user_message, fields.get("species"), limit=10)
+            if area and area_tests:
+                return _persist_turn(
+                    chat_id, user_message,
+                    _test_options_response(fields, area_tests, _test_area_suggestion_reply(area, area_tests)),
+                )
+            return _persist_turn(chat_id, user_message, _catalog_overview_response(fields))
+
+    # Pedido de recomendación de análisis ('no sé / qué me recomiendas') en cualquier punto
+    # de una ruta con especie ya conocida. Va ANTES de los detectores de corrección, que
+    # confundían 'no sé... perro' con una corrección del paciente ('no' = corregir, 'perro'
+    # = paciente) y borraban el paciente en vez de recomendar. Limpia el análisis previo
+    # (clave en multiorden: no arrastrar un perfil de otra especie) y ofrece perfiles de la
+    # especie. No aplica a un ajuste PARCIAL ('el mismo pero sin X').
+    if (entry_intent == "route_scheduling"
+            and (session.get("client_id") or prev_captured.get("_client_found"))
+            and prev_captured.get("species")
+            and not prev_captured.get("_profile_menu_options")
+            and not _wants_partial_analysis_change(user_message)
+            and (_wants_profile_recommendation(user_message)
+                 or (_doesnt_know_what_to_ask(user_message)
+                     and _detect_which_field_is_being_asked(history) == "exam_type"))):
+        # Si nombró una categoría del catálogo (ej. 'recomiéndame un prequirúrgico'),
+        # ofrecer los perfiles armados de ESA categoría, no la lista genérica (ERR-045).
+        category_response = _category_profiles_menu_response(prev_captured, user_message)
+        if category_response:
+            return _persist_turn(chat_id, user_message, category_response)
+        rec_profiles = db.list_catalog_profiles_for_species(prev_captured.get("species"), limit=6)
+        if rec_profiles:
+            _clear_field_for_correction(prev_captured, "exam_type")
+            _store_profile_menu_options(prev_captured, rec_profiles)
+            return _persist_turn(
+                chat_id, user_message,
+                _base_route_response(
+                    _format_profile_recommendation(prev_captured.get("species"), rec_profiles,
+                                                   prev_captured.get("_client_favorite_profiles")),
+                    prev_captured,
+                ),
+            )
+
+    diagnostic_profile_response = _diagnostic_label_profile_turn(session, prev_captured, user_message)
+    if diagnostic_profile_response:
+        return _persist_turn(chat_id, user_message, diagnostic_profile_response)
 
     # FRONTERA DE ORDEN (ERR-117): si el cliente pidió otra orden o describió un paciente
     # nuevo en bloque, el turno se resuelve acá, determinístico y FUERA del pipeline — los

@@ -55,7 +55,18 @@ AGENT = APP / "agent.py"
 # smalltalk en ruta activa y los dos carriles de "el de siempre" (que además REVIVEN la
 # señal same_as_previous, hasta hoy letra muerta del enum). "Otra orden" en terminal la
 # absorbe C1 con su red ampliada (_wants_another_service_order).
-PRE_LLM_RETURNS_BASELINE = 24
+# 24 -> 13 el 2026-08-24 (Etapa 4a): catálogo y laterales. Los seis carriles que competían
+# por las preguntas de servicio/catálogo (info pre-identificación, precio real del
+# catálogo, lateral operativa, muestrario/overview, recomendación de perfiles y etiqueta
+# diagnóstica) se movieron JUNTOS a un handler post-modelo insertado ANTES de la frontera
+# de orden (misma precedencia que tenían pre-LLM). Acciones canónicas y detectores
+# idénticos; los gates leen entry_intent (pre-reset de B12). Quedan pre-LLM: los guards de
+# estado (_blocked, ERR-088), la bienvenida, el cierre determinístico del pedido (ERR-118),
+# la consulta del número de orden, el bloqueo de cliente final, las opciones del menú de
+# bienvenida (2/4/reconsiderar — respuesta a un menú mostrado, como 18/19), "dije/dicho"
+# con lista de coincidencias en pantalla, y las selecciones de menús por número/código:
+# todos deciden por ESTADO + dato exacto, no por interpretación de la oración.
+PRE_LLM_RETURNS_BASELINE = 13
 
 
 def _process_turn_ast() -> tuple[ast.FunctionDef, int]:

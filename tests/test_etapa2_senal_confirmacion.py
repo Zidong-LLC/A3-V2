@@ -36,9 +36,10 @@ ORDEN_COMPLETA = {
 }
 
 
-def _run_turn(msg, signal, captured, phase="fase_2_recogida_datos", history=None):
+def _run_turn(msg, signal, captured, phase="fase_2_recogida_datos", history=None,
+              client_id="cli-A"):
     session = {
-        "external_chat_id": "c1", "client_id": "cli-A", "channel": "telegram",
+        "external_chat_id": "c1", "client_id": client_id, "channel": "telegram",
         "phase_current": phase, "intent_current": "route_scheduling",
         "captured_fields": dict(captured), "status": "in_progress",
     }
