@@ -1,0 +1,475 @@
+/* ═══ ZIDONG OS Kit — port CSS puro para la plataforma A3 ══════════════════
+   Fuente: ZIDONG LLC OS/platform/app/assets/css/main.css (estética Linear/
+   Circle: monocromo blanco, escalera de superficies por tono, springs reales
+   con linear()). Solo lo agnóstico de framework; los overrides de Nuxt UI no
+   se portaron. Se carga ANTES de app.css/dashboard.css. */
+
+/* ─── Tokens ─────────────────────────────────────────────────────────────── */
+:root {
+  /* Escalera de superficies: shell < canvas < surface < card (separación por
+     TONO, no por borde) */
+  --os-space-bg: #0b0c0e;
+  --os-space-canvas: #131418;
+  --os-space-surface: #1a1b20;
+  --os-space-card: rgba(26, 27, 32, 0.94);
+  --os-space-card-strong: rgba(32, 33, 39, 0.97);
+  --os-space-soft: rgba(255, 255, 255, 0.05);
+  --os-space-border: rgba(255, 255, 255, 0.08);
+  --os-space-border-strong: rgba(255, 255, 255, 0.15);
+  --os-space-text: #f5f5f7;
+  --os-space-muted: rgba(230, 230, 238, 0.62);
+  /* Piso legible: 0.55 da ≥4.5:1 sobre el fondo más claro de la escalera */
+  --os-space-dimmed: rgba(230, 230, 238, 0.55);
+  --os-space-toned: rgba(230, 230, 238, 0.72);
+  /* Acento de marca BLANCO (monocromo Linear/Circle); el color queda solo
+     para semántica */
+  --os-space-accent: #f5f5f7;
+  --os-space-accent-2: #a8a8b3;
+  --os-space-accent-3: #7d7d88;
+  --os-space-shadow: 0 24px 80px rgba(6, 8, 12, 0.55);
+  --os-glow-ring: color-mix(in oklab, var(--os-space-accent) 42%, transparent);
+  --os-glow-soft: color-mix(in oklab, var(--os-space-accent) 26%, transparent);
+  --os-glow-bg: color-mix(in oklab, var(--os-space-accent) 13%, var(--os-space-surface));
+  /* Verde SOLO para datos de dinero/éxito en charts */
+  --zd-chart: #22c55e;
+
+  /* Easings y duraciones */
+  --os-ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+  --os-ease-snappy: cubic-bezier(0.2, 0.9, 0.2, 1);
+  --os-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --os-ease-spring-soft: cubic-bezier(0.22, 1.61, 0.36, 1);
+  --os-dur-fast: 160ms;
+  --os-dur-base: 260ms;
+  --os-dur-slow: 420ms;
+
+  /* Springs reales (recetario Kinetics): linear() sobrepasa el destino y se
+     asienta oscilando — algo que cubic-bezier no puede hacer. */
+  --os-spring-settle: linear(
+    0, 0.006, 0.025 2.8%, 0.101 6.1%, 0.539 18.9%, 0.721 25.3%, 0.849 31.5%,
+    0.937 38.1%, 0.968 41.8%, 0.991 45.7%, 1.006 50.1%, 1.015 55%, 1.017 63.9%,
+    1.001 82.8%, 1
+  );
+  --os-spring-pop: linear(
+    0, 0.009, 0.035 2.1%, 0.141, 0.281 6.7%, 0.723 12.9%, 0.938 16.7%, 1.017,
+    1.077, 1.121, 1.149 24.3%, 1.159, 1.163, 1.161, 1.154 29.9%, 1.129 32.8%,
+    1.051 39.6%, 1.017 43.1%, 0.991, 0.977 51%, 0.974 53.8%, 0.975 57.1%,
+    0.997 69.8%, 1.003 76.9%, 1
+  );
+
+  /* Escala tipográfica por ROL (no por talla) */
+  --text-micro: 11px;
+  --text-caption: 12px;
+  --text-label: 13px;
+  --text-body: 14px;
+  --text-body-lg: 15px;
+  --text-title-sm: 16px;
+  --text-title: 18px;
+  --text-title-lg: 20px;
+  --text-display-sm: 24px;
+  --text-display: 36px;
+}
+
+/* ─── Scrollbars finas globales (patrón Kaneo/Linear) ────────────────────── */
+body * {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+
+/* ─── Tarjeta característica (receta zd-card) ────────────────────────────── */
+.zd-card {
+  border-radius: 0.625rem;
+  background:
+    linear-gradient(180deg,
+      color-mix(in oklab, var(--os-space-card) 92%, #ffffff 8%),
+      var(--os-space-card) 42%);
+  border: 1px solid color-mix(in oklab, var(--os-space-border) 70%, #ffffff 6%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 1px 2px rgba(0, 0, 0, 0.28),
+    0 16px 40px -22px rgba(0, 0, 0, 0.65);
+}
+
+.num-hero {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* ─── Orbes ambientales de fondo ─────────────────────────────────────────── */
+.os-shell-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.os-glow-orb {
+  position: absolute;
+  display: block;
+  border-radius: 9999px;
+  filter: blur(110px);
+  opacity: 0.09;
+  pointer-events: none;
+}
+
+.os-glow-orb--1 {
+  width: 720px;
+  height: 720px;
+  top: -280px;
+  right: -180px;
+  background: var(--os-space-accent);
+  animation: os-drift-1 20s ease-in-out infinite alternate;
+}
+
+.os-glow-orb--2 {
+  width: 520px;
+  height: 520px;
+  bottom: -180px;
+  left: -140px;
+  background: var(--os-space-accent-2);
+  animation: os-drift-2 25s ease-in-out infinite alternate;
+}
+
+.os-glow-orb--3 {
+  width: 340px;
+  height: 340px;
+  top: 38%;
+  left: 28%;
+  background: var(--os-space-accent-3);
+  opacity: 0.055;
+  animation: os-drift-3 17s ease-in-out infinite alternate;
+}
+
+@keyframes os-drift-1 {
+  0%   { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-55px, 65px) scale(1.12); }
+}
+
+@keyframes os-drift-2 {
+  0%   { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(45px, -55px) scale(1.08); }
+}
+
+@keyframes os-drift-3 {
+  0%   { transform: translate(0, 0) scale(1); }
+  100% { transform: translate(-35px, 45px) scale(1.18); }
+}
+
+/* ─── Sistema de movimiento ──────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Entrada de página */
+@media (prefers-reduced-motion: no-preference) {
+  .os-scene {
+    animation: os-scene-enter var(--os-dur-slow) var(--os-ease-smooth) both;
+  }
+}
+
+@keyframes os-scene-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Hover que levanta la tarjeta */
+.os-lift-card {
+  transition:
+    transform var(--os-dur-fast) var(--os-ease-snappy),
+    box-shadow var(--os-dur-base) var(--os-ease-smooth),
+    border-color var(--os-dur-base) var(--os-ease-smooth),
+    background-color var(--os-dur-base) var(--os-ease-smooth);
+  will-change: transform;
+}
+
+.os-lift-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 36px -26px var(--os-glow-soft);
+}
+
+.zd-card.os-lift-card:hover {
+  border-color: color-mix(in oklab, var(--os-space-accent) 24%, var(--os-space-border));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    0 1px 2px rgba(0, 0, 0, 0.3),
+    0 24px 56px -24px rgba(0, 0, 0, 0.7),
+    0 0 0 1px color-mix(in oklab, var(--os-space-accent) 10%, transparent);
+}
+
+/* Seleccionable: anillo ::after por opacidad */
+.os-selectable {
+  position: relative;
+  isolation: isolate;
+  transition:
+    transform var(--os-dur-fast) var(--os-ease-snappy),
+    box-shadow var(--os-dur-base) var(--os-ease-smooth),
+    border-color var(--os-dur-base) var(--os-ease-smooth),
+    background-color var(--os-dur-base) var(--os-ease-smooth);
+}
+
+.os-selectable::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow: 0 0 0 1px var(--os-glow-ring);
+  transition: opacity var(--os-dur-base) var(--os-ease-smooth);
+}
+
+.os-selectable:hover,
+.os-selectable:focus-visible { transform: translateY(-1px); }
+
+.os-selectable:hover::after,
+.os-selectable:focus-visible::after { opacity: 0.6; }
+
+.os-selected {
+  box-shadow:
+    inset 0 0 0 1px var(--os-glow-ring),
+    0 18px 38px -30px var(--os-glow-soft);
+  background: var(--os-glow-bg);
+}
+
+.os-selected::after { opacity: 1; }
+
+/* Entrada en dominó: aplicar .os-stagger al contenedor directo de la lista */
+@media (prefers-reduced-motion: no-preference) {
+  .os-stagger > * {
+    animation: os-domino-in 0.38s var(--os-ease-spring) both;
+  }
+
+  .os-stagger > *:nth-child(1) { animation-delay: 0.02s; }
+  .os-stagger > *:nth-child(2) { animation-delay: 0.06s; }
+  .os-stagger > *:nth-child(3) { animation-delay: 0.1s; }
+  .os-stagger > *:nth-child(4) { animation-delay: 0.14s; }
+  .os-stagger > *:nth-child(5) { animation-delay: 0.18s; }
+  .os-stagger > *:nth-child(6) { animation-delay: 0.22s; }
+  .os-stagger > *:nth-child(7) { animation-delay: 0.26s; }
+  .os-stagger > *:nth-child(8) { animation-delay: 0.3s; }
+  .os-stagger > *:nth-child(9) { animation-delay: 0.34s; }
+  .os-stagger > *:nth-child(10) { animation-delay: 0.38s; }
+  .os-stagger > *:nth-child(11) { animation-delay: 0.42s; }
+  .os-stagger > *:nth-child(n + 12) { animation-delay: 0.46s; }
+}
+
+@keyframes os-domino-in {
+  0%   { opacity: 0; transform: translateY(8px) scale(0.96); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Dominó inverso de colapso: los hijos se despegan de ABAJO hacia arriba.
+   Aplicar al contenedor durante ~530ms antes de ocultar la sección. */
+.os-collapse-leaving > * {
+  animation: os-domino-out 0.26s var(--os-ease-smooth) both;
+}
+
+.os-collapse-leaving > *:nth-last-child(1) { animation-delay: 0s; }
+.os-collapse-leaving > *:nth-last-child(2) { animation-delay: 0.025s; }
+.os-collapse-leaving > *:nth-last-child(3) { animation-delay: 0.05s; }
+.os-collapse-leaving > *:nth-last-child(4) { animation-delay: 0.075s; }
+.os-collapse-leaving > *:nth-last-child(5) { animation-delay: 0.1s; }
+.os-collapse-leaving > *:nth-last-child(6) { animation-delay: 0.125s; }
+.os-collapse-leaving > *:nth-last-child(7) { animation-delay: 0.15s; }
+.os-collapse-leaving > *:nth-last-child(8) { animation-delay: 0.175s; }
+.os-collapse-leaving > *:nth-last-child(9) { animation-delay: 0.2s; }
+.os-collapse-leaving > *:nth-last-child(10) { animation-delay: 0.225s; }
+.os-collapse-leaving > *:nth-last-child(11) { animation-delay: 0.25s; }
+.os-collapse-leaving > *:nth-last-child(n + 12) { animation-delay: 0.275s; }
+
+@keyframes os-domino-out {
+  0%   { opacity: 1; transform: translateY(0) translateX(0) scale(1); }
+  100% { opacity: 0; transform: translateY(6px) translateX(-3px) scale(0.94); }
+}
+
+/* Aparición con resorte para paneles y formularios inline */
+@media (prefers-reduced-motion: no-preference) {
+  .os-pop-in {
+    animation: os-pop-in 0.32s var(--os-ease-spring) both;
+  }
+}
+
+@keyframes os-pop-in {
+  from { opacity: 0; transform: scale(0.96) translateY(8px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Skeleton shimmer para estados de carga */
+.os-skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background: linear-gradient(
+    100deg,
+    rgba(255, 255, 255, 0.045) 30%,
+    rgba(255, 255, 255, 0.11) 50%,
+    rgba(255, 255, 255, 0.045) 70%
+  );
+  background-size: 200% 100%;
+  animation: os-skeleton-shimmer 1.25s ease-in-out infinite;
+}
+
+@keyframes os-skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* Rebote del check al completar un ítem */
+.os-check-pop {
+  animation: os-check-pop 0.42s var(--os-ease-spring);
+}
+
+.os-icon-pop svg {
+  animation: os-check-pop 0.42s var(--os-ease-spring);
+}
+
+@keyframes os-check-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.7) rotate(-10deg); }
+  70%  { transform: scale(1.1) rotate(4deg); }
+  100% { transform: scale(1) rotate(0); }
+}
+
+/* Flash sutil sobre una fila/tarjeta recién actualizada */
+.os-flash-update {
+  animation: os-flash-update 0.9s ease-out;
+}
+
+@keyframes os-flash-update {
+  0%   { background-color: color-mix(in oklab, var(--os-space-accent) 20%, transparent); }
+  100% { background-color: transparent; }
+}
+
+/* Pendiente vencido: pulso de anillo suave hasta que se atiende */
+.os-reminder-due {
+  animation: os-reminder-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes os-reminder-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50%      { box-shadow: 0 0 0 3px color-mix(in oklab, var(--os-space-accent) 28%, transparent); }
+}
+
+/* Drag & drop: tarjeta en vuelo y zona receptora */
+.os-drag-source {
+  opacity: 0.35;
+  transform: scale(0.97) rotate(0.6deg);
+}
+
+.os-drop-zone {
+  border-radius: 14px;
+  transition:
+    background-color var(--os-dur-fast) var(--os-ease-smooth),
+    box-shadow var(--os-dur-fast) var(--os-ease-smooth);
+}
+
+.os-drop-zone-active {
+  background: color-mix(in oklab, var(--os-space-accent) 9%, transparent);
+  box-shadow: inset 0 0 0 1px var(--os-glow-ring);
+}
+
+/* ─── Micro-interacciones de resorte globales ────────────────────────────── */
+
+/* Botones: se hunden al presionar y vuelven con resorte */
+button:not(:disabled),
+.os-press {
+  transition:
+    transform var(--os-dur-base) var(--os-spring-settle),
+    color var(--os-dur-fast) linear,
+    background-color var(--os-dur-fast) linear,
+    border-color var(--os-dur-fast) linear,
+    box-shadow var(--os-dur-base) var(--os-ease-smooth);
+}
+
+button:not(:disabled):active,
+.os-press:active {
+  transform: scale(0.96);
+  transition-duration: var(--os-dur-fast);
+}
+
+/* Campos: el anillo de foco entra con resorte en vez de aparecer de golpe */
+input:not([type='checkbox']):not([type='radio']),
+textarea,
+select {
+  transition:
+    box-shadow var(--os-dur-base) var(--os-spring-settle),
+    border-color var(--os-dur-fast) linear,
+    background-color var(--os-dur-fast) linear;
+}
+
+/* Entrada con rebote para lo que aparece en escena (chips, badges, avisos) */
+.os-spring-in {
+  animation: os-spring-in var(--os-dur-slow) var(--os-spring-pop) both;
+}
+
+@keyframes os-spring-in {
+  from { opacity: 0; transform: scale(0.9) translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Loader de puntos: <span class="os-spring-dots"><i></i><i></i><i></i></span> */
+.os-spring-dots {
+  display: inline-flex;
+  gap: 0.28em;
+  align-items: center;
+}
+
+.os-spring-dots i {
+  width: 0.42em;
+  height: 0.42em;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: os-spring-bounce 1s var(--os-spring-settle) infinite;
+}
+
+.os-spring-dots i:nth-child(2) { animation-delay: 0.12s; }
+.os-spring-dots i:nth-child(3) { animation-delay: 0.24s; }
+
+@keyframes os-spring-bounce {
+  0%, 100% { transform: translateY(0); opacity: 0.55; }
+  40%      { transform: translateY(-45%); opacity: 1; }
+}
+
+/* ─── Soporte de os-fx.js ────────────────────────────────────────────────── */
+
+/* Spotlight: halo radial que sigue al cursor (port de OsSpotlightCard) */
+[data-spotlight] {
+  position: relative;
+  overflow: hidden;
+}
+
+.os-spotlight-halo {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.5s ease-in-out;
+}
+
+/* Blur text: cada palabra entra desenfocada (port de OsBlurText) */
+[data-blur-text] {
+  display: inline-flex;
+  flex-wrap: wrap;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .os-blur-word {
+    display: inline-block;
+    will-change: transform, filter, opacity;
+    animation: os-blur-in 0.5s var(--os-ease-smooth) both;
+  }
+}
+
+@keyframes os-blur-in {
+  from { filter: blur(10px); opacity: 0; transform: translateY(-14px); }
+  to   { filter: blur(0);    opacity: 1; transform: translateY(0); }
+}

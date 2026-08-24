@@ -666,26 +666,38 @@
     let metrics;
     try { metrics = JSON.parse(dataNode.textContent); } catch { return; }
 
+    // Estilo compartido de la piel ZIDONG OS: fondo transparente, texto
+    // atenuado, serie monocroma blanca y grid sutil sobre el canvas oscuro.
+    const osChartBase = {
+      chart: { background: 'transparent', foreColor: 'rgba(230,230,238,.62)', fontFamily: '"Public Sans",Inter,sans-serif', toolbar: { show: false } },
+      colors: ['#f5f5f7'],
+      grid: { borderColor: 'rgba(255,255,255,.08)' },
+      tooltip: { theme: 'dark' },
+    };
+
     const dailyNode = document.getElementById('chart-requests-daily');
     if (dailyNode && (metrics.daily || []).length) {
       new ApexCharts(dailyNode, {
-        chart: { type: 'bar', height: 200, toolbar: { show: false } },
+        ...osChartBase,
+        chart: { ...osChartBase.chart, type: 'bar', height: 200 },
+        plotOptions: { bar: { borderRadius: 3, columnWidth: '60%' } },
         series: [{ name: 'Solicitudes', data: metrics.daily.map(d => d.count) }],
         xaxis: { categories: metrics.daily.map(d => d.date.slice(5)), labels: { rotate: -45, style: { fontSize: '10px' } } },
         dataLabels: { enabled: false },
-        title: { text: 'Solicitudes por día (30 días)', style: { fontSize: '12px' } },
+        title: { text: 'Solicitudes por día (30 días)', style: { fontSize: '12px', color: 'rgba(230,230,238,.72)' } },
       }).render();
     }
 
     const weeklyNode = document.getElementById('chart-tat-weekly');
     if (weeklyNode && (metrics.weekly || []).length) {
       new ApexCharts(weeklyNode, {
-        chart: { type: 'line', height: 180, toolbar: { show: false } },
+        ...osChartBase,
+        chart: { ...osChartBase.chart, type: 'line', height: 180 },
         series: [{ name: 'TAT promedio (h)', data: metrics.weekly.map(w => w.avg_hours) }],
         xaxis: { categories: metrics.weekly.map(w => w.week) },
         stroke: { curve: 'smooth', width: 3 },
         markers: { size: 4 },
-        title: { text: 'TAT promedio por semana', style: { fontSize: '12px' } },
+        title: { text: 'TAT promedio por semana', style: { fontSize: '12px', color: 'rgba(230,230,238,.72)' } },
       }).render();
     }
   })();

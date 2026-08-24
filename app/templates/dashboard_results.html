@@ -3,16 +3,18 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#1a1a1a">
+  <meta name="theme-color" content="#0b0c0e">
   <title>A3 CRM - Resultados</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=7">
-  <link rel="stylesheet" href="{{ url_for('static', filename='portal.css') }}?v=1">
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='os-kit.css') }}?v=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=8">
+  <link rel="stylesheet" href="{{ url_for('static', filename='portal.css') }}?v=2">
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js" defer></script>
 </head>
 <body class="crm-theme" data-sidebar="expanded">
+  <div class="os-shell-ambient"><i class="os-glow-orb os-glow-orb--1"></i><i class="os-glow-orb os-glow-orb--2"></i><i class="os-glow-orb os-glow-orb--3"></i></div>
   <div class="crm-app">
     <aside class="crm-sidebar">
       <div class="brand-row">
@@ -22,7 +24,7 @@
 
       <div class="menu-block">
         <span class="menu-caption">Menu principal</span>
-        <nav class="menu-list">
+        <nav class="menu-list os-stagger">
           <a href="{{ url_for('dashboard.dashboard_home') }}" class="menu-link"><i data-lucide="layout-dashboard"></i><span>Panel</span></a>
           <a href="{{ url_for('dashboard.operation_page') }}" class="menu-link"><i data-lucide="radio-tower"></i><span>Operacion</span></a>
           <a href="{{ url_for('dashboard.clients_page') }}" class="menu-link"><i data-lucide="users"></i><span>Clientes</span></a>
@@ -39,14 +41,14 @@
       </div>
     </aside>
 
-    <main class="crm-main">
+    <main class="crm-main os-scene">
       <header class="top-header">
-        <div><p class="hello-label">Bienvenido de nuevo, {{ username }}</p><h1>Resultados de análisis</h1></div>
+        <div><p class="hello-label">Bienvenido de nuevo, {{ username }}</p><h1 data-blur-text>Resultados de análisis</h1></div>
       </header>
 
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% for category, message in messages %}
-          <section class="approval-notice {{ 'error' if category == 'error' else 'ok' }}">{{ message }}</section>
+          <section class="approval-notice os-spring-in {{ 'error' if category == 'error' else 'ok' }}">{{ message }}</section>
         {% endfor %}
       {% endwith %}
 
@@ -126,5 +128,6 @@
     </main>
   </div>
   <script>window.addEventListener('DOMContentLoaded', function () { if (window.lucide) lucide.createIcons(); });</script>
+  <script src="{{ url_for('static', filename='os-fx.js') }}?v=1" defer></script>
 </body>
 </html>

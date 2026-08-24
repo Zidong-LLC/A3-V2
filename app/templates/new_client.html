@@ -6,18 +6,20 @@
   <title>A3 CRM - Nuevo Cliente</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='os-kit.css') }}?v=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=8">
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="crm-theme">
-  <main class="client-wizard">
+  <div class="os-shell-ambient"><i class="os-glow-orb os-glow-orb--1"></i><i class="os-glow-orb os-glow-orb--2"></i><i class="os-glow-orb os-glow-orb--3"></i></div>
+  <main class="client-wizard os-scene">
     <header class="wizard-hero">
       <a class="ghost-btn" href="{{ url_for('dashboard.clients_page') }}"><i data-lucide="arrow-left"></i>Volver</a>
       <div><p class="hello-label">Registro documental</p><h1>Nuevo Cliente</h1><span>Quedara en revision hasta validar documentos, facturacion y datos operativos.</span></div>
     </header>
-    {% if error %}<p class="approval-notice error">{{ error }}</p>{% endif %}
-    <form method="post" action="{{ url_for('dashboard.new_client_page') }}" class="wizard-form">
+    {% if error %}<p class="approval-notice os-spring-in error">{{ error }}</p>{% endif %}
+    <form method="post" action="{{ url_for('dashboard.new_client_page') }}" class="wizard-form os-stagger">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <section class="wizard-card">
         <div class="step-badge">1</div>

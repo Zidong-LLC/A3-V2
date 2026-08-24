@@ -4,10 +4,15 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>A3 Plataforma - Acceso</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='os-kit.css') }}?v=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}?v=2">
 </head>
 <body class="login-page">
-  <main class="login-card">
+  <div class="os-shell-ambient"><i class="os-glow-orb os-glow-orb--1"></i><i class="os-glow-orb os-glow-orb--2"></i><i class="os-glow-orb os-glow-orb--3"></i></div>
+  <main class="login-card os-pop-in">
     <div class="brand-lockup">
       <div class="brand-mark">A3</div>
       <div>
@@ -25,7 +30,7 @@
         <input name="password" type="password" autocomplete="current-password" required>
       </label>
       <button type="submit">Ingresar</button>
-      {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+      {% if error %}<p class="form-error os-spring-in">{{ error }}</p>{% endif %}
     </form>
   </main>
 </body>
