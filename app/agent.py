@@ -2477,7 +2477,10 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
         # cotizada y jamás registrada. El turno sigue su flujo: el pago actúa como
         # confirmación de la ORDEN (se registra) y el cierre del pedido viene después.
         _orden_a_medio_camino = (
-            not prev_fields.get("_order_registered")
+            # Esperando el pago, el pedido ya está en su secuencia de cierre: el estado
+            # de la última orden registrada queda en captured y NO es una orden en curso.
+            not esperando_pago
+            and not prev_fields.get("_order_registered")
             and prev_fields.get("patient_name")
             and (prev_fields.get("exam_type") or prev_fields.get("selected_tests")
                  or prev_fields.get("_selected_profile_code"))
