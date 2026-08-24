@@ -168,7 +168,9 @@ def _norm(text):
 
 def _match_client(query):
     q = _norm(query)
-    return bool(q) and (_norm("San Roque") in q or q in _norm(CLIENT["clinic_name"]))
+    # 3+ chars: "sí" normalizado queda en "s" y el substring matcheaba al cliente,
+    # reabriendo el silencio post-derivación (guion B).
+    return len(q) >= 3 and (_norm("San Roque") in q or q in _norm(CLIENT["clinic_name"]))
 
 
 def _area_tests(value, species=None, limit=15):

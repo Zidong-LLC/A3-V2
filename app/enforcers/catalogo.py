@@ -18,7 +18,7 @@ from app.menus import (
     _test_area_suggestion_reply, _store_test_menu_options, _test_options_response,
     _analysis_help_candidate, _client_identity_prompt_count, _profile_lists_unchanged,
 )
-from app.messages import CLIENT_IDENTIFICATION_REQUIRED_MESSAGE
+from app.messages import CLIENT_IDENTIFICATION_REQUIRED_MESSAGE, CLIENT_IDENTIFICATION_SHORT_REASK
 from app.services import db
 
 
@@ -42,7 +42,14 @@ def _enforce_client_identification_gate(session: dict, ai_response: dict, histor
         return ai_response
 
     if _client_identity_prompt_count(history) >= 2:
-        ai_response["reply"] = CLIENT_IDENTIFICATION_REQUIRED_MESSAGE
+        # (guion T) Nunca la misma plantilla dos veces seguidas: se alterna con la
+        # variante corta para que la insistencia no suene a contestador.
+        _last_bot = next((m.get("content") or "" for m in reversed(history)
+                          if m.get("role") == "bot"), "")
+        if CLIENT_IDENTIFICATION_REQUIRED_MESSAGE[:40] in _last_bot:
+            ai_response["reply"] = CLIENT_IDENTIFICATION_SHORT_REASK
+        else:
+            ai_response["reply"] = CLIENT_IDENTIFICATION_REQUIRED_MESSAGE
     elif not _asks_for_client_identity(ai_response.get("reply", "")):
         ai_response["reply"] = _missing_route_field_question("client")
     ai_response["phase"] = "fase_2_recogida_datos"

@@ -49,3 +49,15 @@ def test_pago_en_el_mensaje_cierra_sin_repreguntar():
     reply, _ = _run_turn("contraentrega", "unclear", POST_CIERRE_CON_PEDIDO,
                          phase="fase_6_cierre")
     assert reply != agent.PEDIDO_OFFER_REASK
+
+
+def test_segunda_afirmacion_pelada_pasa_al_pago():
+    """La 2ª afirmación pelada seguida no re-pregunta idéntico (bucle robótico):
+    asume "eso es todo" y pregunta la forma de pago."""
+    captured = dict(POST_CIERRE_CON_PEDIDO, _pedido_offer_reasked=True)
+    reply, persisted = _run_turn("sí, confirmo", "affirm", captured,
+                                 phase="fase_6_cierre")
+    assert reply != agent.PEDIDO_OFFER_REASK
+    assert "pago" in reply.lower() or "observación" in reply.lower()
+    f = persisted.get("captured_fields", {})
+    assert f.get("_pedido_awaiting_payment")

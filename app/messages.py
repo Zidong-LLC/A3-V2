@@ -29,6 +29,13 @@ CLIENT_IDENTIFICATION_REQUIRED_MESSAGE = (
     "Para continuar necesito una de estas dos opciones: 1) el NIT, o 2) el nombre exacto de la veterinaria o médico veterinario."
 )
 
+# (2026-08-24, guion T) Variante corta para no repetir la plantilla idéntica dos veces
+# seguidas — el bot insiste en lo mismo, pero como persona, no como contestador.
+CLIENT_IDENTIFICATION_SHORT_REASK = (
+    "¿Me pasas el NIT o el nombre exacto de la veterinaria o del médico veterinario? "
+    "Con eso te sigo ayudando."
+)
+
 # A3 pidió (llamada 3) que al escalar se diga explícitamente que se asigna un asesor. Antes
 # cada camino tenía su propia frase ("te comunico con ellos", "con una persona del equipo",
 # "con el equipo correspondiente"), así que el cliente no sabía si quedaba alguien a cargo.

@@ -63,3 +63,27 @@ def test_negativa_descarta_el_cambio_sin_tocar_bd():
                                           return_db=True)
     fake_db.update_request_order_fields.assert_not_called()
     assert "como estaba" in reply.lower()
+
+
+def test_valor_reemitido_del_historial_no_se_propone():
+    """M2 con modelo real: tras el reset de B12 el modelo re-emite "Firulais" leyendo el
+    historial — NO es una captura nueva; el bot debe PREGUNTAR el dato, no proponer el
+    valor viejo."""
+    # B12 reconstruye el snapshot desde el estado: el valor "viejo" de la orden acá
+    # es el patient_name del estado ("Pepe"), que el modelo re-emite del historial.
+    reply, persisted = _run_turn("corrige el nombre del paciente", "correction",
+                                 POST_CIERRE, phase="fase_6_cierre",
+                                 ai_fields={"patient_name": "Pepe"})
+    assert "¿Confirmas" not in reply, f"propuso el valor viejo: {reply[:80]}"
+    f = persisted.get("captured_fields", {})
+    assert f.get("_post_close_correction_field") == "patient_name"
+
+
+def test_valor_nuevo_sobre_propuesta_la_reemplaza():
+    """"Rocky" respondiendo a una propuesta equivocada re-propone con el valor nuevo."""
+    captured = dict(POST_CIERRE, _post_close_correction={
+        "field": "patient_name", "value": "Firulais", "request_id": "req-1"})
+    reply, persisted = _run_turn("Rocky", "unclear", captured)
+    assert "Rocky" in reply and "¿Confirmas" in reply
+    pcc = persisted.get("captured_fields", {}).get("_post_close_correction") or {}
+    assert pcc.get("value") == "Rocky"

@@ -380,7 +380,7 @@ _ORDER_RESET_FIELDS = frozenset({
         "_post_close_correction_field", "_post_close_correction",
     # Al abrir otra orden, la oferta de cierre quedó resuelta ("va otra") — si la marca
     # sobrevive, la red de la oferta (ERR-134/135) pisa las preguntas de la orden nueva.
-    "_pedido_offer_pending",
+    "_pedido_offer_pending", "_pedido_offer_reasked",
     # ERR-114 — el carril del pedido MIXTO. `_mixed_request_text` guarda el TEXTO del pedido
     # original de la orden ("un prequirúrgico, sodio y potasio") para re-escanearlo al fijar
     # el perfil (fix de ERR-076, correcto DENTRO de una orden). Fuera de esta lista, la marca
@@ -683,6 +683,12 @@ def _reidentifies_after_escalation(user_message: str) -> bool:
     real es "sí estamos, somos Maxivet", que no tiene ninguna de las dos. Ante cualquier
     duda o error se devuelve False, que mantiene el silencio: falla del lado seguro.
     """
+    # (2026-08-24, guion B — pre-lanzamiento) Un "sí"/"no" pelado tras la derivación
+    # no es un identificador: normalizado queda en 1-2 letras y el buscador por
+    # substring lo "encontraba", reabriendo el silencio y re-derivando en bucle.
+    if ((_is_affirmative_text(user_message) or _is_negative_text(user_message))
+            and _is_bare_confirmation(user_message)):
+        return False
     tax_id = _extract_tax_id_candidate(user_message, allow_unlabeled=True)
     if tax_id:
         try:
@@ -691,7 +697,7 @@ def _reidentifies_after_escalation(user_message: str) -> bool:
         except Exception:
             return False
     name = _extract_clinic_name_candidate(user_message)
-    if not name:
+    if not name or len(_tokenize(name)) == 0 or len(name.strip()) < 3:
         return False
     try:
         return bool(db.find_client_matches(name, limit=3))
@@ -2414,6 +2420,27 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
     if (prev_fields.get("_pedido_offer_pending")
             and (signal == "affirm" or _is_affirmative_text(user_message))
             and _is_bare_confirmation(user_message)):
+        if prev_fields.get("_pedido_offer_reasked"):
+            # Segunda afirmación pelada: cerrar y preguntar el pago (ver 3a).
+            fields2 = _merge_sin_borrar(prev_fields, fields)
+            fields2.pop("_pedido_offer_pending", None)
+            fields2.pop("_pedido_offer_reasked", None)
+            fields2["_pedido_awaiting_payment"] = True
+            return {
+                **ai_response,
+                _TURN_RESOLVED: True,
+                "reply": PEDIDO_CLOSING_QUESTION,
+                "phase": "fase_2_recogida_datos",
+                "intent": "route_scheduling",
+                "service_area": "route_scheduling",
+                "requires_handoff": False,
+                "handoff_area": None,
+                "captured_fields": fields2,
+                "message_mode": "flow_progress",
+                _SKIP_REQUEST_CREATION: True,
+            }
+        fields = dict(fields)
+        fields["_pedido_offer_reasked"] = True
         return {
             **ai_response,
             _TURN_RESOLVED: True,
@@ -2446,6 +2473,7 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
     if payment_method and (esperando_pago or pago_en_el_texto):
         merged = _merge_sin_borrar(prev_fields, fields)
         merged.pop("_pedido_offer_pending", None)
+        merged.pop("_pedido_offer_reasked", None)
         return _close_pedido_turn(session, merged, payment_method)
 
     # Terminó de cargar órdenes pero todavía no dijo cómo paga: se le pregunta UNA vez.
@@ -3286,9 +3314,12 @@ def process_turn(
         # resumen). Se preserva mientras el pedido siga abierto; la limpian quienes la
         # RESUELVEN: el enforcer del cierre del pedido o la apertura de la orden nueva.
         _offer_sin_resolver = prev_captured.get("_pedido_offer_pending") and _pedido_abierto
+        _offer_ya_repreguntada = prev_captured.get("_pedido_offer_reasked") and _pedido_abierto
         _reset_order_fields(prev_captured)
         if _offer_sin_resolver:
             prev_captured["_pedido_offer_pending"] = True
+        if _offer_ya_repreguntada:
+            prev_captured["_pedido_offer_reasked"] = True
         prev_captured["_prev_order_snapshot"] = _prev_snapshot
         session["phase_current"] = "fase_1_clasificacion"
         session["intent_current"] = "unknown"
@@ -3503,7 +3534,11 @@ def process_turn(
             and not _wants_partial_analysis_change(user_message)
             and (_wants_profile_recommendation(user_message)
                  or (_doesnt_know_what_to_ask(user_message)
-                     and _detect_which_field_is_being_asked(history) == "exam_type"))):
+                     and _detect_which_field_is_being_asked(history) == "exam_type")
+                 # (guion W) "¿Tienes perfiles pre quirúrgico?": la mención de
+                 # perfil/perfiles entra y la CATEGORÍA resuelta contra la base decide
+                 # (sin categoría, la rama genérica exige el pedido de recomendación).
+                 or bool(set(_tokenize(user_message)) & {"perfil", "perfiles"}))):
         # Si nombró una categoría del catálogo (ej. 'recomiéndame un prequirúrgico'),
         # ofrecer los perfiles armados de ESA categoría, no la lista genérica (ERR-045).
         # (2026-08-24, guion U — pre-lanzamiento) La vía de CATEGORÍA pisa también un
@@ -3513,7 +3548,10 @@ def process_turn(
         category_response = _category_profiles_menu_response(prev_captured, user_message)
         if category_response:
             return _persist_turn(chat_id, user_message, category_response)
-        if not prev_captured.get("_profile_menu_options"):
+        if (not prev_captured.get("_profile_menu_options")
+                and (_wants_profile_recommendation(user_message)
+                     or (_doesnt_know_what_to_ask(user_message)
+                         and _detect_which_field_is_being_asked(history) == "exam_type"))):
             # Sin categoría nombrada y con un menú ya ofrecido, la selección (o el
             # pipeline) resuelven — no se re-recomienda encima.
             rec_profiles = db.list_catalog_profiles_for_species(prev_captured.get("species"), limit=6)
@@ -3584,15 +3622,38 @@ def process_turn(
             return _persist_turn(chat_id, user_message, _base_route_response(
                 f"Listo, dejo la orden como estaba.\n\n{cola}", campos_pcc,
             ))
-        # Otra cosa (p. ej. corrige OTRO dato): descartar la propuesta y seguir el pipeline.
+        # ¿El turno trae un VALOR NUEVO para el mismo campo? ("Rocky" respondiendo a la
+        # propuesta): se re-propone con ese valor en vez de descartar (M2, modelo real).
+        _campo2 = _pcc.get("field")
+        _snap2 = prev_captured.get("_prev_order_snapshot") or {}
+        _val2 = fields.get(_campo2)
+        if _val2 in (prev_captured.get(_campo2), _snap2.get(_campo2), _pcc.get("value")):
+            _val2 = None
+        if not _val2 and len(_tokenize(user_message)) <= 4 and not _is_negative_text(user_message):
+            _cand2 = user_message.strip().strip('.').strip()
+            _val2 = _cand2 if _cand2 and _cand2 != _pcc.get("value") else None
+        if _val2 and _campo2:
+            resumen2 = _route_confirmation_summary({**_snap2, _campo2: _val2})
+            etiqueta2 = _FIELD_LABELS.get(_campo2, _campo2)
+            reply2 = f"Quedaría así:\n{resumen2 or f'- {etiqueta2}: {_val2}'}"
+            if "¿Confirmas" not in reply2:
+                reply2 += "\n¿Confirmas estos datos?"
+            campos_pcc["_post_close_correction"] = {
+                "field": _campo2, "value": _val2, "request_id": _pcc["request_id"],
+            }
+            return _persist_turn(chat_id, user_message, _base_route_response(reply2, campos_pcc))
+        # Otra cosa (p. ej. corrige OTRO dato): descartar la propuesta y seguir el
+        # pipeline — también en fields, que el carry_over la revivía.
         prev_captured.pop("_post_close_correction", None)
+        fields.pop("_post_close_correction", None)
 
     # Paso 1b — preguntamos el dato nuevo y este turno lo trae.
     _pcc_field = prev_captured.get("_post_close_correction_field")
     if _pcc_field and prev_captured.get("_last_request_id"):
+        _snap_prev = prev_captured.get("_prev_order_snapshot") or {}
         _modelo_val = fields.get(_pcc_field)
-        if _modelo_val == prev_captured.get(_pcc_field):
-            _modelo_val = None  # arrastre del merge, no una captura nueva
+        if _modelo_val in (prev_captured.get(_pcc_field), _snap_prev.get(_pcc_field)):
+            _modelo_val = None  # arrastre del merge/historial, no una captura nueva
         _pcc_value = _modelo_val or _extract_correction_value(_pcc_field, user_message)
         if not _pcc_value and len(_tokenize(user_message)) <= 4 and not _is_negative_text(user_message):
             _pcc_value = user_message.strip().strip('.').strip()
@@ -3633,8 +3694,9 @@ def process_turn(
             and not _wants_to_change_client(user_message)):
         _pcc_field = _detect_correction_field(user_message)
         if _pcc_field:
+            _snap_prev = prev_captured.get("_prev_order_snapshot") or {}
             _modelo_val = fields.get(_pcc_field)
-            if _modelo_val == prev_captured.get(_pcc_field):
+            if _modelo_val in (prev_captured.get(_pcc_field), _snap_prev.get(_pcc_field)):
                 _modelo_val = None
             _pcc_value = _modelo_val or _extract_correction_value(_pcc_field, user_message)
             campos_pcc = dict(prev_captured)
@@ -3696,9 +3758,21 @@ def process_turn(
             if (_pedido_abierto and prev_captured.get("_pedido_offer_pending")
                     and (signal == "affirm" or _is_affirmative_text(user_message))
                     and _is_bare_confirmation(user_message)):
+                campos_oferta = dict(prev_captured)
+                if campos_oferta.get("_pedido_offer_reasked"):
+                    # Segunda afirmación pelada seguida: re-preguntar idéntico es un
+                    # bucle robótico — la lectura más probable es "eso es todo":
+                    # cerramos y preguntamos la forma de pago.
+                    campos_oferta.pop("_pedido_offer_pending", None)
+                    campos_oferta.pop("_pedido_offer_reasked", None)
+                    campos_oferta["_pedido_awaiting_payment"] = True
+                    resp_pago = _base_route_response(PEDIDO_CLOSING_QUESTION, campos_oferta)
+                    resp_pago[_SKIP_REQUEST_CREATION] = True
+                    return _persist_turn(chat_id, user_message, resp_pago)
+                campos_oferta["_pedido_offer_reasked"] = True
                 return _persist_turn(
                     chat_id, user_message,
-                    _base_route_response(PEDIDO_OFFER_REASK, dict(prev_captured)),
+                    _base_route_response(PEDIDO_OFFER_REASK, campos_oferta),
                 )
             _close_words = {"cierra", "cerrar", "cerramos", "cierralo", "ciérralo", "cerrada", "cerrado"}
             _wants_other = (signal == "another_order" or _explicitly_wants_another_order(user_message)
@@ -4638,6 +4712,17 @@ def process_turn(
             last_question = reply.rfind("¿")
             if last_question != -1:
                 reply = reply[:last_question].strip()
+            # (2026-08-24, guion V — pre-lanzamiento) El pedido del turno no se ignora:
+            # si el cliente nombró un área del catálogo ("quiero un análisis de orina"),
+            # el reconocimiento viaja en la misma re-pregunta — cortar el reply del
+            # modelo dejaba frases mochas ("Perfecto. Para orientarte mejor,").
+            try:
+                _area_v, _ = db.find_tests_by_area(user_message, fields.get("species"), limit=1)
+            except Exception:
+                _area_v = None
+            if _area_v and str(_area_v).lower() not in reply.lower():
+                reply = (f"Claro, para {str(_area_v).lower()} tenemos opciones y te las "
+                         f"muestro apenas confirmemos la dirección.")
             ai_response["reply"] = (
                 f"{reply} Antes de seguir, ¿me confirmas la dirección de retiro: "
                 f"{address_reask_needed}? Si no es esa, dime la correcta."
