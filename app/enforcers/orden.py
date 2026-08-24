@@ -306,7 +306,11 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
     # ERR-141/143 (carril de la OFERTA): la espera de remoción quedó armada ('¿cuál
     # quito?') y la respuesta trae el CÓDIGO — debe QUITAR, nunca caer al carril de
     # agregar y responder "ese ya está en la orden" (bucle del test en vivo 2026-08-21).
-    if fields.get("_awaiting_additional_test") == "remove":
+    if (fields.get("_awaiting_additional_test") == "remove"
+            # Reemplazo con DESTINO ("saca el 653 y cámbialo POR el 1903") no es una
+            # respuesta simple a "¿cuál quito?": cede al carril del reemplazo de abajo,
+            # que respeta el código tras "por" (repro 2026-08-24, 2ª pasada).
+            and not re.search(r"por\s+(?:el\s+|la\s+)?[0-9]{3,4}", user_message.lower())):
         quitados = _remove_order_items_by_code(fields, user_message)
         if quitados:
             fields.pop("_awaiting_additional_test", None)

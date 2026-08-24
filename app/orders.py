@@ -361,8 +361,15 @@ def _order_removable_items(fields: dict) -> list[dict]:
                       "name": fields.get("_selected_profile_name") or ""})
     for p in fields.get("_extra_profiles") or []:
         items.append({"code": str(p.get("code")), "name": p.get("name") or ""})
-    for t in _as_text_items(fields.get("selected_tests")):
-        items.append({"code": str(t), "name": str(t)})
+    sueltos = _as_text_items(fields.get("selected_tests"))
+    if sueltos:
+        try:
+            nombres = {str(r.get("code")): r.get("name") or ""
+                       for r in db.get_tests_by_codes_or_names(sueltos)}
+        except Exception:
+            nombres = {}
+        for t in sueltos:
+            items.append({"code": str(t), "name": nombres.get(str(t), "")})
     return items
 
 
