@@ -978,3 +978,38 @@ Estas funciones se implementarán en la plataforma de gestión, no en el chatbot
 **2026-07-21 (QA real del usuario: 3 hallazgos)** — (1) **Bug propio, grave y repetido**: `list_client_professionals` usaba `.limit(5000)` sin paginar y Supabase corta cada request en 1000 → devolvía 1000 de 1554 filas EN SILENCIO, así que los médicos del último tramo no se encontraban nunca. El usuario lo cazó con "Paola Andrea Celis" (era `Paola Andrea Cardenas Celis`, de Animals Box, que sí es cliente activo y cuyo score de match era 1.4 — todo daba positivo pero la función devolvía []). Es EXACTAMENTE el mismo error de `limit=500` sobre 804 clientes que se había arreglado horas antes en la misma sesión; se repitió al escribir la función nueva. Se corrigió con paginación de a 1000 en `list_client_professionals` (1000→1554) y en `list_a3_knowledge_index` (1000→1427, al dashboard le faltaban 427 fichas sin ningún error visible). Test de regresión parametrizado que falla si alguna vuelve a truncar. (2) **ERR-074 ampliado**: el guard de "no sé la raza" no reconocía negar que TENGA raza ("Ni tiene raza", "no tiene raza", "ninguna", "sin determinar") — en el QA real funcionó por suerte porque el modelo capturó `breed='Sin Raza'` solo. Se ampliaron los fraseos, verificando que NO se coman razas reales (`mestizo`, `criollo`, `angora`, `boer`, `holstein` siguen guardándose como raza). (3) **R29 nueva en el prompt (con OK del usuario)**: al confirmar un dato normalizado el bot nombra el valor CANÓNICO, no la palabra del cliente. El usuario dijo "es una cabra" y el bot respondía "anoto Cabra como especie" aunque internamente guardaba `species='Caprino'` correctamente — el dato estaba bien pero no había forma de verificarlo en el momento. Verificado con MODELO REAL: ahora responde "Perfecto, anoto Caprino como especie y Hembra como sexo". Nuevo flujo E2E QA7. Suite: 446 passed. Flujos de raza: 8/9 (el único rojo, QA1 con tres correcciones encadenadas, es la clase ya documentada en `docs/estado-agente-qa.md`).
 
 **2026-07-21 (ERR-076 de raíz: la regla general, no el caso puntual)** — El usuario objetó que el primer arreglo era puntual ("la idea era una solución general aplicada a la lógica, no a la palabra puntual"). Tenía razón y se comprobó: el mismo bug existía en el camino de ÁREA. Medido: `"un análisis de orina, sodio y potasio"` → tras el pedido mixto `selected_tests=['1405','1404']`, tras elegir del menú `['1601']` — sodio y potasio borrados. Causa de fondo: `_capture_test_menu_selection` (agent.py:549) hacía SIEMPRE `fields["selected_tests"] = [t["code"] for t in selected]`, o sea reemplazo incondicional. **Regla general implementada:** elegir de un menú REEMPLAZA si el menú fue una elección desde cero, pero AGREGA si el menú se abrió como residuo de un pedido mixto. La señal es DE DÓNDE VINO el menú (`_mixed_request_text`), no qué palabra se pidió — vale para áreas, categorías de perfiles y cualquier menú futuro, sin nada codificado sobre "prequirúrgico" ni "orina". Verificado en ambas direcciones: mixto `['1405','1404'] → ['1405','1404','1601']` (agrega); desde cero `['9999'] → ['1601']` (reemplaza). También se cazó un bug del propio fix (riesgo R3 del plan): al reaplicar el pedido original tras elegir el perfil se RE-ENCOLABA el término ya resuelto y el guard de cierre trababa la orden pidiendo algo ya elegido. **Nuevo flujo QA9** que mide SOLO el pedido mixto: QA8 arranca con una frase real enredada ("es una cabra que se llama a Luisa") que el modelo a veces no descompone, y cuando falla el flujo ni llega al turno de análisis — medía dos cosas a la vez y oscilaba. QA9: 3/3 corridas OK. Suite: 458 passed.
+
+---
+
+## 2026-08-24 — Checkpoint modelo real del refactor (harness reparado)
+
+**Diagnóstico del 9/35:** la corrida del checkpoint (Etapas 0-3) salió 9/35 pero NO por el
+refactor: `validate_flows.py` quedó pre-pedidos (decisión 011). `create_request` mockeado
+sin `pedido_id` → TypeError en el cierre de casi todos los guiones; las funciones de
+pedidos no mockeadas golpeaban Supabase real (uuid inválido — verificado: no escribió nada,
+tabla `pedidos` limpia). Las transcripciones muestran el flujo conversacional impecable.
+
+- [x] `create_request` acepta `pedido_id` y guarda **deepcopy** (la referencia viva se
+      vaciaba con `_reset_order_fields` tras el cierre → falso negativo en QA8/QA9)
+- [x] Pedidos in-memory en `_PATCHES`: create/get_open/get/close/mark_invoiced/
+      profiles/requests/stale (estado en `_state["pedidos"]`)
+- [x] Smoke QA9: 1/1 OK — commit `1349225`
+- [x] Corrida completa 35 guiones: **22/35 OK**
+- [x] Contraste de los 13 fallidos sobre el tag `punto-guardado-agente-2026-08-21`
+      (worktree + harness reparado): el BASE da 3/13 OK con **10 fallos idénticos**
+      (A, B, F, G, M, M2, T-bucle, U, QA1 → preexistentes, no regresión)
+- [x] **Única regresión real: guion X** — la señal `correction` sin red secuestraba
+      "quiero agregarle un analisis de orina al perfil" en el handler 2a, borraba
+      exam_type y se comía turnos (0 órdenes). Fix commit `ddb4cb2` (+ test); re-validado
+      con modelo real: el flujo endereza (menú de área, agregado 1601, resumen con
+      Agregados) y los issues restantes son los MISMOS del BASE (deuda ERR-050 parcial)
+- [x] V, QA2, QA4: repros mecánicos idénticos en ambos árboles → flakiness del modelo
+      sobre debilidades compartidas, no regresión
+- Anotados (compartidos con el BASE, no tocar sin OK): (1) "sí, confirmo" ambiguo tras
+  la oferta del pedido cae al vacío (QA2/QA4); (2) la frontera multiorden dispara con
+  "necesito un perfil renal para un paciente" sin orden previa (G); (3) el handoff
+  anti-bucle en preventa crea una solicitud (T); (4) los checks del guion A siguen
+  desfasados del contrato de pedidos (el cierre ya ocurre en el turno del pago)
+
+**Veredicto del checkpoint:** el refactor de comprensión (Etapas 0-3) NO empeoró el
+agente — mismos fallos que el BASE + 1 regresión cazada y corregida. Suite: 875 passed.

@@ -3564,3 +3564,30 @@ pegada) y la lección [[L51]] (validar con el chat real, no con mocks).
 - Agente Conversacional — Pendiente
 - Plataforma Interna — Pendiente (NO es el agente conversacional)
 <!-- AUTO-GENERATED:END -->
+
+
+---
+
+## ERR-144 — La señal `correction` sin red secuestraba el ajuste de análisis en confirmación
+
+- **Fecha:** 2026-08-24 · **Estado:** RESUELTO
+- **Síntoma:** en el guion X (modelo real), "quiero agregarle un analisis de orina al
+  perfil" con el resumen en pantalla respondía la plantilla "¿Qué análisis o perfil
+  desean?", borraba el `exam_type` (perfil 401) y encadenaba turnos comidos: la orden
+  nunca se registraba (0 órdenes creadas).
+- **Causa raíz:** regresión de la Etapa 2 del refactor de comprensión. El handler 2a de
+  corrección en CONFIRMACIÓN entra por `signal == "correction"`; el modelo emite esa señal
+  para "agregarle un análisis" (razonable desde su glosa) y ninguna red la respalda
+  (`_is_correction_request` y `_wants_to_change_analysis` dan False). El handler actuaba
+  igual: `_detect_correction_field` → "exam_type" → limpiaba el análisis y re-preguntaba,
+  ANTES de que `_confirmation_analysis_adjustment` (el carril del catálogo) viera el turno.
+  ERR-072 en su forma post-modelo: dos handlers compitiendo por el mismo mensaje.
+- **Solución:** en el gate del 2a, si la única evidencia es la señal (sin red) y el campo
+  aludido es `exam_type` sin `_wants_to_change_analysis`, el handler CEDE el turno: el
+  ajuste del paquete lo decide el catálogo (L66). Commit `ddb4cb2`.
+- **Tests:** `test_agregar_analisis_en_confirmacion_no_lo_secuestra_la_correccion` (suite
+  875 passed) + guion X re-validado con modelo real (flujo endereza; los issues restantes
+  del check son idénticos al commit BASE = deuda preexistente de ERR-050).
+- **Cómo se cazó:** corrida de contraste de los 13 guiones fallidos sobre el tag
+  `punto-guardado-agente-2026-08-21` con el harness reparado — el método a repetir para
+  separar regresión de preexistente/flaky.
