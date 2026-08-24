@@ -265,8 +265,11 @@ def _add_tests_to_order(fields: dict, rows: list[dict], action: str) -> None:
         code = str(row.get("code") or row.get("name"))
         if action == "remove":
             if code in selected:
+                # Era un AGREGADO extra: sale de la lista y listo. Meterlo ADEMÁS en
+                # `removed` lo restaba del precio del perfil base (repro 2026-08-24:
+                # quitar el 1903 agregado dejó el Toxicológico de $90.000 en $38.000).
                 selected.remove(code)
-            if fields.get("_selected_profile_code") and code not in removed:
+            elif fields.get("_selected_profile_code") and code not in removed:
                 removed.append(code)
         else:
             if code not in selected:

@@ -174,7 +174,10 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
     # Señal-primero: una CORRECCIÓN leída por el modelo cede el turno completo al pipeline
     # (que la capture), aunque el fraseo no esté en ninguna lista. Con códigos del catálogo
     # en el mensaje no se cede: los resuelve este carril contra la base.
-    if signal == "correction" and not _profile_codes_from_text(user_message):
+    if (signal == "correction" and not _profile_codes_from_text(user_message)
+            # (repro 2026-08-24) "No ese sácalo" llega como `correction`: la REMOCIÓN
+            # es de ESTE carril (anafórica o por código) — no se cede.
+            and not (set(_tokenize(user_message)) & _REMOVE_TOKENS)):
         return None
     # 0) CORRECCIÓN de un dato estable de la orden ('quiero cambiar la raza es un tobiano'):
     # no es un asunto de este carril — ceder el turno COMPLETO al modelo, que captura el
@@ -371,6 +374,38 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
                 _add_tests_to_order(fields, new_res.tests, "add")
                 fields.pop("_awaiting_additional_test", None)
                 return _analysis_settled_response(session, fields, f"Listo, lo cambio por {_format_test_items(new_res.tests)}.")
+        # (2026-08-24, repro del test en vivo) Reemplazo con DESTINO explícito:
+        # "saca el 653 y cámbialo POR el 1903" — lo que sigue a "por" debe QUEDAR en
+        # la orden, jamás quitarse. Sin esto, con el 653 ausente el quitador resolvía
+        # el único código presente (el 1903) y lo quitaba: lo contrario de lo pedido.
+        _m_por = re.search(r"\bpor\s+(?:el\s+|la\s+|un\s+|una\s+)?([0-9]{3,4})\b",
+                           user_message.lower())
+        if _m_por:
+            _destino = _m_por.group(1)
+            _victimas = [c for c in re.findall(r"\b\d{3,4}\b", user_message)
+                         if c != _destino]
+            _partes = []
+            for _v in _victimas:
+                _q = _remove_order_items_by_code(fields, _v)
+                if _q:
+                    _partes.append("quito " + ", ".join(
+                        f"{x['code']} {x['name']}".strip() for x in _q))
+                else:
+                    _partes.append(f"el {_v} no está en esta orden")
+            _sel_act = _as_text_items(fields.get("selected_tests"))
+            if (_destino in _sel_act
+                    or str(fields.get("_selected_profile_code")) == _destino):
+                _partes.append(f"el {_destino} ya quedó en la orden")
+            else:
+                _dest_rows = db.get_tests_by_codes_or_names([_destino])
+                if _dest_rows:
+                    _add_tests_to_order(fields, _dest_rows, "add")
+                    _partes.append(f"agrego {_format_test_items(_dest_rows)}")
+            if _partes:
+                fields.pop("_awaiting_additional_test", None)
+                _texto = "; ".join(_partes)
+                return _analysis_settled_response(
+                    session, fields, _texto[0].upper() + _texto[1:] + ".")
         rows = (db.get_tests_by_codes_or_names([user_message])
                 or db.get_tests_by_codes_or_names(named_terms))
         if rows:

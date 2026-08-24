@@ -2471,10 +2471,22 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
     pago_en_el_texto = _payment_method_from_text(user_message)
     payment_method = fields.get("payment_method") or pago_en_el_texto
     if payment_method and (esperando_pago or pago_en_el_texto):
-        merged = _merge_sin_borrar(prev_fields, fields)
-        merged.pop("_pedido_offer_pending", None)
-        merged.pop("_pedido_offer_reasked", None)
-        return _close_pedido_turn(session, merged, payment_method)
+        # (2026-08-24, repro del test en vivo — DINERO) Con una orden A MEDIO CAMINO
+        # sin registrar, el pago NO cierra el pedido acá: "Contra entrega" en plena
+        # confirmación de Joy cerraba el pedido con 2 órdenes y DESCARTABA la tercera,
+        # cotizada y jamás registrada. El turno sigue su flujo: el pago actúa como
+        # confirmación de la ORDEN (se registra) y el cierre del pedido viene después.
+        _orden_a_medio_camino = (
+            not prev_fields.get("_order_registered")
+            and prev_fields.get("patient_name")
+            and (prev_fields.get("exam_type") or prev_fields.get("selected_tests")
+                 or prev_fields.get("_selected_profile_code"))
+        )
+        if not _orden_a_medio_camino:
+            merged = _merge_sin_borrar(prev_fields, fields)
+            merged.pop("_pedido_offer_pending", None)
+            merged.pop("_pedido_offer_reasked", None)
+            return _close_pedido_turn(session, merged, payment_method)
 
     # Terminó de cargar órdenes pero todavía no dijo cómo paga: se le pregunta UNA vez.
     # Señales con las que el cliente da por terminada la carga. `cancel` entra porque el
