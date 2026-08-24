@@ -1013,3 +1013,25 @@ tabla `pedidos` limpia). Las transcripciones muestran el flujo conversacional im
 
 **Veredicto del checkpoint:** el refactor de comprensión (Etapas 0-3) NO empeoró el
 agente — mismos fallos que el BASE + 1 regresión cazada y corregida. Suite: 875 passed.
+
+
+---
+
+## 2026-08-24 — Etapa 4a del refactor de comprensión (catálogo y laterales)
+
+- [x] Carriles 14 (info pre-identificación), 15 (precio), 16 (lateral operativa),
+      17 (muestrario), 21 (recomendación) y 22 (etiqueta diagnóstica) movidos JUNTOS
+      (ERR-072) a un handler post-modelo ANTES de la frontera de orden — misma
+      precedencia que pre-LLM; gates con entry_intent. Commit `16463bd`.
+- [x] `PRE_LLM_RETURNS_BASELINE` 24 → **13** — meta del plan (≤14) CUMPLIDA.
+      `known_dead` ya estaba vacío desde la Etapa 3. Suite: **879 passed**.
+- [x] 4 tests de mecánica nuevos (`test_etapa4_laterales_catalogo.py`); harness con
+      `client_id` parametrizable.
+- **Decisión 4b (registrada):** los carriles restantes (nº de orden, cliente final,
+  opciones 2/4/reconsiderar del menú de bienvenida, "dije/dicho" con lista en
+  pantalla) deciden por ESTADO + dato exacto — el criterio del propio plan los deja
+  pre-LLM, como los menús 18/19. Argumentado en la nota del baseline.
+- [ ] **Checkpoint con modelo real al cierre de Etapa 4** (validate_flows 35 guiones,
+      ~$0.4-1.4) — SOLO con OK explícito del usuario (regla de tokens).
+- [ ] Prueba en vivo del usuario por Telegram (reiniciar Flask antes: el proceso de
+      fondo corre código pre-refactor).
