@@ -3666,10 +3666,18 @@ def process_turn(
                 chat_id, user_message,
                 _restart_identification_for_new_client(chat_id, session, prev_captured),
             )
+        _corr_field_hint = _detect_correction_field(user_message)
         if ((signal == "correction" or _is_correction_request(user_message)
                 or _wants_to_change_analysis(user_message))
-                and not _profile_codes_from_text(user_message)):
-            field = _detect_correction_field(user_message)
+                and not _profile_codes_from_text(user_message)
+                # (2026-08-24, guion X) Señal `correction` SIN red que la respalde y
+                # apuntando al análisis ("quiero agregarle un análisis de orina al
+                # perfil"): eso es un AJUSTE del paquete y lo decide el CATÁLOGO en
+                # _confirmation_analysis_adjustment (L66) — este handler cede el turno.
+                and not (_corr_field_hint == "exam_type"
+                         and not _is_correction_request(user_message)
+                         and not _wants_to_change_analysis(user_message))):
+            field = _corr_field_hint
             # ERR-099: la identidad se re-verifica contra la base; la orden se conserva.
             if field == "clinic_name":
                 return _persist_turn(

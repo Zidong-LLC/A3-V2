@@ -61,8 +61,13 @@ def _run_turn(msg, signal, captured, phase="fase_2_recogida_datos", history=None
     # laterales.py, que importan su PROPIO `db`: sin estos parches el test golpea
     # la red real (ConnectError con la BD fuera de alcance).
     with ExitStack() as stack:
-        for mod in (agent, _orden, _orders, _menus, _laterales):
-            if hasattr(mod, "db"):
+        # TODOS los módulos de app cargados que importan su propio `db` (ERR del harness:
+        # enforcers/confirmacion.py llamaba a la red real por no estar en la lista fija).
+        import sys as _sys
+        seen = set()
+        for name, mod in list(_sys.modules.items()):
+            if name.startswith("app") and hasattr(mod, "db") and id(mod) not in seen:
+                seen.add(id(mod))
                 stack.enter_context(patch.object(mod, "db", fake_db))
         stack.enter_context(patch.object(
             agent.ai, "generate_turn", return_value=_neutral_ai_response(signal)))
@@ -155,3 +160,17 @@ def test_oferta_correction_cede_el_turno_completo():
                                  "correction", captured)
     # No debe responder con la re-pregunta de la oferta ni cerrar la orden a ciegas.
     assert "agregamos otro análisis" not in reply.lower()
+
+
+def test_agregar_analisis_en_confirmacion_no_lo_secuestra_la_correccion():
+    """Guion X (2026-08-24): 'quiero agregarle un analisis de orina al perfil' llega con
+    señal `correction` y NINGUNA red de corrección la reconoce — el handler 2a la
+    secuestraba, borraba el análisis de la orden y respondía la plantilla del dato
+    faltante. Debe ceder al carril del catálogo (L66) sin tocar el análisis."""
+    captured = dict(ORDEN_COMPLETA, _selected_profile_code="701",
+                    exam_type="701 Perfil Prequirúrgico I")
+    reply, persisted = _run_turn("quiero agregarle un analisis de orina al perfil",
+                                 "correction", captured, phase=agent.CONFIRMATION_PHASE)
+    fields = persisted.get("captured_fields", {})
+    assert fields.get("exam_type"), "el análisis de la orden no debe borrarse"
+    assert not reply.strip().lower().startswith("¿qué análisis o perfil desean?")
