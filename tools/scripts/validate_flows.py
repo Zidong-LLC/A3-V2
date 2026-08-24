@@ -789,7 +789,8 @@ def main():
             # Uroanálisis (1601 Parcial de Orina …), no el "urocultivo" del mock viejo.
             esperado = URO_TESTS[0] if URO_TESTS else {"code": "1601", "name": "Parcial de Orina", "price": 16000}
             base, agregado = 24000, int(esperado.get("price") or 0)
-            total = f"${base + agregado:,} COP"
+            # Formato del repo: $40.000 (punto de miles, sin COP)
+            total = "$" + f"{base + agregado:,}".replace(",", ".")
             clave = _norm(esperado["name"].split("(")[0])
             area_menu = replies[15] or ""
             if esperado["code"] not in area_menu and clave not in _norm(area_menu):

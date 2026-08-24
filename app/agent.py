@@ -3063,8 +3063,15 @@ def _enforce_comprehension_recheck(session: dict, ai_response: dict, prev_captur
     confianza_baja = isinstance(conf, (int, float)) and conf < 0.45
     if not (dice_que_dio or confianza_baja):
         return ai_response
-    ai_response["reply"] = ("Perdona, creo que no te entendí bien. "
-                            + _missing_route_field_question(asked))
+    # (2026-08-24, guion O — pre-lanzamiento) Nunca la misma disculpa dos veces
+    # seguidas: a la segunda se varía el fraseo, como haría una persona.
+    _last_bot_o = next((m.get("content") or "" for m in reversed(history)
+                        if m.get("role") == "bot"), "")
+    if _last_bot_o.startswith("Perdona, creo que no te entendí bien."):
+        _prefijo_o = "Sigo sin ubicar ese dato, ayudame de nuevo: "
+    else:
+        _prefijo_o = "Perdona, creo que no te entendí bien. "
+    ai_response["reply"] = _prefijo_o + _missing_route_field_question(asked)
     ai_response["phase"] = "fase_2_recogida_datos"
     ai_response["message_mode"] = "flow_progress"
     return ai_response
