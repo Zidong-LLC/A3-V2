@@ -16,8 +16,11 @@ Metas: `PRE_LLM_RETURNS_BASELINE` 44→≤14, `known_dead` vacío, validate_flow
       consistente en ambos lados); 7 entradas tilde-only completadas con su par llano;
       invariante nuevo `test_ningun_vocabulario_depende_de_tildes` (introspección de 17
       módulos). Suite 860 passed
-- [ ] **Etapa 2 — Confirmación y oferta señal-primero**: grupos 2a (correcciones en
-      confirmación + stable_confirm) y 2b (oferta con `signal` en la firma)
+- [x] **Etapa 2 — Confirmación y oferta señal-primero**: stable-confirm (5 returns),
+      correcciones en confirmación (3) y la oferta (1) degradados a handlers post-modelo;
+      `_handle_extra_analysis_answer` recibe `signal` (correction cede, negate/farewell
+      cierran, affirm pregunta cuál). Baseline 44→35. Tests:
+      test_etapa2_senal_confirmacion.py (8). Suite 868 passed
 - [ ] **Etapa 3 — Fase terminal y memoria**: 3a (5 carriles terminales juntos), 3b
       (`same_as_previous` consumida — vacía known_dead), 3c (despedida/saludo/smalltalk)
 - [ ] **Etapa 4 — Pre-identificación y catálogo**: 4a (info servicio/laterales/muestrario),

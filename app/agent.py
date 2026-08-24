@@ -3300,15 +3300,6 @@ def process_turn(
             prev_captured.pop("_test_menu_adds_to_profile", None)
         # (preguntó otra cosa): seguir el pipeline normal.
 
-    # Respuesta a la oferta '¿agregar otro análisis/perfil o seguimos con el pago?' (Parte B):
-    # se repite tras cada agregado hasta que el cliente decida seguir. Determinístico para no
-    # caer en el bucle histórico (RESUELTO-017).
-    if prev_captured.get("_offering_extra_analysis") and not prev_captured.get("payment_method"):
-        extra_resp = _handle_extra_analysis_answer(session, prev_captured, user_message)
-        if extra_resp is not None:
-            return _persist_turn(chat_id, user_message, extra_resp)
-        # extra_resp None: el cliente dio el método de pago -> seguir el pipeline normal.
-
     # Pedido de recomendación de análisis ('no sé / qué me recomiendas') en cualquier punto
     # de una ruta con especie ya conocida. Va ANTES de los detectores de corrección, que
     # confundían 'no sé... perro' con una corrección del paciente ('no' = corregir, 'perro'
@@ -3348,74 +3339,6 @@ def process_turn(
     # Confirmación en bloque de datos estables al iniciar una orden de seguimiento.
     # Se reofrecieron médico/dirección/pago de la orden anterior: el usuario confirma
     # o pide cambiar uno. Determinístico, sin llamar al AI.
-    if prev_captured.get("_stable_confirm_pending"):
-        prev_captured.pop("_stable_confirm_pending", None)
-        # Cambio de cliente: la orden es para OTRA veterinaria. Descartar la
-        # identificación anterior y volver a verificar contra el registro.
-        if _wants_to_change_client(user_message):
-            return _persist_turn(
-                chat_id, user_message,
-                _restart_identification_for_new_client(chat_id, session, prev_captured),
-            )
-        # Cambio TOTAL de análisis ('otro análisis', 'cambiemos el perfil', 'analisis quiero
-        # el 653'): limpiar el PAQUETE reofrecido de la orden anterior —exam_type, perfil y
-        # sus AGREGADOS— y dejar que el flujo capture el nuevo. El ajuste PARCIAL ('el mismo
-        # pero sin X') NO entra acá: lo maneja la personalización del perfil base.
-        #
-        # `_replaces_offered_analysis` decide con lo que el sistema ya sabe (el campo al que
-        # apunta el mensaje o un CÓDIGO distinto del heredado), no con verbos: con "analisis
-        # quiero el 653" ningún detector de verbos disparaba, el enforcer fijaba el 653 como
-        # base y los agregados de la orden ANTERIOR sobrevivían — la orden salió $24.000 más
-        # cara con análisis que el cliente nunca pidió en ella (prueba en vivo 2026-08-14).
-        if (_wants_to_change_analysis(user_message)
-                or _replaces_offered_analysis(user_message, prev_captured.get("_selected_profile_code"))):
-            _clear_field_for_correction(prev_captured, "exam_type")
-            # No retornamos: el resto del mensaje puede traer datos del paciente; el flujo
-            # sigue capturando y, al llegar al análisis vacío, recomienda o pregunta.
-        if _is_correction_request(user_message) or _is_negative_text(user_message):
-            field = _detect_correction_field(user_message)
-            # ERR-099: cambiar de cliente NO es editar un texto. Re-abre la identificación
-            # contra la base para que el NIT, la dirección y el motorizado se re-resuelvan.
-            if field == "clinic_name":
-                return _persist_turn(
-                    chat_id, user_message,
-                    _restart_identification_for_new_client(chat_id, session, prev_captured),
-                )
-            if field:
-                _clear_field_for_correction(prev_captured, field)
-                return _persist_turn(
-                    chat_id, user_message,
-                    _base_route_response(_missing_route_field_question(field), prev_captured),
-                )
-            return _persist_turn(
-                chat_id, user_message,
-                _base_route_response(
-                    "Claro, ¿qué dato quieres cambiar: el médico, la dirección o la forma de pago?",
-                    prev_captured,
-                ),
-            )
-        # Confirmación PELADA: el único caso inequívoco, y el único que este atajo responde
-        # con plantilla. Si el mensaje trae algo MÁS que el "sí", no se decide acá.
-        #
-        # Este bloque es determinístico y corre ANTES del modelo, así que solo ve palabras
-        # sueltas: con "Si análisis quiero perfil 653" se quedaba con el "Si" inicial, contestaba
-        # la plantilla y tiraba el resto de la oración — el 653 se perdía y la orden seguía con
-        # el perfil HEREDADO que el cliente acababa de pedir cambiar (plata mal cobrada).
-        # Pedido del usuario (2026-08-14): "no tiene que entender una palabra puntual, tiene que
-        # entender el contexto de toda la oración". Un mensaje compuesto es justamente lo que el
-        # modelo sabe leer y este atajo no: se le cede el turno y los enforcers de catálogo
-        # resuelven el código contra el catálogo real, igual que en cualquier otra vía.
-        if _is_bare_confirmation(user_message):
-            # Confirmó los datos reofrecidos: el análisis heredado queda ACEPTADO como propio.
-            prev_captured.pop("_analysis_inherited", None)
-            missing = _missing_route_field(session, prev_captured)
-            question = _missing_route_field_question(missing) if missing else "¿Qué análisis o perfil desean?"
-            guide = "Listo. Para esta orden cambia normalmente el paciente, el propietario y el análisis. "
-            return _persist_turn(chat_id, user_message, _base_route_response(guide + question, prev_captured))
-        # (Un "Sí, análisis quiero el 653" —confirma Y pide otro análisis— ya soltó el paquete
-        # heredado en el chequeo de arriba: `_replaces_offered_analysis` cubre ese caso.)
-        # Respuesta con datos del paciente u otra cosa: seguir el pipeline normal
-        # (los datos estables ya están cargados y se conservan al fusionar).
 
     # "el de siempre" / "el mismo" para un campo del que NO hay dato recordado: pedirlo
     # normal, en vez de que el modelo reofrezca otro dato disponible (p. ej. la dirección).
@@ -3447,72 +3370,6 @@ def process_turn(
     if prev_captured.get("_nc_capturing"):
         for key in [k for k in list(prev_captured) if k.startswith("_nc_")]:
             prev_captured.pop(key, None)
-
-    # Confirmación editable de la orden (Sección 7.1): si el usuario pide corregir,
-    # se limpia ese campo y se repregunta, sin volver a llamar al AI. La respuesta
-    # afirmativa sigue el pipeline normal (el cierre lo permite _enforce_confirmation_step).
-    if (session.get("phase_current") == CONFIRMATION_PHASE
-            and session.get("intent_current") == "route_scheduling"
-            and _wants_to_change_client(user_message)):
-        return _persist_turn(
-            chat_id, user_message,
-            _restart_identification_for_new_client(chat_id, session, prev_captured),
-        )
-
-    if (session.get("phase_current") == CONFIRMATION_PHASE
-            and session.get("intent_current") == "route_scheduling"
-            and (_is_correction_request(user_message) or _wants_to_change_analysis(user_message))
-            # Si el mensaje trae CÓDIGOS del catálogo ("No, para P2 cargá los códigos 1101 y
-            # 1701"), este bloque determinístico no puede resolverlos y lo tragaba con la
-            # repregunta genérica "¿Qué dato quieres corregir?" (QA de estrés 2026-08-15,
-            # masivo_5 — de ahí cascadeó contaminación cruzada). Con códigos, el turno pasa
-            # al modelo y los carriles de catálogo los resuelven contra la base.
-            and not _profile_codes_from_text(user_message)):
-        field = _detect_correction_field(user_message)
-        # ERR-099: en el resumen, "quiero cambiar el cliente / soy Animal Pets" reescribía
-        # solo clinic_name y dejaba client_id, tax_id, pickup_address y motorizado del
-        # cliente anterior — la orden se facturaba a uno y el retiro iba a la puerta de otro.
-        # La identidad se re-verifica contra la base; el resto de la orden se conserva.
-        if field == "clinic_name":
-            return _persist_turn(
-                chat_id, user_message,
-                _restart_identification_for_new_client(chat_id, session, prev_captured),
-            )
-        if field:
-            _clear_field_for_correction(prev_captured, field)
-            correction_value = _extract_correction_value(field, user_message)
-            if correction_value:
-                prev_captured[field] = correction_value
-                ai_response = _base_route_response(
-                    _route_confirmation_summary(prev_captured) or _missing_route_field_question(field),
-                    prev_captured,
-                )
-            else:
-                ai_response = _base_route_response(_missing_route_field_question(field), prev_captured)
-        elif (_removes_the_additions(user_message)
-                and prev_captured.get("_selected_profile_code")
-                and _as_text_items(prev_captured.get("selected_tests"))):
-            # "En esta orden no quiero los agregados": el cliente cita el RÓTULO que el bot
-            # imprime en el resumen. Se quitan los agregados (el perfil base queda) y se
-            # re-muestra el resumen con el total recalculado. Antes caía en la repregunta
-            # genérica "¿Qué dato quieres corregir?" (prueba en vivo 2026-08-14). Solo dispara
-            # si HAY agregados: sin ellos, la frase es ambigua y sigue la repregunta de abajo.
-            prev_captured["selected_tests"] = None
-            summary = _route_confirmation_summary(prev_captured)
-            ai_response = _base_route_response(
-                f"Listo, quito los agregados.\n{summary}" if summary else CORRECTION_PROMPT,
-                prev_captured,
-            )
-        else:
-            ai_response = _base_route_response(CORRECTION_PROMPT, prev_captured)
-        # Mientras se edita el resumen seguimos en la fase de confirmación, para que el
-        # "sí" posterior cierre por el camino determinístico (que exige previous_phase
-        # == CONFIRMATION_PHASE). _base_route_response deja fase_2 y rompía el cierre.
-        ai_response["phase"] = CONFIRMATION_PHASE
-        # Marca que estamos editando el resumen: cuando el dato corregido llegue y la
-        # orden vuelva a estar completa, se re-muestra el resumen antes del "sí".
-        ai_response["captured_fields"]["_correction_pending"] = True
-        return _persist_turn(chat_id, user_message, ai_response)
 
     if session.get("phase_current") in TERMINAL_PHASES and session.get("intent_current") == "route_scheduling":
         # Con un PEDIDO abierto, un mensaje que trae la forma de pago NO es una pregunta
@@ -3750,6 +3607,111 @@ def process_turn(
         )
         return _persist_turn(chat_id, user_message, ai_response)
 
+    # Etapa 2a — STABLE-CONFIRM señal-primero (refactor de comprensión 2026-08-21): el
+    # bloque pre-LLM de la reoferta de estables se degradó a este handler. Ahora el MODELO
+    # lee el turno ("Si análisis quiero perfil 653" ya no pierde el 653: sus capturas
+    # siguen el pipeline) y la señal manda; los tokens quedan de red. Las acciones son las
+    # mismas determinísticas de siempre, sobre prev_captured.
+    if prev_captured.get("_stable_confirm_pending"):
+        prev_captured.pop("_stable_confirm_pending", None)
+        fields.pop("_stable_confirm_pending", None)
+        # Cambio de cliente: la orden es para OTRA veterinaria — re-verificar identidad.
+        if signal == "change_client" or _wants_to_change_client(user_message):
+            return _persist_turn(
+                chat_id, user_message,
+                _restart_identification_for_new_client(chat_id, session, prev_captured),
+            )
+        # Cambio TOTAL de análisis: limpiar el PAQUETE reofrecido (exam_type, perfil y sus
+        # agregados) y dejar que el flujo capture el nuevo. El ajuste PARCIAL no entra acá.
+        if (_wants_to_change_analysis(user_message)
+                or _replaces_offered_analysis(user_message, prev_captured.get("_selected_profile_code"))):
+            _clear_field_for_correction(prev_captured, "exam_type")
+            _clear_field_for_correction(fields, "exam_type")
+            # No retornamos: el resto del mensaje puede traer datos del paciente.
+        elif (signal in ("correction", "negate")
+                or _is_correction_request(user_message) or _is_negative_text(user_message)):
+            field = _detect_correction_field(user_message)
+            # ERR-099: cambiar de cliente NO es editar un texto — re-abre la identificación.
+            if field == "clinic_name":
+                return _persist_turn(
+                    chat_id, user_message,
+                    _restart_identification_for_new_client(chat_id, session, prev_captured),
+                )
+            if field:
+                _clear_field_for_correction(prev_captured, field)
+                return _persist_turn(
+                    chat_id, user_message,
+                    _base_route_response(_missing_route_field_question(field), prev_captured),
+                )
+            return _persist_turn(
+                chat_id, user_message,
+                _base_route_response(
+                    "Claro, ¿qué dato quieres cambiar: el médico, la dirección o la forma de pago?",
+                    prev_captured,
+                ),
+            )
+        elif _is_bare_confirmation(user_message):
+            # Confirmación PELADA ("¿queda algo si le sacamos el sí?" — L65): plantilla.
+            # Un mensaje compuesto sigue el pipeline: el modelo ya lo leyó entero.
+            prev_captured.pop("_analysis_inherited", None)
+            missing = _missing_route_field(session, prev_captured)
+            question = _missing_route_field_question(missing) if missing else "¿Qué análisis o perfil desean?"
+            guide = "Listo. Para esta orden cambia normalmente el paciente, el propietario y el análisis. "
+            return _persist_turn(chat_id, user_message, _base_route_response(guide + question, prev_captured))
+        # Respuesta con datos u otra cosa: sigue el pipeline normal con lo ya capturado.
+
+    # Etapa 2a — corrección en CONFIRMACIÓN señal-primero: los dos atajos pre-LLM (cambio
+    # de cliente y corrección de campo con el resumen en pantalla) se degradaron a este
+    # handler. La señal manda ("me equivoqué en algo" sin verbo de la lista también entra);
+    # los tokens quedan de red. Guard de códigos portado (QA 2026-08-15): con códigos del
+    # catálogo el turno sigue a los carriles que los resuelven contra la base. La fase de
+    # ENTRADA (_turn_prev_phase) preserva el guard del atajo original.
+    if (_turn_prev_phase.get() == CONFIRMATION_PHASE
+            and session.get("intent_current") == "route_scheduling"):
+        if signal == "change_client" or _wants_to_change_client(user_message):
+            return _persist_turn(
+                chat_id, user_message,
+                _restart_identification_for_new_client(chat_id, session, prev_captured),
+            )
+        if ((signal == "correction" or _is_correction_request(user_message)
+                or _wants_to_change_analysis(user_message))
+                and not _profile_codes_from_text(user_message)):
+            field = _detect_correction_field(user_message)
+            # ERR-099: la identidad se re-verifica contra la base; la orden se conserva.
+            if field == "clinic_name":
+                return _persist_turn(
+                    chat_id, user_message,
+                    _restart_identification_for_new_client(chat_id, session, prev_captured),
+                )
+            if field:
+                _clear_field_for_correction(prev_captured, field)
+                correction_value = _extract_correction_value(field, user_message)
+                if correction_value:
+                    prev_captured[field] = correction_value
+                    ai_response = _base_route_response(
+                        _route_confirmation_summary(prev_captured) or _missing_route_field_question(field),
+                        prev_captured,
+                    )
+                else:
+                    ai_response = _base_route_response(_missing_route_field_question(field), prev_captured)
+            elif (_removes_the_additions(user_message)
+                    and prev_captured.get("_selected_profile_code")
+                    and _as_text_items(prev_captured.get("selected_tests"))):
+                # "No quiero los agregados": cita el rótulo del resumen — se quitan y se
+                # re-muestra el resumen con el total recalculado.
+                prev_captured["selected_tests"] = None
+                summary = _route_confirmation_summary(prev_captured)
+                ai_response = _base_route_response(
+                    f"Listo, quito los agregados.\n{summary}" if summary else CORRECTION_PROMPT,
+                    prev_captured,
+                )
+            else:
+                ai_response = _base_route_response(CORRECTION_PROMPT, prev_captured)
+            # Seguimos en confirmación para que el "sí" posterior cierre determinístico.
+            ai_response["phase"] = CONFIRMATION_PHASE
+            ai_response["captured_fields"]["_correction_pending"] = True
+            return _persist_turn(chat_id, user_message, ai_response)
+
     # 3.3 — change_client SEÑAL-PRIMERO (reorden C2): el atajo pre-LLM por tokens se
     # degradó a este handler; la señal cubre todos los fraseos ("esta cuenta es de otra
     # clínica") y los tokens quedan de RED. Guards portados del atajo: confirmación y
@@ -3813,6 +3775,17 @@ def process_turn(
                 _restart_identification_for_new_client(chat_id, session, prev_captured),
             )
         return _persist_turn(chat_id, user_message, _begin_followup_order(prev_captured, user_message))
+
+    # Etapa 2b — la OFERTA señal-primero: el gate de estado se queda; la interpretación
+    # de la respuesta ahora recibe la SEÑAL del modelo (cerrar/ceder/pedir con cualquier
+    # fraseo) y las listas quedan de red. El call-site pre-LLM se degradó a este punto.
+    if prev_captured.get("_offering_extra_analysis") and not prev_captured.get("payment_method"):
+        extra_resp = _handle_extra_analysis_answer(session, prev_captured, user_message, signal=signal)
+        if extra_resp is not None:
+            return _persist_turn(chat_id, user_message, extra_resp)
+        # None: dio el pago o cedió — sincronizar la marca si el carril la apagó.
+        if not prev_captured.get("_offering_extra_analysis"):
+            fields.pop("_offering_extra_analysis", None)
 
     # Oferta de derivación pendiente ("¿te derivo o seguimos?"): resolver según la
     # respuesta. Si acepta, derivar a una persona; si quiere seguir, limpiar el flag

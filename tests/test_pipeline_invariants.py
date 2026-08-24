@@ -43,7 +43,14 @@ AGENT = APP / "agent.py"
 # lectura — pedido abierto + orden registrada + forma de pago en el mensaje. Decide por
 # estado; el único texto que lee es la red de pago ya probada (QA 7/7). Pasar por el modelo
 # en ese estado rompía el cierre ("Contraentrega." → "¿Qué análisis o perfil desean?").
-PRE_LLM_RETURNS_BASELINE = 44
+# 44 -> 35 el 2026-08-21 (Etapa 2 del refactor de comprensión, ficha ABIERTO-003): se
+# degradaron a handlers post-modelo señal-primero (molde C1/C2/C3) los tres grupos que
+# competían por los mensajes de corrección/cierre: el bloque de la reoferta de estables
+# (_stable_confirm_pending, 5 returns), las correcciones en fase CONFIRMACIÓN (cambio de
+# cliente + corrección de campo, 3 returns) y el call-site de la oferta de análisis extra
+# (1 return). Ahora el MODELO lee esos turnos ("la dejamos así", "me equivoqué en algo",
+# "si análisis quiero perfil 653") y los tokens quedan de red.
+PRE_LLM_RETURNS_BASELINE = 35
 
 
 def _process_turn_ast() -> tuple[ast.FunctionDef, int]:

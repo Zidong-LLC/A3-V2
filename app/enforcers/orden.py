@@ -162,10 +162,20 @@ def _anaphoric_removal_response(session: dict, fields: dict) -> dict | None:
         f"Claro, ¿cuál quito? En la orden tienes: {listado}. Dime el código.", fields)
 
 
-def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str) -> dict | None:
+def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str,
+                                  signal: str | None = None) -> dict | None:
     """Interpreta la respuesta del cliente a la oferta '¿agregar otro análisis o seguimos con
     el pago?'. Devuelve la respuesta del bot, o None si dio el método de pago (que el pipeline
-    normal capture). Se repite tras cada agregado hasta que el cliente decida seguir."""
+    normal capture). Se repite tras cada agregado hasta que el cliente decida seguir.
+
+    Etapa 2b del refactor de comprensión (2026-08-21): `signal` es la lectura del MODELO
+    (user_intent_signal) y manda como fuente primaria — el cliente cierra, corrige o pide
+    con CUALQUIER fraseo; las listas de tokens quedan de red para cuando la señal no venga."""
+    # Señal-primero: una CORRECCIÓN leída por el modelo cede el turno completo al pipeline
+    # (que la capture), aunque el fraseo no esté en ninguna lista. Con códigos del catálogo
+    # en el mensaje no se cede: los resuelve este carril contra la base.
+    if signal == "correction" and not _profile_codes_from_text(user_message):
+        return None
     # 0) CORRECCIÓN de un dato estable de la orden ('quiero cambiar la raza es un tobiano'):
     # no es un asunto de este carril — ceder el turno COMPLETO al modelo, que captura el
     # cambio; el acuse determinístico lo arma _enforce_first_missing_after_progress
@@ -209,10 +219,18 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
     # ERR-142: una FRASE explícita de cierre ("déjalo así está bien eso es todo") exime del
     # tope de 6 tokens — el tope sigue protegiendo el caso del 'no' incidental en frases
     # con OTRA intención, pero no puede descartar una frase de cierre inequívoca.
-    if _wants_to_proceed_to_payment(user_message) and (
+    # Señal-primero: negate/farewell del modelo cierran la oferta con cualquier fraseo
+    # ("nop, hasta ahí llegamos"), salvo que el mensaje traiga carga de análisis (códigos
+    # o verbos de agregar/quitar) — ahí el resto de la cascada decide (L65).
+    _signal_declina = (
+        signal in ("negate", "farewell")
+        and not _profile_codes_from_text(user_message)
+        and not (set(_tokenize(user_message)) & (_ADD_ANALYSIS_TOKENS | _REMOVE_TOKENS))
+    )
+    if _signal_declina or (_wants_to_proceed_to_payment(user_message) and (
         _payment_method_from_text(user_message) or len(_tokenize(user_message)) <= 6
         or _proceed_phrase_in_text(user_message)
-    ):
+    )):
         fields.pop("_offering_extra_analysis", None)
         if _payment_method_from_text(user_message):
             return None  # el pipeline normal captura el método de pago
@@ -411,7 +429,7 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
             return area_resp
 
     # 5) Quiere agregar pero no dijo cuál (un 'sí' suelto o 'personalizar').
-    if _is_affirmative_text(user_message) or _is_profile_customization_request(user_message):
+    if _is_affirmative_text(user_message) or signal == "affirm" or _is_profile_customization_request(user_message):
         fields["_awaiting_additional_test"] = "add"
         return _base_route_response("Claro. ¿Qué análisis quieres agregar? Decime el nombre o el código.", fields)
 
