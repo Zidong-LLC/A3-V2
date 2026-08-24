@@ -479,6 +479,37 @@ B17 no cubre.
 demo si el cliente pregunta fuera del guion.
 **Estado:** ABIERTO — documentado, sin arreglar por decisión de alcance (2026-07-26).
 
+### ERR-143 — [RESUELTO] "No ese sácalo" se ignoraba por completo — remoción anafórica (test en vivo 2026-08-21)
+**Síntoma:** el bot ofreció seguir con el perfil heredado ("seguimos con Perfil Senior Canino III… ¿qué análisis quieres agregarle?") y el cliente respondió "No ese sácalo". El bot saltó a preguntar observaciones: ni lo sacó ni acusó recibo.
+**Causa raíz (dos capas):** (1) las formas con CLÍTICO ("sácalo/quitalo") no estaban en NINGÚN token de quitar — y el "no" inicial tomaba el atajo al pago; (2) "ese" no nombra nada: ningún carril resolvía la referencia contra la orden.
+**Solución:** clíticos agregados a `_REMOVE_TOKENS`, `_ANALYSIS_ADD_REMOVE_TOKENS` y al set de confirmación. Nuevo detector `_is_anaphoric_removal` (verbo de quitar inequívoco + pronombre, sin código — excluye "sin/menos" a propósito). En el carril de la oferta: con UN ítem en la orden el referente es inequívoco y se quita; con varios, pregunta cerrada con la lista y espera de remoción (`_awaiting_additional_test="remove"`), cuya respuesta con código QUITA (ya no cae al carril de agregar). De paso, quitar un PERFIL por código ("saca el 653") ahora también funciona en la oferta, no solo en confirmación (completa ERR-141).
+**Tests:** `tests/test_anaphoric_removal.py` (11). **Estado:** RESUELTO (2026-08-21). Suite 859 passed.
+
+### ERR-139 — [RESUELTO] El análisis HEREDADO de la orden anterior contaminaba la orden nueva (DINERO) (test en vivo 2026-08-21)
+**Síntoma:** 3.ª orden del pedido (Joy): "Otra orden" heredó el 653 de la orden de Lulú y lo reofreció; el cliente declaró "El análisis es 952" y el 952 se SUMÓ como adicional en vez de reemplazar → resumen con 653 + 952 = $148.000 en vez de $90.000, con un perfil que el cliente nunca pidió para ese paciente. Además saltó la pregunta del análisis (creía tenerlo).
+**Causa raíz:** la reoferta de estables copia el paquete del snapshot sin marcar que es HEREDADO; `_attach_profiles_by_code` (y `_capture_mixed_codes`, que lo reusa) trata cualquier código nuevo como adicional cuando hay base (mecanismo ERR-077). La protección de `_replaces_offered_analysis` solo cubría el turno de `_stable_confirm_pending`. Extra: `_extra_profiles` no estaba en `_ORDER_RESET_FIELDS` ni en `_clear_field_for_correction` — extras de una orden vieja podían renacer.
+**Solución:** marca `_analysis_inherited` al heredar (agent.py); mientras esté viva, una mención de perfil SIN verbo de agregar reemplaza (limpia el paquete vía `_clear_inherited_analysis` → `_clear_field_for_correction`); con verbo de agregar ("agregale el 952") la suma se respeta. La marca se apaga al confirmar los estables, al elegir análisis, y en la frontera de orden. `_extra_profiles` y la marca agregados a `_ORDER_RESET_FIELDS` y al clear de exam_type; marca registrada en `state.FLAGS_ANALISIS`.
+**Tests:** `tests/test_inherited_analysis_replacement.py` (6). **Estado:** RESUELTO (2026-08-21).
+
+### ERR-140 — [RESUELTO] Un código inexistente en el catálogo moría en SILENCIO (test en vivo 2026-08-21)
+**Síntoma:** el cliente pidió el 1903 tres veces ("952 y 1903", "Agrega 1903", "cámbialo por el 1903") y el bot lo descartó calladamente cada vez — nunca dijo "ese código no lo tengo".
+**Causa raíz:** los carriles resuelven códigos contra el catálogo y simplemente ignoran los que no matchean; ningún camino avisaba. (Mitad de datos del bug: el 1903 SÍ existe en el PDF — sección Convenio SERVIPAT pág. 9 nunca cargada; se corrige aparte con la migración 022.)
+**Solución:** `orders._unknown_catalog_codes()` (ni perfil ni test → desconocido; fallo de infra → [] para no romper el turno). Avisa en el carril de la oferta (orden.py 2c, incluso en el caso mixto "952 y 9999": registra el válido Y avisa el inválido) y en el ajuste de confirmación (aviso en vez de la repregunta ciega).
+**Tests:** `tests/test_unknown_catalog_code.py` (6). **Estado:** RESUELTO (2026-08-21).
+
+### ERR-141 — [RESUELTO] Quitar/cambiar un análisis por CÓDIGO caía en bucle (test en vivo 2026-08-21)
+**Síntoma:** "Saca el análisis 653 y cámbialo por el 1903" → "¿Qué análisis quieres quitar?"; "El 653" → misma pregunta; "653" → "Ese ya está en la orden" (lo leyó como AGREGAR).
+**Causa raíz:** el carril de remoción en confirmación solo resolvía TESTS por nombre (`get_tests_by_codes_or_names`); un PERFIL a quitar (653) no resolvía nunca y la repregunta era un bucle. La operación doble (sacar X + poner Y) no existía. El código pelado caía después en el carril de agregar de la oferta.
+**Solución:** `orders._remove_order_items_by_code()` — quita por código el perfil BASE (promoviendo el primer adicional a base), los adicionales y los sueltos; corre ANTES de la resolución por nombre en `_confirmation_analysis_adjustment`, tanto con el código en la misma frase como respondiendo a "¿qué quieres quitar?". El reemplazo agrega los códigos restantes en el mismo turno (`_add_codes_after_removal`), avisando los inexistentes (ERR-140).
+**Pendiente menor:** el "No ese sácalo" anafórico — RESUELTO después en ERR-143 (2026-08-21).
+**Tests:** `tests/test_remove_swap_in_confirmation.py` (4). **Estado:** RESUELTO (2026-08-21).
+
+### ERR-142 — [RESUELTO] Los fraseos de cierre de la oferta no se reconocían — bucle "¿…o la dejamos así?" (test en vivo 2026-08-21)
+**Síntoma:** ante la oferta, 4 respuestas naturales seguidas cayeron en bucle: "Déjalo así está bien eso es todo" (7 tokens > tope de 6), "Avanzamos" (token ausente), "La dejamos así" y "Dejamos estar orden así" (la conjugación DEL PROPIO BOT no estaba en la lista). 5 turnos perdidos hasta "Nada más".
+**Causa raíz:** detector por listas (`_PROCEED_TO_PAYMENT_*`) sin la 1.ª persona del plural ni "avanzar"; el tope anti-"no incidental" (ERR-093) descartaba frases largas inequívocas.
+**Solución:** tokens "avanzamos/avancemos/avanza"; frases "la/lo dejamos así", "dejémoslo/dejémosla así"; regla del par dejar+así con palabras en el medio ("Dejamos esta orden así"); `_proceed_phrase_in_text()` exime del tope de 6 tokens SOLO ante frase explícita de cierre (sin tocar la protección de ERR-093 para frases con "pago").
+**Tests:** `tests/test_close_offer_phrases.py` (8). **Estado:** RESUELTO (2026-08-21).
+
 ### HITO — Agente conversacional APROBADO por prueba humana (2026-08-17)
 **Prueba final del usuario, verificada por ESTADO:** 2 órdenes (José A3-2026-193, Simón
 A3-2026-194), pedido `facturado` contraentrega, borrador Alegra id 7, y el resumen de
@@ -1671,6 +1702,7 @@ responder con una dirección sigue el flujo normal).
 **Estado:** RESUELTO en tests. PENDIENTE validación con modelo real.
 
 ### ERR-082 — Batch "1 / 1 / 2" atendió solo el último + latencia de ~2 min por turno (mismo chat 10, 2026-07-21)
+**Medición 2026-08-21 (local, test en vivo de 44 turnos):** latencia USER→BOT mediana 0.2s, p90 0.2s, máx 0.6s con gpt-5.4-mini. La latencia de 90-120s NO se reproduce en local — queda re-caracterizada como problema de entorno (Render/cold start) a medir en el deploy, no del agente.
 **Síntoma:** el cliente envió "1" (18:36), no vio respuesta, reenvió "1" y probó "2"; los
 tres llegaron CONCATENADOS en un solo mensaje ("1 / 1 / 2") y el bot respondió solo a la
 última señal (resultados). Además la latencia general fue de ~1.5–2 min por turno — el

@@ -2,6 +2,101 @@
 
 ---
 
+## Refactor de raíz FASE 2: la IA entiende la oración (2026-08-21) — EN CURSO
+
+Plan aprobado: `~/.claude/plans/lively-swimming-popcorn.md`. Pedido del usuario: que el
+agente entienda la oración completa (typos, sin tildes, cualquier fraseo) y dejar de
+parchear listas de tokens. Retoma ABIERTO-003/ERR-011 con el molde C1/C2/C3 ya validado.
+Metas: `PRE_LLM_RETURNS_BASELINE` 44→≤14, `known_dead` vacío, validate_flows ≥18-20/24.
+
+- [ ] **Etapa 0 — PUNTO DE GUARDADO**: 4 commits temáticos locales (visual / fixes
+      ERR-139…143 / catálogo 022 / docs) + tag `punto-guardado-agente-2026-08-21` +
+      suite verde sobre el tag
+- [ ] **Etapa N — Normalización de tildes**: `tokenize` aplica ACCENT_TRANSLATION siempre;
+      poda de duplicados con/sin tilde; invariante nuevo "vocabularios sin tildes"
+- [ ] **Etapa 2 — Confirmación y oferta señal-primero**: grupos 2a (correcciones en
+      confirmación + stable_confirm) y 2b (oferta con `signal` en la firma)
+- [ ] **Etapa 3 — Fase terminal y memoria**: 3a (5 carriles terminales juntos), 3b
+      (`same_as_previous` consumida — vacía known_dead), 3c (despedida/saludo/smalltalk)
+- [ ] **Etapa 4 — Pre-identificación y catálogo**: 4a (info servicio/laterales/muestrario),
+      4b (ramas lingüísticas de mixtos restantes)
+- [ ] **Checkpoints con modelo real** (validate_flows, SOLO con OK del usuario): al cerrar
+      Etapa 2 y Etapa 4, comparar contra baseline 18-20/24
+- [ ] **Registro**: ABIERTO-003/ERR-011 actualizados por etapa; prueba en vivo final
+
+---
+
+## Catálogo completo + fixes del test en vivo (2026-08-21) — EN CURSO
+
+Plan aprobado: `~/.claude/plans/lively-swimming-popcorn.md`. Del test en vivo del usuario
+(chat EVI, 15:16–15:39): el 1903 SÍ existe (PDF pág. 9, Convenio SERVIPAT) — el seed
+original nunca cargó las págs. 9 y 18-27. Decisiones: SERVIPAT+LMV entran ya; Mascolab
+espera precio de A3 (doble precio); especie cruzada NO es bug (pedido del cliente).
+
+- [x] **Fase 1 — Catálogo**: migración 022 EJECUTADA con OK del usuario (2026-08-21,
+      status 201): 24/24 insertados, total 159→183, el 1903 resuelve por
+      `get_tests_by_codes_or_names`. Seed 002 sincronizado;
+      `docs/catalogo-mascolab-pendiente.md` con erratas 2407/2061 para A3
+- [x] **Fix 1 — ERR-139 contaminación de análisis entre órdenes (DINERO)**: marca
+      `_analysis_inherited`; declaración reemplaza, "agregale" suma; `_extra_profiles`
+      sumado a la frontera de orden (tests: test_inherited_analysis_replacement.py)
+- [x] **Fix 2 — ERR-140 código inexistente avisado**: `_unknown_catalog_codes` en oferta
+      y confirmación, caso mixto incluido (tests: test_unknown_catalog_code.py)
+- [x] **Fix 3 — ERR-142 fraseos de cierre**: "la dejamos así", "avanzamos", par dejar+así,
+      exención del tope de 6 SOLO sin "pago" (protege ERR-093)
+      (tests: test_close_offer_phrases.py)
+- [x] **Fix 4 — ERR-141 carril quitar/cambiar**: `_remove_order_items_by_code` + swap
+      sacar+poner en un turno + código pelado responde a "¿qué quitar?"
+      (tests: test_remove_swap_in_confirmation.py)
+- [x] **Fix 5 — ERR-143 "No ese sácalo" anafórico**: clíticos en tokens de quitar +
+      detector `_is_anaphoric_removal` + resolución del referente (1 ítem → quita;
+      varios → pregunta con lista); "saca el 653" por código ahora también en la oferta
+      (tests: test_anaphoric_removal.py, 11)
+- [x] **Registro**: ERR-139…143 en errores-soluciones.md; suite 859 passed, 0 regresiones;
+      ERR-082 re-caracterizado (latencia local medida: mediana 0.2s — el problema es del
+      entorno Render, no del agente)
+
+---
+
+## Lavado de cara visual — estilo ZIDONG OS (2026-08-18) — EN CURSO
+
+Plan aprobado: `~/.claude/plans/lively-swimming-popcorn.md`. Decisiones del usuario:
+acento **monocromo blanco fiel** (#f5f5f7, el naranja deja de ser acento), alcance
+completo (dashboard + portal + logins), kit portado del original
+`ZIDONG LLC OS/platform/app/assets/css/main.css`. `service_order_print.html` y la isla
+clara `.service-order-sheet` NO se tocan; colores semánticos (danger/ok/status badges)
+se conservan. Solo CSS/templates/JS visual — cero lógica Python.
+
+- [x] **Fase A — Kit**: `app/static/os-kit.css` (tokens, springs `linear()`, clases `os-*`,
+      orbes, reduced-motion) + `app/static/os-fx.js` (spotlight + blur-text vanilla)
+- [x] **Fase B — Piel**: retokenizar `app.css` (alias de variables viejas → escalera
+      `--os-space-*`), barrido de ~60 naranjas/grises hardcodeados, canvas flotante,
+      sidebar oscuro con blur, receta zd-card, inputs/tablas/tabs/drawers
+- [x] **Fase C — Movimiento**: clases `os-scene`/`os-stagger`/`os-lift-card` +
+      `[data-spotlight]`/`[data-blur-text]` en dashboard.html; charts ApexCharts a
+      monocromo (dashboard.js v6)
+- [x] **Fase D — Resto de vistas**: dashboard_results, new_client, login staff
+      (dashboard.css reescrito), portal/base + portal/login (portal.css)
+- [x] **Fase E — Verificación y registro**
+
+**Resultados (2026-08-18):** piel completa portada del main.css original de ZIDONG OS.
+Suite completa: 824 passed, 4 skipped, 1 xfailed — 0 regresiones. Verificación visual
+con Flask local + Edge headless (login por requests con CSRF): capturas de login, Panel
+Ejecutivo, Muestras (kanban + tabs), Facturación y Motorizados — todas con el look
+Linear/Circle (canvas flotante, sidebar con blur, acento blanco, orbes). Colores
+semánticos intactos: pipeline por estado, paleta de motorizados, badge naranja
+"en ruta", verde dinero (--zd-chart) en sparklines/totales; isla clara
+`.service-order-sheet` y `service_order_print.html` sin tocar. 1 fix descubierto en la
+verificación: las tablas anchas propagaban su min-width y rompían el borde del canvas —
+resuelto con `min-width:0` en los ítems del grid del canvas (app.css, sección "Piel
+ZIDONG OS"). Bumps: os-kit.css v1, app.css v8, portal.css v2, dashboard.css v2,
+dashboard.js v6, os-fx.js v1 (+ se agregó `?v=` donde faltaba: new_client y logins).
+Sin commit (pendiente de OK del usuario). Artefacto conocido del headless: con
+virtual-time el blur-text puede capturarse a mitad de animación; en navegador real no
+pasa (verificado en Muestras/Clientes/Facturación/Motorizados).
+
+---
+
 ## Plataforma al 100% — 4 features (2026-08-18) — EN CURSO
 
 Plan aprobado: `~/.claude/plans/wise-petting-wren.md`. Alcance decidido por el usuario:
@@ -820,6 +915,12 @@ Estas funciones se implementarán en la plataforma de gestión, no en el chatbot
 - [ ] Tabla de descuentos por cantidad de parámetros
 - [ ] Estructura de perfiles predefinidos en el catálogo
 - [ ] API ANARVET: endpoint, autenticación, datos expuestos
+- [ ] **PRÓXIMA REUNIÓN — Mascolab (PCR)**: cada ítem tiene DOS precios (Punto Final,
+      el menor, y Tiempo Real, el mayor) y el catálogo admite uno solo. ¿Cuál cotiza el
+      bot, o el médico elige la técnica en el chat? Sin esta respuesta las págs. 19-27
+      del PDF no se cargan a la base (decisión 2026-08-21). De paso confirmar las 2
+      erratas del PDF (código 2407 duplicado y 2061 duplicado). Detalle completo y
+      tabla con ambos precios: `docs/catalogo-mascolab-pendiente.md`
 
 ---
 
