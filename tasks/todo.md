@@ -1142,3 +1142,18 @@ todo se detecte tanto por código como por nombre.
       prueba propia de A3. Suite 1245 passed
 - [ ] **Migración 025 pendiente de OK**: restaura "o Moquillo Canino" en los nombres del
       2004 y 2017 (el PDF lo trae, el seed lo recortó). Solo texto; sin precios ni códigos
+
+
+---
+
+## 2026-08-25 — Pendientes de la llamada 9 (OK del usuario)
+
+- [x] **Fecha de toma de muestra en el chat** (ERR-148): posición 9, entre propietario y
+      análisis; no bloquea; PDF corregido; contrato B4 re-aprobado. Suite 1255
+- [x] **Repositorio publicado**: 117 commits a origin/fix/agente-robustez-multiorden
+      (el remoto estaba en el 8 de junio). Nota: el repo se movió a Zidong-LLC — la URL
+      del remote sigue apuntando a Zidong-IA y GitHub redirige
+- [ ] **Sección "Nueva orden" en el dashboard**: cargar una orden cuando el cliente llama
+      o llega presencial (aprobado por el usuario, 2026-08-25)
+- [ ] **Migración 026** (vista service_orders con sample_taken_date) — aplicar en Supabase
+- [ ] **Migración 025** (nombres del 2004/2017) — pendiente de OK
