@@ -100,3 +100,62 @@ def test_sugiere_el_parecido_cuando_no_hay_coincidencia_exacta():
 
 def test_no_sugiere_cualquier_cosa():
     assert sugerencias("Vetgo", [_cliente("Hospital Veterinario San Martín", "x")]) == []
+
+
+# ── Duplicados de la base de A3: el NIT los delata ───────────────────────────────
+
+def _con_nit(nombre, id_, nit, motorizado=False):
+    fila = _cliente(nombre, id_)
+    fila["tax_id"] = nit
+    if motorizado:
+        fila["client_courier_assignment"] = [{"courier_id": "m1"}]
+    return fila
+
+
+def test_el_mismo_nit_con_y_sin_digito_es_el_mismo_cliente():
+    """Caso real: 'Barber Dog' (1031127036) y 'Veterinaria Barber Dog' (1031127036-5)."""
+    candidatos = [
+        _con_nit("Barber Dog", "a", "1031127036"),
+        _con_nit("Veterinaria Barber Dog", "b", "1031127036-5", motorizado=True),
+    ]
+    elegido = anarvet_map.desempatar_duplicado(candidatos)
+    assert elegido and elegido["id"] == "b", "gana el que la operación usa de verdad"
+
+
+def test_no_desempata_cuando_los_nit_son_distintos():
+    """'Hospital Veterinario Praga' (1013618770) y 'Praga Veterinaria' (40077667) son dos
+    clientes distintos con nombre parecido: elegir uno sería adivinar."""
+    candidatos = [
+        _con_nit("Hospital Veterinario Praga", "a", "1013618770"),
+        _con_nit("Praga Veterinaria", "b", "40077667", motorizado=True),
+    ]
+    assert anarvet_map.desempatar_duplicado(candidatos) is None
+
+
+def test_no_desempata_si_ninguno_tiene_motorizado():
+    candidatos = [_con_nit("Vet X", "a", "900123"), _con_nit("Clinica Vet X", "b", "900123-4")]
+    assert anarvet_map.desempatar_duplicado(candidatos) is None
+
+
+def test_no_desempata_sin_nit():
+    candidatos = [_con_nit("Vet Y", "a", ""), _con_nit("Clinica Vet Y", "b", "", motorizado=True)]
+    assert anarvet_map.desempatar_duplicado(candidatos) is None
+
+
+def test_una_cedula_de_diez_digitos_no_se_recorta():
+    """Recortarle el último dígito la convertía en otro documento y rompía el par."""
+    assert anarvet_map._nit_base("1031127036") == "1031127036"
+    assert anarvet_map._nit_base("1031127036-5") == "1031127036"
+    assert anarvet_map._nit_base("901905889") == "901905889"
+
+
+def test_el_duplicado_resuelto_queda_registrado_en_el_plan():
+    """Se anota con qué otro registro chocaba: es la lista de duplicados para A3."""
+    pendientes = [{"cod_cliente": "1", "nombre_cliente": "Veterinaria Barber Dog"}]
+    clientes = [
+        _con_nit("Barber Dog", "a", "1031127036"),
+        _con_nit("Veterinaria Barber Dog", "b", "1031127036-5", motorizado=True),
+    ]
+    plan = planificar(pendientes, clientes)
+    assert len(plan["automaticos"]) == 1 and not plan["ambiguos"]
+    assert plan["automaticos"][0]["duplicado"] == ["Barber Dog", "Veterinaria Barber Dog"]

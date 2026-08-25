@@ -75,6 +75,41 @@ def sugerencias(nombre_anarvet: str | None, clientes: list[dict], limite: int = 
     return puntuados[:limite]
 
 
+def _nit_base(tax_id: str | None) -> str:
+    """NIT sin puntuación y sin dígito de verificación.
+
+    En la base de A3 el mismo cliente aparece cargado dos veces con '1031127036' y
+    '1031127036-5': el dígito de verificación va pegado con guion. Se compara el número
+    base, que es lo que identifica al contribuyente.
+    """
+    # Solo se corta en el guion. Nada de adivinar por longitud: '1031127036' es una cédula
+    # de 10 dígitos completa, y quitarle el último la convertía en otro documento — así el
+    # par '1031127036' / '1031127036-5' dejaba de reconocerse como el mismo cliente.
+    return re.sub(r"[^0-9]", "", str(tax_id or "").split("-")[0])
+
+
+def desempatar_duplicado(candidatos: list[dict]) -> dict | None:
+    """Si los candidatos son EL MISMO cliente cargado dos veces, devuelve cuál usar.
+
+    Verificado sobre los 8 ambiguos reales (2026-08-25): en 7 los dos registros comparten
+    el NIT y solo cambia el dígito de verificación. No son sedes ni clientes distintos —
+    es la base de A3 duplicada, que es justo lo que quedaron de ordenar.
+
+    Se elige el que **tiene motorizado asignado**: ese es el registro que usa la operación
+    de verdad. Si los NIT difieren (caso 'Hospital Veterinario Praga' vs 'Praga
+    Veterinaria') devuelve None: son clientes distintos y elegir sería adivinar.
+    """
+    if len(candidatos) < 2:
+        return None
+    bases = {_nit_base(c.get("tax_id")) for c in candidatos}
+    if len(bases) != 1 or not next(iter(bases)):
+        return None  # NIT distinto o ausente: no está probado que sean el mismo
+    con_motorizado = [c for c in candidatos if c.get("client_courier_assignment")]
+    if len(con_motorizado) == 1:
+        return con_motorizado[0]
+    return None  # ninguno o ambos operativos: que decida una persona
+
+
 def planificar(pendientes: list[dict], clientes: list[dict]) -> dict:
     """Clasifica los pendientes SIN escribir nada. Función pura: es lo que permite
     simular el automatch contra la base real antes de aplicarlo.
@@ -93,7 +128,14 @@ def planificar(pendientes: list[dict], clientes: list[dict]) -> dict:
         if len(opciones) == 1:
             automaticos.append({"pendiente": fila, "cliente": opciones[0]})
         elif opciones:
-            ambiguos.append({"pendiente": fila, "candidatos": opciones})
+            # Varios candidatos NO siempre es ambigüedad real: en la base de A3 casi
+            # siempre es el mismo cliente cargado dos veces, y el NIT lo demuestra.
+            elegido = desempatar_duplicado(opciones)
+            if elegido:
+                automaticos.append({"pendiente": fila, "cliente": elegido,
+                                    "duplicado": [o["clinic_name"] for o in opciones]})
+            else:
+                ambiguos.append({"pendiente": fila, "candidatos": opciones})
         else:
             sin_candidato.append({"pendiente": fila, "candidatos": []})
     return {"automaticos": automaticos, "ambiguos": ambiguos, "sin_candidato": sin_candidato}

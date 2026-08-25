@@ -3997,3 +3997,37 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
   visible en el portal de esa veterinaria, PDF de 3 páginas descargable por URL firmada, y
   notificación "Resultado disponible: Sucy" creada.
 - **Tests:** `test_pdf_service.py` (6) y `test_anarvet_publicar.py` (7). Suite: **1317**.
+
+---
+
+## ERR-156 — Los mapeos que quedaban: el NIT delata los duplicados
+
+- **Fecha:** 2026-08-25 · **Estado:** RESUELTO (13 quedan, y son decisión de A3)
+- **Punto de partida:** 20 códigos sin emparejar tras el automatch — 8 "ambiguos" y 12 sin
+  coincidencia. Se los trató de a uno, con evidencia, en vez de forzarlos.
+- **Los 8 ambiguos no eran ambiguos: eran duplicados.** En 7 de los 8, los dos registros de
+  A3 comparten el NIT y solo cambia el dígito de verificación ('1031127036' y
+  '1031127036-5'). Es el mismo contribuyente cargado dos veces. Como criterio objetivo para
+  elegir cuál usar: **el que tiene motorizado asignado**, que es el registro que la operación
+  usa de verdad. Los 7 quedaron emparejados y el plan anota con qué otro registro chocaban —
+  esa es la lista de duplicados para que A3 limpie su base.
+- **Un error propio, cazado por los datos:** la primera versión de `_nit_base` recortaba el
+  último dígito de los NIT de 10 cifras suponiendo que era el verificador. Pero '1031127036'
+  es una **cédula completa**, y recortarla la convertía en otro documento: el par dejaba de
+  reconocerse y los 8 casos daban "NITs distintos". Se corta solo por el guion.
+- **De los 12 sin coincidencia**, buscando cada uno por su palabra distintiva entre las 842
+  veterinarias activas: **6 sencillamente no existen en la base de A3** (Grupo Zenva —29
+  informes—, Vetgo, Kannes, Misión Apolo, Petmi, Monaph Vet). No se marcaron como "no es
+  cliente": que un cliente de Anarvet no esté en el portal de A3 es información de su
+  negocio, no una conclusión técnica.
+- **Se descartó ampliar el normalizador** (sumar artículos y la abreviatura "vet"): resolvía
+  2 casos más pero **subía las colisiones de nombre de 23 a 36** en toda la base. Mal
+  negocio: 2 mapeos a cambio de 13 ambigüedades nuevas.
+- **Un caso que parecía fácil y no lo era:** "Clinica Diagnostico Veterinario" tiene DOS
+  candidatos en A3 ("Clinica De Diagnostico Veterinario SAS" y "Centro De Diagnostico
+  Veterinario Vetalcol SAS"). Forzarlo habría mandado resultados a la veterinaria equivocada.
+- **Resultado:** informes con dueño **de 468 (58%) esta mañana a 727 (90%)**. Quedan 13
+  códigos, todos con la misma característica: para resolverlos hace falta que A3 diga a quién
+  corresponden, no más código.
+- **Tests:** 6 nuevos en `test_anarvet_map.py` (mismo NIT con y sin dígito, NIT distinto que
+  no desempata, cédula que no se recorta, duplicado registrado en el plan). Suite: **1323**.
