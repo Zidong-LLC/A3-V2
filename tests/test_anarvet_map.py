@@ -159,3 +159,50 @@ def test_el_duplicado_resuelto_queda_registrado_en_el_plan():
     plan = planificar(pendientes, clientes)
     assert len(plan["automaticos"]) == 1 and not plan["ambiguos"]
     assert plan["automaticos"][0]["duplicado"] == ["Barber Dog", "Veterinaria Barber Dog"]
+
+
+def _con_dir(nombre, id_, nit, direccion, motorizado=False):
+    fila = _con_nit(nombre, id_, nit, motorizado)
+    fila["address"] = direccion
+    return fila
+
+
+def test_mismo_nit_pero_locales_distintos_son_SUCURSALES():
+    """Corrección del usuario (2026-08-25): un NIT compartido no significa duplicado. Una
+    veterinaria puede tener varias sucursales, todas con el mismo NIT y a veces con el
+    mismo nombre. Elegir una mandaría los resultados de una sede a la otra."""
+    candidatos = [
+        _con_dir("Veterinaria Aquiles", "a", "1031142246", "CR 81 72 24 SUR"),
+        _con_dir("Clinica Veterinaria Aquiles", "b", "1031142246-8", "CR 81 72-25 SUR", True),
+    ]
+    assert anarvet_map.desempatar_duplicado(candidatos) is None
+
+
+def test_la_misma_direccion_escrita_distinto_sigue_siendo_el_mismo_local():
+    """'AV 30 1-136' y 'AV 30 1 136' son el mismo lugar: eso sí es un duplicado."""
+    candidatos = [
+        _con_dir("Clinivet Perritos CIA Perotes", "a", "901502986", "AV 30 1 136"),
+        _con_dir("Clinivet Perritos CIA Perrotes", "b", "901502986-1", "AV 30 1-136", True),
+    ]
+    elegido = anarvet_map.desempatar_duplicado(candidatos)
+    assert elegido and elegido["id"] == "b"
+
+
+def test_el_digito_verificador_pegado_sin_guion_es_el_mismo_contribuyente():
+    """'Policlinica 20 de Julio' figura con 19441545 y 194415453: mismo local, misma
+    dirección, y el segundo es el primero más su verificador."""
+    candidatos = [
+        _con_dir("Policlinica 20 de Julio", "a", "19441545", "CL 24 SUR 6-56"),
+        _con_dir("Policlinica Veterinaria 20 De Julio", "b", "194415453", "CL 24 SUR 6-56", True),
+    ]
+    elegido = anarvet_map.desempatar_duplicado(candidatos)
+    assert elegido and elegido["id"] == "b"
+
+
+def test_dos_nit_que_solo_se_parecen_no_son_el_mismo():
+    """80871972 y 901684701 son negocios distintos, por más que compartan el nombre."""
+    candidatos = [
+        _con_dir("Veterinaria Piscis", "a", "80871972", "CL 1"),
+        _con_dir("Veterinaria Piscis SAS", "b", "901684701", "CL 1", True),
+    ]
+    assert anarvet_map.desempatar_duplicado(candidatos) is None

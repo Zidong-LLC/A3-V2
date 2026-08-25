@@ -4031,3 +4031,39 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
   corresponden, no más código.
 - **Tests:** 6 nuevos en `test_anarvet_map.py` (mismo NIT con y sin dígito, NIT distinto que
   no desempata, cédula que no se recorta, duplicado registrado en el plan). Suite: **1323**.
+
+---
+
+## ERR-157 — El NIT compartido NO significa duplicado: pueden ser sucursales
+
+- **Fecha:** 2026-08-25 · **Estado:** RESUELTO
+- **Corrección del usuario:** *"muchas, si tienen el mismo NIT, son sucursales de la misma
+  veterinaria — una veterinaria con dos o tres locales distintos, incluso con el mismo
+  nombre"*. ERR-156 había tratado todo NIT compartido como duplicado y elegía el registro
+  con motorizado. Con sucursales, eso manda los resultados de una sede a otra.
+- **Se comprobó con las direcciones**, que es el dato que las distingue: de los casos
+  resueltos, **5 eran duplicados del mismo local** (misma dirección, a veces escrita distinto:
+  'AV 30 1-136' y 'AV 30 1 136') y los demás eran otra cosa.
+- **Regla nueva:** el desempate exige **mismo contribuyente Y misma dirección**. Con
+  direcciones distintas devuelve None: la sede la elige A3, no un algoritmo.
+- **Caso que confirma la regla desde el otro lado:** 'Hade Home' tiene locales en Quintas y
+  en Compartir, cada uno cargado dos veces. El emparejamiento por nombre ya los separaba bien
+  porque **Anarvet incluye la sucursal en el nombre** ("Veterinaria Hade Home 2 Quintas"), y
+  el desempate solo compite entre los dos registros de ESA sede.
+- **Segundo hallazgo, el dígito verificador pegado sin guion:** 'Policlinica 20 de Julio'
+  figura con `19441545` y `194415453` — misma dirección, mismo local. Se cubre exigiendo que
+  un NIT sea prefijo del otro con exactamente un dígito más; dos contribuyentes distintos no
+  se parecen así. (La primera versión de `_nit_base` intentaba adivinarlo por longitud y
+  rompía las cédulas de 10 dígitos: ese camino quedó descartado por los datos.)
+- **Auditoría de lo ya escrito:** se revisaron las asignaciones automáticas con el criterio
+  nuevo y se **revirtieron 4** donde los NIT eran realmente distintos (Piscis, El Imperio,
+  Praga, Dr. Patitas: 13 informes) — ahí sí eran negocios diferentes con nombre parecido. Se
+  mantuvieron las 3 de sucursales del mismo NIT (el dueño entra al portal con su NIT y ve
+  todas sus sedes) y el duplicado exacto de Policlínica.
+- **Estado:** 714 de 802 informes con dueño (89%), 168 de 185 veterinarias emparejadas.
+- **Para A3:** documento con las 17 restantes y todo lo que Anarvet entrega de cada una
+  —código, fechas, pacientes, propietarios y los candidatos de su base— para que puedan
+  reconocerlas. Anarvet **no envía el NIT del cliente**, solo el nombre: esa es la razón de
+  fondo por la que estas no se pueden resolver desde acá.
+- **Tests:** 4 nuevos (sucursales que no desempatan, misma dirección escrita distinto, DV
+  pegado sin guion, NITs que solo se parecen). Suite: **1327 passed**.

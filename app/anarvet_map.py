@@ -88,22 +88,53 @@ def _nit_base(tax_id: str | None) -> str:
     return re.sub(r"[^0-9]", "", str(tax_id or "").split("-")[0])
 
 
+def _mismo_contribuyente(bases: set[str]) -> bool:
+    """¿Todos los NIT son del mismo contribuyente?
+
+    Además del caso idéntico, cubre el dígito de verificación **pegado sin guion**:
+    'Policlinica 20 de Julio' figura con 19441545 y 194415453 — mismo local, misma
+    dirección, y el segundo es el primero más su verificador. Se exige que uno sea prefijo
+    del otro y que difieran en exactamente un dígito: dos contribuyentes distintos no se
+    parecen así.
+    """
+    limpias = {b for b in bases if b}
+    if len(limpias) <= 1:
+        return bool(limpias)
+    corto, largo = min(limpias, key=len), max(limpias, key=len)
+    return len(limpias) == 2 and len(largo) == len(corto) + 1 and largo.startswith(corto)
+
+
+def _direccion_normalizada(direccion: str | None) -> str:
+    """Dirección comparable: 'AV 30 1-136' y 'AV 30 1 136' son el mismo local."""
+    texto = unicodedata.normalize("NFKD", str(direccion or "").lower())
+    texto = "".join(c for c in texto if not unicodedata.combining(c))
+    return " ".join(re.findall(r"[a-z0-9]+", texto))
+
+
 def desempatar_duplicado(candidatos: list[dict]) -> dict | None:
-    """Si los candidatos son EL MISMO cliente cargado dos veces, devuelve cuál usar.
+    """Si los candidatos son EL MISMO local cargado dos veces, devuelve cuál usar.
 
-    Verificado sobre los 8 ambiguos reales (2026-08-25): en 7 los dos registros comparten
-    el NIT y solo cambia el dígito de verificación. No son sedes ni clientes distintos —
-    es la base de A3 duplicada, que es justo lo que quedaron de ordenar.
+    Dos condiciones, y las dos son necesarias:
 
-    Se elige el que **tiene motorizado asignado**: ese es el registro que usa la operación
-    de verdad. Si los NIT difieren (caso 'Hospital Veterinario Praga' vs 'Praga
-    Veterinaria') devuelve None: son clientes distintos y elegir sería adivinar.
+    1. **Mismo NIT.** En la base de A3 el mismo contribuyente aparece con '1031127036' y
+       '1031127036-5': cambia solo el dígito de verificación.
+    2. **Misma dirección.** Acá está la trampa que corrigió el usuario (2026-08-25): un NIT
+       compartido NO significa duplicado. Una veterinaria puede tener varias **sucursales**,
+       todas con el mismo NIT y a veces con el mismo nombre — 'Hade Home' tiene local en
+       Quintas y en Compartir. Si las direcciones difieren son locales distintos, y elegir
+       uno mandaría los resultados de una sede a la otra.
+
+    Cumplidas las dos, se usa el registro que **tiene motorizado asignado**: es el que la
+    operación usa de verdad. Ante cualquier duda, None — que decida una persona.
     """
     if len(candidatos) < 2:
         return None
     bases = {_nit_base(c.get("tax_id")) for c in candidatos}
-    if len(bases) != 1 or not next(iter(bases)):
+    if not all(bases) or not _mismo_contribuyente(bases):
         return None  # NIT distinto o ausente: no está probado que sean el mismo
+    direcciones = {_direccion_normalizada(c.get("address")) for c in candidatos}
+    if len(direcciones) != 1:
+        return None  # sucursales distintas: la sede la elige A3, no un algoritmo
     con_motorizado = [c for c in candidatos if c.get("client_courier_assignment")]
     if len(con_motorizado) == 1:
         return con_motorizado[0]
