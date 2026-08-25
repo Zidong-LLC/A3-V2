@@ -88,6 +88,7 @@
         <div class="card-head"><h3>Espejo Anarvet</h3><p>Trae los analitos validados desde Anarvet (solo lectura) al espejo local. Por defecto sincroniza los últimos 7 días.</p></div>
         <div class="portal-upload-actions">
           <button type="button" class="ghost-btn" data-anarvet-sync><i data-lucide="refresh-cw"></i>Sincronizar Anarvet</button>
+          <a class="ghost-btn" href="{{ url_for('dashboard_anarvet.informes_page') }}"><i data-lucide="clipboard-list"></i>Ver informes del espejo</a>
           <span class="table-counter" data-anarvet-sync-flag></span>
         </div>
       </section>

@@ -14,6 +14,7 @@ import app.pricing  # registra el provider de tramos de descuento en rules
 from app.platform_api import platform_api
 from app.dashboard import dashboard
 from app.dashboard_results import dashboard_results
+from app.dashboard_anarvet import dashboard_anarvet
 from app.portal import portal_bp
 
 app = Flask(__name__)
@@ -21,6 +22,7 @@ app.secret_key = FLASK_SECRET_KEY
 app.register_blueprint(platform_api)
 app.register_blueprint(dashboard)
 app.register_blueprint(dashboard_results)
+app.register_blueprint(dashboard_anarvet)
 app.register_blueprint(portal_bp)
 
 

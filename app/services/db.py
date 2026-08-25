@@ -1201,6 +1201,47 @@ def list_anarvet_results(
     return result.data or [], (result.count or 0)
 
 
+def list_anarvet_informes(
+    filters: dict | None = None, page: int = 1, per_page: int = 50
+) -> tuple[list[dict], int]:
+    """Lista informes (vista anarvet_informes: un paciente en una fecha) con
+    filtros y paginación del lado servidor. Devuelve (filas, total)."""
+    f = filters or {}
+    query = _client.table("anarvet_informes").select("*", count="exact")
+    if f.get("cod_cliente"):
+        query = query.eq("cod_cliente", f["cod_cliente"])
+    if f.get("date_from"):
+        query = query.gte("fecha_solicitud", f["date_from"])
+    if f.get("date_to"):
+        query = query.lte("fecha_solicitud", f["date_to"])
+    if f.get("search"):
+        term = str(f["search"]).replace(",", " ").strip()
+        if term:
+            query = query.or_(
+                f"mascota.ilike.%{term}%,nombre_propietario.ilike.%{term}%,"
+                f"nombre_cliente.ilike.%{term}%,codigo.ilike.%{term}%"
+            )
+    query = query.order("fecha_solicitud", desc=True).order("codigo")
+    start = max(page - 1, 0) * per_page
+    query = query.range(start, start + per_page - 1)
+    result = query.execute()
+    return result.data or [], (result.count or 0)
+
+
+def get_anarvet_informe(codigo: str, fecha_solicitud: str) -> list[dict]:
+    """Analitos de un informe (paciente + fecha), ordenados por examen y analito."""
+    result = (
+        _client.table("anarvet_results")
+        .select("*")
+        .eq("codigo", codigo)
+        .eq("fecha_solicitud", fecha_solicitud)
+        .order("examen_cod")
+        .order("analito_cod")
+        .execute()
+    )
+    return result.data or []
+
+
 def list_custom_profiles(client_id: str | None = None, limit: int = 100) -> list[dict]:
     query = _client.table("client_custom_profiles").select("*, clients(clinic_name)").order("created_at", desc=True).limit(limit)
     if client_id:

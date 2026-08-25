@@ -167,6 +167,37 @@ def test_endpoint_sync_rango_invalido_da_400(client_dashboard, monkeypatch):
     assert res.status_code == 400
 
 
+def test_pagina_informes_flag_apagado_da_404(client_dashboard, monkeypatch):
+    import app.dashboard_anarvet as danarvet
+    monkeypatch.setattr(danarvet, "ANARVET_ENABLED", False)
+    assert client_dashboard.get("/resultados/anarvet").status_code == 404
+
+
+def test_pagina_informes_lista_y_detalle(client_dashboard, monkeypatch):
+    import app.dashboard_anarvet as danarvet
+    informe = {
+        "codigo": "X1", "fecha_solicitud": "2026-08-19", "cod_cliente": "04",
+        "nombre_cliente": "Animal Club", "nombre_propietario": "David", "mascota": "Zoe",
+        "especie": "Canino", "raza": "MESTIZO", "genero": "H", "analitos": 2,
+        "examenes": 1, "examen_codigos": "H4", "ultima_validacion": "2026-08-19",
+    }
+    analito = {**_fila_reporte(), "mascota": "Zoe", "examen_cod": "H4",
+               "fecha_solicitud": "2026-08-19", "fec_val": "2026-08-19", "nacio": "2025-08-19"}
+    monkeypatch.setattr(danarvet, "ANARVET_ENABLED", True)
+    monkeypatch.setattr(danarvet.db, "list_anarvet_informes", lambda f, page, per_page: ([informe], 1))
+    monkeypatch.setattr(danarvet.db, "get_anarvet_informe", lambda c, f: [analito] if c == "X1" else [])
+
+    res = client_dashboard.get("/resultados/anarvet")
+    assert res.status_code == 200
+    assert "Zoe" in res.get_data(as_text=True)
+
+    res = client_dashboard.get("/resultados/anarvet/X1/2026-08-19")
+    assert res.status_code == 200
+    assert "Examen H4" in res.get_data(as_text=True)
+
+    assert client_dashboard.get("/resultados/anarvet/NOEXISTE/2026-08-19").status_code == 404
+
+
 def test_endpoint_assign_manual_y_none(client_dashboard, monkeypatch):
     import app.dashboard as dash
     llamadas = []
