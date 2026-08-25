@@ -1173,14 +1173,32 @@ Conexión revisada antes de empezar: ping 1.31s, 11.546 analitos en 3 días, cre
 - [x] **1/4 · Informe propio descargable** (ERR-150): plantilla A4 con identidad A3, nombres
       de examen legibles, observaciones fuera de la tabla, edad calculada y firma del
       validador real. Botón en el detalle y en el listado. Suite 1270
-- [ ] **2/4 · Publicar el resultado al portal del cliente** desde el espejo (ya existe
-      publicar+notificar para PDFs subidos a mano; falta alimentarlo desde Anarvet usando
-      `anarvet_client_map`)
-- [ ] **3/4 · Pantalla de mapeo de clientes**: **100 pendientes** de 184 (recontado el
-      2026-08-25 contra la base: el sync trajo más clientes que en el conteo original de 19)
-      + 2 automáticos sospechosos (cod 828 y 882). Hoy solo se resuelven por API/script.
-      Sin este mapeo, un informe del espejo no sabe a qué cliente del portal pertenece
-- [ ] **4/4 · Sync automático** (hoy es un clic manual)
+- [x] **2/4 · Publicar el resultado al portal** (ERR-155): PDF en el servidor con
+      Playwright, reusando el publicar+notificar existente. Verificado end-to-end con un
+      informe real de 93 analitos
+- [x] **3/4 · Pantalla de mapeo de clientes** (ERR-151): 80 emparejados solos, informes
+      con dueño de 58% a 87%. Quedan 20 para decisión humana, 8 de ellos por clientes
+      DUPLICADOS en la base de A3
+- [x] **4/4 · Sync incremental + endpoint para cron** (ERR-154): arranca donde quedó el
+      espejo, no en 7 días ciegos. Verificado real: 11.665 analitos sin errores
 - [ ] **A pedirle a Anarvet**: unidades y valores de referencia por analito, y el nombre
       largo del examen — sin eso el informe no es clínicamente completo. Además: función de
       ESTADO (hoy solo devuelve analitos ya validados), TLS y whitelist de IPs de Render
+
+
+---
+
+## 2026-08-25 — Anarvet Fase 2 COMPLETA
+
+Los cuatro frentes cerrados (ERR-150 a ERR-155). Suite **1317 passed**.
+
+- [ ] **Encender en producción**: cambiar el runtime de Render a Docker, desplegar con
+      `PDF_ENABLED=false`, verificar `/health` y recién ahí encenderlo
+- [ ] **Programar el cron** que llame a `POST /api/platform/anarvet/sync`
+- [ ] **Resolver los 20 mapeos** que quedan en la pantalla nueva (8 son duplicados que A3
+      debería unificar en su base)
+- [ ] **A pedirle a Anarvet**: unidades y valores de referencia por analito (sin eso el
+      informe no es clínicamente completo), por qué Albúmina y Proteínas nunca llevan
+      validación, TLS y whitelist de IPs de Render
+- [ ] **A decidir con A3**: desde qué fecha quieren ver resultados en el portal — el espejo
+      hoy cubre una semana y traer el historial es repetir el sync por tramos
