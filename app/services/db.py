@@ -1230,6 +1230,22 @@ def list_anarvet_informes(
     return result.data or [], (result.count or 0)
 
 
+def max_anarvet_fecha_solicitud() -> str | None:
+    """Última `fecha_solicitud` que hay en el espejo, o None si está vacío.
+
+    Es el punto de partida del sync incremental: hasta acá ya se trajo todo.
+    """
+    result = (
+        _client.table("anarvet_results")
+        .select("fecha_solicitud")
+        .order("fecha_solicitud", desc=True)
+        .limit(1)
+        .execute()
+    )
+    filas = result.data or []
+    return filas[0].get("fecha_solicitud") if filas else None
+
+
 def count_anarvet_informes_por_cliente() -> dict[str, int]:
     """Cuántos informes tiene cada `cod_cliente` de Anarvet.
 

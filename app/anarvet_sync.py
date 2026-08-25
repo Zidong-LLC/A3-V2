@@ -73,13 +73,41 @@ def _row_to_mirror(row: dict) -> dict | None:
     return mapped
 
 
+# Días que se re-piden hacia atrás además de lo nuevo. Un analito puede validarse días
+# después de la solicitud, y el upsert por dedup_key hace que repetirlo sea gratis: lo
+# reescribe, no lo duplica. Sin solapamiento, esas validaciones tardías nunca se verían.
+_SOLAPAMIENTO_DIAS = 2
+
+
+def _desde_incremental(hoy) -> str:
+    """Desde dónde sincronizar: lo que sigue a lo que ya está en el espejo.
+
+    Antes pedía siempre "los últimos 7 días" a ciegas, sin importar si el espejo estaba al
+    día o vacío: traía de más cuando ya estaba cubierto, y dejaba huecos si nadie apretaba
+    el botón por más de una semana. Ahora arranca en la última fecha sincronizada menos el
+    solapamiento; sin espejo, mantiene el comportamiento de siempre.
+    """
+    ultima = None
+    try:
+        ultima = db.max_anarvet_fecha_solicitud()
+    except Exception:  # noqa: BLE001 — sin dato, se cae al rango por defecto
+        ultima = None
+    if not ultima:
+        return str(hoy - timedelta(days=DEFAULT_SYNC_DAYS))
+    try:
+        base = datetime.strptime(str(ultima)[:10], "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return str(hoy - timedelta(days=DEFAULT_SYNC_DAYS))
+    return str(min(base - timedelta(days=_SOLAPAMIENTO_DIAS), hoy))
+
+
 def sync_results(desde: str | None = None, hasta: str | None = None) -> dict:
     """Trae el reporte del rango (default: últimos DEFAULT_SYNC_DAYS días) y hace
     upsert en el espejo. Lanza ValueError si el rango es inválido (el endpoint lo
     traduce a 400); los fallos de red/lotes van acumulados en `errors`."""
     hoy = datetime.now(APP_TIMEZONE).date()
     hasta = hasta or str(hoy)
-    desde = desde or str(hoy - timedelta(days=DEFAULT_SYNC_DAYS))
+    desde = desde or _desde_incremental(hoy)
     try:
         d_desde = datetime.strptime(desde, "%Y-%m-%d").date()
         d_hasta = datetime.strptime(hasta, "%Y-%m-%d").date()

@@ -206,3 +206,35 @@ def platform_update_request_status(request_id: str):
     if not updated:
         return jsonify({"error": "request_not_found"}), 404
     return jsonify({"ok": True, "request": updated})
+
+
+@platform_api.post("/api/platform/anarvet/sync")
+@_auth_required
+def platform_anarvet_sync():
+    """Sincroniza el espejo de Anarvet. Pensado para un cron externo.
+
+    Existe además del botón del dashboard porque el espejo tiene que mantenerse solo: si
+    nadie entra a apretarlo, los resultados nuevos no aparecen ni en la plataforma ni en el
+    portal. Sin cuerpo, sincroniza de forma incremental desde lo último que ya tiene.
+
+    Respuestas: 200 todo bien · 207 sincronizó con errores parciales · 400 rango inválido ·
+    503 Anarvet caído o deshabilitado. Un cron sabe leer esos códigos.
+    """
+    from app.config import ANARVET_ENABLED
+
+    if not ANARVET_ENABLED:
+        return jsonify({"error": "anarvet_disabled"}), 503
+
+    from app import anarvet_sync
+
+    payload = request.get_json(silent=True) or {}
+    try:
+        resultado = anarvet_sync.sync_results(
+            desde=(payload.get("desde") or None), hasta=(payload.get("hasta") or None))
+    except ValueError as exc:
+        return jsonify({"error": "invalid_range", "detail": str(exc)}), 400
+    except Exception as exc:  # noqa: BLE001 — Anarvet caído no puede tumbar el endpoint
+        return jsonify({"error": "anarvet_unavailable", "detail": str(exc)[:200]}), 503
+
+    errores = resultado.get("errors") or []
+    return jsonify({"ok": not errores, **resultado}), (207 if errores else 200)

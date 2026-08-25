@@ -3934,3 +3934,26 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
   sin resultado se habría mostrado resuelta por el resultado de OTRA orden. Se agregó el
   filtro exacto, con test que verifica que llega a la consulta.
 - **Tests:** 6 nuevos en `test_portal_request_detail.py`. Suite: **1293 passed**.
+
+---
+
+## ERR-154 — El espejo Anarvet no se mantenía solo
+
+- **Fecha:** 2026-08-25 · **Estado:** RESUELTO
+- **Síntoma:** el espejo solo se actualizaba si alguien entraba al dashboard y apretaba el
+  botón, y cuando lo hacía pedía **siempre los últimos 7 días a ciegas** — sin mirar qué ya
+  tenía. Traía de más si estaba al día, y dejaba huecos si nadie lo tocaba por más de una
+  semana. No existía ningún registro de hasta dónde se había sincronizado.
+- **Solución:** `_desde_incremental` arranca en la última `fecha_solicitud` del espejo menos
+  **2 días de solapamiento**. Ese solapamiento no es por las dudas: un analito puede validarse
+  días después de la solicitud, y como el upsert va por `dedup_key`, repetir esos días es
+  gratis (reescribe, no duplica). Sin espejo, o si la consulta falla, cae al rango de siempre:
+  mejor sincronizar de más que no sincronizar.
+- **Disparo automático:** `POST /api/platform/anarvet/sync` en la API interna, que ya exige
+  token y es *fail-closed* desde el hallazgo H1 del QA. Devuelve 200 / 207 (errores parciales)
+  / 400 (rango inválido) / 503 (Anarvet caído), que es lo que un cron necesita para saber si
+  reintentar. El botón manual del dashboard queda igual.
+- **Verificado contra Anarvet real:** pidió 2026-08-22 → 2026-08-25 en vez de los 7 días
+  ciegos, y trajo 11.665 analitos sin un solo error.
+- **Tests:** `test_anarvet_sync_incremental.py` (11), incluidos el espejo vacío, la fecha
+  corrupta, la fecha futura y los tres códigos de respuesta del endpoint. Suite: **1304**.
