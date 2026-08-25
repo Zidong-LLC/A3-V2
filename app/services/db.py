@@ -125,6 +125,8 @@ _ROMAN_TO_ARABIC = {
     "viii": "8",
     "ix": "9",
     "x": "10",
+    "xi": "11",
+    "xii": "12",
 }
 _ARABIC_TO_ROMAN = {value: key for key, value in _ROMAN_TO_ARABIC.items()}
 

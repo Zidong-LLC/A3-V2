@@ -28,11 +28,13 @@ _AREA_WORDS = frozenset({"sangre", "sanguineo", "sanguinea", "sanguineos", "sang
 _ANALYSIS_NOUNS = frozenset({"analisis", "examen", "examenes", "prueba", "pruebas",
                              "perfil", "estudio", "estudios", "test", "tests"})
 # Verbos/muletillas de pedido: no nombran un análisis ('NECESITO una prueba de orina').
+# 'me'/'haces' cierran el hueco del 1603: 'ME HACES un Estudio de Cálculo' — sin ellas el
+# atajo de nombre completo no aplicaba y el test quedaba irresoluble (nombre 100% genérico).
 _REQUEST_WORDS = frozenset({"necesito", "quiero", "quisiera", "dame", "deme", "hazme",
                             "hacer", "hacerle", "pon", "ponme", "ponle", "ponele",
                             "agregame", "agrega", "agregar", "agregarle", "sumale", "suma",
                             "favor", "porfa", "quiere", "queremos", "necesitamos",
-                            "solicito", "vamos"})
+                            "solicito", "vamos", "me", "haces", "hacen", "haga", "hagan"})
 
 # Palabras ESTRUCTURALES: jamás identifican un área/muestra del catálogo. Sin este filtro,
 # el "con" de 'vamos CON el 152...' matcheaba la muestra 'Tubo Tapa Azul CON 3/4 de sangre'

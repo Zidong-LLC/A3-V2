@@ -134,3 +134,35 @@ def test_area_label_is_most_common_category():
     res = catalog.resolve_tests("si orina tambien", rows)
     assert res.status == AMBIGUOUS
     assert res.area == "Uroanálisis"          # la más común, no la del primer hit
+
+
+# ── Auditoría de cobertura 2026-08-25 (catálogo completo re-verificado) ───────────
+
+def test_request_filler_words_do_not_hide_a_full_name():
+    """'ME HACES un Estudio de Cálculo porfa' perdía el 1603: 'me'/'haces' no eran
+    muletillas conocidas y el atajo de nombre completo no aplicaba. El nombre entero
+    del test, rodeado solo de palabras de pedido, SIEMPRE resuelve."""
+    rows = CATALOG + [
+        {"code": "1603", "name": "Estudio de Cálculo", "price": 83000, "category": "Uroanálisis"},
+    ]
+    res = catalog.resolve_tests("me haces un estudio de calculo porfa", rows)
+    assert res.status == EXACT and _codes(res) == ["1603"]
+    # La protección ERR-064 sigue intacta: el genérico suelto jamás agrega.
+    assert catalog.resolve_tests("me haces el calculo", rows).status != EXACT
+
+
+def test_convenio_test_appears_when_named_by_group_word():
+    """El 1903 (Citología PAF, Convenio SERVIPAT) vive fuera de la categoría 'Citología':
+    pedir 'citología' a secas debe OFRECERLO junto a las citologías comunes — es el
+    'está en la siguiente página' del cliente (llamada 9, 21/08)."""
+    rows = CATALOG + [
+        {"code": "1901", "name": "Citología Vaginal", "price": 15000, "category": "Citología"},
+        {"code": "1909", "name": "Citología Piel", "price": 15000, "category": "Citología"},
+        {"code": "1903", "name": "Citología PAF", "price": 52000, "category": "Convenio SERVIPAT"},
+    ]
+    res = catalog.resolve_tests("citología", rows)
+    assert res.status == AMBIGUOUS
+    assert "1903" in _codes(res)
+    # Y con el nombre completo resuelve directo:
+    exacto = catalog.resolve_tests("citologia paf", rows)
+    assert exacto.status == EXACT and _codes(exacto) == ["1903"]

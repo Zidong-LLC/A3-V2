@@ -119,6 +119,17 @@ def test_catalog_profile_match_accepts_roman_and_arabic_aliases():
     assert _catalog_profile_matches("perfil renal 1", row)
 
 
+def test_catalog_profile_match_covers_roman_eleven_and_twelve():
+    """Auditoría 2026-08-25: el mapa romano↔arábigo llegaba hasta X — 'prequirúrgico 11'
+    no encontraba el 162 (Perfil Prequirúrgico XI) ni 'cachorros 12' el 212 (XII)."""
+    from app.services.db import _catalog_profile_matches
+
+    assert _catalog_profile_matches("prequirurgico 11", {"code": "162", "name": "Perfil Prequirúrgico XI"})
+    assert _catalog_profile_matches("cachorros 11", {"code": "211", "name": "Perfil Cachorros XI"})
+    assert _catalog_profile_matches("cachorros 12", {"code": "212", "name": "Perfil Cachorros XII"})
+    assert _catalog_profile_matches("infecciosas felina 11", {"code": "361", "name": "Perfil Infecciosas Felina XI"})
+
+
 def test_find_tests_by_area_matches_sample_name(monkeypatch):
     from app.services import db
 

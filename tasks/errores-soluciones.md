@@ -3663,3 +3663,40 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
 - **Tests:** `test_reemplazo_por_destino.py` (3) + suite 897 passed. Repro final:
   Orión (1802), Lulú (653), Joy (952 + 1903 agregado) — 3/3 órdenes, sin restas
   fantasma, pedido listo para cerrar con pago.
+
+---
+
+## ERR-147 — Auditoría de cobertura del catálogo: 4 huecos de resolución por NOMBRE
+
+- **Fecha:** 2026-08-25 · **Estado:** RESUELTO
+- **Origen:** pedido del usuario tras la llamada 9 — *"que ordenes bien y que no falle y no
+  falte ninguno de los productos del catálogo, y que también se asocien con el nombre, por si
+  el cliente en vez de decir el número dice el nombre"*.
+- **Método:** se transcribió el PDF "A3 - Catálogo 2025" completo (págs. 3-18) a una tabla
+  canónica y se cruzó contra los seeds y contra Supabase vivo (solo lectura); después se
+  verificó, fila por fila, que cada ítem resuelva por código Y por nombre con la lógica real
+  del agente (`catalog.resolve_tests` y `db._catalog_profile_matches`).
+- **Cobertura: sin faltantes.** 183 análisis + 133 perfiles = 316 códigos, precios idénticos
+  al PDF en seeds y en la base viva. Mascolab (págs. 19-27) sigue fuera a propósito: doble
+  precio pendiente de A3 (`docs/catalogo-mascolab-pendiente.md`).
+- **Bugs encontrados y corregidos (4 de 316 ítems eran irresolubles por nombre):**
+  1. **Romanos XI y XII sin mapear** (`db.py:_ROMAN_TO_ARABIC` llegaba hasta X): "prequirúrgico
+     11" no encontraba el 162 (Prequirúrgico XI), ni "cachorros 12" el 212 (XII). También
+     afectaba al 211 y al 361. Fix: dos entradas al mapa.
+  2. **'me' y 'haces' no eran muletillas de pedido** (`catalog._REQUEST_WORDS`): "me haces un
+     Estudio de Cálculo" perdía el 1603 — su nombre es 100% genérico ('estudio' estructural,
+     'cálculo' descriptor), así que solo lo salva el atajo de nombre completo, que no aplicaba
+     con palabras desconocidas alrededor. Fix: 5 muletillas más. La protección ERR-064
+     (genérico suelto nunca agrega) queda intacta y testeada.
+- **Verificado además:** 'citología' SÍ ofrece el 1903 junto a las 7 comunes (el caso de la
+  llamada 9), y el pedido por nombre a mitad de orden agrega igual que el código.
+- **Hueco anotado, NO tocado:** con `exam_type` ya fijado y sin la oferta activa,
+  `catalog_ctx` queda vacío (`agent.py:3371-3410`) y el modelo responde sin ver el catálogo.
+  El carril determinístico de la oferta lo cubre en la práctica, y ampliar el contexto ahí
+  choca con la regla deliberada de "perfil cerrado → avanzar a paciente, no seguir pidiendo
+  análisis" (flujo aprobado). Requiere OK del usuario antes de tocarse.
+- **Tests:** `test_cobertura_catalogo_seed.py` (317 casos, invariante permanente offline),
+  `test_pedido_por_nombre_en_orden.py` (5), + 2 en `test_catalog_module.py` y 1 en
+  `test_db_identification.py`. Suite: **1238 passed**.
+- **Herramientas nuevas:** `tools/scripts/audit_catalogo_pdf.py` (tabla canónica del PDF vs
+  seeds) y `tools/scripts/audit_catalogo_supabase.py` (vs la base viva, solo lectura).

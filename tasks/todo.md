@@ -1113,3 +1113,26 @@ fn_reporte_examenes). Alcance aprobado: conexión + espejo en Supabase + sync ma
 
 Resultado: espejo operativo end-to-end en local. Fase 2 (consulta de resultados por
 chat + PDF propio) queda para su propio plan con OK explícito.
+
+
+---
+
+## 2026-08-25 — Catálogo completo: cobertura y resolución por nombre (pedido del usuario)
+
+Pedido tras la llamada 9: ordenar bien el catálogo, que no falte ningún producto y que
+todo se detecte tanto por código como por nombre.
+
+- [x] Tabla canónica del PDF "A3 - Catálogo 2025" (págs. 3-18) transcrita y versionada
+      en `tools/scripts/audit_catalogo_pdf.py`
+- [x] Cruce contra seeds: **316/316 códigos, precios idénticos** — sin faltantes
+- [x] Cruce contra Supabase vivo (solo lectura): 183 tests + 133 perfiles, todo OK
+- [x] Resolubilidad fila por fila (código + nombre + fraseo con muletillas): 4 huecos
+      encontrados y corregidos (romanos XI/XII; muletillas 'me haces') — ERR-147
+- [x] Verificado el caso de la llamada 9: 'citología' ofrece el 1903 del convenio
+- [x] Invariante permanente: `test_cobertura_catalogo_seed.py` (317 casos, sin red)
+- [x] Suite **1238 passed**
+- [ ] **Mascolab** (págs. 19-27, 60 ítems): bloqueado por A3 — doble precio Punto Final /
+      Tiempo Real, más 2 erratas de código (2407, 2061). Ver `docs/catalogo-mascolab-pendiente.md`
+- [ ] **Anotado, requiere OK:** con `exam_type` fijado y sin oferta activa el modelo no
+      recibe el catálogo (`agent.py:3371-3410`). Tocarlo roza la regla "perfil cerrado →
+      avanzar a paciente" del flujo aprobado
