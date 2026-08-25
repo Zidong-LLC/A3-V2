@@ -3886,3 +3886,51 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
 - **Tests:** `test_anarvet_map.py` (10) + `test_anarvet_clientes_page.py` (6), incluidos el
   caso de colisión que NO debe auto-asignarse y el fallo parcial que no aborta el lote.
   Suite: **1288 passed**.
+
+---
+
+## ERR-152 — El estado del análisis: por qué NO se construyó como estaba planeado
+
+- **Fecha:** 2026-08-25 · **Estado:** RESUELTO (con cambio de diseño respecto del plan)
+- **El plan decía** derivar el estado del informe desde `fec_val`: todos los analitos
+  validados = listo; algunos sin validar = en proceso. Una muestra inicial parecía apoyarlo
+  (473 completos, 36 parciales, 22 sin validar de 531).
+- **Al medirlo bien, se cayó.** Esa muestra estaba sesgada: eran los primeros 1.000 analitos,
+  que truncaban los informes largos. Con la vista completa (migración 027, que agrega
+  `analitos_validados`) sobre los 797 informes reales: **639 parciales, 157 validados, 1 sin
+  validar**. Un estado que le tocaría al 80% no distingue nada.
+- **Dos comprobaciones antes de descartarlo:**
+  1. Los informes del 18/08 —de hace una semana— tienen **la misma proporción de parciales**
+     que los de ayer. Si "parcial" fuera "en curso", se resolvería con el tiempo. No pasa.
+  2. Mirando examen por examen: de 32 exámenes distintos, **29 se validan siempre, ALB nunca
+     y PROT casi nunca**. O sea, un informe figura "parcial" porque incluye Albúmina o
+     Proteínas, no porque el laboratorio le deba trabajo a nadie.
+- **Decisión:** no se muestra estado derivado. Etiquetar de "en proceso" a 639 informes
+  terminados le habría hecho creer al personal —y al cliente— que faltaba algo. Se muestra el
+  dato crudo y verdadero: la **fecha de última validación**, o "sin registro".
+- **A preguntarle a Anarvet**, junto con las unidades y los rangos de referencia: por qué
+  Albúmina y Proteínas Totales no llevan validación, y cómo distinguir un informe terminado
+  de uno en curso. Sin eso no hay estado real que mostrar.
+- **La migración 027 se conserva**: `analitos_validados` es un dato correcto y barato, y es lo
+  que permitió descubrir todo esto.
+
+## ERR-153 — La línea de tiempo del cliente estaba casi vacía
+
+- **Fecha:** 2026-08-25 · **Estado:** RESUELTO
+- **Síntoma:** en el portal, una solicitud mostraba "Solicitud registrada" y nada más, por más
+  que su muestra hubiera recorrido medio laboratorio.
+- **Causa:** `CLIENT_VISIBLE_EVENTS` (lista blanca, `client_requests.py:48`) admitía `created`
+  y `status_updated`, pero los endpoints del dashboard escriben **`dashboard_status_update`**
+  (`request-status` y `sample-status`). El evento que de verdad ocurre nunca estaba invitado.
+- **Solución:** se agregan `dashboard_status_update` y `result_published` a la lista blanca.
+  Sigue siendo lista blanca: un evento nuevo es invisible hasta que se decida mostrarlo, y del
+  payload solo sale el estado (el resto es interno).
+- **Paso nuevo del recorrido:** "Resultado disponible", que se marca **solo cuando existe un
+  resultado publicado para esa orden** — nunca se promete uno que el cliente no pueda abrir.
+  Se agrega en la vista, no en `build_status_progress`: esa función es pura y tiene tests que
+  fijan su contrato.
+- **Bug de datos cazado en el camino:** `portal_db.list_lab_results` **ignoraba el filtro
+  `request_id`**. La consulta devolvía todos los resultados del cliente, así que una solicitud
+  sin resultado se habría mostrado resuelta por el resultado de OTRA orden. Se agregó el
+  filtro exacto, con test que verifica que llega a la consulta.
+- **Tests:** 6 nuevos en `test_portal_request_detail.py`. Suite: **1293 passed**.

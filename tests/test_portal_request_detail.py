@@ -100,4 +100,88 @@ def test_visible_events_is_an_allow_list():
         {"event_type": "un_evento_nuevo", "created_at": "2026-08-01T10:00:00",
          "event_payload": {"dato": "interno"}},
     ]) == []
-    assert set(CLIENT_VISIBLE_EVENTS) == {"created", "status_updated"}
+    assert set(CLIENT_VISIBLE_EVENTS) == {
+        "created", "status_updated", "dashboard_status_update", "result_published"}
+
+
+def test_el_cliente_ve_los_cambios_de_estado_que_hace_el_personal():
+    """El bug que esto cierra: los endpoints del dashboard escriben
+    'dashboard_status_update', que no estaba en la lista blanca. El cliente veía
+    "Solicitud registrada" y nada más, por más que su muestra hubiera avanzado."""
+    linea = build_timeline([
+        {"event_type": "dashboard_status_update", "created_at": "2026-08-02T09:00:00",
+         "event_payload": {"status": "in_lab", "source": "dashboard_muestras"}},
+    ])
+    assert len(linea) == 1
+    assert linea[0]["status_label"] == "En laboratorio"
+    # Y lo interno del payload sigue sin salir del laboratorio.
+    assert "source" not in linea[0]
+
+
+# ── Paso "Resultado disponible" (Anarvet Fase 2) ─────────────────────────────────
+
+def test_el_paso_del_resultado_solo_aparece_marcado_si_esta_publicado():
+    """Nunca se le promete al cliente un resultado que todavía no puede abrir."""
+    from unittest.mock import patch
+
+    from app.portal import client_requests as cr
+
+    base = build_status_progress("in_lab")
+
+    with patch.object(cr.portal_db, "list_lab_results", return_value=[]):
+        sin = cr.with_result_step(list(base), "req-1", "cli-1")
+    assert sin[-1]["key"] == "result_ready"
+    assert not sin[-1]["current"] and not sin[-1]["done"]
+
+    with patch.object(cr.portal_db, "list_lab_results", return_value=[{"id": "r1"}]):
+        con = cr.with_result_step(list(base), "req-1", "cli-1")
+    assert con[-1]["current"] is True
+    # Si el resultado ya está, todo el recorrido anterior quedó atrás.
+    assert all(p["done"] for p in con[:-1])
+
+
+def test_un_fallo_al_consultar_resultados_no_rompe_la_pagina():
+    """El avance de la muestra es lo importante: si la consulta de resultados falla,
+    el cliente igual ve dónde está su orden."""
+    from unittest.mock import patch
+
+    from app.portal import client_requests as cr
+
+    with patch.object(cr.portal_db, "list_lab_results", side_effect=RuntimeError("caída")):
+        progreso = cr.with_result_step(build_status_progress("on_route"), "req-1", "cli-1")
+    assert [p["key"] for p in progreso] == [k for k, _ in REQUEST_STATUS_FLOW]
+
+
+def test_una_orden_cancelada_no_gana_el_paso_del_resultado():
+    from unittest.mock import patch
+
+    from app.portal import client_requests as cr
+
+    with patch.object(cr.portal_db, "list_lab_results", return_value=[{"id": "r1"}]):
+        assert cr.with_result_step(build_status_progress("cancelled"), "req-1", "cli-1") == []
+
+
+def test_el_resultado_de_otra_orden_no_marca_esta_como_lista():
+    """`list_lab_results` ignoraba el filtro `request_id`: devolvía todos los del cliente,
+    así que una solicitud sin resultado se mostraba resuelta por el resultado de otra."""
+    from unittest.mock import patch
+
+    from app.services import portal_db
+
+    capturado = {}
+
+    class _Q:
+        def select(self, *a, **k): return self
+        def eq(self, col, val): capturado[col] = val; return self
+        def ilike(self, *a, **k): return self
+        def gte(self, *a, **k): return self
+        def lte(self, *a, **k): return self
+        def order(self, *a, **k): return self
+        def limit(self, *a, **k): return self
+        def execute(self): return type("R", (), {"data": []})()
+
+    with patch.object(portal_db, "_client", type("C", (), {"table": lambda s, n: _Q()})()):
+        portal_db.list_lab_results({"request_id": "req-9"}, client_id="cli-1", only_published=True)
+
+    assert capturado.get("request_id") == "req-9", "el filtro debe llegar a la consulta"
+    assert capturado.get("client_id") == "cli-1"

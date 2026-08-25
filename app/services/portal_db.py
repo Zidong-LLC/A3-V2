@@ -71,6 +71,11 @@ def list_lab_results(
         query = query.ilike("owner_name", f"%{filters['owner']}%")
     if filters.get("order_number"):
         query = query.ilike("order_number", f"%{filters['order_number']}%")
+    # Exacto, no ilike: se usa para responder "¿ESTA orden ya tiene su resultado?". Sin el
+    # filtro, la consulta devolvía todos los del cliente y el portal marcaba una solicitud
+    # como resuelta por el resultado de otra.
+    if filters.get("request_id"):
+        query = query.eq("request_id", filters["request_id"])
     if filters.get("date_from"):
         query = query.gte("created_at", filters["date_from"])
     if filters.get("date_to"):

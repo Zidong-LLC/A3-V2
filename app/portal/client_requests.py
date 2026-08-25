@@ -48,6 +48,12 @@ REQUEST_STATUS_OFF_FLOW = ("cancelled", "error_pending_assignment")
 CLIENT_VISIBLE_EVENTS = {
     "created": "Solicitud registrada",
     "status_updated": "Actualización de estado",
+    # Es el tipo que escriben DE VERDAD los endpoints del dashboard cuando el personal
+    # mueve una solicitud o una muestra (`dashboard.py`: request-status y sample-status).
+    # Sin él, el cliente veía "Solicitud registrada" y nada más, por más que su muestra
+    # hubiera recorrido medio laboratorio.
+    "dashboard_status_update": "Actualización de estado",
+    "result_published": "Resultado publicado",
 }
 
 
@@ -91,6 +97,33 @@ def build_timeline(events: list[dict]) -> list[dict]:
     return timeline
 
 
+def with_result_step(progress: list[dict], request_id: str, client_id: str) -> list[dict]:
+    """Agrega el paso final "Resultado disponible" cuando ya se le publicó el informe.
+
+    Va acá y no dentro de `build_status_progress` a propósito: esa función es pura y su
+    contrato está fijado por tests. El recorrido de la muestra (recibida → … → enviada) es
+    del laboratorio; que el resultado esté publicado es un hecho aparte, y solo se marca
+    cuando existe de verdad — nunca se promete un resultado que el cliente no puede abrir.
+    """
+    if not progress:
+        return progress
+    try:
+        publicados = portal_db.list_lab_results(
+            {"request_id": request_id}, client_id=client_id, only_published=True, limit=1)
+    except Exception:
+        return progress
+    listo = bool(publicados)
+    if listo:
+        for paso in progress:
+            paso["done"], paso["current"] = True, False
+    return progress + [{
+        "key": "result_ready",
+        "label": "Resultado disponible",
+        "done": False,
+        "current": listo,
+    }]
+
+
 @portal_bp.get("/mis/solicitudes")
 @client_required
 def client_requests_page():
@@ -126,7 +159,9 @@ def client_request_detail(request_id):
     return render_template(
         "portal/client_request_detail.html",
         order=order,
-        progress=build_status_progress(order.get("status")),
+        progress=with_result_step(
+            build_status_progress(order.get("status")), str(request_id),
+            session["portal_client_id"]),
         timeline=build_timeline(events),
         status_labels=REQUEST_STATUS_LABELS,
         active_tab="solicitudes",
