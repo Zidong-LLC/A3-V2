@@ -761,3 +761,20 @@ doble bind). Se quemaron dos ciclos de reparación contra un proceso fantasma. A
 más código ante un "sigue igual": netstat al puerto, contar listeners, confirmar el PID que
 sirve. El verificador de sesión ahora lo chequea solo.
 
+
+## L70 — Verificar el ESTADO REAL antes de listar pendientes (2026-08-25)
+Al pedir la lista de lo que faltaba de una llamada, el primer impulso fue reconstruirla desde
+los documentos de auditoría. El usuario cortó: "hice ya muchos de estos cambios, verifica el
+estado actual del proyecto realmente". Y era cierto: de los 5 bloqueantes documentados, 4
+estaban implementados y el quinto había cambiado de forma. Los documentos de estado envejecen
+más rápido que el código. Regla: una lista de pendientes se arma leyendo el repo (flags,
+migraciones aplicadas, tests), no releyendo el acta que la originó.
+
+## L71 — Un sinónimo se SUSTITUYE, nunca se suma (2026-08-25)
+Al mapear la jerga del gremio ("hemograma" → "hematico"), la primera versión agregaba el
+término traducido a los del cliente. Con dos tokens en la frase, el resolvedor los leyó como
+DOS análisis pedidos y "leishmaniasis" pasó a cotizar $189.000 en vez de $70.000. El barrido
+lo cazó antes de tocar nada, pero la lección vale para cualquier expansión de texto: si el
+motor de abajo interpreta "más tokens" como "más ítems pedidos", enriquecer la entrada
+inventa pedidos. Y el diccionario nunca manda sobre el catálogo: si la palabra existe como
+nombre real, esa gana.

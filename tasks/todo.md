@@ -1136,3 +1136,9 @@ todo se detecte tanto por código como por nombre.
 - [ ] **Anotado, requiere OK:** con `exam_type` fijado y sin oferta activa el modelo no
       recibe el catálogo (`agent.py:3371-3410`). Tocarlo roza la regla "perfil cerrado →
       avanzar a paciente" del flujo aprobado
+- [x] **Segunda vuelta — cómo pide el veterinario** (ERR-147b): siglas del propio nombre
+      (BUN, LDH, PIF, TVT, 4DX), jerga del gremio (hemograma, parvo, toxo, ionograma),
+      'materia fecal' ya no agrega Tripsina, y el convenio no gana callado sobre la
+      prueba propia de A3. Suite 1245 passed
+- [ ] **Migración 025 pendiente de OK**: restaura "o Moquillo Canino" en los nombres del
+      2004 y 2017 (el PDF lo trae, el seed lo recortó). Solo texto; sin precios ni códigos
