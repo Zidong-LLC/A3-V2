@@ -1176,8 +1176,10 @@ Conexión revisada antes de empezar: ping 1.31s, 11.546 analitos en 3 días, cre
 - [ ] **2/4 · Publicar el resultado al portal del cliente** desde el espejo (ya existe
       publicar+notificar para PDFs subidos a mano; falta alimentarlo desde Anarvet usando
       `anarvet_client_map`)
-- [ ] **3/4 · Pantalla de mapeo de clientes**: 19 pendientes (15 ambiguos + 4 sin match) y
-      2 automáticos sospechosos (cod 828 y 882). Hoy solo se resuelven por API/script
+- [ ] **3/4 · Pantalla de mapeo de clientes**: **100 pendientes** de 184 (recontado el
+      2026-08-25 contra la base: el sync trajo más clientes que en el conteo original de 19)
+      + 2 automáticos sospechosos (cod 828 y 882). Hoy solo se resuelven por API/script.
+      Sin este mapeo, un informe del espejo no sabe a qué cliente del portal pertenece
 - [ ] **4/4 · Sync automático** (hoy es un clic manual)
 - [ ] **A pedirle a Anarvet**: unidades y valores de referencia por analito, y el nombre
       largo del examen — sin eso el informe no es clínicamente completo. Además: función de
