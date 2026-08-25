@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0c0e">
+  <title>A3 CRM - Clientes Anarvet</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='os-kit.css') }}?v=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=8">
+  <link rel="stylesheet" href="{{ url_for('static', filename='portal.css') }}?v=2">
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js" defer></script>
+</head>
+<body class="crm-theme" data-sidebar="expanded">
+  <div class="os-shell-ambient"><i class="os-glow-orb os-glow-orb--1"></i><i class="os-glow-orb os-glow-orb--2"></i><i class="os-glow-orb os-glow-orb--3"></i></div>
+  <div class="crm-app">
+    <aside class="crm-sidebar">
+      <div class="brand-row">
+        <div class="brand-mark">A3</div>
+        <div class="brand-copy"><strong>CRM Operativo</strong><span>Centro de control</span></div>
+      </div>
+      <div class="menu-block">
+        <span class="menu-caption">Menu principal</span>
+        <nav class="menu-list os-stagger">
+          <a href="{{ url_for('dashboard.dashboard_home') }}" class="menu-link"><i data-lucide="layout-dashboard"></i><span>Panel</span></a>
+          <a href="{{ url_for('dashboard.operation_page') }}" class="menu-link"><i data-lucide="radio-tower"></i><span>Operacion</span></a>
+          <a href="{{ url_for('dashboard.clients_page') }}" class="menu-link"><i data-lucide="users"></i><span>Clientes</span></a>
+          <a href="{{ url_for('dashboard.requests_page') }}" class="menu-link"><i data-lucide="clipboard-list"></i><span>Solicitudes</span></a>
+          <a href="{{ url_for('dashboard.billing_page') }}" class="menu-link"><i data-lucide="receipt"></i><span>Facturacion</span></a>
+          <a href="{{ url_for('dashboard.motorizados_page') }}" class="menu-link"><i data-lucide="bike"></i><span>Motorizados</span></a>
+          <a href="{{ url_for('dashboard.samples_page') }}" class="menu-link"><i data-lucide="test-tube-2"></i><span>Muestras</span></a>
+          <a href="{{ url_for('dashboard_results.results_page') }}" class="menu-link active"><i data-lucide="file-check-2"></i><span>Resultados</span></a>
+        </nav>
+      </div>
+    </aside>
+
+    <main class="crm-main os-scene">
+      <header class="top-header">
+        <div>
+          <p class="hello-label">Espejo Anarvet</p>
+          <h1 data-blur-text>Clientes de Anarvet</h1>
+        </div>
+        <div class="header-actions">
+          <a class="ghost-btn" href="{{ url_for('dashboard_anarvet.informes_page') }}"><i data-lucide="arrow-left"></i>Ver informes</a>
+          {% if automaticos_disponibles %}
+          <button class="primary-btn" id="automatch-btn"><i data-lucide="wand-2"></i>Emparejar {{ automaticos_disponibles }} automáticamente</button>
+          {% endif %}
+        </div>
+      </header>
+
+      <section class="card static-view">
+        <div class="card-head">
+          <h3>Por qué importa</h3>
+          <p>
+            Un informe sin cliente asignado no tiene dueño: no se puede publicar en el portal
+            ni contar como suyo. Hoy <strong>{{ informes_con_dueno }} de {{ total_informes }}</strong>
+            informes tienen dueño.
+          </p>
+        </div>
+        <p class="approval-notice" id="automatch-flag" hidden></p>
+
+        <h3 style="margin-top:6px">Necesitan una decisión ({{ por_resolver|length }})</h3>
+        <p class="muted-text">
+          Ordenados por cuántos informes desbloquea cada uno. Cuando aparecen dos candidatos
+          casi idénticos suele ser el mismo cliente cargado dos veces en la base.
+        </p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Informes</th><th>Nombre en Anarvet</th><th>Código</th><th>Asignar a</th><th>Acción</th></tr>
+            </thead>
+            <tbody>
+              {% for fila in por_resolver %}
+              <tr data-cod="{{ fila.cod_cliente }}">
+                <td><strong>{{ fila.informes }}</strong></td>
+                <td>{{ fila.nombre_cliente or '—' }}</td>
+                <td class="muted-text">{{ fila.cod_cliente }}</td>
+                <td>
+                  <input class="cell-input map-input" list="lista-clientes"
+                         placeholder="Escribí para buscar la veterinaria"
+                         value="{{ fila.candidatos[0].cliente.clinic_name if fila.candidatos else '' }}">
+                  {% if fila.candidatos %}
+                  <small class="muted-text">
+                    {{ fila.candidatos|length }} candidato{{ '' if fila.candidatos|length == 1 else 's' }}:
+                    {% for c in fila.candidatos %}{{ c.cliente.clinic_name }}{% if not loop.last %} · {% endif %}{% endfor %}
+                  </small>
+                  {% else %}
+                  <small class="muted-text">Sin parecidos: puede que no sea cliente del portal.</small>
+                  {% endif %}
+                </td>
+                <td class="invoice-actions">
+                  <button class="ghost-btn small map-assign">Asignar</button>
+                  <button class="ghost-btn small map-none">No es cliente</button>
+                  <small class="save-flag"></small>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="5" class="muted-text">No queda ninguno por resolver.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        <h3 style="margin-top:22px">Ya emparejados ({{ asignados|length }})</h3>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Informes</th><th>Nombre en Anarvet</th><th>Veterinaria</th><th>Origen</th><th></th></tr></thead>
+            <tbody>
+              {% for m in asignados %}
+              <tr data-cod="{{ m.cod_cliente }}">
+                <td>{{ m.informes }}</td>
+                <td>{{ m.nombre_cliente or '—' }}</td>
+                <td><strong>{{ nombres_clientes.get(m.client_id|string, m.client_id) }}</strong></td>
+                <td><span class="status-badge">{{ 'automático' if m.match_source == 'auto' else m.match_source }}</span></td>
+                <td class="invoice-actions">
+                  <button class="ghost-btn small map-none">Desvincular</button>
+                  <small class="save-flag"></small>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="5" class="muted-text">Todavía no hay clientes emparejados.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <datalist id="lista-clientes">
+    {% for c in clientes %}<option data-id="{{ c.id }}" value="{{ c.clinic_name }}"></option>{% endfor %}
+  </datalist>
+
+  <script>
+    (function () {
+      var porNombre = {};
+      document.querySelectorAll("#lista-clientes option").forEach(function (o) {
+        porNombre[o.value.trim().toLowerCase()] = o.dataset.id;
+      });
+
+      function asignar(fila, clientId, aviso) {
+        var flag = fila.querySelector(".save-flag");
+        flag.textContent = "Guardando...";
+        fetch("/api/dashboard/anarvet/clients/" + encodeURIComponent(fila.dataset.cod) + "/assign", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ client_id: clientId })
+        }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            flag.textContent = res.ok ? aviso : (res.d.error || "No se pudo guardar");
+            if (res.ok) setTimeout(function () { location.reload(); }, 700);
+          })
+          .catch(function () { flag.textContent = "Error de red"; });
+      }
+
+      document.querySelectorAll(".map-assign").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          var fila = btn.closest("tr");
+          var texto = (fila.querySelector(".map-input").value || "").trim().toLowerCase();
+          var id = porNombre[texto];
+          if (!id) {
+            fila.querySelector(".save-flag").textContent = "Elegí una veterinaria de la lista";
+            return;
+          }
+          asignar(fila, id, "Asignado");
+        });
+      });
+
+      document.querySelectorAll(".map-none").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          asignar(btn.closest("tr"), null, "Marcado sin cliente");
+        });
+      });
+
+      var auto = document.getElementById("automatch-btn");
+      if (auto) {
+        auto.addEventListener("click", function () {
+          var flag = document.getElementById("automatch-flag");
+          auto.disabled = true;
+          flag.hidden = false;
+          flag.textContent = "Emparejando...";
+          fetch("/api/dashboard/anarvet/clients/automatch", { method: "POST" })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              flag.textContent = d.aplicados + " emparejados. Quedan " +
+                (d.ambiguos + d.sin_candidato) + " para decidir a mano.";
+              setTimeout(function () { location.reload(); }, 1200);
+            })
+            .catch(function () { flag.textContent = "No se pudo emparejar"; auto.disabled = false; });
+        });
+      }
+    })();
+  </script>
+  <script>window.lucide && lucide.createIcons();</script>
+</body>
+</html>

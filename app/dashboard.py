@@ -1835,6 +1835,40 @@ def api_anarvet_assign(cod_cliente: str):
     return jsonify({"ok": True})
 
 
+@dashboard.post("/api/dashboard/anarvet/clients/automatch")
+@_login_required
+def api_anarvet_automatch():
+    """Empareja de una sola vez los códigos que tienen UN destino inequívoco.
+
+    Solo asigna cuando el nombre normalizado apunta a un único cliente activo. Con dos o
+    más candidatos no elige: un mapeo errado le mostraría los resultados de un paciente a
+    la veterinaria equivocada. Esos quedan pendientes para que alguien decida.
+    """
+    if not ANARVET_ENABLED:
+        return jsonify({"error": "Anarvet deshabilitado (ANARVET_ENABLED=false)"}), 400
+    from app import anarvet_map
+
+    pendientes = db.list_anarvet_client_map(status="pending")
+    clientes = db.list_clients_with_assignment()
+    plan = anarvet_map.planificar(pendientes, clientes)
+
+    aplicados, errores = 0, []
+    for entrada in plan["automaticos"]:
+        cod = entrada["pendiente"].get("cod_cliente")
+        try:
+            db.assign_anarvet_client(cod, entrada["cliente"]["id"], "auto")
+            aplicados += 1
+        except Exception as exc:  # una fila que falla no aborta el resto
+            errores.append(f"{cod}: {exc}")
+    return jsonify({
+        "ok": not errores,
+        "aplicados": aplicados,
+        "ambiguos": len(plan["ambiguos"]),
+        "sin_candidato": len(plan["sin_candidato"]),
+        "errors": errores,
+    }), (207 if errores else 200)
+
+
 @dashboard.get("/api/dashboard/invoices/export")
 @_login_required
 def api_export_invoices():

@@ -3848,3 +3848,41 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
 - **Tests:** `test_anarvet_informe_print.py` (11). Verificado contra un informe REAL del
   espejo (8 exámenes, 33 analitos) y con PDF generado por Chrome headless: **1 página**.
   Suite: **1272 passed**.
+
+---
+
+## ERR-151 — Anarvet Fase 2 (2/4): el 41% de los informes no tenía dueño
+
+- **Fecha:** 2026-08-25 · **Estado:** RESUELTO
+- **Síntoma:** el espejo tenía 797 informes reales pero **329 (41%) no se podían atribuir a
+  ninguna veterinaria**, porque su `cod_cliente` de Anarvet no estaba mapeado a un `client_id`
+  nuestro. Sin dueño, un informe no se puede publicar en el portal ni contar como de nadie.
+  El caso que lo hizo evidente: *Emergencias Veterinarias Integrales*, el cliente de la prueba
+  en vivo con A3, con **65 informes huérfanos** y presente en nuestra base con nombre casi
+  idéntico.
+- **Causa:** el matcher de la Fase 1 (`db.client_name_matches`) comparaba nombres completos,
+  así que cualquier diferencia de palabrería comercial rompía el match. "Clínica Veterinaria
+  Zoopecas" y "Zoopecas SAS" son la misma veterinaria; para el matcher eran dos.
+- **Solución:** `app/anarvet_map.py` — módulo **puro** (no importa `db`, y hay un test que lo
+  verifica) que normaliza quitando formas jurídicas (SAS, Ltda, E.U.) y palabras del rubro
+  (Clínica, Veterinaria, Centro, Médico, Hospital, Consultorio), y clasifica cada pendiente en
+  automático / ambiguo / sin candidato. Ser puro es lo que permitió **simular el resultado
+  contra la base real antes de escribir un solo cambio**.
+- **Regla de privacidad, la que manda:** con más de un destino posible **no se elige**. Un
+  mapeo errado no es un dato mal puesto: le muestra los resultados de un paciente a otra
+  veterinaria. Los ambiguos quedan para decisión humana, siempre.
+- **Resultado real:** 80 mapeos aplicados en la base. Informes con dueño **de 468 (58%) a 700
+  (87%)**. Quedan 20 códigos: 8 ambiguos y 12 sin candidato.
+- **Hallazgo para A3:** los 8 ambiguos son **clientes duplicados en su propia base** —
+  "Zoopecas"/"Zoopecas SAS", "Barber Dog"/"Veterinaria Barber Dog", "Praga"/"Praga
+  Veterinaria"—, no sedes distintas. Es exactamente la limpieza de base que A3 quedó de hacer.
+  La pantalla los muestra con los dos candidatos a la vista.
+- **Un nombre que es todo ruido no matchea con nadie:** "Centro Medico Veterinario" normaliza
+  a cadena vacía. Si se dejara matchear, emparejaría con cualquier otra clínica genérica.
+- **Pantalla nueva** `/resultados/anarvet/clientes`: pendientes ordenados por **cuántos
+  informes desbloquea cada uno** (el de 29 antes que el de 1), con candidatos sugeridos por
+  similitud, buscador sobre las 842 veterinarias activas y botones Asignar / No es cliente.
+  Los endpoints de asignación ya existían desde la Fase 1 pero **ningún template los usaba**.
+- **Tests:** `test_anarvet_map.py` (10) + `test_anarvet_clientes_page.py` (6), incluidos el
+  caso de colisión que NO debe auto-asignarse y el fallo parcial que no aborta el lote.
+  Suite: **1288 passed**.

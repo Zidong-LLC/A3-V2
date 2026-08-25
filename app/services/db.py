@@ -1230,6 +1230,25 @@ def list_anarvet_informes(
     return result.data or [], (result.count or 0)
 
 
+def count_anarvet_informes_por_cliente() -> dict[str, int]:
+    """Cuántos informes tiene cada `cod_cliente` de Anarvet.
+
+    Sirve para priorizar el mapeo pendiente: resolver el código con 65 informes rinde
+    más que uno con 1. Se cuenta en memoria sobre la vista —son cientos de filas de una
+    sola columna— porque PostgREST no expone `GROUP BY`.
+    """
+    from collections import Counter
+
+    filas = (
+        _client.table("anarvet_informes")
+        .select("cod_cliente")
+        .limit(20000)
+        .execute()
+        .data
+    ) or []
+    return dict(Counter(str(f.get("cod_cliente") or "") for f in filas))
+
+
 def get_anarvet_informe(codigo: str, fecha_solicitud: str) -> list[dict]:
     """Analitos de un informe (paciente + fecha), ordenados por examen y analito."""
     result = (

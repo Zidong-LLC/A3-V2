@@ -11,6 +11,7 @@ from functools import wraps
 
 from flask import Blueprint, abort, redirect, render_template, request, session, url_for
 
+from app import anarvet_map
 from app.config import ANARVET_ENABLED, APP_TIMEZONE
 from app.services import db
 
@@ -54,6 +55,67 @@ def informes_page():
     return render_template(
         "dashboard_anarvet.html",
         informes=informes, filters=filters, total=total, page=page, pages=pages,
+        username=session.get("dashboard_username", ""),
+    )
+
+
+@dashboard_anarvet.get("/resultados/anarvet/clientes")
+@_login_required
+def clientes_page():
+    """Emparejar los códigos de cliente de Anarvet con nuestras veterinarias.
+
+    Sin este vínculo un informe no tiene dueño: no se puede publicar en el portal ni contar
+    como de nadie. Los endpoints de asignación ya existían (`/api/dashboard/anarvet/clients*`)
+    pero ningún template los usaba, así que la única vía era un script.
+    """
+    mapa = db.list_anarvet_client_map()
+    clientes = [c for c in db.list_clients_with_assignment()
+                if c.get("is_active") and (c.get("clinic_name") or "").strip()]
+    informes_por_cod = db.count_anarvet_informes_por_cliente()
+
+    pendientes = [m for m in mapa if not m.get("client_id")]
+    plan = anarvet_map.planificar(pendientes, clientes)
+
+    def _fila(entrada, candidatos):
+        p = entrada["pendiente"]
+        cod = str(p.get("cod_cliente") or "")
+        return {
+            "cod_cliente": cod,
+            "nombre_cliente": p.get("nombre_cliente"),
+            "informes": informes_por_cod.get(cod, 0),
+            "candidatos": candidatos,
+        }
+
+    # Los que necesitan una decisión humana, con los más pesados primero: resolver el de
+    # 65 informes cambia más que el de 1.
+    por_resolver = [
+        _fila(a, [{"cliente": c, "similitud": 1.0} for c in a["candidatos"]])
+        for a in plan["ambiguos"]
+    ] + [
+        _fila(s, anarvet_map.sugerencias(s["pendiente"].get("nombre_cliente"), clientes))
+        for s in plan["sin_candidato"]
+    ]
+    por_resolver.sort(key=lambda f: -f["informes"])
+
+    asignados = sorted(
+        ({**m, "informes": informes_por_cod.get(str(m.get("cod_cliente") or ""), 0)}
+         for m in mapa if m.get("client_id")),
+        key=lambda m: -m["informes"],
+    )
+    nombres_clientes = {str(c["id"]): c["clinic_name"] for c in clientes}
+
+    return render_template(
+        "dashboard_anarvet_clientes.html",
+        por_resolver=por_resolver,
+        asignados=asignados,
+        clientes=clientes,
+        nombres_clientes=nombres_clientes,
+        automaticos_disponibles=len(plan["automaticos"]),
+        total_informes=sum(informes_por_cod.values()),
+        informes_con_dueno=sum(
+            n for cod, n in informes_por_cod.items()
+            if cod in {str(m.get("cod_cliente")) for m in mapa if m.get("client_id")}
+        ),
         username=session.get("dashboard_username", ""),
     )
 
