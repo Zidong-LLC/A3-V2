@@ -8,6 +8,10 @@ from flask import abort, flash, redirect, render_template, request, session, url
 from app.portal import portal_bp
 from app.portal.auth import client_required
 from app.services import db, portal_db
+# La traducción de un formulario a campos de orden vive en app/orders.py: el dashboard
+# tiene su propio formulario de carga manual (2026-08-25) y ambos deben aplicar la MISMA
+# regla de dinero (ERR-097). Se reexportan para no romper los imports existentes.
+from app.orders import PAYMENT_METHOD_OPTIONS, resolve_catalog_selection  # noqa: F401
 
 # Labels propios del portal (copiados, no importados de dashboard.py: el
 # dashboard es intocable y no debe volverse dependencia del portal).
@@ -22,11 +26,6 @@ REQUEST_STATUS_LABELS = {
     "cancelled": "Cancelada",
     "error_pending_assignment": "En asignación de motorizado",
 }
-
-PAYMENT_METHOD_OPTIONS = [
-    ("contraentrega", "Contra entrega"),
-    ("pago_linea", "Pago en línea"),
-]
 
 # Avance de la orden: reemplaza al tracking GPS (sin LiveConnect no hay fuente de
 # posición). El cliente ve en qué punto del recorrido está su muestra.
@@ -69,33 +68,6 @@ def build_status_progress(status: str) -> list[dict]:
     ]
 
 
-def resolve_catalog_selection(profile_code: str, test_codes: list[str]) -> dict:
-    """Traduce lo elegido en el formulario a los campos que espera create_request.
-
-    ERR-097: el portal mandaba `exam_type` como texto libre y la orden quedaba
-    con `base_profile.code = null` y `price = 0`. Acá el código y el precio
-    salen SIEMPRE del catálogo — el formulario ofrece una lista, no texto
-    libre, así que no hace falta interpretar lenguaje natural como en el chat.
-    Un código que no exista se descarta: nunca se inventa un precio.
-    """
-    fields: dict = {}
-    labels: list[str] = []
-
-    profile = db.find_catalog_profile(profile_code) if profile_code else None
-    if profile:
-        fields["_selected_profile_code"] = profile.get("code")
-        fields["_selected_profile_name"] = profile.get("name")
-        fields["_selected_profile_price"] = profile.get("price")
-        fields["_selected_profile_description"] = profile.get("description")
-        labels.append(profile.get("name") or "")
-
-    tests = db.get_tests_by_codes_or_names(test_codes) if test_codes else []
-    if tests:
-        fields["selected_tests"] = [t.get("code") for t in tests if t.get("code")]
-        labels.extend(t.get("name") or "" for t in tests)
-
-    fields["exam_type"] = ", ".join(label for label in labels if label)
-    return fields
 
 
 def build_timeline(events: list[dict]) -> list[dict]:

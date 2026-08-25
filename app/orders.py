@@ -769,3 +769,44 @@ def _price_answer_for_order(fields: dict, user_message: str) -> str | None:
     """Compat: precio REAL del análisis/perfil ya elegido al confirmar. Delega en
     `_catalog_price_answer` para cubrir también el análisis puntual y el total."""
     return _catalog_price_answer(fields, user_message)
+
+
+# ── Selección de catálogo desde un FORMULARIO (portal y dashboard) ───────────────
+
+PAYMENT_METHOD_OPTIONS = [
+    ("contraentrega", "Contra entrega"),
+    ("pago_linea", "Pago en línea"),
+]
+
+
+def resolve_catalog_selection(profile_code: str, test_codes: list[str]) -> dict:
+    """Traduce lo elegido en un formulario a los campos que espera create_request.
+
+    ERR-097: el portal mandaba `exam_type` como texto libre y la orden quedaba con
+    `base_profile.code = null` y `price = 0`. Acá el código y el precio salen SIEMPRE del
+    catálogo — el formulario ofrece una lista, no texto libre, así que no hace falta
+    interpretar lenguaje natural como en el chat. Un código que no exista se descarta:
+    nunca se inventa un precio.
+
+    Vive acá y no en el portal porque el dashboard tiene su propio formulario de carga
+    manual (2026-08-25): dos formularios distintos, una sola traducción de dinero. Ni el
+    portal ni el dashboard dependen uno del otro.
+    """
+    fields: dict = {}
+    labels: list[str] = []
+
+    profile = db.find_catalog_profile(profile_code) if profile_code else None
+    if profile:
+        fields["_selected_profile_code"] = profile.get("code")
+        fields["_selected_profile_name"] = profile.get("name")
+        fields["_selected_profile_price"] = profile.get("price")
+        fields["_selected_profile_description"] = profile.get("description")
+        labels.append(profile.get("name") or "")
+
+    tests = db.get_tests_by_codes_or_names(test_codes) if test_codes else []
+    if tests:
+        fields["selected_tests"] = [t.get("code") for t in tests if t.get("code")]
+        labels.extend(t.get("name") or "" for t in tests)
+
+    fields["exam_type"] = ", ".join(label for label in labels if label)
+    return fields

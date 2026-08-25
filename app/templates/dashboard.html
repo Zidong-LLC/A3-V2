@@ -31,6 +31,7 @@
           <a href="{{ url_for('dashboard.dashboard_home') }}" class="menu-link {{ 'active' if active_tab == 'dashboard' else '' }}"><i data-lucide="layout-dashboard"></i><span>Panel</span></a>
           <a href="{{ url_for('dashboard.operation_page') }}" class="menu-link {{ 'active' if active_tab == 'operacion' else '' }}"><i data-lucide="radio-tower"></i><span>Operacion</span></a>
           <a href="{{ url_for('dashboard.clients_page') }}" class="menu-link {{ 'active' if active_tab == 'clientes' else '' }}"><i data-lucide="users"></i><span>Clientes</span></a>
+          <a href="{{ url_for('dashboard.requests_page') }}" class="menu-link {{ 'active' if active_tab == 'solicitudes' else '' }}"><i data-lucide="clipboard-list"></i><span>Solicitudes</span></a>
           <a href="{{ url_for('dashboard.pedidos_page') }}" class="menu-link {{ 'active' if active_tab == 'pedidos' else '' }}"><i data-lucide="package"></i><span>Pedidos</span></a>
           <a href="{{ url_for('dashboard.billing_page') }}" class="menu-link {{ 'active' if active_tab == 'facturacion' else '' }}"><i data-lucide="receipt"></i><span>Facturacion</span></a>
           <a href="{{ url_for('dashboard.motorizados_page') }}" class="menu-link {{ 'active' if active_tab == 'motorizados' else '' }}"><i data-lucide="bike"></i><span>Motorizados</span></a>
@@ -49,6 +50,7 @@
       <header class="top-header">
         <div><p class="hello-label">Bienvenido de nuevo, {{ username }}</p><h1 data-blur-text>{{ 'Panel Ejecutivo' if active_tab == 'dashboard' else 'Centro Operativo Diario' if active_tab == 'operacion' else active_tab|capitalize }}</h1></div>
         {% if active_tab == 'clientes' %}<div class="header-actions"><a class="primary-btn" href="{{ url_for('dashboard.new_client_page') }}"><i data-lucide="user-plus"></i>Nuevo Cliente</a></div>{% endif %}
+        {% if active_tab == 'solicitudes' %}<div class="header-actions"><a class="primary-btn" href="{{ url_for('dashboard.new_request_page') }}"><i data-lucide="clipboard-plus"></i>Nueva Orden</a></div>{% endif %}
       </header>
 
       {% if context.error %}<section class="approval-notice os-spring-in error">No fue posible cargar todos los datos: {{ context.error }}</section>{% endif %}

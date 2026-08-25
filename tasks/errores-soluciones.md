@@ -3767,3 +3767,36 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
   de orden completa actualizadas. Suite: **1255 passed**. Secuencia verificada de punta a
   punta: 11 preguntas, la fecha en el puesto 9.
 - **Contrato:** bloque B4 actualizado y re-aprobado por el usuario.
+
+---
+
+## ERR-149 — No había forma de cargar una orden desde el laboratorio
+
+- **Fecha:** 2026-08-25 · **Estado:** RESUELTO
+- **Origen:** A3 en la llamada del 21/08 — *"cuando un cliente no hace su pedido a través del
+  bot, si lo hace por teléfono o va presencialmente al laboratorio, ¿cómo lo hacemos?"*.
+  Se respondió "desde la plataforma", pero la pantalla **no existía**: ninguna ruta del
+  dashboard llamaba a `create_request`. El único formulario era el del portal, que exige la
+  sesión del propio cliente, así que el personal no tenía por dónde.
+- **Solución:** sección **Nueva Orden** en el dashboard (`/solicitudes/nueva`), con su ítem
+  de menú y su botón en el header de Solicitudes. Formulario en tres bloques —veterinaria,
+  paciente, análisis— con el mismo estilo del alta de cliente. El cliente se ELIGE de la
+  lista (827 reales); la dirección de retiro y el nombre salen de su ficha si se dejan
+  vacíos; el motorizado y el número de orden los asigna `create_request` igual que en el chat.
+- **Una sola verdad sobre el dinero:** `resolve_catalog_selection` y `PAYMENT_METHOD_OPTIONS`
+  se movieron de `app/portal/client_requests.py` a **`app/orders.py`**, y el portal las
+  reexporta. Motivo: ahora hay DOS formularios que traducen una selección a campos de orden,
+  y el código y el precio tienen que salir del catálogo en los dos (ERR-097). El portal no
+  pasa a depender del dashboard ni al revés — la nota de diseño del portal se respeta.
+- **Validaciones:** sin veterinaria elegida o sin perfil/análisis del catálogo, vuelve al
+  formulario con el error y **no** crea nada (una orden sin ítems facturaría $0).
+- **Verificado de punta a punta con datos reales** (lecturas reales, escritura interceptada,
+  cero filas creadas): render con 827 clientes y el catálogo completo, y un POST que arma la
+  orden del caso real de A3 — perfil 952 con su precio de catálogo ($90.000) + el 1903
+  agregado, dirección heredada de la ficha del cliente.
+- **Tests:** `test_dashboard_new_request.py` (6: protección de login, alta con precio del
+  catálogo, las dos validaciones, herencia de dirección, render del formulario).
+  Suite: **1261 passed**.
+- **Anotado:** la orden queda con `entry_channel = 'telegram'` como todas las que no vienen
+  de ese canal — el CHECK de la tabla solo admite ese valor (mismo tapón que bloquea
+  WhatsApp). Cuando se abra el constraint, conviene marcarlas como `dashboard`.

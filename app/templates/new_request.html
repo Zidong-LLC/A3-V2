@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A3 CRM - Nueva Orden</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='os-kit.css') }}?v=1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=8">
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+</head>
+<body class="crm-theme">
+  <div class="os-shell-ambient"><i class="os-glow-orb os-glow-orb--1"></i><i class="os-glow-orb os-glow-orb--2"></i><i class="os-glow-orb os-glow-orb--3"></i></div>
+  <main class="client-wizard os-scene">
+    <header class="wizard-hero">
+      <a class="ghost-btn" href="{{ url_for('dashboard.requests_page') }}"><i data-lucide="arrow-left"></i>Volver</a>
+      <div>
+        <p class="hello-label">Carga manual</p>
+        <h1>Nueva Orden</h1>
+        <span>Para el cliente que llama por telefono o llega al laboratorio. Queda igual que una orden del chat: con su numero, su motorizado y su factura.</span>
+      </div>
+    </header>
+    {% if error %}<p class="approval-notice os-spring-in error">{{ error }}</p>{% endif %}
+    <form method="post" action="{{ url_for('dashboard.new_request_page') }}" class="wizard-form os-stagger">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <section class="wizard-card">
+        <div class="step-badge">1</div>
+        <div class="section-copy"><h2>Veterinaria</h2><p>El motorizado y la direccion de retiro salen de su ficha.</p></div>
+        <div class="form-grid">
+          <label>Cliente *
+            <select name="client_id" required>
+              <option value="">Seleccionar veterinaria</option>
+              {% for c in clients %}
+              <option value="{{ c.id }}" {{ 'selected' if form.get('client_id') == c.id|string else '' }}>
+                {{ c.clinic_name }}{% if c.tax_id %} — NIT {{ c.tax_id }}{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Direccion de retiro
+            <input name="pickup_address" value="{{ form.get('pickup_address', '') }}" placeholder="Vacio = la direccion registrada del cliente">
+          </label>
+          <label>Medico solicitante
+            <input name="requesting_doctor" value="{{ form.get('requesting_doctor', '') }}">
+          </label>
+        </div>
+      </section>
+
+      <section class="wizard-card">
+        <div class="step-badge">2</div>
+        <div class="section-copy"><h2>Paciente</h2><p>Los mismos datos que pide el agente en el chat.</p></div>
+        <div class="form-grid">
+          <label>Paciente *<input name="patient_name" required value="{{ form.get('patient_name', '') }}"></label>
+          <label>Especie<input name="species" value="{{ form.get('species', '') }}" placeholder="Canino, felino, bovino..."></label>
+          <label>Raza<input name="breed" value="{{ form.get('breed', '') }}"></label>
+          <label>Sexo
+            <select name="sex">
+              <option value="">Sin indicar</option>
+              <option value="Macho" {{ 'selected' if form.get('sex') == 'Macho' else '' }}>Macho</option>
+              <option value="Hembra" {{ 'selected' if form.get('sex') == 'Hembra' else '' }}>Hembra</option>
+            </select>
+          </label>
+          <label>Edad<input name="patient_age" value="{{ form.get('patient_age', '') }}" placeholder="5 años, 3 meses, 45 dias"></label>
+          <label>Propietario<input name="owner_name" value="{{ form.get('owner_name', '') }}"></label>
+          <label>Fecha de toma de muestra
+            <input name="sample_taken_date" value="{{ form.get('sample_taken_date', '') }}" placeholder="La que indique el cliente">
+          </label>
+        </div>
+      </section>
+
+      <section class="wizard-card">
+        <div class="step-badge">3</div>
+        <div class="section-copy"><h2>Analisis</h2><p>Del catalogo: el codigo y el precio nunca se escriben a mano.</p></div>
+        <div class="form-grid">
+          <label>Perfil
+            <select name="profile_code" class="cell-select">
+              <option value="">Sin perfil — solo analisis sueltos</option>
+              {% for p in catalog.profiles %}
+              <option value="{{ p.code }}" {{ 'selected' if form.get('profile_code') == p.code else '' }}>
+                {{ p.code }} — {{ p.name }}{% if p.price %} — ${{ '{:,.0f}'.format(p.price|float)|replace(',', '.') }}{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Forma de pago
+            <select name="payment_method" class="cell-select">
+              {% for value, label in payment_options %}
+              <option value="{{ value }}" {{ 'selected' if form.get('payment_method') == value else '' }}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <div class="full-field">
+          <label>Analisis sueltos
+            <span class="muted-text">Elige uno o varios con Ctrl/Cmd. Si ya elegiste un perfil, estos se suman.</span>
+            <select name="test_codes" class="cell-select catalog-multi" multiple size="10">
+              {% for t in catalog.tests %}
+              <option value="{{ t.code }}" {{ 'selected' if t.code in selected_test_codes else '' }}>
+                {{ t.code }} — {{ t.name }}{% if t.price %} — ${{ '{:,.0f}'.format(t.price|float)|replace(',', '.') }}{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </label>
+        </div>
+        <div class="full-field">
+          <label>Observaciones
+            <textarea name="observations" rows="3">{{ form.get('observations', '') }}</textarea>
+          </label>
+        </div>
+      </section>
+
+      <div class="wizard-actions">
+        <button type="submit" class="primary-btn"><i data-lucide="clipboard-plus"></i>Registrar orden</button>
+      </div>
+    </form>
+  </main>
+  <script>lucide.createIcons();</script>
+</body>
+</html>

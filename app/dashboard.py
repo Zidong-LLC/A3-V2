@@ -20,7 +20,7 @@ from app.config import (
     DISCOUNT_TIERS,
 )
 from app.services import db, alegra
-from app import anarvet_sync, dashboard_metrics, pricing, territory, billing
+from app import anarvet_sync, dashboard_metrics, orders, pricing, territory, billing
 
 dashboard = Blueprint("dashboard", __name__)
 
@@ -1607,6 +1607,77 @@ def new_client_page():
         return redirect(url_for("dashboard.clients_page", notice="Cliente enviado a revision", notice_type="ok"))
 
     return render_template("new_client.html", error=None, form={}, **template_context)
+
+
+@dashboard.route("/solicitudes/nueva", methods=["GET", "POST"])
+@_login_required
+def new_request_page():
+    """Cargar una orden desde el laboratorio: el cliente llamó por teléfono o vino en persona.
+
+    A3 lo preguntó en la llamada del 21/08 ("si lo hace por teléfono o va presencialmente,
+    ¿cómo lo hacemos?"). Hasta ahora una orden solo nacía por el chat o por el portal, que
+    exige la sesión del propio cliente; el personal no tenía por dónde.
+
+    Usa la MISMA traducción de catálogo que el portal —`orders.resolve_catalog_selection`,
+    donde el código y el precio salen siempre de la base (ERR-097)— y el mismo
+    `db.create_request`, para no abrir una segunda verdad sobre el dinero. La diferencia real
+    es que acá el cliente se ELIGE, en vez de salir de la sesión."""
+    catalog = {
+        "profiles": _safe_fetch(lambda: db.list_catalog_profiles(), []),
+        "tests": _safe_fetch(lambda: db.list_catalog_tests(limit=5000), []),
+    }
+    clients = _safe_fetch(lambda: db.list_clients_with_assignment(limit=5000), [])
+
+    def _render(error=None, form=None, selected=None):
+        return render_template(
+            "new_request.html", error=error, form=form or {}, catalog=catalog,
+            clients=clients, selected_test_codes=selected or [],
+            payment_options=orders.PAYMENT_METHOD_OPTIONS, active_tab="solicitudes",
+        )
+
+    if request.method != "POST":
+        return _render()
+
+    form = request.form
+    client_id = (form.get("client_id") or "").strip()
+    client = db.get_client_by_id(client_id) if client_id else None
+    if not client:
+        return _render("Elige la veterinaria a la que pertenece la orden.", form)
+
+    fields = {
+        key: (form.get(key) or "").strip() or None
+        for key in (
+            "requesting_doctor", "patient_name", "species", "breed", "sex",
+            "patient_age", "owner_name", "sample_taken_date", "pickup_address",
+            "observations", "payment_method",
+        )
+    }
+    selected_test_codes = form.getlist("test_codes")
+    fields.update(orders.resolve_catalog_selection(
+        (form.get("profile_code") or "").strip(), selected_test_codes))
+
+    if not fields.get("patient_name") or not fields.get("exam_type"):
+        return _render("Indica el paciente y al menos un perfil o análisis del catálogo.",
+                       form, selected_test_codes)
+
+    fields["pickup_address"] = fields["pickup_address"] or client.get("address")
+    fields["clinic_name"] = client.get("clinic_name")
+    fields["clinic_phone"] = client.get("phone")
+    fields["observations"] = fields["observations"] or "sin observaciones"
+
+    created = db.create_request(
+        chat_id=f"dashboard:{session.get('dashboard_username') or 'staff'}",
+        session={"client_id": client_id, "channel": "telegram"},
+        ai_response={"intent": "route_scheduling", "captured_fields": fields},
+    )
+    if not created:
+        return _render("No se pudo registrar la orden, intenta de nuevo.", form,
+                       selected_test_codes)
+
+    numero = created.get("order_number") or "sin número"
+    return redirect(url_for("dashboard.requests_page",
+                            notice=f"Orden {numero} registrada para {client.get('clinic_name')}",
+                            notice_type="ok"))
 
 
 @dashboard.get("/solicitudes")
