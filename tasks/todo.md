@@ -1162,3 +1162,23 @@ todo se detecte tanto por código como por nombre.
       "o Moquillo Canino" del PDF. Verificado en vivo: 'moquillo' ya ofrece el de A3
       ($45.000) junto al del convenio ($124.000) en vez de cobrar el caro en silencio
 - [x] **Remoto corregido** a https://github.com/Zidong-LLC/A3-V2.git
+
+
+---
+
+## 2026-08-25 — Anarvet Fase 2 (en curso)
+
+Conexión revisada antes de empezar: ping 1.31s, 11.546 analitos en 3 días, credenciales OK.
+
+- [x] **1/4 · Informe propio descargable** (ERR-150): plantilla A4 con identidad A3, nombres
+      de examen legibles, observaciones fuera de la tabla, edad calculada y firma del
+      validador real. Botón en el detalle y en el listado. Suite 1270
+- [ ] **2/4 · Publicar el resultado al portal del cliente** desde el espejo (ya existe
+      publicar+notificar para PDFs subidos a mano; falta alimentarlo desde Anarvet usando
+      `anarvet_client_map`)
+- [ ] **3/4 · Pantalla de mapeo de clientes**: 19 pendientes (15 ambiguos + 4 sin match) y
+      2 automáticos sospechosos (cod 828 y 882). Hoy solo se resuelven por API/script
+- [ ] **4/4 · Sync automático** (hoy es un clic manual)
+- [ ] **A pedirle a Anarvet**: unidades y valores de referencia por analito, y el nombre
+      largo del examen — sin eso el informe no es clínicamente completo. Además: función de
+      ESTADO (hoy solo devuelve analitos ya validados), TLS y whitelist de IPs de Render
