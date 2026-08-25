@@ -1,5 +1,17 @@
 # A3 — Lo que tenemos, lo que falta y la cronología
 
+> **CORRECCIÓN (2026-08-25).** Este inventario es del 2 de agosto y quedó desactualizado.
+> Al verificarlo contra el código se encontró que **siete funcionalidades marcadas como
+> pendientes ya estaban implementadas**: la asignación automática de motorizado por zona
+> (ítem 10), los perfiles favoritos reofrecidos en el chat (9), la edición de precios desde
+> la plataforma (20), los descuentos editables (21), el nombre del paciente en la línea de
+> factura (18), las tendencias y TAT (33) y el escalado a operaciones (36).
+> Además se completaron desde entonces: el pago al final del pedido (1), la jerarquía
+> pedido→órdenes (2), la factura única (3), el resumen sin forma de pago (5), las
+> observaciones después del análisis (6), el bug del PDF (25), el formato de precios (26) y
+> **Anarvet completo** (37, fases 1 y 2).
+> El balance vigente está en `12-balance-2026-08-25.md`.
+
 **Fecha:** 2 de agosto de 2026
 **Fuentes:** las 8 llamadas (`reuniones/`), `00-decisiones-triage.md` y verificación contra el código
 
