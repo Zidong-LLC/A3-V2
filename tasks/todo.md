@@ -1156,5 +1156,9 @@ todo se detecte tanto por código como por nombre.
 - [x] **Sección "Nueva orden" en el dashboard** (ERR-149): /solicitudes/nueva con menú
       y botón propios; resolve_catalog_selection movida a app/orders.py (una sola regla de
       dinero para portal y dashboard); verificada contra la base real sin escribir. Suite 1261
-- [ ] **Migración 026** (vista service_orders con sample_taken_date) — aplicar en Supabase
-- [ ] **Migración 025** (nombres del 2004/2017) — pendiente de OK
+- [x] **Migración 026 APLICADA** (2026-08-25, status 201): la vista `service_orders` expone
+      `sample_taken_date`. Las órdenes viejas devuelven NULL — nunca se preguntó
+- [x] **Migración 025 APLICADA** (2026-08-25, status 201): el 2004 y el 2017 recuperaron el
+      "o Moquillo Canino" del PDF. Verificado en vivo: 'moquillo' ya ofrece el de A3
+      ($45.000) junto al del convenio ($124.000) en vez de cobrar el caro en silencio
+- [x] **Remoto corregido** a https://github.com/Zidong-LLC/A3-V2.git

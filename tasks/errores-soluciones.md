@@ -3703,7 +3703,7 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
 
 ### ERR-147b — Cómo pide el veterinario: siglas, jerga y el convenio que ganaba callado
 
-- **Fecha:** 2026-08-25 · **Estado:** RESUELTO (migración 025 pendiente de OK)
+- **Fecha:** 2026-08-25 · **Estado:** RESUELTO (migración 025 APLICADA el 2026-08-25)
 - **Origen:** segunda mitad del mismo pedido — *"que se asocien con el nombre, por si el
   cliente en vez de decir el número dice el nombre"*. El primer barrido probó los nombres
   EXACTOS del catálogo; este probó cómo los pide una clínica de verdad.
@@ -3740,7 +3740,7 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
 
 ## ERR-148 — Fecha de toma de muestra: el PDF mostraba la fecha equivocada y nadie la preguntaba
 
-- **Fecha:** 2026-08-25 · **Estado:** RESUELTO (migración 026 pendiente de aplicar)
+- **Fecha:** 2026-08-25 · **Estado:** RESUELTO (migración 026 APLICADA el 2026-08-25)
 - **Origen:** A3 en la llamada del 21/08 — *"ese campo no se lo pregunta al cliente, del resto
   sí (…) el que define eso es el cliente"*.
 - **Síntoma doble:** (1) el agente nunca preguntaba cuándo se tomó la muestra; (2) la orden
