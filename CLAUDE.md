@@ -135,7 +135,9 @@ app/services/        — ai.py, db.py, telegram.py, chatwoot.py
 5. Identificar al cliente antes de registrar cualquier solicitud
 
 ### Fuera de alcance V1
-Integración Anarvet, envío PDFs, workflow contabilidad, dashboard, WhatsApp, audio/voz.
+Envío PDFs, workflow contabilidad, dashboard, WhatsApp, audio/voz.
+Anarvet: la Fase 1 (espejo de lectura, decisión 013) ya está en curso; la consulta
+de resultados por chat sigue fuera de alcance hasta su propia fase.
 
 ---
 

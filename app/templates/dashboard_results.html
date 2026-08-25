@@ -83,6 +83,16 @@
         </form>
       </section>
 
+      {% if anarvet_enabled %}
+      <section class="card">
+        <div class="card-head"><h3>Espejo Anarvet</h3><p>Trae los analitos validados desde Anarvet (solo lectura) al espejo local. Por defecto sincroniza los últimos 7 días.</p></div>
+        <div class="portal-upload-actions">
+          <button type="button" class="ghost-btn" data-anarvet-sync><i data-lucide="refresh-cw"></i>Sincronizar Anarvet</button>
+          <span class="table-counter" data-anarvet-sync-flag></span>
+        </div>
+      </section>
+      {% endif %}
+
       <section class="card">
         <div class="card-head"><h3>Historial de resultados emitidos</h3><p>Buscar por paciente, propietario, veterinaria, fecha o número de orden</p></div>
         <form method="get" action="{{ url_for('dashboard_results.results_page') }}" class="filter-bar">
@@ -128,6 +138,29 @@
     </main>
   </div>
   <script>window.addEventListener('DOMContentLoaded', function () { if (window.lucide) lucide.createIcons(); });</script>
+  <script>
+    // Sincronizar espejo Anarvet (mismo patrón que el sync de facturas en invoices.js).
+    (function () {
+      const btn = document.querySelector('[data-anarvet-sync]');
+      const flag = document.querySelector('[data-anarvet-sync-flag]');
+      if (!btn) return;
+      btn.addEventListener('click', async () => {
+        if (!window.confirm('¿Traer los resultados recientes desde Anarvet? (solo lectura)')) return;
+        btn.disabled = true;
+        if (flag) flag.textContent = 'Sincronizando…';
+        try {
+          const res = await fetch('/api/dashboard/anarvet/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok && res.status !== 207) throw new Error(data.error || 'Error');
+          flag.textContent = `${data.synced || 0} analitos sincronizados${(data.errors || []).length ? ' (con errores)' : ''}`;
+        } catch (err) {
+          if (flag) flag.textContent = 'Error: ' + err.message;
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    })();
+  </script>
   <script src="{{ url_for('static', filename='os-fx.js') }}?v=1" defer></script>
 </body>
 </html>

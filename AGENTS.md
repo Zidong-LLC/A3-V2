@@ -147,7 +147,8 @@ Error: `error_pending_assignment` (cliente sin motorizado)
 
 ## Fuera de alcance V1
 
-- Integración Anarvet
+- Integración Anarvet — la Fase 1 (espejo de lectura, decisión 013) ya está en curso;
+  la consulta de resultados por chat sigue fuera de alcance hasta su propia fase
 - Envío automático de PDFs
 - Workflow contabilidad automatizado
 - Dashboard operativo

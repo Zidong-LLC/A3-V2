@@ -23,6 +23,18 @@ APP_TIMEZONE=America/Bogota, CUTOFF_HOUR=17, CUTOFF_MINUTE=30,
 FLASK_SECRET_KEY
 ```
 
+Opcionales por integración (lista completa y documentada en `.env.example`):
+
+```
+ALEGRA_ENABLED, ALEGRA_EMAIL, ALEGRA_API_TOKEN, ALEGRA_BASE_URL, ALEGRA_PRODUCTION
+ANARVET_ENABLED, ANARVET_DB_HOST, ANARVET_DB_PORT, ANARVET_DB_NAME,
+ANARVET_DB_USER, ANARVET_DB_PASSWORD, ANARVET_SSLMODE
+```
+
+⚠️ Anarvet: desplegar primero con `ANARVET_ENABLED=false` (inocuo); al encenderlo,
+verificar `/health` y correr un sync corto DESDE Render — si su servidor filtra por
+IP, pedir a Anarvet whitelistar las IPs de egreso de Render (decisión 013).
+
 ## Deploy
 
 Render hace deploy automático al push a `main`.

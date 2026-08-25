@@ -94,3 +94,17 @@ PORTAL_RESULTS_BUCKET = os.environ.get("PORTAL_RESULTS_BUCKET", "lab-results")
 # (o sin definir) en producción: el login normal queda intacto.
 PORTAL_DEMO_MODE = os.environ.get("PORTAL_DEMO_MODE", "false").lower() in ("1", "true", "yes")
 PORTAL_DEMO_CLIENT_ID = os.environ.get("PORTAL_DEMO_CLIENT_ID", "")
+
+# Anarvet — espejo de resultados de exámenes (Fase 1, ver decisión 013). Acceso de SOLO
+# lectura a su PostgreSQL: el usuario únicamente puede ejecutar fn_reporte_examenes().
+# Todo con .get(): si falta una variable, la app arranca igual y el flag queda apagado —
+# una var obligatoria faltante tumbaría el arranque entero en Render.
+ANARVET_ENABLED = os.environ.get("ANARVET_ENABLED", "false").lower() in ("1", "true", "yes")
+ANARVET_DB_HOST = os.environ.get("ANARVET_DB_HOST", "")
+ANARVET_DB_PORT = int(os.environ.get("ANARVET_DB_PORT") or "5432")
+ANARVET_DB_NAME = os.environ.get("ANARVET_DB_NAME", "VETERINARIA")
+ANARVET_DB_USER = os.environ.get("ANARVET_DB_USER", "consulta")
+ANARVET_DB_PASSWORD = os.environ.get("ANARVET_DB_PASSWORD", "")
+# Servidor expuesto por IP cruda: probablemente sin TLS. "prefer" negocia cifrado si
+# existe y no rompe si no; se puede forzar "require" desde el entorno sin tocar código.
+ANARVET_SSLMODE = os.environ.get("ANARVET_SSLMODE", "prefer")

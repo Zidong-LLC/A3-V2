@@ -1084,3 +1084,32 @@ modelo real al terminar (autorizado).
 - [x] Resultado final: 3/3 órdenes registradas (Joy con 952 + 1903, $90.000 íntegros
       + agregado), pedido listo para el pago
 - [ ] Prueba en vivo del usuario por Telegram (reiniciar Flask antes)
+
+---
+
+## 2026-08-25 — Integración Anarvet Fase 1: espejo de solo lectura (decisión 013)
+
+Credenciales entregadas por Anarvet (PostgreSQL, usuario restringido a
+fn_reporte_examenes). Alcance aprobado: conexión + espejo en Supabase + sync manual
++ mapeo de clientes. El flujo conversacional del chat NO se tocó.
+
+- [x] Config `ANARVET_*` con flag (default off) + `.env.example` + psycopg 3.2.9
+- [x] `app/services/anarvet.py` — conexión read-only con timeouts (patrón alegra.py)
+- [x] `tools/scripts/anarvet_smoke.py` — corrido contra el servidor real: tipos
+      confirmados (todas las fechas `date`), ~3.900 analitos/día, SIN TLS
+- [x] Migración 023 aplicada: `anarvet_results` + `anarvet_client_map` (RLS on)
+- [x] `app/anarvet_sync.py` — sync con dedupe sha1 + lotes de 500; verificado con
+      datos reales: 7.694 filas de 2 días, re-sync idempotente (0 duplicados)
+- [x] Endpoints dashboard: sync / listar mapeo / asignar a mano + botón en Resultados
+- [x] Matching por nombre (`anarvet_map_clients.py`): 84/103 auto (82%), 15 ambiguos
+      y 4 sin match quedaron pending para asignación manual
+- [x] Health check `anarvet` no crítico (ping real 1.3s; disabled con flag off)
+- [x] Tests: `tests/test_anarvet_sync.py` (14) — suite completa 911 passed
+- [x] Docs: decisión 013, deploy skill/runbook, CLAUDE.md/AGENTS.md
+- [ ] Deploy a Render con flag OFF → encender y probar sync desde Render (riesgo IP)
+- [ ] Revisar 2 mapeos auto sospechosos: cod 828 ('...San Francisco' → 'Centro
+      Medico Veterinario') y cod 882 ('Danimal Planet Sede Roma' → 'Danimal Planet')
+- [ ] Pedir TLS a Anarvet (hoy el tráfico va en claro)
+
+Resultado: espejo operativo end-to-end en local. Fase 2 (consulta de resultados por
+chat + PDF propio) queda para su propio plan con OK explícito.

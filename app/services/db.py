@@ -1130,6 +1130,77 @@ def get_cached_invoice(invoice_id: str) -> dict | None:
     return rows[0] if rows else None
 
 
+# --------------------------- Espejo Anarvet (resultados) ---------------------------
+
+def upsert_anarvet_results(rows: list[dict]) -> int:
+    """Inserta/actualiza filas del espejo de resultados (clave dedup_key)."""
+    if not rows:
+        return 0
+    _client.table("anarvet_results").upsert(rows, on_conflict="dedup_key").execute()
+    return len(rows)
+
+
+def register_anarvet_client_codes(codes: dict[str, str | None]) -> int:
+    """Registra cod_cliente nuevos como 'pending' SIN pisar mapeos existentes
+    (ignore_duplicates: un código ya mapeado no vuelve a pending). codes es
+    {cod_cliente: nombre_cliente}."""
+    if not codes:
+        return 0
+    rows = [{"cod_cliente": cod, "nombre_cliente": nombre} for cod, nombre in codes.items()]
+    _client.table("anarvet_client_map").upsert(
+        rows, on_conflict="cod_cliente", ignore_duplicates=True
+    ).execute()
+    return len(rows)
+
+
+def list_anarvet_client_map(status: str | None = None) -> list[dict]:
+    """Lista el mapeo cod_cliente Anarvet → clients, opcionalmente por estado
+    (pending | auto | manual | none)."""
+    query = _client.table("anarvet_client_map").select("*").order("cod_cliente")
+    if status:
+        query = query.eq("match_source", status)
+    result = query.execute()
+    return result.data or []
+
+
+def assign_anarvet_client(cod_cliente: str, client_id: str | None, source: str) -> None:
+    """Asigna un cod_cliente de Anarvet a un client_id nuestro (source: auto|manual),
+    o lo marca sin correspondencia con client_id=None y source='none'."""
+    _client.table("anarvet_client_map").update({
+        "client_id": client_id,
+        "match_source": source,
+        "matched_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("cod_cliente", cod_cliente).execute()
+
+
+def list_anarvet_results(
+    filters: dict | None = None, page: int = 1, per_page: int = 50
+) -> tuple[list[dict], int]:
+    """Lista el espejo de resultados con filtros básicos y paginación del lado
+    servidor. Devuelve (filas, total)."""
+    f = filters or {}
+    query = _client.table("anarvet_results").select("*", count="exact")
+    if f.get("cod_cliente"):
+        query = query.eq("cod_cliente", f["cod_cliente"])
+    if f.get("codigo"):
+        query = query.eq("codigo", f["codigo"])
+    if f.get("date_from"):
+        query = query.gte("fecha_solicitud", f["date_from"])
+    if f.get("date_to"):
+        query = query.lte("fecha_solicitud", f["date_to"])
+    if f.get("search"):
+        term = str(f["search"]).replace(",", " ").strip()
+        if term:
+            query = query.or_(
+                f"mascota.ilike.%{term}%,nombre_propietario.ilike.%{term}%,nombre_cliente.ilike.%{term}%"
+            )
+    query = query.order("fecha_solicitud", desc=True).order("dedup_key")
+    start = max(page - 1, 0) * per_page
+    query = query.range(start, start + per_page - 1)
+    result = query.execute()
+    return result.data or [], (result.count or 0)
+
+
 def list_custom_profiles(client_id: str | None = None, limit: int = 100) -> list[dict]:
     query = _client.table("client_custom_profiles").select("*, clients(clinic_name)").order("created_at", desc=True).limit(limit)
     if client_id:

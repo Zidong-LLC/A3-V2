@@ -10,11 +10,13 @@ de lo que solo lo degrada.
   chequeo porque cada llamada cuesta dinero y agrega latencia.
 - Alegra es opcional y solo se chequea si está habilitado; que falle degrada
   la facturación, no la recogida de muestras.
+- Anarvet ídem: es una base externa fuera de nuestro control; que caiga degrada
+  el sync del espejo de resultados, nunca tumba el servicio.
 """
 import time
 
-from app.config import ALEGRA_ENABLED, APP_ENV, OPENAI_API_KEY
-from app.services import alegra, db
+from app.config import ALEGRA_ENABLED, ANARVET_ENABLED, APP_ENV, OPENAI_API_KEY
+from app.services import alegra, anarvet, db
 
 # Un chequeo lento es un chequeo que falla: si Supabase tarda más que esto,
 # al monitor le sirve más un aviso que una espera.
@@ -43,6 +45,11 @@ def check_all() -> tuple[dict, int]:
         checks["alegra"] = _timed(alegra.ping)
     else:
         checks["alegra"] = {"status": "disabled"}
+
+    if ANARVET_ENABLED:
+        checks["anarvet"] = _timed(anarvet.ping)
+    else:
+        checks["anarvet"] = {"status": "disabled"}
 
     critical_down = checks["supabase"]["status"] == "error"
     degraded = any(c["status"] in ("error", "slow", "not_configured") for c in checks.values())

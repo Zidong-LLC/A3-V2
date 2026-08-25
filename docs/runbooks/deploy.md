@@ -22,6 +22,19 @@ CUTOFF_MINUTE               30
 FLASK_SECRET_KEY            string aleatorio
 ```
 
+### Opcionales por integración (lista completa en `.env.example`)
+
+```
+ALEGRA_ENABLED / ALEGRA_EMAIL / ALEGRA_API_TOKEN / ALEGRA_BASE_URL / ALEGRA_PRODUCTION
+ANARVET_ENABLED / ANARVET_DB_HOST / ANARVET_DB_PORT / ANARVET_DB_NAME /
+ANARVET_DB_USER / ANARVET_DB_PASSWORD / ANARVET_SSLMODE
+```
+
+⚠️ Anarvet (decisión 013): desplegar primero con `ANARVET_ENABLED=false`. Al
+encenderlo, verificar `/health` (check `anarvet`) y correr un sync corto DESDE
+Render: si el servidor de Anarvet filtra por IP, pedirles whitelistar las IPs de
+egreso de Render.
+
 ## Proceso de deploy
 
 Render hace deploy automático al hacer push a `main`. Para forzar un deploy manual:

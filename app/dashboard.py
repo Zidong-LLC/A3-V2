@@ -14,12 +14,13 @@ from flask import Blueprint, Response, abort, jsonify, redirect, render_template
 from app.config import (
     ALEGRA_ENABLED,
     ALEGRA_PRODUCTION,
+    ANARVET_ENABLED,
     DASHBOARD_ADMIN_PASSWORD,
     DASHBOARD_ADMIN_USER,
     DISCOUNT_TIERS,
 )
 from app.services import db, alegra
-from app import dashboard_metrics, pricing, territory, billing
+from app import anarvet_sync, dashboard_metrics, pricing, territory, billing
 
 dashboard = Blueprint("dashboard", __name__)
 
@@ -1712,6 +1713,53 @@ def api_sync_invoices():
         return jsonify({"error": f"Sync falló: {exc}"}), 503
     status = 200 if not result["errors"] else 207
     return jsonify({"ok": not result["errors"], **result}), status
+
+
+# --------------------------- Espejo Anarvet (decisión 013) ---------------------------
+
+@dashboard.post("/api/dashboard/anarvet/sync")
+@_login_required
+def api_anarvet_sync():
+    """Vuelca fn_reporte_examenes al espejo local. Solo lectura contra Anarvet."""
+    if not ANARVET_ENABLED:
+        return jsonify({"error": "Anarvet deshabilitado (ANARVET_ENABLED=false)"}), 400
+    payload = request.get_json(silent=True) or {}
+    try:
+        result = anarvet_sync.sync_results(payload.get("desde"), payload.get("hasta"))
+    except ValueError as exc:
+        return jsonify({"error": str(exc)}), 400
+    except Exception as exc:
+        return jsonify({"error": f"Sync falló: {exc}"}), 503
+    status = 200 if not result["errors"] else 207
+    return jsonify({"ok": not result["errors"], **result}), status
+
+
+@dashboard.get("/api/dashboard/anarvet/clients")
+@_login_required
+def api_anarvet_clients():
+    """Mapeo cod_cliente Anarvet → clients; ?status=pending filtra por estado."""
+    if not ANARVET_ENABLED:
+        return jsonify({"error": "Anarvet deshabilitado (ANARVET_ENABLED=false)"}), 400
+    status = (request.args.get("status") or "").strip() or None
+    return jsonify({"clients": db.list_anarvet_client_map(status)})
+
+
+@dashboard.post("/api/dashboard/anarvet/clients/<cod_cliente>/assign")
+@_login_required
+def api_anarvet_assign(cod_cliente: str):
+    """Asigna a mano un cod_cliente de Anarvet a un cliente nuestro.
+    Body {"client_id": "..."} → manual; {"client_id": null} → sin correspondencia."""
+    if not ANARVET_ENABLED:
+        return jsonify({"error": "Anarvet deshabilitado (ANARVET_ENABLED=false)"}), 400
+    payload = request.get_json(silent=True) or {}
+    client_id = (payload.get("client_id") or "").strip() or None
+    if client_id:
+        if not db.get_client_by_id(client_id):
+            return jsonify({"error": f"Cliente {client_id} no existe"}), 404
+        db.assign_anarvet_client(cod_cliente, client_id, "manual")
+    else:
+        db.assign_anarvet_client(cod_cliente, None, "none")
+    return jsonify({"ok": True})
 
 
 @dashboard.get("/api/dashboard/invoices/export")

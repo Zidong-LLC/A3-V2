@@ -10,6 +10,7 @@ from functools import wraps
 
 from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
 
+from app.config import ANARVET_ENABLED
 from app.services import portal_db, storage, telegram
 from app.services.db import find_clients_by_tax_id
 
@@ -91,6 +92,7 @@ def results_page():
     return render_template(
         "dashboard_results.html", results=results, filters=filters,
         username=session.get("dashboard_username", ""),
+        anarvet_enabled=ANARVET_ENABLED,
     )
 
 
