@@ -103,6 +103,18 @@ def _es_observacion(fila: dict) -> bool:
     return (fila.get("analito") or "").strip().lower() in _OBSERVATION_KEYS
 
 
+def _contexto(analito: str | None, examen: str) -> str:
+    """Nombre del examen, solo cuando agrega algo al del analito.
+
+    'BUN · Nitrógeno ureico (BUN)' y 'ALT · ALT (GPT)' repiten lo mismo dos veces: si uno
+    de los dos nombres ya contiene al otro, con uno alcanza."""
+    a = (analito or "").strip().lower()
+    e = (examen or "").strip().lower()
+    if not a or not e or a in e or e in a:
+        return ""
+    return examen
+
+
 def _edad(nacio, referencia) -> str:
     """Edad al momento de la solicitud, en años y meses. Sin fecha de nacimiento, vacío."""
     if not nacio or not referencia:
@@ -139,9 +151,19 @@ def informe_imprimir(codigo: str, fecha: str):
                 observaciones.append(texto)
             continue
         por_codigo.setdefault(fila.get("examen_cod") or "—", []).append(fila)
+    # Un examen de UN solo analito (creatinina, BUN, ALT…) no merece su propio bloque con
+    # título y encabezados: gastaba 19,5 mm de hoja para mostrar un número, y cinco de esos
+    # empujaban el informe a una segunda página casi vacía. Van juntos en un bloque final,
+    # una línea cada uno — que es como se leen en un informe de laboratorio.
+    sueltos = []
     for cod, filas in por_codigo.items():
-        examenes.append({"codigo": cod, "nombre": _EXAM_NAMES.get(cod.upper(), cod),
-                         "filas": filas})
+        nombre = _EXAM_NAMES.get(cod.upper(), cod)
+        if len(filas) == 1:
+            sueltos.append({"codigo": cod, "fila": filas[0],
+                            "medido": filas[0].get("analito") or nombre,
+                            "contexto": _contexto(filas[0].get("analito"), nombre)})
+        else:
+            examenes.append({"codigo": cod, "nombre": nombre, "filas": filas})
 
     p = analitos[0]
     validaciones = [f.get("fec_val") for f in analitos if f.get("fec_val")]
@@ -161,6 +183,8 @@ def informe_imprimir(codigo: str, fecha: str):
     }
     return render_template(
         "anarvet_informe_print.html",
-        paciente=paciente, examenes=examenes, observaciones=observaciones,
-        total_analitos=sum(len(e["filas"]) for e in examenes),
+        paciente=paciente, examenes=examenes, sueltos=sueltos,
+        observaciones=observaciones,
+        total_analitos=sum(len(e["filas"]) for e in examenes) + len(sueltos),
+        total_examenes=len(examenes) + len(sueltos),
     )

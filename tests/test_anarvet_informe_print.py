@@ -84,11 +84,22 @@ def test_el_documento_identifica_paciente_y_solicitante():
 
 
 def test_los_examenes_salen_con_nombre_legible():
-    """Anarvet solo entrega el código corto ('H4'); el documento muestra qué es."""
+    """Anarvet solo entrega el código corto ('H4'); el documento muestra qué es.
+    Cuando el analito ya se llama igual que su examen ('UREA' en el examen URE) no se
+    repite: la línea diría 'UREA · Urea'."""
     html = _html()
-    assert "Cuadro hemático" in html
-    assert "Urea" in html
+    assert "Cuadro hemático" in html      # contexto del analito Hemoglobina, del examen H4
+    assert "UREA · Urea" not in html
+
+
+def test_un_examen_de_un_solo_valor_nombra_lo_que_se_midio():
+    """Con un analito suelto, el documento dice 'Hemoglobina 13.8' y deja el examen como
+    contexto. Titularlo 'Cuadro hemático 13.8' haría pasar el valor de un analito por el
+    resultado de todo el examen."""
+    html = _html()
+    assert "Otros exámenes" in html
     assert "Hemoglobina" in html and "13.8" in html
+    assert "UREA" in html and "147.08" in html
 
 
 def test_la_observacion_no_se_muestra_como_un_resultado_medido():
@@ -128,3 +139,14 @@ def test_deteccion_de_observaciones():
     assert _es_observacion({"analito": "OBSERVACIONES"})
     assert _es_observacion({"analito": " comentario "})
     assert not _es_observacion({"analito": "Hemoglobina"})
+
+
+def test_no_repite_el_nombre_cuando_analito_y_examen_dicen_lo_mismo():
+    """'BUN · Nitrógeno ureico (BUN)' y 'ALT · ALT (GPT)' dicen dos veces lo mismo."""
+    from app.dashboard_anarvet import _contexto
+
+    assert _contexto("BUN", "Nitrógeno ureico (BUN)") == ""
+    assert _contexto("ALT", "ALT (GPT)") == ""
+    assert _contexto("Creatinina", "Creatinina") == ""
+    # Cuando el examen SÍ aporta contexto, se conserva:
+    assert _contexto("Hemoglobina", "Cuadro hemático") == "Cuadro hemático"

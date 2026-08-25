@@ -3832,5 +3832,19 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
 - **Limitación anotada — a pedirle a Anarvet:** el reporte **no trae unidades ni valores de
   referencia**, así que el documento muestra analito y resultado. Para que sea un informe
   clínico completo hacen falta esos dos campos (y el nombre largo del examen).
-- **Tests:** `test_anarvet_informe_print.py` (9). Verificado además contra un informe REAL
-  del espejo: 8 exámenes, 33 analitos, observaciones separadas. Suite: **1270 passed**.
+- **Cabía en dos páginas y no debía (medido, no supuesto):** el informe salía en 330 mm de
+  los 297 mm de un A4, y arrastraba una segunda hoja casi vacía. Medido por secciones con
+  Chrome headless, el culpable no era el interlineado: **cada examen de UN solo analito
+  gastaba 19,5 mm** en repetir su título y los encabezados de tabla para mostrar un número.
+  Los de un solo resultado ahora van juntos en un bloque "Otros exámenes", una línea cada
+  uno — como se leen en un informe de laboratorio. El informe de ejemplo pasó de 330 mm a
+  una página, y los de 36+ analitos siguen ocupando las hojas que necesiten sin cortar
+  ninguna tabla por la mitad.
+- **Dos trampas de honestidad evitadas en ese bloque:** (1) al colapsar un examen de un
+  analito se mostraba el nombre del EXAMEN junto al valor — "Cuadro hemático 13.8" hace
+  pasar la hemoglobina por el resultado de todo el examen; se muestra el analito medido y el
+  examen queda como contexto. (2) Ese contexto se omite cuando repite lo mismo: "BUN ·
+  Nitrógeno ureico (BUN)".
+- **Tests:** `test_anarvet_informe_print.py` (11). Verificado contra un informe REAL del
+  espejo (8 exámenes, 33 analitos) y con PDF generado por Chrome headless: **1 página**.
+  Suite: **1272 passed**.
