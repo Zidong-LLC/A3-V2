@@ -4067,3 +4067,29 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
   fondo por la que estas no se pueden resolver desde acá.
 - **Tests:** 4 nuevos (sucursales que no desempatan, misma dirección escrita distinto, DV
   pegado sin guion, NITs que solo se parecen). Suite: **1327 passed**.
+
+---
+
+## ERR-158 — Documento de consulta para A3 sobre los mapeos dudosos
+
+- **Fecha:** 2026-08-25 · **Estado:** ENTREGADO
+- **Pedido del usuario:** un PDF con todas las dudas de emparejamiento, para pasárselo a A3 y
+  que ellos las cotejen contra su base.
+- **Por qué existe esta consulta:** Anarvet entrega el **nombre** de la veterinaria pero
+  **no su NIT**. Con solo el nombre hay casos que no se pueden resolver sin preguntar — y es
+  también el pedido de fondo que conviene hacerle a Anarvet: si agregaran el NIT a su
+  reporte, este problema desaparecería para siempre.
+- **`tools/scripts/anarvet_consulta_clientes.py`** genera el documento leyendo el estado real
+  del mapeo, así que se puede volver a correr cada vez que A3 responda. Tres bloques:
+  1. **Las que no pudimos identificar (17):** con código, rango de fechas, **pacientes y
+     propietarios** —que es como A3 las va a reconocer— y los candidatos de su base con NIT
+     y dirección. Cada caso tiene una línea en blanco para que respondan sobre el papel.
+  2. **Mismo NIT en dos direcciones (3):** elegimos una sede para no dejar los resultados sin
+     dueño; que confirmen si es la correcta.
+  3. **Duplicados de su base (6):** mismo NIT y misma dirección cargados dos veces, para que
+     los unifiquen.
+- **Hallazgo para la conversación:** *Zoopecas* y *Piscis* tienen **la misma dirección con
+  NITs distintos** (uno de persona natural y otro de SAS). Probablemente el mismo negocio que
+  cambió de figura jurídica — el tipo de cosa que solo A3 puede confirmar.
+- **Salidas:** `docs/anarvet-consulta-clientes.html` (versionado) y el PDF de 5 páginas en
+  Descargas. Suite: **1327 passed**.
