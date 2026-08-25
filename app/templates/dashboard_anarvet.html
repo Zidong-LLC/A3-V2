@@ -71,6 +71,7 @@
                 <td>{{ i.analitos }}</td>
                 <td class="invoice-actions">
                   <a class="ghost-btn small" href="{{ url_for('dashboard_anarvet.informe_detalle', codigo=i.codigo, fecha=i.fecha_solicitud) }}">Ver informe</a>
+                  <a class="ghost-btn small" target="_blank" href="{{ url_for('dashboard_anarvet.informe_imprimir', codigo=i.codigo, fecha=i.fecha_solicitud) }}">PDF</a>
                 </td>
               </tr>
               {% else %}

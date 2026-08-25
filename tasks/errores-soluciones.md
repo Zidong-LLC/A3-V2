@@ -3800,3 +3800,37 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
 - **Anotado:** la orden queda con `entry_channel = 'telegram'` como todas las que no vienen
   de ese canal — el CHECK de la tabla solo admite ese valor (mismo tapón que bloquea
   WhatsApp). Cuando se abra el constraint, conviene marcarlas como `dashboard`.
+
+---
+
+## ERR-150 — Anarvet Fase 2 (1/4): informe de resultados propio, descargable
+
+- **Fecha:** 2026-08-25 · **Estado:** RESUELTO
+- **Origen:** A3 en la llamada del 21/08 — *"si un cliente llama por teléfono y no tiene
+  acceso, que la persona humana lo descargue y se lo envíe por WhatsApp"*.
+- **Contexto:** Anarvet **no entrega PDF** (decisión 013): solo la función
+  `fn_reporte_examenes`, un registro por analito. El documento lo componemos nosotros con
+  los datos del espejo, que ya tiene 26.978 analitos y 797 informes reales.
+- **Revisión previa de la conexión (pedida por el usuario):** `ping` OK en 1.31 s contra
+  186.31.154.190; consulta en vivo de 3 días devolvió 11.546 analitos. Credenciales del
+  `.env` correctas, usuario `consulta` restringido como corresponde.
+- **Solución:** ruta `/resultados/anarvet/<codigo>/<fecha>/imprimir` + plantilla A4 con la
+  identidad del portafolio impreso de A3 (vino sobre blanco). Se imprime o se guarda como
+  PDF desde el navegador, mismo patrón que la orden de servicio — sin librerías nuevas.
+  Botón "Descargar PDF" en el detalle del informe y acceso directo desde el listado.
+- **Decisiones de presentación (los datos crudos no alcanzan para un documento clínico):**
+  1. **Nombres de examen legibles**: Anarvet solo entrega el código corto (`H4`, `PROT`).
+     `_EXAM_NAMES` traduce los 28 más frecuentes; cualquier otro se muestra con su código,
+     sin inventar.
+  2. **Las OBSERVACIONES salen de la tabla**: el reporte las mezcla entre los analitos como
+     una fila más, con el comentario del profesional en la columna de resultado. En el
+     documento van en su propio bloque: no son un valor medido.
+  3. **Edad calculada** a la fecha de la solicitud desde `nacio`; sin fecha de nacimiento no
+     se inventa una edad.
+  4. **Firma**: usa el validador real (`usu_validador`) y cae a "Profesional responsable"
+     cuando el informe todavía no fue validado.
+- **Limitación anotada — a pedirle a Anarvet:** el reporte **no trae unidades ni valores de
+  referencia**, así que el documento muestra analito y resultado. Para que sea un informe
+  clínico completo hacen falta esos dos campos (y el nombre largo del examen).
+- **Tests:** `test_anarvet_informe_print.py` (9). Verificado además contra un informe REAL
+  del espejo: 8 exámenes, 33 analitos, observaciones separadas. Suite: **1270 passed**.

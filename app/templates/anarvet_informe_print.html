@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>A3 - Informe {{ paciente.mascota or paciente.codigo }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /* Documento clínico A4. Paleta del portafolio impreso de A3 (vino sobre blanco).
+       Sin dependencias: se imprime o se guarda como PDF desde el navegador. */
+    :root{
+      --vino:#7a1725; --vino-claro:#9b2233; --tinta:#1c1c1e; --gris:#6b6b70;
+      --linea:#e2e2e6; --suave:#f7f7f9;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; background:#ececed; color:var(--tinta);
+      font-family:'Public Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+      font-size:12px; line-height:1.45;
+    }
+    .hoja{
+      width:210mm; min-height:297mm; margin:18px auto; padding:16mm 15mm 22mm;
+      background:#fff; box-shadow:0 10px 30px rgba(0,0,0,.13); position:relative;
+    }
+
+    /* Cabecera */
+    .cabecera{display:flex; justify-content:space-between; align-items:flex-start; gap:18px;
+      border-bottom:3px solid var(--vino); padding-bottom:12px}
+    .marca{display:flex; align-items:center; gap:11px}
+    .sello{
+      width:46px; height:46px; border-radius:50%; background:var(--vino); color:#fff;
+      display:flex; align-items:center; justify-content:center;
+      font-weight:800; font-size:19px; letter-spacing:.5px;
+    }
+    .marca h1{margin:0; font-size:17px; font-weight:800; letter-spacing:-.2px}
+    .marca span{display:block; font-size:10.5px; color:var(--vino-claro); font-weight:600;
+      text-transform:uppercase; letter-spacing:1.1px}
+    .contacto{text-align:right; font-size:10px; color:var(--gris); line-height:1.6}
+    .contacto strong{color:var(--tinta)}
+
+    .titulo-doc{
+      display:flex; justify-content:space-between; align-items:baseline;
+      margin:14px 0 12px;
+    }
+    .titulo-doc h2{margin:0; font-size:15px; letter-spacing:2.6px; text-transform:uppercase;
+      color:var(--vino); font-weight:700}
+    .folio{font-size:11px; color:var(--gris)}
+    .folio strong{color:var(--tinta); font-size:12.5px; letter-spacing:.4px}
+
+    /* Fichas de identificación */
+    .fichas{display:grid; grid-template-columns:1.35fr 1fr; gap:10px; margin-bottom:14px}
+    .ficha{border:1px solid var(--linea); border-radius:7px; overflow:hidden}
+    .ficha h3{
+      margin:0; padding:6px 10px; font-size:9.5px; letter-spacing:1.3px; text-transform:uppercase;
+      background:var(--suave); color:var(--vino); border-bottom:1px solid var(--linea); font-weight:700;
+    }
+    .ficha dl{margin:0; padding:8px 10px; display:grid; grid-template-columns:auto 1fr;
+      gap:3px 10px; align-items:baseline}
+    .ficha dt{color:var(--gris); font-size:10px; white-space:nowrap}
+    .ficha dd{margin:0; font-weight:600}
+
+    /* Resultados */
+    .examen{margin-bottom:11px; break-inside:avoid; page-break-inside:avoid}
+    .examen-titulo{
+      display:flex; align-items:baseline; gap:8px; padding:5px 10px;
+      background:var(--vino); color:#fff; border-radius:5px 5px 0 0;
+    }
+    .examen-titulo strong{font-size:12px; letter-spacing:.3px}
+    .examen-titulo span{font-size:9.5px; opacity:.75; letter-spacing:.8px}
+    table{width:100%; border-collapse:collapse}
+    th{
+      text-align:left; font-size:9px; letter-spacing:1.1px; text-transform:uppercase;
+      color:var(--gris); padding:5px 10px; border-bottom:1px solid var(--linea); font-weight:700;
+    }
+    td{padding:4.5px 10px; border-bottom:1px solid #f0f0f2}
+    tbody tr:last-child td{border-bottom:1px solid var(--linea)}
+    .col-valor{width:32%; font-weight:700; font-variant-numeric:tabular-nums}
+    .col-cod{width:14%; color:var(--gris); font-size:10.5px}
+
+    .observaciones{
+      border-left:3px solid var(--vino-claro); background:var(--suave);
+      padding:9px 12px; border-radius:0 6px 6px 0; margin:12px 0;
+      break-inside:avoid; page-break-inside:avoid;
+    }
+    .observaciones h3{margin:0 0 3px; font-size:9.5px; letter-spacing:1.3px;
+      text-transform:uppercase; color:var(--vino)}
+    .observaciones p{margin:0 0 4px}
+
+    .pie{
+      margin-top:18px; padding-top:9px; border-top:1px solid var(--linea);
+      display:flex; justify-content:space-between; align-items:flex-end; gap:16px;
+      font-size:10px; color:var(--gris);
+    }
+    .firma{text-align:center; min-width:190px}
+    .firma .linea{border-top:1px solid var(--tinta); margin-bottom:3px; padding-top:26px}
+    .firma strong{color:var(--tinta); display:block}
+    .lema{font-style:italic; color:var(--vino-claro)}
+
+    /* Barra de acciones: no se imprime */
+    .acciones{
+      width:210mm; margin:14px auto 0; display:flex; gap:9px; justify-content:flex-end;
+    }
+    .btn{
+      border:0; border-radius:7px; padding:9px 15px; font-size:12.5px; font-weight:600;
+      cursor:pointer; font-family:inherit; text-decoration:none; display:inline-flex;
+      align-items:center; gap:7px;
+    }
+    .btn-primario{background:var(--vino); color:#fff}
+    .btn-primario:hover{background:var(--vino-claro)}
+    .btn-suave{background:#fff; color:var(--tinta); border:1px solid var(--linea)}
+
+    @page{size:A4; margin:0}
+    @media print{
+      body{background:#fff}
+      .acciones{display:none}
+      .hoja{margin:0; box-shadow:none; width:auto; min-height:auto; padding:14mm 13mm}
+    }
+  </style>
+</head>
+<body>
+  <div class="acciones">
+    <a class="btn btn-suave" href="{{ url_for('dashboard_anarvet.informe_detalle', codigo=paciente.codigo, fecha=paciente.fecha_solicitud) }}">Volver</a>
+    <button class="btn btn-primario" onclick="window.print()">Descargar PDF / Imprimir</button>
+  </div>
+
+  <div class="hoja">
+    <header class="cabecera">
+      <div class="marca">
+        <div class="sello">A3</div>
+        <div>
+          <h1>A3 Laboratorio</h1>
+          <span>Clínico Veterinario</span>
+        </div>
+      </div>
+      <div class="contacto">
+        <strong>Calle 27 sur 34 - 47 Piso 1</strong><br>
+        Bogotá D.C. · Tel 601 794 5741<br>
+        info@a3laboratorio.co · www.a3laboratorio.co
+      </div>
+    </header>
+
+    <div class="titulo-doc">
+      <h2>Informe de resultados</h2>
+      <div class="folio">
+        Informe N.° <strong>{{ paciente.codigo }}</strong> ·
+        Solicitud {{ paciente.fecha_solicitud }}
+        {% if paciente.validado_el %} · Validado {{ paciente.validado_el }}{% endif %}
+      </div>
+    </div>
+
+    <section class="fichas">
+      <article class="ficha">
+        <h3>Paciente</h3>
+        <dl>
+          <dt>Nombre</dt><dd>{{ paciente.mascota or '—' }}</dd>
+          <dt>Especie / raza</dt><dd>{{ paciente.especie or '—' }}{% if paciente.raza %} · {{ paciente.raza|title }}{% endif %}</dd>
+          {% if paciente.genero %}<dt>Sexo</dt><dd>{{ paciente.genero }}</dd>{% endif %}
+          {% if paciente.edad %}<dt>Edad</dt><dd>{{ paciente.edad }}</dd>{% endif %}
+          <dt>Propietario</dt><dd>{{ paciente.propietario or '—' }}</dd>
+        </dl>
+      </article>
+      <article class="ficha">
+        <h3>Solicitante</h3>
+        <dl>
+          <dt>Veterinaria</dt><dd>{{ paciente.cliente or '—' }}</dd>
+          <dt>Analitos</dt><dd>{{ total_analitos }} en {{ examenes|length }} {{ 'examen' if examenes|length == 1 else 'exámenes' }}</dd>
+        </dl>
+      </article>
+    </section>
+
+    {% for examen in examenes %}
+    <section class="examen">
+      <div class="examen-titulo">
+        <strong>{{ examen.nombre }}</strong>
+        {% if examen.nombre != examen.codigo %}<span>{{ examen.codigo }}</span>{% endif %}
+      </div>
+      <table>
+        <thead>
+          <tr><th class="col-cod">Código</th><th>Analito</th><th class="col-valor">Resultado</th></tr>
+        </thead>
+        <tbody>
+          {% for fila in examen.filas %}
+          <tr>
+            <td class="col-cod">{{ fila.analito_cod or '' }}</td>
+            <td>{{ fila.analito or '' }}</td>
+            <td class="col-valor">{{ fila.resultado if fila.resultado not in (None, '') else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endfor %}
+
+    {% if observaciones %}
+    <section class="observaciones">
+      <h3>Observaciones del laboratorio</h3>
+      {% for texto in observaciones %}<p>{{ texto }}</p>{% endfor %}
+    </section>
+    {% endif %}
+
+    <footer class="pie">
+      <div>
+        <p class="lema">Trabajo en equipo por el bienestar de nuestros animales</p>
+        Los resultados corresponden exclusivamente a la muestra recibida.<br>
+        Su interpretación es responsabilidad del médico veterinario tratante.
+      </div>
+      <div class="firma">
+        <div class="linea"></div>
+        <strong>{{ paciente.validado_por or 'Profesional responsable' }}</strong>
+        A3 Laboratorio Clínico Veterinario
+      </div>
+    </footer>
+  </div>
+</body>
+</html>

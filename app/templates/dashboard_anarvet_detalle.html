@@ -45,6 +45,7 @@
       <header class="top-header">
         <div><p class="hello-label">Informe Anarvet · {{ paciente.fecha_solicitud }}</p><h1 data-blur-text>{{ paciente.mascota or 'Paciente' }} <span class="muted-text">({{ paciente.codigo }})</span></h1></div>
         <a class="ghost-btn" href="{{ url_for('dashboard_anarvet.informes_page') }}"><i data-lucide="arrow-left"></i>Volver al listado</a>
+        <a class="primary-btn" target="_blank" href="{{ url_for('dashboard_anarvet.informe_imprimir', codigo=paciente.codigo, fecha=paciente.fecha_solicitud) }}"><i data-lucide="file-down"></i>Descargar PDF</a>
       </header>
 
       <section class="card">

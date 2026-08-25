@@ -6,7 +6,7 @@ del resultado. Blueprint separado (misma razón que dashboard_results): usa la M
 sesión del dashboard y no toca app/dashboard.py. Solo LECTURA del espejo local:
 nunca le pega a Anarvet — para traer datos nuevos está el botón de sync.
 """
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from functools import wraps
 
 from flask import Blueprint, abort, redirect, render_template, request, session, url_for
@@ -72,4 +72,95 @@ def informe_detalle(codigo: str, fecha: str):
         "dashboard_anarvet_detalle.html",
         paciente=analitos[0], examenes=examenes, total_analitos=len(analitos),
         username=session.get("dashboard_username", ""),
+    )
+
+
+# ── Informe imprimible ───────────────────────────────────────────────────────────
+# A3 lo pidió en la llamada del 21/08: que el personal pueda descargar el resultado y
+# reenviárselo al cliente que llama y no tiene acceso al portal. Anarvet no entrega PDF
+# (decisión 013), así que el documento lo componemos nosotros con los datos del espejo.
+
+# Nombres legibles de los exámenes. Anarvet solo entrega el código corto ('H4', 'PROT');
+# esto cubre los más frecuentes y cualquier otro se muestra con su código, sin inventar.
+_EXAM_NAMES = {
+    "H4": "Cuadro hemático", "H3": "Hemograma", "PROT": "Proteínas totales",
+    "ALB": "Albúmina", "ALT": "ALT (GPT)", "AST": "AST (GOT)", "BUN": "Nitrógeno ureico (BUN)",
+    "CRE": "Creatinina", "URE": "Urea", "FOSAL": "Fosfatasa alcalina", "GLU": "Glucosa",
+    "COL": "Colesterol", "TRI": "Triglicéridos", "GGT": "GGT", "AMI": "Amilasa",
+    "LIP": "Lipasa", "CA": "Calcio", "FOS": "Fósforo", "MG": "Magnesio", "NA": "Sodio",
+    "K": "Potasio", "CL": "Cloro", "BT": "Bilirrubina total", "PU": "Parcial de orina",
+    "COP": "Coprológico", "HEM": "Hemoparásitos", "T4": "T4", "TSH": "TSH",
+}
+
+# El reporte mezcla el comentario del profesional entre los analitos, como una fila más.
+# En el documento va aparte: no es un valor medido.
+_OBSERVATION_KEYS = ("observacion", "observaciones", "comentario", "comentarios", "nota")
+
+_GENDERS = {"M": "Macho", "H": "Hembra", "F": "Hembra"}
+
+
+def _es_observacion(fila: dict) -> bool:
+    return (fila.get("analito") or "").strip().lower() in _OBSERVATION_KEYS
+
+
+def _edad(nacio, referencia) -> str:
+    """Edad al momento de la solicitud, en años y meses. Sin fecha de nacimiento, vacío."""
+    if not nacio or not referencia:
+        return ""
+    try:
+        n = date.fromisoformat(str(nacio)[:10])
+        r = date.fromisoformat(str(referencia)[:10])
+    except ValueError:
+        return ""
+    meses = (r.year - n.year) * 12 + (r.month - n.month) - (1 if r.day < n.day else 0)
+    if meses < 0:
+        return ""
+    años, resto = divmod(meses, 12)
+    if años and resto:
+        return f"{años} {'año' if años == 1 else 'años'} y {resto} {'mes' if resto == 1 else 'meses'}"
+    if años:
+        return f"{años} {'año' if años == 1 else 'años'}"
+    return f"{resto} {'mes' if resto == 1 else 'meses'}"
+
+
+@dashboard_anarvet.get("/resultados/anarvet/<codigo>/<fecha>/imprimir")
+@_login_required
+def informe_imprimir(codigo: str, fecha: str):
+    analitos = db.get_anarvet_informe(codigo, fecha)
+    if not analitos:
+        abort(404)
+
+    examenes, observaciones = [], []
+    por_codigo: dict[str, list[dict]] = {}
+    for fila in analitos:
+        if _es_observacion(fila):
+            texto = (fila.get("resultado") or "").strip()
+            if texto:
+                observaciones.append(texto)
+            continue
+        por_codigo.setdefault(fila.get("examen_cod") or "—", []).append(fila)
+    for cod, filas in por_codigo.items():
+        examenes.append({"codigo": cod, "nombre": _EXAM_NAMES.get(cod.upper(), cod),
+                         "filas": filas})
+
+    p = analitos[0]
+    validaciones = [f.get("fec_val") for f in analitos if f.get("fec_val")]
+    validadores = [f.get("usu_validador") for f in analitos if f.get("usu_validador")]
+    paciente = {
+        "codigo": codigo,
+        "fecha_solicitud": fecha,
+        "mascota": p.get("mascota"),
+        "especie": p.get("especie"),
+        "raza": p.get("raza"),
+        "genero": _GENDERS.get((p.get("genero") or "").strip().upper(), p.get("genero") or ""),
+        "edad": _edad(p.get("nacio"), fecha),
+        "propietario": p.get("nombre_propietario"),
+        "cliente": p.get("nombre_cliente"),
+        "validado_el": max(validaciones) if validaciones else None,
+        "validado_por": validadores[0] if validadores else None,
+    }
+    return render_template(
+        "anarvet_informe_print.html",
+        paciente=paciente, examenes=examenes, observaciones=observaciones,
+        total_analitos=sum(len(e["filas"]) for e in examenes),
     )
