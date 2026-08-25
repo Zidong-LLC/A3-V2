@@ -24,7 +24,7 @@ _FILLER = frozenset({"de", "del", "la", "el", "los", "las", "con", "en", "y", "e
 # sangre' no es 'Sangre Oculta'). Se dejan para los menús de área / ayuda dedicada.
 _AREA_WORDS = frozenset({"sangre", "sanguineo", "sanguinea", "sanguineos", "sanguineas",
                          "orina", "urinario", "urinaria", "heces", "fecal", "fecales",
-                         "suero", "plasma"})
+                         "suero", "plasma", "materia", "muestra", "muestras"})
 _ANALYSIS_NOUNS = frozenset({"analisis", "examen", "examenes", "prueba", "pruebas",
                              "perfil", "estudio", "estudios", "test", "tests"})
 # Verbos/muletillas de pedido: no nombran un análisis ('NECESITO una prueba de orina').
@@ -106,12 +106,75 @@ def _content_only(tokens) -> list[str]:
             and t not in _AREA_WORDS]
 
 
-def _name_is_named_by(user_tokens: set[str], name_tokens: list[str]) -> bool:
+# Sigla = token de 2-6 caracteres en MAYÚSCULAS con al menos una letra ('BUN', 'LDH',
+# '4DX', 'DEA1'). El lookahead exige el token completo en mayúsculas/dígitos.
+_ACRONYM_RE = re.compile(r"\b(?=[A-Z0-9ÁÉÍÓÚÑ]{2,6}\b)[A-Z0-9ÁÉÍÓÚÑ]*[A-ZÁÉÍÓÚÑ][A-Z0-9ÁÉÍÓÚÑ]*\b")
+
+# JERGA del gremio: cómo pide el veterinario colombiano lo que el catálogo llama de otro
+# modo. NO son fraseos ni muletillas (eso lo interpreta el modelo): son nombres de dominio
+# que no figuran en el portafolio. Cada entrada agrega un término de BÚSQUEDA — no elige
+# un análisis: la resolución sigue su curso normal y, si hay varios candidatos, se ofrecen.
+# Auditoría 2026-08-25: 'hemograma' —el sinónimo más común de Cuadro Hemático— no resolvía.
+CLINICAL_SYNONYMS = {
+    "hemograma": "hematico", "hemogramas": "hematico",
+    "parvo": "parvovirus",
+    "toxo": "toxoplasma",
+    "leishmaniasis": "leishmania", "lehismania": "leishmania",
+    "ionograma": "electrolitos",
+    "coproparasitario": "coprologico", "coproparasitologico": "coprologico",
+    "urianalisis": "uroanalisis",
+}
+
+
+_SYNONYM_VALUES = frozenset(CLINICAL_SYNONYMS.values())
+
+
+def _expand_synonyms(tokens: set[str], vocabulario: set[str]) -> set[str]:
+    """SUSTITUYE el término de jerga por el del catálogo; no lo suma.
+
+    Sumarlo creaba un pedido fantasma: 'leishmaniasis' quedaba con dos tokens y el
+    resolvedor los leía como DOS análisis pedidos en una frase (2014 + 2304 = $189.000),
+    que es exactamente la clase de suma silenciosa que este módulo existe para impedir.
+
+    La jerga solo entra cuando la palabra NO está en el catálogo: si algún día A3 carga un
+    análisis llamado 'Hemograma', esa palabra pasa a ser un nombre real y manda sobre la
+    traducción. El catálogo es la autoridad; el diccionario solo cubre lo que no nombra."""
+    return {CLINICAL_SYNONYMS[t] if (t in CLINICAL_SYNONYMS and t not in vocabulario) else t
+            for t in tokens}
+
+
+def _vocabulary(rows: list[dict]) -> set[str]:
+    return {t for r in rows for t in _tokens(r.get("name"))}
+
+
+def acronyms(name: str | None) -> set[str]:
+    """Siglas del nombre del catálogo, en minúscula: 'Nitrógeno Ureico (BUN)' → {'bun'}.
+
+    El catálogo escribe los nombres en Title Case, así que un token en MAYÚSCULAS es una
+    sigla clínica — y es como el veterinario nombra la prueba a diario: pide 'un BUN', no
+    'un Nitrógeno Ureico'. Se sacan del propio nombre, sin lista de sinónimos que mantener.
+    Cuando la sigla la comparten varias filas ('CK' → 1310 y 1311) el resolvedor las ofrece,
+    que es lo correcto: son pruebas distintas con precios distintos."""
+    return {m.group(0).lower() for m in _ACRONYM_RE.finditer(str(name or ""))}
+
+
+def _name_is_named_by(user_tokens: set[str], name_tokens: list[str],
+                      raw_name: str | None = None) -> bool:
     """¿El texto del usuario nombra ESTE análisis de forma inequívoca? Se compara solo el
     CONTENIDO distintivo de ambos lados: cubre el token inicial (el más distintivo) o al
     menos la mitad de los tokens. Además, el match debe incluir al menos UNA palabra
     distintiva del dominio: los descriptores genéricos del español solos ('cálculo',
-    'básico', 'panel', 'cuadro') NO nombran un test — solo apoyan (ERR-064)."""
+    'básico', 'panel', 'cuadro') NO nombran un test — solo apoyan (ERR-064).
+
+    La SIGLA del nombre nombra por sí sola (auditoría 2026-08-25): 'BUN' cubría 1 de 3
+    tokens de 'Nitrógeno Ureico (BUN)' y no llegaba al 50%, así que el análisis quedaba
+    irresoluble por el nombre con que lo pide todo el mundo. Igual LDH, CK y PIF."""
+    if raw_name and (user_tokens & acronyms(raw_name)):
+        return True
+    # El término de jerga NOMBRA: 'hemograma' es como se pide el Cuadro Hemático, aunque
+    # cubra 1 de 3 palabras del nombre y no llegue al umbral de cobertura.
+    if _SYNONYM_VALUES & user_tokens & set(name_tokens):
+        return True
     sig = _content_only(name_tokens)
     if not sig:
         return False
@@ -142,7 +205,7 @@ def _dedupe(rows) -> list[dict]:
 
 
 def _resolve_one(text: str, rows: list[dict], species: str | None) -> ResolveResult:
-    user_tokens = set(_tokens(text))
+    user_tokens = _expand_synonyms(set(_tokens(text)), _vocabulary(rows))
     if not user_tokens:
         return ResolveResult(NONE)
 
@@ -185,7 +248,8 @@ def _resolve_one(text: str, rows: list[dict], species: str | None) -> ResolveRes
     #    candidatos que cubren tokens DISTINTOS son varios pedidos en una frase
     #    ('cuadro hematico sodio' → ambos); solo hay ambigüedad real cuando compiten
     #    por las MISMAS palabras ('una glucosa' → las tres glucosas).
-    named = [r for r in rows if _name_is_named_by(match_tokens, _tokens(r.get("name")))]
+    named = [r for r in rows
+             if _name_is_named_by(match_tokens, _tokens(r.get("name")), r.get("name"))]
     if named:
         def _cov(r):
             return user_tokens & set(_significant(_tokens(r.get("name"))))
@@ -201,6 +265,9 @@ def _resolve_one(text: str, rows: list[dict], species: str | None) -> ResolveRes
             picked.append(cand)
             consumed |= new
         if picked:
+            rival = _convenio_rivals(picked, match_tokens, rows)
+            if rival:
+                return ResolveResult(AMBIGUOUS, _dedupe(picked + rival))
             return ResolveResult(EXACT, picked)
         return ResolveResult(AMBIGUOUS, named)
 
@@ -215,6 +282,48 @@ def _resolve_one(text: str, rows: list[dict], species: str | None) -> ResolveRes
         return ResolveResult(AMBIGUOUS, weak)
 
     return ResolveResult(NONE)
+
+
+def _is_convenio(row: dict) -> bool:
+    """Prueba de convenio (SERVIPAT, LMV, Mascolab, rabia). Mismo criterio que
+    `rules.is_convenio_test`, replicado acá para no romper la pureza del módulo."""
+    text = f"{row.get('category') or ''} {row.get('name') or ''}".lower()
+    return "convenio" in text
+
+
+def _convenio_rivals(picked: list[dict], match_tokens: set[str], rows: list[dict]) -> list[dict]:
+    """Análisis PROPIOS de A3 que compiten con un ganador de CONVENIO por la misma palabra.
+
+    Regla de dinero (auditoría 2026-08-25): el convenio cuesta 2-3× lo propio. 'moquillo'
+    resolvía EXACT al 2306 (Moquillo LMV, $124.000) y dejaba fuera al 2004 (Distemper A3,
+    $45.000) solo porque el del convenio EMPIEZA con esa palabra: la regla "cubre el token
+    inicial" lo consagraba ganador. Cuando el elegido es de convenio y A3 tiene su propia
+    prueba con el mismo término, se OFRECEN las dos — el precio lo decide el cliente,
+    nunca el orden de las palabras del nombre."""
+    convenios = [r for r in picked if _is_convenio(r)]
+    if not convenios:
+        return []
+    ganadores = {str(r.get("code")) for r in picked}
+    rivales = []
+    for row in rows:
+        if str(row.get("code")) in ganadores or _is_convenio(row):
+            continue
+        nombre = _content_only(_tokens(row.get("name")))
+        if any(_same_root(u, n) for u in match_tokens for n in nombre):
+            rivales.append(row)
+    return rivales
+
+
+def _same_root(a: str, b: str) -> bool:
+    """Misma palabra clínica salvo la terminación: 'leishmaniasis' vs 'leishmania'.
+
+    Sin esto, la prueba propia de A3 ($70.000) no contaba como rival de la del convenio
+    ($119.000) por dos letras de diferencia. Solo se usa para DECIDIR SI OFRECER — nunca
+    para agregar, así que un emparejamiento de más muestra una opción extra, no cobra."""
+    if a == b:
+        return True
+    corto, largo = sorted((a, b), key=len)
+    return len(corto) >= 6 and largo.startswith(corto)
 
 
 def _resolve_area(user_tokens: set[str], rows: list[dict], species: str | None):
@@ -255,11 +364,12 @@ def names_test(text: str, row: dict) -> bool:
     ('prueba') o de pedido ('necesito') NO nombran. Sirve para validar el anclaje (I3) de
     códigos que el modelo capturó por su cuenta: 'potasio sodio y orina' nombra Potasio y
     Sodio, pero NO nombra 'Parcial de Orina' — ese debe ofrecerse, no asumirse."""
-    tokens = set(_tokens(text))
+    tokens = _expand_synonyms(set(_tokens(text)), set(_tokens(row.get("name"))))
     if str(row.get("code") or "") in tokens:
         return True
     match_tokens = tokens - _FILLER - _AREA_WORDS - _ANALYSIS_NOUNS - _REQUEST_WORDS
-    return bool(match_tokens) and _name_is_named_by(match_tokens, _tokens(row.get("name")))
+    return bool(match_tokens) and _name_is_named_by(
+        match_tokens, _tokens(row.get("name")), row.get("name"))
 
 
 def resolve_tests(text: str, rows: list[dict], species: str | None = None,

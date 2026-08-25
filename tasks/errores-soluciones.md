@@ -3700,3 +3700,38 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
   `test_db_identification.py`. Suite: **1238 passed**.
 - **Herramientas nuevas:** `tools/scripts/audit_catalogo_pdf.py` (tabla canónica del PDF vs
   seeds) y `tools/scripts/audit_catalogo_supabase.py` (vs la base viva, solo lectura).
+
+### ERR-147b — Cómo pide el veterinario: siglas, jerga y el convenio que ganaba callado
+
+- **Fecha:** 2026-08-25 · **Estado:** RESUELTO (migración 025 pendiente de OK)
+- **Origen:** segunda mitad del mismo pedido — *"que se asocien con el nombre, por si el
+  cliente en vez de decir el número dice el nombre"*. El primer barrido probó los nombres
+  EXACTOS del catálogo; este probó cómo los pide una clínica de verdad.
+- **Bugs de dinero encontrados:**
+  1. **'materia fecal' agregaba Tripsina ($13.000).** Es el nombre de la MUESTRA, no de una
+     prueba: el cliente que dice "les mando materia fecal" se llevaba un análisis que nunca
+     pidió. Es la clase de suma silenciosa de ERR-053. Fix: 'materia', 'muestra' y 'muestras'
+     entran a `_AREA_WORDS`, así que ofrecen el área en vez de resolver a un test suelto.
+  2. **El convenio ganaba en silencio sobre la prueba propia de A3.** 'moquillo' resolvía
+     EXACT al 2306 (Convenio LMV, $124.000) porque ese nombre EMPIEZA con la palabra y la
+     regla "cubre el token inicial" lo consagraba. Fix doble: `_convenio_rivals` ofrece las
+     dos cuando A3 tiene su equivalente (comparando también por raíz, para que
+     'leishmaniasis' encuentre a 'Leishmania'), y la **migración 025** restaura en el 2004 y
+     el 2017 el "o Moquillo Canino" que el PDF trae y el seed había recortado.
+- **Irresolubles por el nombre de uso diario (corregidos):**
+  3. **Siglas.** 'BUN' cubría 1 de 3 palabras de 'Nitrógeno Ureico (BUN)' y no llegaba al
+     umbral del 50%. Igual LDH, PIF, TVT, DEA1, 4DX. Fix: una sigla del propio nombre (token
+     en MAYÚSCULAS) nombra el análisis. Se saca del catálogo, no de una lista: cuando la
+     comparten varias filas ('CK' → 1310 y 1311) se ofrecen, que es lo correcto.
+  4. **Jerga del gremio.** 'hemograma' —el sinónimo más usado de Cuadro Hemático— no
+     resolvía; tampoco 'parvo', 'toxo', 'ionograma', 'coproparasitario'. Fix:
+     `CLINICAL_SYNONYMS`, 9 términos de dominio que **sustituyen** (no suman) y solo actúan
+     si la palabra NO está en el catálogo — el portafolio manda sobre el diccionario.
+- **Trampa evitada en el camino:** la primera versión SUMABA el término traducido, y
+  'leishmaniasis' pasó a leerse como dos análisis en una frase (2014 + 2304 = $189.000).
+  Lo cazó el propio barrido antes de llegar a ningún test. Por eso sustituye.
+- **Tests:** 7 nuevos en `test_catalog_module.py` (sigla propia y compartida, jerga,
+  no-duplicación, catálogo > diccionario, muestra que no agrega, convenio que ofrece).
+  Suite: **1245 passed**.
+- **Pendiente de OK:** `db/migrations/025_catalog_nombres_del_pdf.sql` — solo texto de dos
+  nombres, sin tocar precios ni códigos. El seed ya quedó sincronizado.

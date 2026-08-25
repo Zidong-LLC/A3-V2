@@ -166,3 +166,84 @@ def test_convenio_test_appears_when_named_by_group_word():
     # Y con el nombre completo resuelve directo:
     exacto = catalog.resolve_tests("citologia paf", rows)
     assert exacto.status == EXACT and _codes(exacto) == ["1903"]
+
+
+# ── Cómo pide el veterinario: siglas y jerga (auditoría 2026-08-25) ──────────────
+
+BUN = {"code": "1321", "name": "Nitrógeno Ureico (BUN)", "price": 12000, "category": "Química"}
+CK_MB = {"code": "1310", "name": "Creatina Quinasa Fracción MB (CK)", "price": 16000,
+         "category": "Química"}
+CK_NAC = {"code": "1311", "name": "Creatina Quinasa NAC (CK)", "price": 14000,
+          "category": "Química"}
+
+
+def test_la_sigla_del_nombre_nombra_el_analisis():
+    """'BUN' cubría 1 de 3 palabras de 'Nitrógeno Ureico (BUN)' y no llegaba al umbral de
+    cobertura: el análisis era irresoluble por el nombre con que lo pide todo el mundo."""
+    res = catalog.resolve_tests("un BUN", CATALOG + [BUN])
+    assert res.status == EXACT and _codes(res) == ["1321"]
+
+
+def test_sigla_compartida_ofrece_en_vez_de_elegir():
+    """'CK' son dos pruebas distintas con precios distintos: se ofrecen, no se adivina."""
+    res = catalog.resolve_tests("CK", CATALOG + [CK_MB, CK_NAC])
+    assert res.status == AMBIGUOUS and set(_codes(res)) == {"1310", "1311"}
+
+
+def test_jerga_del_gremio_encuentra_el_nombre_del_catalogo():
+    """'hemograma' es el sinónimo más usado de Cuadro Hemático y no figura en el portafolio."""
+    res = catalog.resolve_tests("necesito un hemograma", CATALOG)
+    assert res.status == EXACT and _codes(res) == ["1101"]
+
+
+def test_la_jerga_sustituye_y_no_duplica_el_pedido():
+    """Sumar el término traducido (en vez de sustituirlo) hacía que 'leishmaniasis' se
+    leyera como DOS análisis en una frase — $189.000 en vez de $70.000."""
+    rows = CATALOG + [
+        {"code": "2014", "name": "Leishmania (Anticuerpo)", "price": 70000, "category": "Inmunología"},
+        {"code": "2304", "name": "Leishmaniasis canina Anticuerpos IgG (IFA)", "price": 119000,
+         "category": "Convenio LMV"},
+    ]
+    # 'leishmaniasis' ES el nombre del 2304, así que la jerga no sustituye; pero el 2304 es
+    # de convenio y el 2014 tiene la misma raíz, así que se ofrecen los dos en vez de cobrar
+    # el caro en silencio. Lo que nunca puede pasar es que se agreguen AMBOS.
+    res = catalog.resolve_tests("leishmaniasis", rows)
+    assert res.status == AMBIGUOUS and set(_codes(res)) == {"2014", "2304"}
+    # Con la palabra que NO está en el catálogo, la jerga sí traduce y resuelve a lo propio:
+    solo_convenio = catalog.resolve_tests("lehismania", rows)
+    assert solo_convenio.status == EXACT and _codes(solo_convenio) == ["2014"]
+
+
+def test_un_nombre_real_del_catalogo_manda_sobre_la_jerga():
+    """Si A3 carga un análisis llamado 'Hemograma', esa palabra es un nombre, no jerga."""
+    hemograma = {"code": "0301", "name": "Hemograma", "price": 25000, "category": "Hematología"}
+    res = catalog.resolve_tests("quiero un hemograma", CATALOG + [hemograma])
+    assert res.status == EXACT and _codes(res) == ["0301"]
+
+
+def test_palabra_de_muestra_no_agrega_un_test_suelto():
+    """'materia fecal' es la MUESTRA: resolvía EXACT a 'Tripsina en Materia Fecal'
+    ($13.000) sin que el cliente nombrara ninguna prueba."""
+    rows = CATALOG + [
+        {"code": "1703", "name": "Tripsina en Materia Fecal", "price": 13000,
+         "category": "Parasitología", "sample": "Materia Fecal"},
+    ]
+    assert catalog.resolve_tests("materia fecal", rows).status != EXACT
+    assert catalog.resolve_tests("una muestra de heces", rows).status != EXACT
+    # El nombre real sigue resolviendo:
+    assert catalog.resolve_tests("tripsina", rows).status == EXACT
+
+
+def test_el_convenio_no_gana_en_silencio_sobre_la_prueba_propia():
+    """El convenio cuesta 2-3x lo propio. Cuando el término nombra a los dos, se ofrecen:
+    el precio lo decide el cliente, nunca el orden de las palabras del nombre."""
+    rows = CATALOG + [
+        # El nombre del PDF trae el sinónimo: "Distemper Canino O MOQUILLO CANINO".
+        {"code": "2004", "name": "Distemper Canino o Moquillo Canino (Antígeno)",
+         "price": 45000, "category": "Inmunología"},
+        {"code": "2306", "name": "Moquillo Canino (Distemper) Anticuerpos IgM (IFA)",
+         "price": 124000, "category": "Convenio LMV"},
+    ]
+    res = catalog.resolve_tests("moquillo", rows)
+    assert res.status == AMBIGUOUS
+    assert set(_codes(res)) >= {"2004", "2306"}
