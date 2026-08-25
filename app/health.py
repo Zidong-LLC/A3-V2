@@ -15,8 +15,8 @@ de lo que solo lo degrada.
 """
 import time
 
-from app.config import ALEGRA_ENABLED, ANARVET_ENABLED, APP_ENV, OPENAI_API_KEY
-from app.services import alegra, anarvet, db
+from app.config import ALEGRA_ENABLED, ANARVET_ENABLED, APP_ENV, OPENAI_API_KEY, PDF_ENABLED
+from app.services import alegra, anarvet, db, pdf
 
 # Un chequeo lento es un chequeo que falla: si Supabase tarda más que esto,
 # al monitor le sirve más un aviso que una espera.
@@ -50,6 +50,13 @@ def check_all() -> tuple[dict, int]:
         checks["anarvet"] = _timed(anarvet.ping)
     else:
         checks["anarvet"] = {"status": "disabled"}
+
+    # Solo hace falta para PUBLICAR un informe al portal; ver e imprimir no depende de esto.
+    # Degrada, nunca tumba: que no se pueda armar un PDF no puede callar el bot.
+    if PDF_ENABLED:
+        checks["pdf"] = {"status": "ok" if pdf.available() else "error"}
+    else:
+        checks["pdf"] = {"status": "disabled"}
 
     critical_down = checks["supabase"]["status"] == "error"
     degraded = any(c["status"] in ("error", "slow", "not_configured") for c in checks.values())

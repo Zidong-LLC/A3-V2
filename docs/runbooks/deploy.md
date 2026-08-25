@@ -7,6 +7,29 @@
 - [ ] Variables de entorno actualizadas en el dashboard de Render
 - [ ] El webhook de Telegram apunta al dominio correcto
 
+## Runtime: Docker (desde 2026-08-25)
+
+El servicio corre con el `Dockerfile` de la raíz, **no** con el runtime nativo de Python.
+
+El motivo es el PDF del informe de Anarvet: publicarlo al portal necesita Chromium, y en el
+runtime nativo no se es root, así que no hay `apt-get`. Ahí `playwright install chromium`
+deja el build **en verde** y el proceso revienta en el **primer request real** por una
+librería del sistema faltante (`libnss3.so`). La imagen de Playwright ya trae Chromium con
+todas sus dependencias.
+
+Al cambiar el servicio en el panel de Render:
+
+1. Runtime → **Docker** (Render toma el `Dockerfile` de la raíz).
+2. El start command sale del `CMD`: gunicorn con **`--timeout 60`**. No bajarlo: el default
+   de 30 s mata al worker a mitad de un render de PDF y deja Chromium huérfano.
+3. El tag de la imagen y `playwright==` en `requirements.txt` **tienen que coincidir**.
+4. Primer deploy con `PDF_ENABLED=false`. Verificar `GET /health` (el check `pdf` debe decir
+   `disabled`), encenderlo, y volver a mirar que diga `ok`.
+
+Memoria: Chromium usa 150-300 MB mientras renderiza y el plan Starter tiene 512. El servicio
+genera **un informe a la vez por proceso** justamente por eso; dos en paralelo no tumban el
+PDF sino la instancia entera, con el bot adentro.
+
 ## Variables de entorno requeridas en Render
 
 ```

@@ -108,3 +108,13 @@ ANARVET_DB_PASSWORD = os.environ.get("ANARVET_DB_PASSWORD", "")
 # Servidor expuesto por IP cruda: probablemente sin TLS. "prefer" negocia cifrado si
 # existe y no rompe si no; se puede forzar "require" desde el entorno sin tocar código.
 ANARVET_SSLMODE = os.environ.get("ANARVET_SSLMODE", "prefer")
+
+# Generación de PDF en el servidor (Anarvet Fase 2). Solo hace falta para PUBLICAR un
+# informe al portal: verlo e imprimirlo desde el navegador nunca depende de esto. Se
+# despliega apagado, igual que ANARVET_ENABLED, y se enciende tras verificar /health.
+PDF_ENABLED = os.environ.get("PDF_ENABLED", "false").lower() in ("1", "true", "yes")
+PDF_TIMEOUT_MS = int(os.environ.get("PDF_TIMEOUT_MS") or "20000")
+# En Windows apunta al Chrome ya instalado (cero descarga); en Linux se deja vacío para
+# usar el Chromium del entorno.
+PDF_CHROME_CHANNEL = os.environ.get("PDF_CHROME_CHANNEL", "")
+PDF_EXECUTABLE_PATH = os.environ.get("PDF_EXECUTABLE_PATH", "")

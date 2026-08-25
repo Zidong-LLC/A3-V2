@@ -5,3 +5,7 @@ openai>=1.0
 python-dotenv>=1.0
 gunicorn>=21.0
 tzdata>=2024.1
+# PDF del informe de resultados en el servidor (Anarvet Fase 2). Versión EXACTA a
+# propósito: el PDF es lo que ve el cliente y no puede cambiar de métrica en un deploy
+# cualquiera. Debe coincidir con el tag de la imagen del Dockerfile.
+playwright==1.55.0

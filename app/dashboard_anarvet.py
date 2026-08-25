@@ -9,7 +9,8 @@ nunca le pega a Anarvet — para traer datos nuevos está el botón de sync.
 from datetime import date, datetime, timedelta
 from functools import wraps
 
-from flask import Blueprint, abort, redirect, render_template, request, session, url_for
+from flask import (Blueprint, abort, jsonify, redirect, render_template, request,
+                   session, url_for)
 
 from app import anarvet_map
 from app.config import ANARVET_ENABLED, APP_TIMEZONE
@@ -203,7 +204,16 @@ def informe_imprimir(codigo: str, fecha: str):
     analitos = db.get_anarvet_informe(codigo, fecha)
     if not analitos:
         abort(404)
+    return _render_informe(analitos, codigo, fecha)
 
+
+def _render_informe(analitos: list[dict], codigo: str, fecha: str) -> str:
+    """Compone el documento a partir de los analitos del espejo.
+
+    Devuelve HTML: lo consume tanto la vista imprimible como la publicación al portal, que
+    lo convierte a PDF. Una sola composición para los dos caminos — si se duplicara, el
+    informe que ve el personal y el que recibe el cliente podrían dejar de ser el mismo.
+    """
     examenes, observaciones = [], []
     por_codigo: dict[str, list[dict]] = {}
     for fila in analitos:
@@ -250,3 +260,75 @@ def informe_imprimir(codigo: str, fecha: str):
         total_analitos=sum(len(e["filas"]) for e in examenes) + len(sueltos),
         total_examenes=len(examenes) + len(sueltos),
     )
+
+
+# ── Publicar el informe en el portal del cliente ─────────────────────────────────
+# A3 lo pidió el 21/08: que la veterinaria pueda ver sus resultados sin llamar al
+# laboratorio. El mecanismo de publicación ya existía para los PDFs que el personal sube a
+# mano (`dashboard_results`); lo único que faltaba era convertir el informe en un archivo.
+# La publicación la decide una persona, no el sync: nada se expone sin que alguien mire.
+
+
+def _cliente_del_informe(cod_cliente: str | None) -> str | None:
+    """El `client_id` nuestro para un código de Anarvet, o None si no está emparejado."""
+    if not cod_cliente:
+        return None
+    for fila in db.list_anarvet_client_map():
+        if str(fila.get("cod_cliente")) == str(cod_cliente):
+            return fila.get("client_id")
+    return None
+
+
+@dashboard_anarvet.post("/resultados/anarvet/<codigo>/<fecha>/publicar")
+@_login_required
+def informe_publicar(codigo: str, fecha: str):
+    """Genera el PDF del informe y lo publica en el portal de su veterinaria."""
+    from app.services import pdf, storage
+    from app.services.portal_db import insert_lab_result, list_lab_results
+    from app.dashboard_results import _publish_and_notify
+
+    analitos = db.get_anarvet_informe(codigo, fecha)
+    if not analitos:
+        return jsonify({"error": "El informe no existe en el espejo"}), 404
+
+    client_id = _cliente_del_informe(analitos[0].get("cod_cliente"))
+    if not client_id:
+        return jsonify({
+            "error": "Esta veterinaria todavía no está emparejada con un cliente nuestro",
+            "accion": "Emparejala en Resultados → Clientes de Anarvet",
+        }), 409
+
+    # Idempotencia sin columna nueva: el código de Anarvet es el número de orden del informe
+    # y son de 8 dígitos, así que no chocan con los nuestros (A3-2026-XXX).
+    ya = list_lab_results({"order_number": codigo}, client_id=client_id, limit=1)
+    if ya:
+        return jsonify({"error": "Este informe ya se publicó", "result_id": ya[0]["id"]}), 409
+
+    try:
+        html = _render_informe(analitos, codigo, fecha)
+        data = pdf.html_to_pdf(html)
+    except pdf.PdfUnavailable as exc:
+        # El personal sigue teniendo el botón de imprimir: se le dice qué hacer, no se le
+        # muestra un error técnico.
+        return jsonify({
+            "error": "No se pudo generar el PDF en el servidor",
+            "detalle": str(exc),
+            "accion": "Descargalo con el botón Imprimir y subilo desde Resultados",
+        }), 503
+
+    examenes = sorted({(f.get("examen_cod") or "").strip() for f in analitos if f.get("examen_cod")})
+    path = storage.upload_result_pdf(client_id, codigo, data)
+    resultado = insert_lab_result({
+        "client_id": client_id,
+        "order_number": codigo,
+        "patient_name": analitos[0].get("mascota"),
+        "owner_name": analitos[0].get("nombre_propietario"),
+        "exam_name": ", ".join(_EXAM_NAMES.get(e.upper(), e) for e in examenes)[:300],
+        "pdf_path": path,
+        "uploaded_by": f"anarvet:{session.get('dashboard_username') or 'staff'}",
+    })
+    if not resultado:
+        return jsonify({"error": "No se pudo registrar el resultado"}), 500
+
+    _publish_and_notify(resultado)
+    return jsonify({"ok": True, "result_id": resultado["id"]})

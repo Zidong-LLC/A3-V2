@@ -46,6 +46,7 @@
         <div><p class="hello-label">Informe Anarvet · {{ paciente.fecha_solicitud }}</p><h1 data-blur-text>{{ paciente.mascota or 'Paciente' }} <span class="muted-text">({{ paciente.codigo }})</span></h1></div>
         <a class="ghost-btn" href="{{ url_for('dashboard_anarvet.informes_page') }}"><i data-lucide="arrow-left"></i>Volver al listado</a>
         <a class="primary-btn" target="_blank" href="{{ url_for('dashboard_anarvet.informe_imprimir', codigo=paciente.codigo, fecha=paciente.fecha_solicitud) }}"><i data-lucide="file-down"></i>Descargar PDF</a>
+        <button class="primary-btn" id="publicar-btn" data-url="{{ url_for('dashboard_anarvet.informe_publicar', codigo=paciente.codigo, fecha=paciente.fecha_solicitud) }}"><i data-lucide="send"></i>Publicar al portal</button>
       </header>
 
       <section class="card">
@@ -89,5 +90,35 @@
   </div>
   <script>window.addEventListener('DOMContentLoaded', function () { if (window.lucide) lucide.createIcons(); });</script>
   <script src="{{ url_for('static', filename='os-fx.js') }}?v=1" defer></script>
+  <script>
+    (function () {
+      var btn = document.getElementById("publicar-btn");
+      if (!btn) return;
+      btn.addEventListener("click", function () {
+        if (!confirm("¿Publicar este informe en el portal de la veterinaria? El cliente recibirá un aviso.")) return;
+        btn.disabled = true;
+        var original = btn.innerHTML;
+        btn.textContent = "Publicando...";
+        fetch(btn.dataset.url, { method: "POST" })
+          .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+          .then(function (res) {
+            if (res.ok) {
+              btn.textContent = "Publicado";
+              return;
+            }
+            btn.disabled = false;
+            btn.innerHTML = original;
+            alert([res.d.error, res.d.detalle, res.d.accion].filter(Boolean).join("
+
+"));
+          })
+          .catch(function () {
+            btn.disabled = false;
+            btn.innerHTML = original;
+            alert("No se pudo contactar al servidor.");
+          });
+      });
+    })();
+  </script>
 </body>
 </html>

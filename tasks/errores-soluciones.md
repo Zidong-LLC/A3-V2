@@ -3957,3 +3957,43 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
   ciegos, y trajo 11.665 analitos sin un solo error.
 - **Tests:** `test_anarvet_sync_incremental.py` (11), incluidos el espejo vacío, la fecha
   corrupta, la fecha futura y los tres códigos de respuesta del endpoint. Suite: **1304**.
+
+---
+
+## ERR-155 — Anarvet Fase 2 (4/4): el informe llega al portal del cliente
+
+- **Fecha:** 2026-08-25 · **Estado:** RESUELTO
+- **Pedido de A3 (21/08):** que la veterinaria vea sus resultados sin llamar al laboratorio.
+- **Lo único que faltaba era el archivo:** el mecanismo de publicación ya existía completo
+  para los PDFs que el personal sube a mano (`dashboard_results._publish_and_notify`), y se
+  reusa **tal cual**. Lo nuevo es convertir el informe del espejo en un PDF en el servidor.
+- **`app/services/pdf.py`** con Playwright. Descartado WeasyPrint: no soporta flexbox ni
+  grid, que es lo que usa la plantilla — devolvería el informe roto, no distinto.
+  - Recibe **HTML, nunca una URL propia**: con gunicorn sync, pedirle al navegador una
+    página nuestra bloquea al worker que debería servirla y el request se cuelga.
+  - **Un render a la vez por proceso** + `--disable-dev-shm-usage`: Chromium usa 150-300 MB
+    y el plan de Render tiene 512, así que dos informes en paralelo no tumban el PDF sino la
+    instancia entera, con el bot adentro.
+  - `print_background` (o se pierde el vino de la cabecera) y `prefer_css_page_size`.
+- **El PDF del servidor salía en 2 páginas** cuando el del navegador salía en 1. No era la
+  tipografía —cargó bien— sino que el informe medía **294,9 mm de los 297** de un A4: 2 mm de
+  aire, y cualquier redondeo del motor lo empujaba. Se le dio holgura real (~9 mm) tocando
+  paddings, sin apretar el diseño. Verificado: **1 página**.
+- **`_render_informe` extraída**: la vista imprimible y la publicación comparten una sola
+  composición. Duplicarla habría permitido que el informe que ve el personal y el que recibe
+  el cliente dejaran de ser el mismo documento.
+- **Idempotencia sin columna nueva:** el código de Anarvet se guarda como `order_number`
+  (son de 8 dígitos, no chocan con `A3-2026-XXX`) y se consulta antes de publicar.
+- **No publica sin dueño:** si la veterinaria no está emparejada, devuelve 409 explicando
+  dónde emparejarla. Publicar sin mapeo sería adivinar de quién es el resultado.
+- **Degradación:** sin navegador, la publicación responde 503 con *"descargalo con Imprimir
+  y subilo desde Resultados"*. Ver e imprimir el informe **nunca** depende del PDF del
+  servidor. `/health` gana un check `pdf` que degrada sin devolver 503.
+- **Deploy:** el servicio pasa a runtime **Docker** con la imagen oficial de Playwright. En
+  el runtime nativo no se es root, así que `playwright install` deja el build en verde y
+  revienta en el primer request por `libnss3.so`. `PDF_ENABLED=false` de fábrica.
+- **Prueba real end-to-end:** publicado el informe 20091579 (Sucy, 93 analitos, Consultorio
+  Maximascotas). Verificado: registro en `lab_results` con los exámenes en nombre legible,
+  visible en el portal de esa veterinaria, PDF de 3 páginas descargable por URL firmada, y
+  notificación "Resultado disponible: Sucy" creada.
+- **Tests:** `test_pdf_service.py` (6) y `test_anarvet_publicar.py` (7). Suite: **1317**.
