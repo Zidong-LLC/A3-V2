@@ -1153,7 +1153,8 @@ todo se detecte tanto por código como por nombre.
 - [x] **Repositorio publicado**: 117 commits a origin/fix/agente-robustez-multiorden
       (el remoto estaba en el 8 de junio). Nota: el repo se movió a Zidong-LLC — la URL
       del remote sigue apuntando a Zidong-IA y GitHub redirige
-- [ ] **Sección "Nueva orden" en el dashboard**: cargar una orden cuando el cliente llama
-      o llega presencial (aprobado por el usuario, 2026-08-25)
+- [x] **Sección "Nueva orden" en el dashboard** (ERR-149): /solicitudes/nueva con menú
+      y botón propios; resolve_catalog_selection movida a app/orders.py (una sola regla de
+      dinero para portal y dashboard); verificada contra la base real sin escribir. Suite 1261
 - [ ] **Migración 026** (vista service_orders con sample_taken_date) — aplicar en Supabase
 - [ ] **Migración 025** (nombres del 2004/2017) — pendiente de OK
