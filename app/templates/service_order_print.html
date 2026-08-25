@@ -95,7 +95,7 @@
           <div class="field"><label>Edad</label><div class="line">{{ order.patient_age or '' }}</div></div>
           <div class="field"><label>Propietario</label><div class="line">{{ order.owner_name or '' }}</div></div>
         </div>
-        <div class="field"><label>Fecha toma de muestras:</label><div class="line">{{ order.scheduled_pickup_date if order.scheduled_pickup_date and order.scheduled_pickup_date != '-' else '' }}</div></div>
+        <div class="field"><label>Fecha toma de muestras:</label><div class="line">{{ order.sample_taken_date or '' }}</div></div>
       </section>
 
       <section class="tests">

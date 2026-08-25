@@ -1537,6 +1537,10 @@ def _service_order_event_payload(fields: dict, requested_at: datetime) -> dict:
             "age": fields.get("patient_age"),
             "owner_name": fields.get("owner_name"),
         },
+        # Cuándo tomó la muestra la veterinaria, según la declaró el cliente. Vive en el
+        # payload del evento y no como columna: mismo criterio que el resto de la orden de
+        # servicio (decisión 006), así no hace falta migrar `requests`.
+        "sample_taken_date": fields.get("sample_taken_date"),
         "exam_type": fields.get("exam_type"),
         "observations": fields.get("observations"),
         "payment_method": fields.get("payment_method"),

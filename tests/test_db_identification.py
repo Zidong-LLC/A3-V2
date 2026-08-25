@@ -269,6 +269,7 @@ def test_create_request_persists_adjusted_profile_payload(monkeypatch):
                 "sex": "macho",
                 "patient_age": "5 años",
                 "owner_name": "Carlos Perez",
+                "sample_taken_date": "hoy",
                 "observations": "sin observaciones",
                 "pickup_address": "Calle 1",
                 "payment_method": "contraentrega",

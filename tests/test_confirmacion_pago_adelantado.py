@@ -22,6 +22,7 @@ BASE = {
     "pickup_address": "DG 51A SUR 61B-03", "requesting_doctor": "Dr. Ruiz",
     "patient_name": "Bobi", "species": "Canino", "breed": "Criollo",
     "sex": "Macho", "patient_age": "3 años", "owner_name": "Pol",
+    "sample_taken_date": "hoy",
     "observations": "sin observaciones",
     "exam_type": "Perfil Prequirúrgico I",
     "_selected_profile_code": "152",

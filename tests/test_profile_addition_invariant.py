@@ -51,6 +51,7 @@ BASE_FIELDS = {
     "sex": "Hembra",
     "patient_age": "7 años",
     "owner_name": "Gaston",
+    "sample_taken_date": "hoy",
     "observations": "sin observaciones",
     "exam_type": "Perfil Prequirúrgico I",
     "_selected_profile_code": "152",

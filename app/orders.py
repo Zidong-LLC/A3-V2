@@ -122,6 +122,7 @@ def _order_summary_lines(fields: dict, header: str) -> list[str] | None:
             f"({fields.get('species')}, {fields.get('breed')}, {fields.get('sex')}, {fields.get('patient_age')})"
         ),
         f"- Propietario: {fields.get('owner_name')}",
+        f"- Fecha de toma de muestra: {fields.get('sample_taken_date') or 'no informada'}",
         f"- Análisis: {analysis}",
         f"- Observaciones: {fields.get('observations')}",
     ]

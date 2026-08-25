@@ -23,6 +23,7 @@ COMPLETE = {
     "sex": "Hembra",
     "patient_age": "3 años",
     "owner_name": "Jose",
+    "sample_taken_date": "hoy",
     "observations": "sin observaciones",
     "exam_type": "Perfil Prequirúrgico I",
     "_selected_profile_code": "152",

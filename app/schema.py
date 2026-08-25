@@ -40,6 +40,10 @@ RESPONSE_SCHEMA = {
                     "owner_name":     {"anyOf": [{"type": "string"}, {"type": "null"}]},
                     "breed":          {"anyOf": [{"type": "string"}, {"type": "null"}]},
                     "sex":            {"anyOf": [{"type": "string"}, {"type": "null"}]},
+                    # Cuándo tomó la muestra la veterinaria — lo define el cliente, no el
+                    # sistema (A3, llamada del 21/08). No confundir con scheduled_pickup_date,
+                    # que es cuándo pasa el motorizado y la calcula la regla de corte.
+                    "sample_taken_date": {"anyOf": [{"type": "string"}, {"type": "null"}]},
                     "observations":   {"anyOf": [{"type": "string"}, {"type": "null"}]},
                     "payment_method": {
                         "anyOf": [
@@ -63,7 +67,8 @@ RESPONSE_SCHEMA = {
                 "required": [
                     "clinic_name", "tax_id", "pickup_address", "exam_type",
                     "patient_name", "species", "requesting_doctor",
-                    "patient_age", "owner_name", "breed", "sex", "observations",
+                    "patient_age", "owner_name", "breed", "sex",
+                    "sample_taken_date", "observations",
                     "payment_method",
                     "selected_tests",
                     "removed_tests",

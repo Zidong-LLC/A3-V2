@@ -644,6 +644,8 @@ def _build_service_order_rows(requests_rows: list[dict], request_events: list[di
             "requested_at": request_row.get("requested_at") or event.get("created_at") or "-",
             "service_order_date": service_order.get("date") or str(request_row.get("requested_at") or event.get("created_at") or "-")[:10],
             "scheduled_pickup_date": request_row.get("scheduled_pickup_date") or "-",
+            # La declara el cliente en el chat; NO es la fecha de recogida del motorizado.
+            "sample_taken_date": service_order.get("sample_taken_date") or "",
             "status": status,
             "status_label": REQUEST_STATUS_LABELS.get(status, status),
             "sample_status": _request_sample_status(status),

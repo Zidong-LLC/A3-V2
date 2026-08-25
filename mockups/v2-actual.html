@@ -1,0 +1,364 @@
+<title>Portal A3 · Actual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* Réplica visual del portal actual — tokens portados de os-kit.css + app.css */
+:root{
+  --bg:#0b0c0e; --canvas:#131418; --surface:#1a1b20;
+  --card:rgba(26,27,32,.94); --soft:rgba(255,255,255,.05);
+  --line:rgba(255,255,255,.08); --line-strong:rgba(255,255,255,.15);
+  --text:#f5f5f7; --muted:rgba(230,230,238,.62); --toned:rgba(230,230,238,.72); --dim:rgba(230,230,238,.55);
+  --accent:#f5f5f7; --accent-2:#a8a8b3; --accent-3:#7d7d88;
+  --ok:#22c55e; --danger:#ef4444;
+}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--text);
+  font-family:"Public Sans",Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:14px;-webkit-font-smoothing:antialiased}
+h1,h2,h3,p{margin:0}
+a{text-decoration:none;color:inherit}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:6px}
+.ico{width:16px;height:16px;flex:none;stroke-width:1.8}
+
+/* Ambiente */
+.ambient{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.orb{position:absolute;display:block;border-radius:9999px;filter:blur(110px);opacity:.09}
+.orb1{width:720px;height:720px;top:-280px;right:-180px;background:var(--accent);animation:drift1 20s ease-in-out infinite alternate}
+.orb2{width:520px;height:520px;bottom:-180px;left:-140px;background:var(--accent-2);animation:drift2 25s ease-in-out infinite alternate}
+.orb3{width:340px;height:340px;top:38%;left:28%;background:var(--accent-3);opacity:.055;animation:drift3 17s ease-in-out infinite alternate}
+@keyframes drift1{0%{transform:translate(0,0) scale(1)}100%{transform:translate(-55px,65px) scale(1.12)}}
+@keyframes drift2{0%{transform:translate(0,0) scale(1)}100%{transform:translate(60px,-45px) scale(1.08)}}
+@keyframes drift3{0%{transform:translate(0,0)}100%{transform:translate(40px,40px)}}
+
+/* Shell */
+.app{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh;position:relative;z-index:1}
+.sidebar{border-right:1px solid var(--line);background:linear-gradient(180deg,rgba(15,16,19,.97),rgba(10,11,13,.97));
+  box-shadow:inset -1px 0 rgba(255,255,255,.04),18px 0 70px rgba(0,0,0,.24);backdrop-filter:blur(18px);
+  padding:16px 14px;display:flex;flex-direction:column;gap:16px;position:sticky;top:0;height:100vh}
+.brand-row{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:10px}
+.brand-mark{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;font-weight:800;background:linear-gradient(135deg,#f5f5f7,#a8a8b3);color:#121212}
+.brand-copy{display:grid;gap:2px}
+.brand-copy strong{font-size:13px}
+.brand-copy span{font-size:11px;color:var(--muted)}
+.menu-block{display:grid;gap:6px}
+.menu-caption{font-size:11px;color:var(--muted);padding:0 4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.menu-list{display:grid;gap:4px}
+.menu-link{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:11px;border:1px solid transparent;color:var(--toned);font-size:14px;font-weight:500;transition:background-color .15s,border-color .15s,color .15s}
+.menu-link:hover{background:rgba(255,255,255,.06);border-color:var(--line)}
+.menu-link.active{background:color-mix(in oklab,var(--accent) 12%,transparent);border-color:color-mix(in oklab,var(--accent) 30%,transparent);color:var(--text)}
+.notif-badge{margin-left:auto;min-width:20px;height:20px;border-radius:999px;background:var(--accent);color:#111;display:grid;place-items:center;font-size:11px;font-weight:800;padding:0 6px}
+.menu-foot{margin-top:auto}
+
+/* Main */
+.main{min-width:0;padding:26px 28px 40px;display:flex;flex-direction:column;gap:18px}
+.top-header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.hello-label{color:var(--muted);font-size:12px;margin:0 0 2px}
+.top-header h1{font-size:28px;line-height:1.1;letter-spacing:-.02em;font-weight:700}
+.header-actions{display:flex;gap:8px;flex-wrap:wrap}
+.primary-btn,.ghost-btn{border-radius:10px;border:1px solid var(--line-strong);padding:9px 12px;font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:7px;cursor:pointer;transition:background-color .15s,border-color .15s,transform .12s}
+.primary-btn{background:var(--accent);border-color:var(--accent);color:#111}
+.primary-btn:hover{transform:translateY(-1px)}
+.ghost-btn{background:rgba(255,255,255,.05);color:#f5f5f5}
+.ghost-btn:hover{background:rgba(255,255,255,.09)}
+.ghost-btn.small{padding:6px 9px;font-size:12px;border-radius:9px}
+
+.card{border:1px solid color-mix(in oklab,var(--line) 70%,#fff 6%);
+  background:linear-gradient(180deg,color-mix(in oklab,var(--card) 92%,#fff 8%),var(--card) 42%);
+  border-radius:14px;padding:12px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 1px 2px rgba(0,0,0,.28),0 16px 40px -22px rgba(0,0,0,.65)}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 4px 10px}
+.card-head h3{font-size:14px;font-weight:600}
+.card-head p{margin:3px 0 0;font-size:12px;color:var(--muted)}
+
+.filter-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 14px;padding:0 4px}
+.cell-input{border:1px solid var(--line);background:rgba(255,255,255,.045);color:var(--text);border-radius:10px;padding:8px 10px;min-width:190px;transition:background-color .15s,border-color .15s}
+.cell-input:focus{outline:none;border-color:var(--line-strong);background:rgba(255,255,255,.07)}
+.cell-input::placeholder{color:var(--dim)}
+.table-counter{margin-left:auto;font-size:12px;color:var(--muted)}
+
+.table-wrap{overflow:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:10px 9px;border-top:1px solid var(--line);text-align:left;white-space:nowrap;font-weight:600}
+td{padding:11px 9px;border-bottom:1px solid var(--line);font-size:13px;text-align:left;color:var(--toned);white-space:nowrap;vertical-align:middle}
+td.strong{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+td.num{font-variant-numeric:tabular-nums}
+tbody tr{cursor:pointer;transition:background-color .12s}
+tbody tr:hover{background:rgba(255,255,255,.03)}
+.status-badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:4px 10px;background:rgba(255,255,255,.08);color:var(--toned);font-size:12px;font-weight:500}
+.status-badge i{width:5px;height:5px;border-radius:99px;background:currentColor}
+.status-badge.done{background:rgba(34,197,94,.14);color:#4ade80}
+.status-badge.route{background:rgba(245,245,247,.14);color:var(--text)}
+.status-badge.wait{background:rgba(163,163,163,.12);color:var(--muted)}
+.row-actions{display:flex;gap:6px;justify-content:flex-end}
+
+/* Métricas */
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+.metric{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:linear-gradient(180deg,rgba(255,255,255,.045),transparent);display:grid;gap:4px}
+.metric span{font-size:12px;color:var(--muted)}
+.metric strong{font-size:26px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.metric em{font-style:normal;font-size:11px;color:var(--dim)}
+
+/* Formulario */
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:0 4px}
+.form-grid label,.full-field{display:grid;gap:6px;color:var(--toned);font-size:13px}
+.full-field{grid-column:1/-1;padding:0 4px;margin-top:12px}
+.form-grid input,.form-grid select,.full-field textarea,.full-field select{width:100%;border:1px solid var(--line);background:rgba(255,255,255,.045);color:var(--text);border-radius:12px;padding:11px 12px}
+.form-grid input:focus,.form-grid select:focus,.full-field textarea:focus{outline:none;border-color:var(--line-strong);background:rgba(255,255,255,.07)}
+.muted-text{color:var(--muted);font-size:12px}
+.catalog-multi{min-height:150px}
+.wizard-actions{display:flex;align-items:center;gap:10px;margin-top:16px;padding:14px 4px 4px;border-top:1px solid var(--line);flex-wrap:wrap}
+.wizard-actions .spread{margin-left:auto;display:flex;gap:8px}
+
+/* Notificaciones / perfil */
+.portal-notif-list{display:grid;gap:10px;margin-top:4px}
+.portal-notif{display:flex;justify-content:space-between;align-items:center;gap:12px;border:1px solid var(--line);border-radius:14px;background:var(--surface);padding:12px;flex-wrap:wrap}
+.portal-notif.unread{border-color:rgba(245,245,247,.5);background:rgba(245,245,247,.07)}
+.portal-notif-body strong{font-size:14px}
+.portal-notif-body p{margin:4px 0 0;color:var(--muted);font-size:13px}
+.portal-notif-body small{display:block;margin-top:4px;color:var(--muted);font-size:11px}
+.portal-detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-top:6px;padding:0 4px}
+.portal-detail-grid span{display:block;font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.05em}
+.portal-detail-grid strong{font-size:14px}
+.portal-profile-note{margin-top:18px;padding:0 4px;max-width:65ch}
+
+.view{display:none;flex-direction:column;gap:18px}
+.view.on{display:flex}
+.os-scene{animation:scene .42s cubic-bezier(.22,1,.36,1) both}
+@keyframes scene{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@media (max-width:900px){
+  .app{grid-template-columns:1fr}
+  .sidebar{position:static;height:auto}
+  .form-grid{grid-template-columns:1fr}
+  .main{padding:18px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none !important;transition:none !important}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<g id="i-bike" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></g>
+<g id="i-flask" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.5L4.6 18a2 2 0 0 0 1.7 3h11.4a2 2 0 0 0 1.7-3L14 9.5V2"/><path d="M8.5 2h7M7 14h10"/></g>
+<g id="i-bell" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></g>
+<g id="i-build" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M10 6h.01M14 6h.01M10 10h.01M14 10h.01M10 14h.01M14 14h.01M10 22v-4h4v4"/></g>
+<g id="i-plus" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></g>
+<g id="i-out" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></g>
+<g id="i-dl" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></g>
+<g id="i-back" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></g>
+<g id="i-send" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z"/></g>
+</defs></svg>
+
+<div class="ambient"><i class="orb orb1"></i><i class="orb orb2"></i><i class="orb orb3"></i></div>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand-row">
+      <div class="brand-mark">A3</div>
+      <div class="brand-copy"><strong>Portal A3</strong><span>Clientes</span></div>
+    </div>
+
+    <div class="menu-block">
+      <span class="menu-caption">Menu</span>
+      <nav class="menu-list">
+        <a href="#" class="menu-link active" data-go="solicitudes"><svg class="ico" viewBox="0 0 24 24"><use href="#i-bike"/></svg><span>Solicitudes</span></a>
+        <a href="#" class="menu-link" data-go="resultados"><svg class="ico" viewBox="0 0 24 24"><use href="#i-flask"/></svg><span>Resultados</span></a>
+        <a href="#" class="menu-link" data-go="notificaciones"><svg class="ico" viewBox="0 0 24 24"><use href="#i-bell"/></svg><span>Notificaciones</span><b class="notif-badge">2</b></a>
+        <a href="#" class="menu-link" data-go="perfil"><svg class="ico" viewBox="0 0 24 24"><use href="#i-build"/></svg><span>Mi perfil</span></a>
+      </nav>
+    </div>
+
+    <div class="menu-block menu-foot">
+      <span class="menu-caption">losalpes@vetalpes.co</span>
+      <a href="#" class="menu-link"><svg class="ico" viewBox="0 0 24 24"><use href="#i-out"/></svg><span>Cerrar sesión</span></a>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="top-header">
+      <div><p class="hello-label" data-sub>Mi cuenta</p><h1 data-title>Solicitudes de retiro</h1></div>
+      <div class="header-actions" data-actions>
+        <button class="primary-btn" data-go="nueva"><svg class="ico" viewBox="0 0 24 24"><use href="#i-plus"/></svg>Solicitar retiro</button>
+      </div>
+    </header>
+
+    <section class="view on os-scene" data-view="solicitudes">
+      <div class="metrics">
+        <div class="metric"><span>Solicitudes activas</span><strong>4</strong><em>2 en ruta hoy</em></div>
+        <div class="metric"><span>Resultados nuevos</span><strong>2</strong><em>Publicados esta semana</em></div>
+        <div class="metric"><span>Próximo retiro</span><strong>3:40 p.m.</strong><em>Andrés Gómez · hoy</em></div>
+        <div class="metric"><span>Muestras del mes</span><strong>31</strong><em>+6 frente a julio</em></div>
+      </div>
+
+      <section class="card">
+        <div class="card-head"><div><h3>Historial de solicitudes</h3><p>Estado actual de cada retiro de muestras</p></div></div>
+        <div class="filter-bar">
+          <input class="cell-input" placeholder="Paciente">
+          <input class="cell-input" placeholder="N° orden">
+          <select class="cell-input"><option>Todos los estados</option><option>Programada</option><option>En ruta</option><option>Recogida</option><option>Procesando</option><option>Entregada</option></select>
+          <button class="ghost-btn small">Filtrar</button>
+          <span class="table-counter">5 solicitud(es)</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Orden</th><th>Fecha solicitud</th><th>Paciente</th><th>Análisis</th><th>Retiro programado</th><th>Motorizado</th><th>Estado</th><th></th></tr></thead>
+            <tbody>
+              <tr><td class="strong">OS-2418</td><td class="num">2026-08-25</td><td>Kira</td><td>Perfil prequirúrgico</td><td class="num">2026-08-26</td><td>Andrés Gómez</td><td><span class="status-badge route"><i></i>En ruta</span></td><td><div class="row-actions"><button class="ghost-btn small">Ver detalle</button></div></td></tr>
+              <tr><td class="strong">OS-2409</td><td class="num">2026-08-24</td><td>Michi</td><td>Hemograma + química</td><td class="num">2026-08-25</td><td>Julián Ruiz</td><td><span class="status-badge"><i></i>Recogida</span></td><td><div class="row-actions"><button class="ghost-btn small">Ver detalle</button></div></td></tr>
+              <tr><td class="strong">OS-2395</td><td class="num">2026-08-22</td><td>Rocky</td><td>Cuadro hemático</td><td class="num">2026-08-23</td><td>Andrés Gómez</td><td><span class="status-badge wait"><i></i>Procesando</span></td><td><div class="row-actions"><button class="ghost-btn small">Ver detalle</button></div></td></tr>
+              <tr><td class="strong">OS-2380</td><td class="num">2026-08-20</td><td>Luna</td><td>Uroanálisis completo</td><td class="num">2026-08-21</td><td>Julián Ruiz</td><td><span class="status-badge done"><i></i>Entregada</span></td><td><div class="row-actions"><button class="ghost-btn small">Ver detalle</button></div></td></tr>
+              <tr><td class="strong">OS-2361</td><td class="num">2026-08-18</td><td>Toby</td><td>Perfil renal</td><td class="num">2026-08-19</td><td>Andrés Gómez</td><td><span class="status-badge done"><i></i>Entregada</span></td><td><div class="row-actions"><button class="ghost-btn small">Ver detalle</button></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section class="view" data-view="resultados">
+      <section class="card">
+        <div class="card-head"><div><h3>Resultados disponibles</h3><p>Informes compartidos por el laboratorio</p></div></div>
+        <div class="filter-bar">
+          <input class="cell-input" placeholder="Paciente">
+          <input class="cell-input" placeholder="N° orden">
+          <input class="cell-input" type="date" value="2026-08-01">
+          <button class="ghost-btn small">Filtrar</button>
+          <span class="table-counter">4 resultado(s)</span>
+        </div>
+        <p class="muted-text" style="padding:0 4px 10px"><button class="ghost-btn small"><svg class="ico" viewBox="0 0 24 24"><use href="#i-dl"/></svg>Descargar los 4 en un ZIP</button></p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>Orden</th><th>Paciente</th><th>Propietario</th><th>Análisis</th><th></th></tr></thead>
+            <tbody>
+              <tr><td class="num">2026-08-24</td><td class="strong">OS-2380</td><td>Luna</td><td>María C. Restrepo</td><td>Uroanálisis completo</td><td><div class="row-actions"><button class="ghost-btn small">Ver informe</button><button class="ghost-btn small">PDF</button></div></td></tr>
+              <tr><td class="num">2026-08-22</td><td class="strong">OS-2361</td><td>Toby</td><td>Jorge Salazar</td><td>Perfil renal</td><td><div class="row-actions"><button class="ghost-btn small">Ver informe</button><button class="ghost-btn small">PDF</button></div></td></tr>
+              <tr><td class="num">2026-08-19</td><td class="strong">OS-2344</td><td>Nube</td><td>Ana Beltrán</td><td>Hemograma completo</td><td><div class="row-actions"><button class="ghost-btn small">Ver informe</button><button class="ghost-btn small">PDF</button></div></td></tr>
+              <tr><td class="num">2026-08-15</td><td class="strong">OS-2321</td><td>Bruno</td><td>Camilo Pardo</td><td>Perfil hepático</td><td><div class="row-actions"><button class="ghost-btn small">Ver informe</button><button class="ghost-btn small">PDF</button></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <section class="view" data-view="nueva">
+      <section class="card">
+        <div class="card-head"><div><h3>Datos de la muestra</h3><p>El motorizado asignado a su zona pasará según el horario de corte del laboratorio (17:30).</p></div></div>
+        <div class="form-grid">
+          <label>Paciente *<input value="Kira"></label>
+          <label>Especie<input value="Canino" placeholder="Canino, felino…"></label>
+          <label>Edad del paciente<input value="4 años"></label>
+          <label>Propietario<input value="María C. Restrepo"></label>
+          <label>Perfil del catálogo
+            <select><option>Perfil prequirúrgico — $86.000</option><option>Perfil renal — $74.000</option><option>Perfil hepático — $79.000</option><option>Sin perfil — solo análisis sueltos</option></select>
+          </label>
+          <label>Médico solicitante<input value="Dr. Felipe Ochoa"></label>
+          <label>Dirección de retiro<input value="Cra. 45 #128-19, Bogotá"></label>
+          <label>Forma de pago
+            <select><option>Crédito a 30 días</option><option>Contado / transferencia</option><option>Pago en línea</option></select>
+          </label>
+        </div>
+        <div class="full-field">
+          <label>Análisis del catálogo
+            <span class="muted-text">Elija uno o varios. Si ya seleccionó un perfil, estos se suman.</span>
+            <select class="catalog-multi" multiple size="5">
+              <option selected>Hemograma completo — $38.000</option>
+              <option>Química sanguínea (6) — $92.000</option>
+              <option selected>Uroanálisis — $34.000</option>
+              <option>Coprológico — $28.000</option>
+              <option>Perfil tiroideo — $118.000</option>
+            </select>
+          </label>
+        </div>
+        <div class="full-field">
+          <label>Observaciones<textarea rows="3" placeholder="Ayuno, medicación reciente, condición del paciente…"></textarea></label>
+        </div>
+        <div class="wizard-actions">
+          <span class="muted-text">Estimado: $158.000 · retiro el 2026-08-26 entre 8:00 y 11:00 a.m.</span>
+          <div class="spread">
+            <button class="ghost-btn" data-go="solicitudes">Cancelar</button>
+            <button class="primary-btn"><svg class="ico" viewBox="0 0 24 24"><use href="#i-send"/></svg>Registrar solicitud</button>
+          </div>
+        </div>
+      </section>
+    </section>
+
+    <section class="view" data-view="notificaciones">
+      <section class="card">
+        <div class="card-head"><div><h3>Avisos del laboratorio</h3><p>2 sin leer</p></div></div>
+        <div class="portal-notif-list">
+          <article class="portal-notif unread">
+            <div class="portal-notif-body">
+              <strong>Resultado disponible — Luna (OS-2380)</strong>
+              <p>Uroanálisis completo firmado y publicado en su portal.</p>
+              <small>2026-08-24 09:12</small>
+            </div>
+            <div class="row-actions"><button class="ghost-btn small" data-go="resultados">Ver resultado</button><button class="ghost-btn small">Marcar leída</button></div>
+          </article>
+          <article class="portal-notif unread">
+            <div class="portal-notif-body">
+              <strong>Motorizado en camino</strong>
+              <p>Andrés Gómez pasa hoy entre 3:00 y 5:00 p.m. por la orden OS-2418.</p>
+              <small>2026-08-25 08:40</small>
+            </div>
+            <div class="row-actions"><button class="ghost-btn small" data-go="solicitudes">Ver solicitud</button><button class="ghost-btn small">Marcar leída</button></div>
+          </article>
+          <article class="portal-notif">
+            <div class="portal-notif-body">
+              <strong>Recuerde el corte de las 5:30 p.m.</strong>
+              <p>Las solicitudes registradas después del corte se programan para el siguiente día hábil.</p>
+              <small>2026-08-23 17:05</small>
+            </div>
+          </article>
+        </div>
+      </section>
+    </section>
+
+    <section class="view" data-view="perfil">
+      <section class="card">
+        <div class="card-head"><div><h3>Datos de la cuenta</h3><p>Información registrada en el laboratorio</p></div></div>
+        <div class="portal-detail-grid">
+          <div><span>Veterinaria / clínica</span><strong>Veterinaria Los Alpes</strong></div>
+          <div><span>NIT</span><strong>900.482.115-3</strong></div>
+          <div><span>Teléfono</span><strong>(601) 742 1180</strong></div>
+          <div><span>Dirección</span><strong>Cra. 45 #128-19</strong></div>
+          <div><span>Ciudad</span><strong>Bogotá D.C.</strong></div>
+          <div><span>Correo de acceso</span><strong>losalpes@vetalpes.co</strong></div>
+          <div><span>Motorizado asignado</span><strong>Andrés Gómez</strong></div>
+          <div><span>Forma de pago</span><strong>Crédito a 30 días</strong></div>
+        </div>
+        <p class="muted-text portal-profile-note">Para actualizar estos datos, contacte al laboratorio: la dirección y el teléfono definen la asignación de su motorizado y la identificación de su cuenta.</p>
+      </section>
+    </section>
+  </main>
+</div>
+
+<script>
+(function(){
+  var meta={
+    solicitudes:{t:'Solicitudes de retiro',s:'Mi cuenta',a:'<button class="primary-btn" data-go="nueva">Solicitar retiro</button>'},
+    resultados:{t:'Mis resultados',s:'Mi cuenta',a:''},
+    nueva:{t:'Solicitar retiro de muestras',s:'Mi cuenta',a:'<button class="ghost-btn" data-go="solicitudes">Volver</button>'},
+    notificaciones:{t:'Notificaciones',s:'Mi cuenta',a:'<button class="ghost-btn">Marcar todas como leídas</button>'},
+    perfil:{t:'Mi perfil',s:'Mi cuenta',a:''}
+  };
+  function go(name){
+    var views=document.querySelectorAll('.view');
+    for(var i=0;i<views.length;i++){
+      var on=views[i].dataset.view===name;
+      views[i].classList.toggle('on',on);
+      if(on){views[i].classList.remove('os-scene');void views[i].offsetWidth;views[i].classList.add('os-scene');}
+    }
+    var links=document.querySelectorAll('.menu-link[data-go]');
+    for(var j=0;j<links.length;j++){links[j].classList.toggle('active',links[j].dataset.go===name);}
+    var m=meta[name]||meta.solicitudes;
+    document.querySelector('[data-title]').textContent=m.t;
+    document.querySelector('[data-sub]').textContent=m.s;
+    document.querySelector('[data-actions]').innerHTML=m.a;
+    window.scrollTo(0,0);
+  }
+  document.addEventListener('click',function(e){
+    var t=e.target.closest('[data-go]');
+    if(!t) return;
+    e.preventDefault();
+    go(t.dataset.go);
+  });
+})();
+</script>

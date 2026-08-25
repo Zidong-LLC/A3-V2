@@ -370,7 +370,8 @@ _CLIENT_MEMORY_FIELDS = ("pickup_address", "requesting_doctor", "payment_method"
 
 _ORDER_RESET_FIELDS = frozenset({
     "exam_type", "patient_name", "species", "patient_age", "requesting_doctor",
-    "owner_name", "breed", "sex", "observations", "payment_method", "selected_tests", "removed_tests",
+    "owner_name", "breed", "sex", "sample_taken_date", "observations",
+    "payment_method", "selected_tests", "removed_tests",
     "_selected_profile_code", "_selected_profile_name", "_selected_profile_price",
     "_selected_profile_description", "_profile_detail_offered",
     "_profile_detail_confirmed", "_profile_customizing",

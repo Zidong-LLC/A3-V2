@@ -32,6 +32,7 @@ ORDEN_COMPLETA = {
     "pickup_address": "DG 51A SUR 60", "_address_confirmed": True,
     "requesting_doctor": "Dra Ana", "patient_name": "Pepe", "species": "Canino",
     "breed": "Beagle", "sex": "Macho", "patient_age": "3 años", "owner_name": "Juan",
+    "sample_taken_date": "hoy",
     "observations": "ninguna", "exam_type": "Sodio", "selected_tests": ["1405"],
 }
 

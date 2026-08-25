@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>A3 Laboratorio — Checklist de ejecución</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm 18mm 14mm; }
+
+  :root{
+    --tinta:#14171c;
+    --gris:#5b636e;
+    --linea:#dfe3e8;
+    --verde:#0d7a4a;  --verde-bg:#eaf6f0;
+    --ambar:#9a6400;  --ambar-bg:#fdf3e0;
+    --rojo:#b3261e;   --rojo-bg:#fdeceb;
+    --azul:#1c4f8b;   --azul-bg:#eaf1f9;
+  }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    font-family:"Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    font-size:10.2pt; line-height:1.5; color:var(--tinta);
+    margin:0;
+  }
+
+  .portada{ border-bottom:3px solid var(--tinta); padding-bottom:14px; margin-bottom:22px; }
+  .kicker{ font-size:8.4pt; letter-spacing:.14em; text-transform:uppercase; color:var(--gris); font-weight:700; }
+  h1{ font-size:22pt; line-height:1.15; margin:6px 0 4px; letter-spacing:-.02em; }
+  .sub{ font-size:11pt; color:var(--gris); margin:0; }
+  .meta{ margin-top:12px; font-size:8.8pt; color:var(--gris); display:flex; gap:26px; flex-wrap:wrap; }
+  .meta b{ color:var(--tinta); font-weight:600; }
+
+  h2{
+    font-size:13.5pt; margin:26px 0 10px; padding-bottom:5px;
+    border-bottom:1.5px solid var(--tinta); letter-spacing:-.01em;
+    break-after:avoid;
+  }
+  h3{ font-size:10.8pt; margin:16px 0 7px; break-after:avoid; }
+  p{ margin:0 0 9px; }
+  ul,ol{ margin:0 0 9px; padding-left:18px; }
+  li{ margin-bottom:3px; }
+
+  .headline{
+    background:var(--azul-bg); border-left:4px solid var(--azul);
+    padding:13px 16px; margin:0 0 18px; break-inside:avoid;
+  }
+  .headline .cifra{ font-size:27pt; font-weight:800; color:var(--azul); line-height:1; letter-spacing:-.03em; }
+  .headline .cifra small{ font-size:11pt; font-weight:600; }
+  .headline p{ margin:7px 0 0; font-size:9.6pt; }
+
+  table{ width:100%; border-collapse:collapse; margin:9px 0 16px; font-size:9.2pt; break-inside:avoid; }
+  thead th{
+    background:var(--tinta); color:#fff; text-align:left; padding:7px 9px;
+    font-weight:600; font-size:8.5pt; letter-spacing:.03em;
+  }
+  td{ padding:6px 9px; border-bottom:1px solid var(--linea); vertical-align:top; }
+  tbody tr:nth-child(even){ background:#f8f9fb; }
+  td.num{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  th.num{ text-align:right; }
+  tfoot td{ font-weight:700; border-top:2px solid var(--tinta); border-bottom:none; background:#fff; }
+
+  .chip{
+    display:inline-block; padding:1px 7px; border-radius:3px;
+    font-size:7.6pt; font-weight:700; letter-spacing:.04em; white-space:nowrap;
+  }
+  .c-ok{ background:var(--verde-bg); color:var(--verde); }
+  .c-out{ background:var(--verde-bg); color:var(--verde); }
+  .c-cfg{ background:var(--azul-bg);  color:var(--azul); }
+  .c-blk{ background:var(--ambar-bg); color:var(--ambar); }
+  .c-falta{ background:var(--rojo-bg); color:var(--rojo); }
+
+  .aviso{
+    border-left:3px solid var(--ambar); background:var(--ambar-bg);
+    padding:10px 13px; margin:12px 0; font-size:9.2pt; break-inside:avoid;
+  }
+  .aviso b{ color:var(--ambar); }
+  .aviso.rojo{ border-left-color:var(--rojo); background:var(--rojo-bg); }
+  .aviso.rojo b{ color:var(--rojo); }
+  .aviso.verde{ border-left-color:var(--verde); background:var(--verde-bg); }
+  .aviso.verde b{ color:var(--verde); }
+
+  code{
+    font-family:"Cascadia Mono", Consolas, monospace; font-size:8.4pt;
+    background:#f1f3f6; padding:1px 4px; border-radius:2px;
+  }
+
+  .nota-pie{
+    margin-top:26px; padding-top:11px; border-top:1px solid var(--linea);
+    font-size:8.4pt; color:var(--gris);
+  }
+
+  .salto{ break-before:page; }
+</style>
+</head>
+<body>
+
+<div class="portada">
+  <div class="kicker">ZIDONG LLC · Auditoría de alcance</div>
+  <h1>A3 Laboratorio Clínico Veterinario</h1>
+  <p class="sub">Checklist de ejecución — estado tras el triage y la primera tanda de desarrollo</p>
+  <div class="meta">
+    <span><b>Fecha:</b> 2 de agosto de 2026</span>
+    <span><b>Contrato:</b> 28/01/2026 – 02/06/2026 (90 días / 16 semanas)</span>
+    <span><b>Documento:</b> 02 · Uso interno</span>
+  </div>
+</div>
+
+<div class="headline">
+  <div class="cifra">81 <small>% del alcance vigente</small></div>
+  <p><b>67 %</b> sin descontar nada. La diferencia son tres componentes de Fase 2 parados
+  esperando la API de Anarvet, comprometida por A3 para el 30 de enero. Antes de esta tanda de
+  desarrollo el avance era 55 % / 67 %.</p>
+</div>
+
+<h2>1. Qué cambió respecto del documento 01</h2>
+<p>
+  El documento 01 fijó la línea base en 58 % sobre un alcance que después se amplió: en el triage
+  del 2 de agosto pasaron a "sí se hace" varios ítems que antes estaban fuera (observabilidad,
+  gateway, inventarios, tendencias, descarga masiva, detalle de orden, filtros, WhatsApp y
+  consulta de resultados). Con el denominador más grande, el mismo trabajo construido pasó a
+  valer 55 %.
+</p>
+<p>
+  Sobre ese alcance ampliado se ejecutaron siete ítems en dos fases, que llevaron el avance de
+  <b>55 % a 67 %</b> (de 67 % a <b>81 %</b> descontando lo bloqueado por A3).
+</p>
+
+<table>
+  <thead>
+    <tr><th>Fase</th><th class="num">Peso</th><th class="num">Antes</th><th class="num">Ahora</th><th class="num">Sin bloqueados</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Fase 1 — Agente conversacional</td><td class="num">4 sem</td><td class="num">76 %</td><td class="num">76 %</td><td class="num"><b>80 %</b></td></tr>
+    <tr><td>Fase 2 — Integraciones</td><td class="num">7 sem</td><td class="num">44 %</td><td class="num">52 %</td><td class="num"><b>80 %</b></td></tr>
+    <tr><td>Fase 3 — Portal y dashboard</td><td class="num">5 sem</td><td class="num">54 %</td><td class="num"><b>82 %</b></td><td class="num"><b>82 %</b></td></tr>
+  </tbody>
+  <tfoot>
+    <tr><td>Global ponderado</td><td class="num">16 sem</td><td class="num">55 %</td><td class="num">67 %</td><td class="num">81 %</td></tr>
+  </tfoot>
+</table>
+
+<h2>2. Ejecutado en esta tanda</h2>
+<p>Suite completa en verde: <b>582 pruebas automatizadas</b>. Ningún archivo del flujo
+conversacional fue modificado.</p>
+
+<h3>Fase A — sin riesgo</h3>
+<table>
+  <thead><tr><th style="width:5%">#</th><th style="width:26%">Ítem</th><th>Qué se hizo</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>18</td><td><b>Filtros en solicitudes</b> <span class="chip c-ok">HECHO</span></td>
+      <td>Paciente, n° de orden, estado y rango de fechas en el portal, replicando el patrón de la pantalla de resultados. Un estado inválido en la URL se descarta en vez de vaciar la tabla.</td>
+    </tr>
+    <tr>
+      <td>10</td><td><b>Fallos de facturación</b> <span class="chip c-ok">HECHO</span></td>
+      <td>ERR-100. Había <b>cuatro</b> salidas mudas, no dos: ahora todo camino que termine sin factura escribe <code>alegra_failed</code> con motivo y detalle. Un test existente afirmaba <code>eventos == []</code> — el bug estaba escrito como comportamiento esperado.</td>
+    </tr>
+    <tr>
+      <td>14</td><td><b>Health check real</b> <span class="chip c-ok">HECHO</span></td>
+      <td>ERR-101. Antes devolvía <code>{"status":"ok"}</code> fijo con Supabase caído. Ahora consulta de verdad y distingue crítico (503) de degradado (200). Nuevo <code>app/health.py</code>.</td>
+    </tr>
+    <tr>
+      <td>31</td><td><b>API interna cerrada</b> <span class="chip c-ok">HECHO</span></td>
+      <td>ERR-098. El decorador era <i>fail-open</i>: sin token configurado dejaba pasar, y no estaba configurado. Ahora responde 503 sin token y compara con <code>hmac.compare_digest</code>.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Fase B — portal</h3>
+<table>
+  <thead><tr><th style="width:5%">#</th><th style="width:26%">Ítem</th><th>Qué se hizo</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>19</td><td><b>Detalle e historial</b> <span class="chip c-ok">HECHO</span></td>
+      <td>Pantalla nueva por orden. Los eventos internos (facturación, revisiones de alta) se ocultan por <b>lista blanca</b>: un evento nuevo es invisible hasta decidir mostrarlo. El filtro por cliente va en la consulta, no después.</td>
+    </tr>
+    <tr>
+      <td>23</td><td><b>Avance por estados</b> <span class="chip c-ok">HECHO</span></td>
+      <td>Reemplazo acordado del tracking GPS: barra de siete pasos, de Recibida a Enviada. Los estados cancelada y error no rompen la barra, se explican aparte.</td>
+    </tr>
+    <tr>
+      <td>20</td><td><b>Descarga masiva</b> <span class="chip c-ok">HECHO</span></td>
+      <td>ZIP que respeta los filtros aplicados. Los PDF se bajan del bucket privado en el servidor. Los nombres se sanitizan: un paciente llamado <code>../../etc</code> no puede escribir fuera de la carpeta al descomprimir.</td>
+    </tr>
+    <tr>
+      <td>17</td><td><b>Catálogo en el portal</b> <span class="chip c-ok">HECHO</span></td>
+      <td>ERR-097. El texto libre dejaba toda orden del portal en <b>$0</b>. Ahora hay selector de perfiles y análisis del catálogo real; un código inexistente se descarta en vez de inventar un precio.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 class="salto">3. Lo que falta — bloqueado por A3</h2>
+<p>Aproximadamente <b>19 puntos</b> del avance global. No depende de nuestro equipo.</p>
+<table>
+  <thead><tr><th style="width:6%">#</th><th style="width:26%">Ítem</th><th>Qué falta que entregue A3</th></tr></thead>
+  <tbody>
+    <tr><td>8</td><td><b>Anarvet / LAB3</b> <span class="chip c-blk">BLOQUEADO</span></td><td>Endpoint, credenciales de autenticación y documentación de la API. El modelo de orden ya está construido y listo para volcarse.</td></tr>
+    <tr><td>12</td><td><b>Orquestación cross-systems</b> <span class="chip c-blk">DIFERIDO</span></td><td>Sin sentido con una sola integración real. Se activa cuando llegue Anarvet.</td></tr>
+    <tr><td>13</td><td><b>Colas, reintentos y DLQ</b> <span class="chip c-blk">DIFERIDO</span></td><td>Atado al anterior.</td></tr>
+  </tbody>
+</table>
+
+<div class="aviso">
+  <b>Respaldo contractual con fecha.</b> El plan de trabajo firmado por A3 fija dos entregas a su
+  cargo: <b>Día 4 (viernes 30/01/2026)</b> — <i>"credenciales/sandboxes + contactos técnicos +
+  documentación API disponible"</i> — y <b>Día 25 (lunes 02/03/2026)</b> — <i>"accesos
+  QA/producción + whitelists/IPs si aplica"</i>. Ninguna de las dos se cumplió. Conviene
+  reclamarlas por escrito con fecha antes de la reunión de cierre.
+</div>
+
+<h2>4. Lo que falta — de nuestro lado</h2>
+<p>Aproximadamente <b>17 puntos</b>. Sin bloqueantes externos.</p>
+<table>
+  <thead><tr><th style="width:6%">#</th><th style="width:28%">Ítem</th><th class="num" style="width:12%">Suma</th><th>Nota</th></tr></thead>
+  <tbody>
+    <tr><td>11</td><td><b>Inventarios en Alegra</b> <span class="chip c-falta">FALTA</span></td><td class="num">+9,9</td><td>El más pesado que queda. Sustituye a DelSol. Módulo nuevo, no reutiliza nada.</td></tr>
+    <tr><td>25</td><td><b>Deploy a producción</b> <span class="chip c-falta">PAUSADO</span></td><td class="num">+2,2</td><td>Hoy corre en local con túnel ngrok. Render ya estaba definido en el stack.</td></tr>
+    <tr><td>24</td><td><b>Tendencias y TAT</b> <span class="chip c-falta">FALTA</span></td><td class="num">+2,2</td><td>Los KPIs actuales son cifras puntuales, sin series temporales.</td></tr>
+    <tr><td>6</td><td><b>Resultados por chat</b> <span class="chip c-falta">FALTA</span></td><td class="num">+1,25</td><td>Hoy responde un mensaje fijo de no disponibilidad.</td></tr>
+    <tr><td>3</td><td><b>Aviso al motorizado</b> <span class="chip c-falta">FALTA</span></td><td class="num">+1,25</td><td>Se le asigna la orden pero no se le notifica.</td></tr>
+    <tr><td>2</td><td><b>Escalado a operaciones</b> <span class="chip c-falta">FALTA</span></td><td class="num">+0,5</td><td>El área de soporte técnico no tiene equipo mapeado: falla en silencio. 15 minutos.</td></tr>
+    <tr><td>5</td><td><b>Canal WhatsApp</b> <span class="chip c-cfg">MIXTO</span></td><td class="num">+1,6</td><td>Requiere el número verificado y la cuenta Meta Business de A3, <b>y</b> trabajo nuestro: soltar el CHECK de <code>entry_channel</code> y rutear el aviso de resultados por Chatwoot.</td></tr>
+  </tbody>
+</table>
+
+<h2>5. Fuera del conteo — resuelto de otra forma o retirado</h2>
+<p>Cumplido de forma equivalente por acuerdo, o retirado del alcance. No es deuda.</p>
+<table>
+  <thead><tr><th style="width:38%">Lo contratado</th><th>Cómo quedó</th></tr></thead>
+  <tbody>
+    <tr><td>Siigo (facturación)</td><td><span class="chip c-out">SUSTITUIDO</span> Alegra</td></tr>
+    <tr><td>DelSol (como sistema)</td><td><span class="chip c-out">SUSTITUIDO</span> Consolidado en Alegra</td></tr>
+    <tr><td>LiveConnect (logística)</td><td><span class="chip c-out">SUSTITUIDO</span> Chatwoot</td></tr>
+    <tr><td>Tracking GPS en tiempo real</td><td><span class="chip c-out">REEMPLAZADO</span> Avance por estados de la orden (ítem 23, ya entregado)</td></tr>
+    <tr><td>Facturación electrónica DIAN</td><td><span class="chip c-out">A PROPÓSITO</span> El borrador es el entregable; contabilidad emite</td></tr>
+    <tr><td>Notificaciones por email</td><td><span class="chip c-out">CUBIERTO</span> WhatsApp + bandeja del portal</td></tr>
+    <tr><td>Notificaciones por etapa</td><td><span class="chip c-out">SUFICIENTE</span> Alcanza el aviso de resultado publicado</td></tr>
+    <tr><td>Área de PQR</td><td><span class="chip c-out">CUBIERTO</span> Lo atiende operaciones</td></tr>
+    <tr><td>Multi-usuario por clínica</td><td><span class="chip c-out">NO APLICA</span> El roadmap lo condiciona con "(si aplica)"</td></tr>
+    <tr><td>Foto de la orden con OCR</td><td><span class="chip c-out">RETIRADO</span> Avisado en llamada</td></tr>
+    <tr><td>Link de pago en línea</td><td><span class="chip c-out">RETIRADO</span> Deriva a contabilidad. Avisado en llamada</td></tr>
+    <tr><td>Manuales de usuario</td><td><span class="chip c-out">RETIRADO</span> Avisado en llamada</td></tr>
+    <tr><td>Texto institucional ICA / 13 años</td><td><span class="chip c-out">SUFICIENTE</span> El rechazo actual cumple la función</td></tr>
+    <tr><td>Corrección ortográfica general</td><td><span class="chip c-out">SUFICIENTE</span> Capitalización y normalización de razas y especies</td></tr>
+    <tr><td>Alta y actualización de clientes por chat</td><td><span class="chip c-out">A PROPÓSITO</span> Escala a recepción</td></tr>
+  </tbody>
+</table>
+
+<h2 class="salto">6. Pendientes técnicos que no son alcance</h2>
+<table>
+  <thead><tr><th style="width:30%">Qué</th><th>Estado</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>Definir <code>PLATFORM_API_TOKEN</code></b></td>
+      <td><span class="chip c-blk">PENDIENTE</span> Con el fix aplicado, hasta que se defina la API interna responde 503: está protegida pero inutilizada. Es una línea en el <code>.env</code> y otra en Render. Falta también corregir el rótulo "opcional" en <code>.env.example</code>.</td>
+    </tr>
+    <tr>
+      <td><b>Webhook de Chatwoot sin firma</b></td>
+      <td><span class="chip c-blk">AL DEPLOY</span> Acepta cualquier POST: permite inyectar mensajes en conversaciones reales. Se corrige junto con el despliegue.</td>
+    </tr>
+    <tr>
+      <td><b><code>POST /setup-webhook</code> sin auth</b></td>
+      <td><span class="chip c-blk">AL DEPLOY</span> Permite redirigir el webhook del bot. El CSRF no lo cubre.</td>
+    </tr>
+    <tr>
+      <td><b><code>PORTAL_DEMO_MODE=true</code></b></td>
+      <td><span class="chip c-blk">AL DEPLOY</span> El portal inicia sesión sin contraseña. Apagarlo exige cargar antes <code>SUPABASE_ANON_KEY</code>, que falta, o se rompe el login real.</td>
+    </tr>
+    <tr>
+      <td><b>Migraciones 014 y 015</b></td>
+      <td><span class="chip c-ok">RESUELTO</span> Están aplicadas; la bitácora estaba desactualizada.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>7. Orden recomendado para lo que sigue</h2>
+<ol>
+  <li><b>Inventarios en Alegra (11)</b> — vale +9,9 puntos él solo. Es el único ítem grande que queda de nuestro lado.</li>
+  <li><b>Los tres chicos de Fase 1 (2, 3, 6)</b> — juntos suman +3 y son aproximadamente medio día.</li>
+  <li><b>Deploy (25) + los tres pendientes de seguridad</b> — se hacen en el mismo movimiento. Sin esto, todo lo construido sigue viviendo en una máquina local.</li>
+  <li><b>Tendencias y TAT (24)</b> — cierra Fase 3.</li>
+  <li><b>WhatsApp (5)</b> — cuando A3 entregue el número verificado.</li>
+</ol>
+
+<div class="aviso rojo">
+  <b>El sistema no está en producción.</b> El 81 % es real en funcionalidad construida, pero todo
+  eso corre hoy en una máquina local detrás de un túnel ngrok. Antes de presentar cualquier cifra
+  a A3 conviene desplegar: es la primera pregunta verificable que pueden hacer.
+</div>
+
+<div class="nota-pie">
+  <b>Documento 02 · Uso interno.</b> Continúa la línea base del documento 01, incorporando el
+  triage de los 34 ítems del 2 de agosto y la ejecución de las fases A y B. Los porcentajes se
+  recalcularon sobre el alcance ampliado en ese triage, por lo que no son comparables uno a uno
+  con el 58 % del documento 01.
+  <br><br>
+  ZIDONG LLC · No compartir con el cliente.
+</div>
+
+</body>
+</html>

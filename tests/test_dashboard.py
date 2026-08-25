@@ -185,6 +185,7 @@ def test_service_order_event_is_visible_in_operation_center():
                 "pickup_address": "Calle 1",
                 "patient": {"name": "Toby", "species": "canino", "breed": "criollo", "sex": "macho", "age": "5 anos", "owner_name": "Maria Lopez"},
                 "exam_type": "Hemograma",
+                "sample_taken_date": "hoy",
                 "observations": "muestra refrigerada",
                 "payment_method": "contraentrega",
             }
@@ -245,6 +246,7 @@ def test_service_order_print_page_renders_pdf_ready_form(monkeypatch):
             "patient_age": "5 anos",
             "owner_name": "Maria Lopez",
             "exam_type": "Hemograma",
+            "sample_taken_date": "hoy",
             "observations": "muestra refrigerada",
             "payment_method": "contraentrega",
             "status_label": "Asignada",

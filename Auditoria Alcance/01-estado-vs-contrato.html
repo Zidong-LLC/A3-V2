@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>A3 Laboratorio — Estado del proyecto vs. contrato</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm 18mm 14mm; }
+
+  :root{
+    --tinta:#14171c;
+    --gris:#5b636e;
+    --linea:#dfe3e8;
+    --verde:#0d7a4a;  --verde-bg:#eaf6f0;
+    --ambar:#9a6400;  --ambar-bg:#fdf3e0;
+    --rojo:#b3261e;   --rojo-bg:#fdeceb;
+    --azul:#1c4f8b;   --azul-bg:#eaf1f9;
+  }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    font-family:"Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    font-size:10.2pt; line-height:1.5; color:var(--tinta);
+    margin:0;
+  }
+
+  /* ---------- Portada ---------- */
+  .portada{ border-bottom:3px solid var(--tinta); padding-bottom:14px; margin-bottom:22px; }
+  .kicker{ font-size:8.4pt; letter-spacing:.14em; text-transform:uppercase; color:var(--gris); font-weight:700; }
+  h1{ font-size:22pt; line-height:1.15; margin:6px 0 4px; letter-spacing:-.02em; }
+  .sub{ font-size:11pt; color:var(--gris); margin:0; }
+  .meta{ margin-top:12px; font-size:8.8pt; color:var(--gris); display:flex; gap:26px; flex-wrap:wrap; }
+  .meta b{ color:var(--tinta); font-weight:600; }
+
+  h2{
+    font-size:13.5pt; margin:26px 0 10px; padding-bottom:5px;
+    border-bottom:1.5px solid var(--tinta); letter-spacing:-.01em;
+    break-after:avoid;
+  }
+  h3{ font-size:10.8pt; margin:16px 0 7px; break-after:avoid; }
+  p{ margin:0 0 9px; }
+  ul,ol{ margin:0 0 9px; padding-left:18px; }
+  li{ margin-bottom:3px; }
+
+  /* ---------- Bloque destacado ---------- */
+  .headline{
+    background:var(--azul-bg); border-left:4px solid var(--azul);
+    padding:13px 16px; margin:0 0 18px; break-inside:avoid;
+  }
+  .headline .cifra{ font-size:27pt; font-weight:800; color:var(--azul); line-height:1; letter-spacing:-.03em; }
+  .headline .cifra small{ font-size:11pt; font-weight:600; }
+  .headline p{ margin:7px 0 0; font-size:9.6pt; }
+
+  /* ---------- Tablas ---------- */
+  table{ width:100%; border-collapse:collapse; margin:9px 0 16px; font-size:9.2pt; break-inside:avoid; }
+  thead th{
+    background:var(--tinta); color:#fff; text-align:left; padding:7px 9px;
+    font-weight:600; font-size:8.5pt; letter-spacing:.03em;
+  }
+  td{ padding:6px 9px; border-bottom:1px solid var(--linea); vertical-align:top; }
+  tbody tr:nth-child(even){ background:#f8f9fb; }
+  td.num{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  th.num{ text-align:right; }
+  tfoot td{ font-weight:700; border-top:2px solid var(--tinta); border-bottom:none; background:#fff; }
+
+  /* ---------- Chips de estado ---------- */
+  .chip{
+    display:inline-block; padding:1px 7px; border-radius:3px;
+    font-size:7.6pt; font-weight:700; letter-spacing:.04em; white-space:nowrap;
+  }
+  .c-out{ background:var(--verde-bg); color:var(--verde); }
+  .c-cfg{ background:var(--azul-bg);  color:var(--azul); }
+  .c-blk{ background:var(--ambar-bg); color:var(--ambar); }
+  .c-falta{ background:var(--rojo-bg); color:var(--rojo); }
+
+  /* ---------- Avisos ---------- */
+  .aviso{
+    border-left:3px solid var(--ambar); background:var(--ambar-bg);
+    padding:10px 13px; margin:12px 0; font-size:9.2pt; break-inside:avoid;
+  }
+  .aviso b{ color:var(--ambar); }
+  .aviso.rojo{ border-left-color:var(--rojo); background:var(--rojo-bg); }
+  .aviso.rojo b{ color:var(--rojo); }
+
+  /* ---------- Listado numerado de faltantes ---------- */
+  .grupo{ margin-bottom:14px; break-inside:avoid; }
+  .grupo-tit{
+    font-size:9pt; font-weight:700; text-transform:uppercase; letter-spacing:.07em;
+    color:var(--gris); margin-bottom:5px;
+  }
+  .items{ list-style:none; padding:0; margin:0; }
+  .items li{
+    padding:5px 0 5px 26px; border-bottom:1px solid var(--linea);
+    position:relative; font-size:9.4pt;
+  }
+  .items li:last-child{ border-bottom:none; }
+  .items li .n{
+    position:absolute; left:0; top:5px; width:18px; height:18px; line-height:18px;
+    text-align:center; background:var(--rojo-bg); color:var(--rojo);
+    border-radius:50%; font-size:7.6pt; font-weight:700;
+  }
+  .items li em{ color:var(--gris); font-style:normal; font-size:8.6pt; }
+
+  code{
+    font-family:"Cascadia Mono", Consolas, monospace; font-size:8.4pt;
+    background:#f1f3f6; padding:1px 4px; border-radius:2px;
+  }
+
+  .nota-pie{
+    margin-top:26px; padding-top:11px; border-top:1px solid var(--linea);
+    font-size:8.4pt; color:var(--gris);
+  }
+
+  .salto{ break-before:page; }
+</style>
+</head>
+<body>
+
+<div class="portada">
+  <div class="kicker">ZIDONG LLC · Auditoría de alcance</div>
+  <h1>A3 Laboratorio Clínico Veterinario</h1>
+  <p class="sub">Estado real del proyecto frente a lo contratado</p>
+  <div class="meta">
+    <span><b>Fecha:</b> 1 de agosto de 2026</span>
+    <span><b>Proyecto:</b> Sistema Integral de Automatización IA</span>
+    <span><b>Contrato:</b> 28/01/2026 – 02/06/2026 (90 días / 16 semanas)</span>
+    <span><b>Documento:</b> 01 · Línea base</span>
+  </div>
+</div>
+
+<div class="headline">
+  <div class="cifra">58 <small>% del alcance vigente</small></div>
+  <p><b>~65 %</b> si se descuenta lo que está bloqueado esperando insumos del cliente.
+  Sobre el alcance <i>originalmente vendido</i> el avance es del <b>43 %</b>: la diferencia no
+  es trabajo nuevo, es que cinco componentes salieron del alcance por sustitución o acuerdo.</p>
+</div>
+
+<h2>1. Cómo se hizo esta auditoría</h2>
+<p>
+  Se compararon los cuatro documentos contractuales — <b>Propuesta V2</b>, <b>Presentación de
+  Kickoff</b>, <b>Plan de Trabajo Diario firmado y aceptado</b> y la <b>Respuesta a Cambios
+  Solicitados</b> del 20 de mayo — contra el código real del proyecto, verificando cada
+  afirmación en archivo y línea. Nada se dio por hecho a partir de documentación interna sin
+  contrastarlo con el código.
+</p>
+<p>
+  De esa primera pasada salieron <b>34 ítems en duda</b>. Cada uno fue después revisado uno por
+  uno para separar lo que verdaderamente falta de lo que ya está resuelto de otra manera, se
+  decidió a propósito, o salió del alcance. Este documento es el resultado de ese triage y
+  funciona como <b>línea base</b>: sobre él se irán sumando los hallazgos de las reuniones
+  mantenidas con el cliente a lo largo del proyecto.
+</p>
+
+<h2>2. Qué se contrató</h2>
+<table>
+  <thead>
+    <tr><th style="width:14%">Fase</th><th style="width:12%">Duración</th><th>Compromiso</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><b>Fase 1</b></td><td>4 semanas</td><td>Bot con IA en WhatsApp 24/7, validación automática de datos, envío automático al motorizado, notificaciones automáticas por etapa, integración básica con el sistema de laboratorio</td></tr>
+    <tr><td><b>Fase 2</b></td><td>7 semanas</td><td>Hub de integración: LAB3/Anarvet, Siigo (facturación), DelSol (inventarios), LiveConnect (logística), orquestación entre sistemas, colas y trazabilidad, observabilidad, API Gateway</td></tr>
+    <tr><td><b>Fase 3</b></td><td>5 semanas</td><td>Portal web de clientes, solicitud online, tracking GPS en tiempo real, descarga de resultados 24/7 individual y masiva, dashboard gerencial de KPIs, notificaciones por email y WhatsApp</td></tr>
+  </tbody>
+</table>
+<p>
+  A eso se sumaron, el 20 de mayo, <b>diez ajustes solicitados por el cliente</b> sobre el guion
+  conversacional, de los cuales hoy <b>siete están implementados y validados</b>.
+</p>
+
+<h2>3. Qué se construyó</h2>
+<p>
+  Un agente conversacional en <b>Python + Flask</b> sobre <b>Supabase</b> y <b>OpenAI</b>,
+  operando por <b>Telegram y Chatwoot</b>, con facturación contra <b>Alegra</b>. Unas 14.900
+  líneas de código, 50 archivos de prueba con más de 400 casos automatizados en verde.
+</p>
+<p>Está entregado y funcionando:</p>
+<ul>
+  <li><b>Agente conversacional completo</b>: identifica la clínica aun con nombres aproximados o errores de tipeo, resuelve sedes múltiples, levanta la orden de servicio con los once campos acordados y valida cada dato contra el catálogo real.</li>
+  <li><b>Catálogo real de A3</b> cargado: 133 perfiles, 159 análisis y 323 razas, con precios y descuentos por volumen.</li>
+  <li><b>Portal web de clientes</b>: solicitud de retiro online, historial de órdenes, resultados con búsqueda y descarga de PDF, bandeja de notificaciones.</li>
+  <li><b>Dashboard gerencial</b>: nueve pantallas con KPIs operativos y de negocio calculados sobre datos reales.</li>
+  <li><b>Zonificación territorial de Bogotá</b>: 8 zonas, 1.649 barrios y cobertura por motorizado.</li>
+  <li><b>Facturación</b> operando de punta a punta en ambiente de pruebas.</li>
+</ul>
+
+<h2 class="salto">4. Alcance redefinido — 12 componentes fuera del conteo</h2>
+<p>
+  Resueltos de otra forma, definidos así a propósito o retirados del alcance. No cuentan como
+  deuda del proyecto.
+</p>
+<table>
+  <thead>
+    <tr><th style="width:34%">Componente</th><th style="width:20%">Estado</th><th>Motivo</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Siigo (facturación)</td><td><span class="chip c-out">SUSTITUIDO</span></td><td>Reemplazado por Alegra</td></tr>
+    <tr><td>DelSol (como sistema)</td><td><span class="chip c-out">SUSTITUIDO</span></td><td>Consolidado en Alegra para tener todo en un solo lugar</td></tr>
+    <tr><td>LiveConnect (logística)</td><td><span class="chip c-out">SUSTITUIDO</span></td><td>Reemplazado por Chatwoot</td></tr>
+    <tr><td>Facturación electrónica DIAN / IVA</td><td><span class="chip c-out">ASÍ A PROPÓSITO</span></td><td>El borrador en Alegra es el entregable; contabilidad emite</td></tr>
+    <tr><td>Alta de cliente nuevo por chat</td><td><span class="chip c-out">ASÍ A PROPÓSITO</span></td><td>Escala a recepción para validación humana</td></tr>
+    <tr><td>Actualización de datos por chat</td><td><span class="chip c-out">ASÍ A PROPÓSITO</span></td><td>Los datos maestros los edita solo A3 desde el dashboard</td></tr>
+    <tr><td>Asignación de domiciliario por zona</td><td><span class="chip c-out">ASÍ A PROPÓSITO</span></td><td>Motorizado fijo por clínica es lo que requiere la operación</td></tr>
+    <tr><td>Texto institucional ICA / 13 años</td><td><span class="chip c-out">SUFICIENTE</span></td><td>El rechazo actual a particulares cumple la función</td></tr>
+    <tr><td>Corrector ortográfico general</td><td><span class="chip c-out">SUFICIENTE</span></td><td>Capitalización automática y normalización de razas y especies</td></tr>
+    <tr><td>Tracking GPS en tiempo real</td><td><span class="chip c-out">FUERA DE ALCANCE</span></td><td>Sin LiveConnect no existe fuente del dato de posición</td></tr>
+    <tr><td>Foto de la orden con OCR</td><td><span class="chip c-out">FUERA DE ALCANCE</span></td><td>Retirado del alcance</td></tr>
+    <tr><td>Riesgos de configuración</td><td><span class="chip c-out">ENTORNO LOCAL</span></td><td>Se resuelven al pasar a producción</td></tr>
+  </tbody>
+</table>
+
+<div class="aviso">
+  <b>Dos requieren acuerdo escrito con el cliente.</b> El <b>tracking GPS</b> figura en la
+  propuesta, en la presentación de kickoff y en el roadmap firmado (día 66), y la
+  <b>foto con OCR</b> fue un pedido explícito del cliente el 20 de mayo. Si salen del alcance
+  sin quedar asentado en un acta, reaparecen en la reunión de cierre.
+</div>
+
+<div class="aviso rojo">
+  <b>Dos riesgos no se resuelven solos al desplegar.</b> El webhook de Chatwoot seguirá
+  aceptando cualquier petición sin verificar firma, y un fallo de facturación seguirá
+  perdiéndose sin dejar registro. Los otros dos — token de la API interna y modo demo del
+  portal — sí son variables de entorno que se definen en producción.
+</div>
+
+<h2>5. Ajuste de configuración, no desarrollo</h2>
+<table>
+  <thead><tr><th style="width:22%">Componente</th><th>Qué implica</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>WhatsApp</b><br><span class="chip c-cfg">CONFIGURACIÓN</span></td>
+      <td>
+        Se conecta la cuenta de WhatsApp del cliente a Chatwoot, que ya es el canal en operación.
+        Quedan dos ajustes técnicos reales: la restricción de canal en base de datos
+        (<code>requests.entry_channel</code>) hoy solo admite Telegram, y el aviso de resultado
+        publicado llama directamente a Telegram en lugar de rutearse por Chatwoot.
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>6. Bloqueado esperando al cliente</h2>
+<table>
+  <thead><tr><th style="width:26%">Componente</th><th style="width:20%">Estado</th><th>Qué falta que entregue A3</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>Anarvet / LAB3</b></td>
+      <td><span class="chip c-blk">BLOQUEADO</span></td>
+      <td>Endpoint, credenciales de autenticación y documentación de la API. El modelo de orden de servicio ya está construido y listo para volcarse.</td>
+    </tr>
+    <tr>
+      <td><b>Link de pago en línea</b></td>
+      <td><span class="chip c-blk">BLOQUEADO</span></td>
+      <td>Activación de pagos electrónicos o contratación de una pasarela. Hoy el flujo deriva a contabilidad.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 class="salto">7. Lo que falta construir — 15 ítems</h2>
+
+<div class="grupo">
+  <div class="grupo-tit">Fase 1 · Agente conversacional</div>
+  <ul class="items">
+    <li><span class="n">1</span>Consulta de resultados por chat <em>— hoy responde un mensaje fijo de "no disponible por este medio"</em></li>
+    <li><span class="n">2</span>Notificaciones por etapa: avisar al motorizado vía Chatwoot y automatizar el cambio de fase <em>— la parte visual ya está en la plataforma</em></li>
+    <li><span class="n">3</span>Área de PQR en el escalamiento <em>— hoy solo existen contabilidad y operaciones</em></li>
+    <li><span class="n">4</span>Corrección del escalamiento a soporte técnico <em>— el área existe pero no tiene equipo asignado y falla sin aviso</em></li>
+  </ul>
+</div>
+
+<div class="grupo">
+  <div class="grupo-tit">Fase 2 · Integraciones e infraestructura</div>
+  <ul class="items">
+    <li><span class="n">5</span><b>Infraestructura transversal completa</b>: orquestación entre sistemas, colas, reintentos, trazabilidad de fallos, observabilidad y gateway <em>— el ítem más pesado de toda la lista</em></li>
+    <li><span class="n">6</span>Control de inventarios sobre Alegra <em>— la sustitución de DelSol quedó definida, pero el módulo no está implementado</em></li>
+  </ul>
+</div>
+
+<div class="grupo">
+  <div class="grupo-tit">Fase 3 · Portal y dashboard</div>
+  <ul class="items">
+    <li><span class="n">7</span>Detalle e historial de la orden en el portal del cliente <em>— en el dashboard interno de A3 ya existe</em></li>
+    <li><span class="n">8</span>Descarga masiva de resultados <em>— comprometida en el roadmap firmado, día 73</em></li>
+    <li><span class="n">9</span>Filtros en el listado de solicitudes del portal <em>— los resultados sí los tienen</em></li>
+    <li><span class="n">10</span>Usuarios y roles: accesos por persona en A3 y varios usuarios por clínica</li>
+    <li><span class="n">11</span>Notificaciones por email <em>— no existe envío de correo en el proyecto</em></li>
+    <li><span class="n">12</span>Gráficos de tendencia y tiempo de respuesta (TAT) en el dashboard</li>
+    <li><span class="n">13</span>Catálogo de análisis en el portal <em>— hoy es texto libre y la orden queda sin precio</em></li>
+  </ul>
+</div>
+
+<div class="grupo">
+  <div class="grupo-tit">Cierre del proyecto</div>
+  <ul class="items">
+    <li><span class="n">14</span>Despliegue a producción <em>— hoy opera en entorno local; se hace al cerrar las funcionalidades</em></li>
+    <li><span class="n">15</span>Manuales de usuario y capacitación <em>— entregable contractual del cierre</em></li>
+  </ul>
+</div>
+
+<h2>8. Recuento</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Fase</th>
+      <th class="num">Peso</th>
+      <th class="num">Alcance original</th>
+      <th class="num">Alcance vigente</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>Fase 1 — Agente conversacional</td><td class="num">4 sem</td><td class="num">70 %</td><td class="num"><b>80 %</b></td></tr>
+    <tr><td>Fase 2 — Integraciones</td><td class="num">7 sem</td><td class="num">18 %</td><td class="num"><b>45 %</b></td></tr>
+    <tr><td>Fase 3 — Portal y dashboard</td><td class="num">5 sem</td><td class="num">60 %</td><td class="num"><b>60 %</b></td></tr>
+  </tbody>
+  <tfoot>
+    <tr><td>Global ponderado</td><td class="num">16 sem</td><td class="num">43 %</td><td class="num">58 %</td></tr>
+  </tfoot>
+</table>
+
+<table>
+  <thead><tr><th>Clasificación de los 34 ítems auditados</th><th class="num" style="width:16%">Cantidad</th></tr></thead>
+  <tbody>
+    <tr><td><span class="chip c-out">FUERA DEL CONTEO</span> &nbsp; Resuelto de otra forma, a propósito o retirado</td><td class="num">12</td></tr>
+    <tr><td><span class="chip c-cfg">CONFIGURACIÓN</span> &nbsp; No requiere desarrollo</td><td class="num">1</td></tr>
+    <tr><td><span class="chip c-blk">BLOQUEADO</span> &nbsp; Esperando insumos del cliente</td><td class="num">2</td></tr>
+    <tr><td><span class="chip c-falta">FALTA</span> &nbsp; Por construir (13 técnicos + 2 de cierre)</td><td class="num">15</td></tr>
+  </tbody>
+</table>
+
+<h2>9. Lectura de los números</h2>
+<p>
+  El salto del 43 % al 58 % no responde a trabajo nuevo: responde a que el denominador se
+  achicó cuando Siigo, DelSol, LiveConnect, el tracking GPS y el OCR salieron del alcance. La
+  Fase 2, que en la auditoría inicial aparecía como un vacío de siete semanas, se reduce hoy a
+  dos frentes concretos — infraestructura transversal e inventarios — más Anarvet, que depende
+  de que el cliente entregue su API.
+</p>
+<p>
+  El dato relevante para la conversación comercial es que <b>el grueso de lo pendiente ya no son
+  integraciones con terceros sino funcionalidades propias del portal y del dashboard</b>, que
+  dependen exclusivamente de nuestro equipo. El único faltante verdaderamente grande es la
+  infraestructura transversal de Fase 2, y el único bloqueante externo real es la API de Anarvet.
+</p>
+
+<div class="nota-pie">
+  <b>Documento 01 · Línea base.</b> Elaborado a partir de la verificación directa del código del
+  proyecto contra los cuatro documentos contractuales. Los documentos siguientes de esta carpeta
+  incorporarán el análisis de las reuniones sostenidas con el cliente durante el proyecto, con
+  foco en los cambios, agregados y modificaciones acordados fuera del presupuesto original.
+  <br><br>
+  ZIDONG LLC · Uso interno.
+</div>
+
+</body>
+</html>

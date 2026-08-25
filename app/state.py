@@ -118,7 +118,8 @@ KNOWN_FLAGS = FLAGS_IDENTIFICACION | FLAGS_ANALISIS | FLAGS_DIRECCION | FLAGS_CI
 # Datos de negocio (deben coincidir con captured_fields del schema de OpenAI).
 BUSINESS_FIELDS = frozenset({
     "clinic_name", "tax_id", "pickup_address", "exam_type", "patient_name", "species",
-    "requesting_doctor", "patient_age", "owner_name", "breed", "sex", "observations",
+    "requesting_doctor", "patient_age", "owner_name", "breed", "sex",
+    "sample_taken_date", "observations",
     "payment_method", "selected_tests", "removed_tests",
 })
 

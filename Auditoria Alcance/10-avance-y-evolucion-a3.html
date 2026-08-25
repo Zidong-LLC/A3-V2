@@ -1,0 +1,968 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>A3 Laboratorio — Avance y evolución del proyecto</title>
+<style>
+  @page { size: A4; margin: 15mm 13mm 16mm 13mm; }
+
+  :root{
+    --tinta:#14171c;
+    --gris:#5b636e;
+    --gris-claro:#8b939e;
+    --linea:#dfe3e8;
+    --fondo:#f8f9fb;
+    --verde:#0d7a4a;  --verde-bg:#eaf6f0;  --verde-linea:#8fcdae;
+    --ambar:#9a6400;  --ambar-bg:#fdf3e0;  --ambar-linea:#e8c179;
+    --rojo:#b3261e;   --rojo-bg:#fdeceb;
+    --azul:#1c4f8b;   --azul-bg:#eaf1f9;  --azul-linea:#8fb2d8;
+  }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    font-family:"Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    font-size:10.2pt; line-height:1.5; color:var(--tinta); margin:0;
+  }
+
+  /* ---------- Portada ---------- */
+  .portada{ border-bottom:3px solid var(--tinta); padding-bottom:16px; margin-bottom:20px; }
+  .kicker{ font-size:8.4pt; letter-spacing:.14em; text-transform:uppercase; color:var(--gris); font-weight:700; }
+  h1{ font-size:23pt; line-height:1.12; margin:6px 0 4px; letter-spacing:-.02em; }
+  .sub{ font-size:11pt; color:var(--gris); margin:0; }
+  .meta{ margin-top:12px; font-size:8.8pt; color:var(--gris); display:flex; gap:24px; flex-wrap:wrap; }
+  .meta b{ color:var(--tinta); font-weight:600; }
+
+  h2{
+    font-size:13.5pt; margin:24px 0 10px; padding-bottom:5px;
+    border-bottom:1.5px solid var(--tinta); letter-spacing:-.01em; break-after:avoid;
+  }
+  h3{ font-size:10.6pt; margin:16px 0 7px; break-after:avoid; }
+  p{ margin:0 0 9px; }
+  ul{ margin:0 0 9px; padding-left:17px; }
+  li{ margin-bottom:3px; }
+  .lead{ font-size:10.6pt; color:var(--gris); }
+
+  /* ---------- Cifras de portada ---------- */
+  .global{
+    display:flex; align-items:stretch; gap:0; margin-bottom:18px; break-inside:avoid;
+    border:1px solid var(--azul-linea); border-left:4px solid var(--azul); background:var(--azul-bg);
+  }
+  .global .col{ padding:15px 18px; flex:1; }
+  .global .col + .col{ border-left:1px solid var(--azul-linea); }
+  .global .cifra{ font-size:32pt; font-weight:800; color:var(--azul); line-height:.95; letter-spacing:-.03em; }
+  .global .cifra small{ display:block; font-size:8.6pt; font-weight:700; letter-spacing:.06em; margin-top:5px; text-transform:uppercase; }
+  .global .texto{ font-size:9.3pt; margin-top:9px; line-height:1.45; }
+  .global .texto b{ color:var(--azul); }
+
+  /* ---------- Tarjetas ---------- */
+  .tarjetas{ display:grid; grid-template-columns:repeat(3,1fr); gap:11px; margin:12px 0 4px; }
+  .tarjeta{ border:1px solid var(--linea); border-top:3px solid var(--verde); padding:11px 13px; background:#fff; break-inside:avoid; }
+  .tarjeta.pend{ border-top-color:var(--ambar); }
+  .tarjeta h4{ margin:0 0 5px; font-size:9.6pt; }
+  .tarjeta p{ margin:0; font-size:8.7pt; color:var(--gris); line-height:1.45; }
+  .tarjeta .dato{ font-size:16pt; font-weight:800; color:var(--verde); line-height:1.1; letter-spacing:-.02em; }
+  .tarjeta.pend .dato{ color:var(--ambar); }
+
+  /* ---------- Barras por fase ---------- */
+  .fases{ display:grid; gap:11px; margin:12px 0 6px; }
+  .fase{ break-inside:avoid; }
+  .fase-cab{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px; }
+  .fase-cab b{ font-size:9.8pt; }
+  .fase-cab span{ font-size:8.6pt; color:var(--gris); }
+  .fase-cab .pct{ font-size:11pt; font-weight:800; color:var(--verde); font-variant-numeric:tabular-nums; }
+  .barra{ height:11px; background:#e9ecf1; border-radius:6px; overflow:hidden; }
+  .barra i{ display:block; height:100%; background:linear-gradient(90deg,#129059,#0d7a4a); border-radius:6px; }
+
+  /* ---------- Tablas ---------- */
+  table{ width:100%; border-collapse:collapse; margin:9px 0 15px; font-size:9.2pt; break-inside:avoid; }
+  thead th{ background:var(--tinta); color:#fff; text-align:left; padding:7px 9px; font-weight:600; font-size:8.5pt; letter-spacing:.03em; }
+  td{ padding:6px 9px; border-bottom:1px solid var(--linea); vertical-align:top; }
+  tbody tr:nth-child(even){ background:var(--fondo); }
+  td.num{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+  .chip{ display:inline-block; padding:1px 7px; border-radius:3px; font-size:7.6pt; font-weight:700; letter-spacing:.04em; white-space:nowrap; }
+  .c-ok{ background:var(--verde-bg); color:var(--verde); }
+  .c-blk{ background:var(--ambar-bg); color:var(--ambar); }
+  .c-falta{ background:var(--rojo-bg); color:var(--rojo); }
+
+  .aviso{ border-left:3px solid var(--ambar); background:var(--ambar-bg); padding:11px 14px; margin:12px 0; font-size:9.2pt; break-inside:avoid; }
+  .aviso b{ color:var(--ambar); }
+  .aviso.azul{ border-left-color:var(--azul); background:var(--azul-bg); }
+  .aviso.azul b{ color:var(--azul); }
+
+  /* ---------- Reuniones ---------- */
+  .reunion{
+    border:1px solid var(--linea); border-left:3px solid var(--azul-linea);
+    margin-bottom:11px; break-inside:avoid; background:#fff;
+  }
+  .reunion-cab{
+    display:flex; align-items:baseline; gap:10px; padding:8px 13px;
+    background:var(--fondo); border-bottom:1px solid var(--linea);
+  }
+  .reunion-cab .n{
+    width:19px; height:19px; line-height:19px; text-align:center; flex:0 0 auto;
+    background:var(--azul); color:#fff; border-radius:50%; font-size:8.4pt; font-weight:700;
+  }
+  .reunion-cab .fecha{ font-size:9.6pt; font-weight:700; }
+  .reunion-cab .tema{ font-size:8.8pt; color:var(--gris); margin-left:auto; text-align:right; }
+  .reunion-cols{ display:grid; grid-template-columns:1fr 1fr; }
+  .reunion-cols > div{ padding:10px 13px; }
+  .reunion-cols > div + div{ border-left:1px solid var(--linea); background:var(--verde-bg); }
+  .reunion-tit{
+    font-size:7.8pt; font-weight:700; text-transform:uppercase; letter-spacing:.08em;
+    color:var(--gris-claro); margin-bottom:6px;
+  }
+  .reunion-cols > div + div .reunion-tit{ color:var(--verde); }
+  .reunion ul{ margin:0; padding-left:15px; font-size:8.9pt; }
+  .reunion li{ margin-bottom:3px; line-height:1.4; }
+  .entrega{
+    display:inline-block; margin-top:7px; padding:2px 8px; border-radius:3px;
+    background:#fff; border:1px solid var(--verde-linea); color:var(--verde);
+    font-size:7.8pt; font-weight:700;
+  }
+
+  /* ---------- Diagramas ---------- */
+  .diagrama{ margin:12px 0 6px; break-inside:avoid; }
+  .diagrama svg{ width:100%; height:auto; display:block; }
+  .leyenda{ display:flex; gap:18px; flex-wrap:wrap; font-size:8.4pt; color:var(--gris); margin-top:8px; }
+  .leyenda span{ display:inline-flex; align-items:center; gap:5px; }
+  .punto{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .punto.ok{ background:var(--verde); }
+  .punto.pend{ background:var(--ambar); }
+
+  /* ---------- Checklist ---------- */
+  .check{ list-style:none; padding:0; margin:10px 0 0; }
+  .check li{ display:flex; gap:11px; align-items:flex-start; padding:9px 0; border-bottom:1px solid var(--linea); }
+  .check li:last-child{ border-bottom:none; }
+  .caja{ width:14px; height:14px; border:1.6px solid var(--ambar); border-radius:3px; flex:0 0 auto; margin-top:2px; }
+  .check b{ display:block; font-size:9.6pt; }
+  .check span{ font-size:8.8pt; color:var(--gris); }
+
+  code{ font-family:"Cascadia Mono", Consolas, monospace; font-size:8.4pt; background:#f1f3f6; padding:1px 4px; border-radius:2px; }
+
+  .nota-pie{ margin-top:24px; padding-top:11px; border-top:1px solid var(--linea); font-size:8.4pt; color:var(--gris); }
+  .salto{ break-before:page; }
+</style>
+</head>
+<body>
+
+<div class="portada">
+  <div class="kicker">Sistema Integral de Automatización IA</div>
+  <h1>A3 Laboratorio Clínico Veterinario</h1>
+  <p class="sub">Avance del proyecto y evolución de las definiciones acordadas</p>
+  <div class="meta">
+    <span><b>Fecha:</b> 2 de agosto de 2026</span>
+    <span><b>Reuniones de trabajo:</b> 10 · del 07/04 al 28/07</span>
+    <span><b>Preparado por:</b> Laberit</span>
+  </div>
+</div>
+
+<div class="global">
+  <div class="col">
+    <div class="cifra">81%<small>del alcance contratado</small></div>
+    <div class="texto">
+      El <b>agente conversacional</b>, el <b>portal de clientes</b>, la <b>plataforma de gestión</b>
+      y la <b>facturación</b> están construidos y funcionando sobre datos reales de A3.
+    </div>
+  </div>
+  <div class="col">
+    <div class="cifra">+52<small>definiciones incorporadas</small></div>
+    <div class="texto">
+      Acordadas con A3 durante las diez reuniones de trabajo, por fuera de la propuesta original.
+      <b>45 ya entregadas</b> y 7 en el tramo final, definidas en la última reunión.
+    </div>
+  </div>
+</div>
+
+<div class="tarjetas">
+  <div class="tarjeta">
+    <div class="dato">4</div>
+    <h4>Sistemas operando</h4>
+    <p>Agente conversacional, portal web, plataforma de gestión y facturación, integrados sobre una misma base de datos.</p>
+  </div>
+  <div class="tarjeta">
+    <div class="dato">615</div>
+    <h4>Registros del catálogo</h4>
+    <p>133 perfiles, 159 análisis y 323 razas cargados con precios y descuentos reales del portafolio.</p>
+  </div>
+  <div class="tarjeta pend">
+    <div class="dato">2</div>
+    <h4>Accesos pendientes</h4>
+    <p>Las credenciales de Anarvet y la cuenta de WhatsApp Business son hoy el principal freno del proyecto.</p>
+  </div>
+</div>
+
+<h2>1. Lo que se acordó</h2>
+<p class="lead">
+  El proyecto se estructuró en tres fases, según la propuesta y el plan de trabajo aprobados.
+</p>
+<table>
+  <thead>
+    <tr><th style="width:13%">Fase</th><th style="width:12%">Duración</th><th>Compromiso</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><b>Fase 1</b></td><td>4 semanas</td><td>Bot con inteligencia artificial 24/7, validación automática de datos, envío automático al motorizado y notificaciones por etapa</td></tr>
+    <tr><td><b>Fase 2</b></td><td>7 semanas</td><td>Hub de integración con los sistemas del laboratorio, facturación, inventarios y logística, con coordinación entre ellos</td></tr>
+    <tr><td><b>Fase 3</b></td><td>5 semanas</td><td>Portal web de clientes, solicitud en línea, seguimiento, descarga de resultados 24/7 y dashboard gerencial de indicadores</td></tr>
+  </tbody>
+</table>
+
+<h2>2. Lo que se entregó por encima de lo contratado</h2>
+<p class="lead">
+  A lo largo de las ocho reuniones, el alcance se fue precisando junto con A3. El resultado excede
+  lo previsto en la propuesta: donde se había planteado un portal de consulta, hoy existe una
+  plataforma de gestión completa.
+</p>
+<table>
+  <thead>
+    <tr><th style="width:40%">Lo contratado</th><th>Lo entregado</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><b>Un agente conversacional</b> que automatice la solicitud de recogida</td>
+      <td>Agente que identifica la clínica aun con nombres incompletos, resuelve sedes múltiples, levanta la orden completa, valida cada dato contra el catálogo real y calcula el total con descuentos</td>
+    </tr>
+    <tr>
+      <td><b>Conexión con los sistemas</b> del laboratorio</td>
+      <td>Integración con Alegra operando de punta a punta: la orden genera la factura preparada para contabilidad, con descuentos y datos fiscales del cliente</td>
+    </tr>
+    <tr>
+      <td><b>Un portal web</b> para los clientes</td>
+      <td>Portal de la veterinaria con solicitud en línea, catálogo con precios, seguimiento de cada orden, historial y descarga de resultados individual y masiva</td>
+    </tr>
+    <tr>
+      <td>—</td>
+      <td><b>Plataforma de gestión propia de A3</b>, no prevista en la propuesta: operaciones, clientes, motorizados con mapa de zonas, muestras por etapa, catálogo administrable, facturación e indicadores del negocio</td>
+    </tr>
+    <tr>
+      <td>—</td>
+      <td><b>Zonificación territorial de Bogotá</b>: 8 zonas y 1.649 barrios con cobertura por motorizado, construida sobre el archivo de rutas de A3</td>
+    </tr>
+    <tr>
+      <td>—</td>
+      <td><b>Catálogo completo digitalizado</b>: 133 perfiles, 159 análisis y 323 razas, con precios, descuentos por cantidad y etiquetas diagnósticas</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2 class="salto">3. Cómo atiende el agente hoy</h2>
+<p class="lead">
+  Recorrido real de una solicitud, desde que la veterinaria escribe hasta que la orden queda
+  registrada y facturada. Cada paso está construido y en funcionamiento.
+</p>
+
+<div class="diagrama">
+<svg viewBox="0 0 700 470" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flujo conversacional del agente">
+  <defs>
+    <marker id="fl" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+      <path d="M0,0 L7,3.2 L0,6.4 z" fill="#8fcdae"/>
+    </marker>
+    <marker id="fa" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+      <path d="M0,0 L7,3.2 L0,6.4 z" fill="#e8c179"/>
+    </marker>
+  </defs>
+  <style>
+    .bx{ fill:#eaf6f0; stroke:#8fcdae; stroke-width:1.4; }
+    .bxa{ fill:#fdf3e0; stroke:#e8c179; stroke-width:1.4; }
+    .tl{ font:600 11.5px "Segoe UI",Arial; fill:#14171c; }
+    .ts{ font:9.5px "Segoe UI",Arial; fill:#5b636e; }
+    .tn{ font:700 10px "Segoe UI",Arial; fill:#0d7a4a; }
+    .tna{ font:700 10px "Segoe UI",Arial; fill:#9a6400; }
+    .ln{ stroke:#8fcdae; stroke-width:1.6; fill:none; }
+    .lna{ stroke:#e8c179; stroke-width:1.4; fill:none; stroke-dasharray:4 3; }
+  </style>
+
+  <rect class="bx" x="20" y="14" width="300" height="44" rx="7"/>
+  <text class="tn" x="34" y="32">1</text>
+  <text class="tl" x="50" y="32">Bienvenida</text>
+  <text class="ts" x="50" y="47">Menú con las cuatro opciones de servicio</text>
+
+  <line class="ln" x1="170" y1="58" x2="170" y2="74" marker-end="url(#fl)"/>
+
+  <rect class="bx" x="20" y="78" width="300" height="44" rx="7"/>
+  <text class="tn" x="34" y="96">2</text>
+  <text class="tl" x="50" y="96">Identificación de la clínica</text>
+  <text class="ts" x="50" y="111">Por NIT o por nombre, aunque esté incompleto</text>
+
+  <line class="ln" x1="170" y1="122" x2="170" y2="138" marker-end="url(#fl)"/>
+
+  <rect class="bx" x="20" y="142" width="300" height="44" rx="7"/>
+  <text class="tn" x="34" y="160">3</text>
+  <text class="tl" x="50" y="160">Sede que solicita</text>
+  <text class="ts" x="50" y="175">Cuando la veterinaria tiene varias sucursales</text>
+
+  <line class="ln" x1="170" y1="186" x2="170" y2="202" marker-end="url(#fl)"/>
+
+  <rect class="bx" x="20" y="206" width="300" height="52" rx="7"/>
+  <text class="tn" x="34" y="224">4</text>
+  <text class="tl" x="50" y="224">Orden de servicio</text>
+  <text class="ts" x="50" y="239">Médico remitente, paciente, especie, raza, sexo,</text>
+  <text class="ts" x="50" y="251">edad, propietario y dirección de recogida</text>
+
+  <line class="ln" x1="170" y1="258" x2="170" y2="274" marker-end="url(#fl)"/>
+
+  <rect class="bx" x="20" y="278" width="300" height="52" rx="7"/>
+  <text class="tn" x="34" y="296">5</text>
+  <text class="tl" x="50" y="296">Análisis solicitados</text>
+  <text class="ts" x="50" y="311">Se validan contra el catálogo real y se calcula</text>
+  <text class="ts" x="50" y="323">el total con los descuentos por cantidad</text>
+
+  <line class="ln" x1="170" y1="330" x2="170" y2="346" marker-end="url(#fl)"/>
+
+  <rect class="bx" x="20" y="350" width="300" height="44" rx="7"/>
+  <text class="tn" x="34" y="368">6</text>
+  <text class="tl" x="50" y="368">Confirmación</text>
+  <text class="ts" x="50" y="383">Resumen editable: el cliente corrige lo que haga falta</text>
+
+  <line class="ln" x1="170" y1="394" x2="170" y2="410" marker-end="url(#fl)"/>
+
+  <rect class="bx" x="20" y="414" width="300" height="44" rx="7"/>
+  <text class="tn" x="34" y="432">7</text>
+  <text class="tl" x="50" y="432">Registro y cierre</text>
+  <text class="ts" x="50" y="447">N° de orden, motorizado asignado y factura preparada</text>
+
+  <text class="tl" x="400" y="30" style="font-size:11px">Derivaciones automáticas</text>
+
+  <path class="lna" d="M320 100 L385 100" marker-end="url(#fa)"/>
+  <rect class="bxa" x="390" y="48" width="290" height="40" rx="7"/>
+  <text class="tna" x="404" y="65">→</text>
+  <text class="tl" x="422" y="65" style="font-size:10.5px">Cliente no registrado</text>
+  <text class="ts" x="422" y="79">Se deriva a recepción para el alta</text>
+
+  <path class="lna" d="M320 118 L385 118" marker-end="url(#fa)"/>
+  <rect class="bxa" x="390" y="98" width="290" height="40" rx="7"/>
+  <text class="tna" x="404" y="115">→</text>
+  <text class="tl" x="422" y="115" style="font-size:10.5px">Propietario particular</text>
+  <text class="ts" x="422" y="129">Se deriva al médico veterinario tratante</text>
+
+  <rect class="bxa" x="390" y="148" width="290" height="40" rx="7"/>
+  <text class="tna" x="404" y="165">→</text>
+  <text class="tl" x="422" y="165" style="font-size:10.5px">Consultas de pagos</text>
+  <text class="ts" x="422" y="179">Se derivan al área de contabilidad</text>
+
+  <rect class="bxa" x="390" y="198" width="290" height="40" rx="7"/>
+  <text class="tna" x="404" y="215">→</text>
+  <text class="tl" x="422" y="215" style="font-size:10.5px">Otras solicitudes</text>
+  <text class="ts" x="422" y="229">Se derivan al área de operaciones</text>
+
+  <rect class="bx" x="390" y="262" width="290" height="68" rx="7"/>
+  <text class="tl" x="404" y="282" style="font-size:10.5px">Reglas de negocio aplicadas</text>
+  <text class="ts" x="404" y="298">· Corte de las 17:30 → siguiente día hábil</text>
+  <text class="ts" x="404" y="312">· Motorizado según la clínica y su zona</text>
+  <text class="ts" x="404" y="326">· Precios y descuentos del portafolio real</text>
+
+  <path class="lna" d="M320 436 L385 436" marker-end="url(#fa)"/>
+  <rect class="bx" x="390" y="350" width="290" height="108" rx="7"/>
+  <text class="tl" x="404" y="370" style="font-size:10.5px">Al cerrar la orden</text>
+  <text class="ts" x="404" y="386">· Se registra con número consecutivo</text>
+  <text class="ts" x="404" y="400">· Se asigna el motorizado correspondiente</text>
+  <text class="ts" x="404" y="414">· Se prepara la factura en Alegra</text>
+  <text class="ts" x="404" y="428">· Queda visible en el portal del cliente</text>
+  <text class="ts" x="404" y="442">· Se ofrece registrar otra orden</text>
+</svg>
+</div>
+
+<div class="leyenda">
+  <span><i class="punto ok"></i> Construido y en funcionamiento</span>
+  <span><i class="punto pend"></i> Derivación a un área humana, por diseño</span>
+</div>
+
+<h2 class="salto">4. Cómo se conecta todo</h2>
+<p class="lead">
+  El agente es el punto de entrada y coordina el resto. Todo lo que aparece en verde está
+  conectado y operando; en ámbar, lo que espera accesos de A3.
+</p>
+
+<div class="diagrama">
+<svg viewBox="0 0 700 452" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Arquitectura de conexiones">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+      <path d="M0,0 L7,3.2 L0,6.4 z" fill="#8fcdae"/>
+    </marker>
+    <marker id="ara" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+      <path d="M0,0 L7,3.2 L0,6.4 z" fill="#e8c179"/>
+    </marker>
+  </defs>
+  <style>
+    .k{ fill:#eaf6f0; stroke:#8fcdae; stroke-width:1.4; }
+    .ka{ fill:#fdf3e0; stroke:#e8c179; stroke-width:1.4; stroke-dasharray:5 3; }
+    .kc{ fill:#eaf1f9; stroke:#8fb2d8; stroke-width:1.8; }
+    .kp{ fill:#eaf1f9; stroke:#8fb2d8; stroke-width:1.6; }
+    .kt{ font:600 11px "Segoe UI",Arial; fill:#14171c; text-anchor:middle; }
+    .kts{ font:8.8px "Segoe UI",Arial; fill:#5b636e; text-anchor:middle; }
+    .cap{ font:700 8.6px "Segoe UI",Arial; fill:#8b939e; letter-spacing:.09em; }
+    .l{ stroke:#8fcdae; stroke-width:1.6; fill:none; }
+    .la{ stroke:#e8c179; stroke-width:1.4; fill:none; stroke-dasharray:5 3; }
+  </style>
+
+  <!-- Canales -->
+  <text class="cap" x="20" y="14">CANALES DE ATENCIÓN</text>
+  <rect class="k" x="20" y="22" width="150" height="46" rx="7"/>
+  <text class="kt" x="95" y="42">Telegram</text>
+  <text class="kts" x="95" y="57">Operando</text>
+
+  <rect class="k" x="185" y="22" width="150" height="46" rx="7"/>
+  <text class="kt" x="260" y="42">Chatwoot</text>
+  <text class="kts" x="260" y="57">Operando</text>
+
+  <rect class="ka" x="350" y="22" width="150" height="46" rx="7"/>
+  <text class="kt" x="425" y="42">WhatsApp</text>
+  <text class="kts" x="425" y="57">Falta la cuenta Business</text>
+
+  <rect class="k" x="515" y="22" width="165" height="46" rx="7"/>
+  <text class="kt" x="597" y="42">Portal web</text>
+  <text class="kts" x="597" y="57">Solicitud en línea</text>
+
+  <path class="l"  d="M95 68 L95 96 L230 96 L230 136" marker-end="url(#ar)"/>
+  <path class="l"  d="M260 68 L260 96 L310 96 L310 136" marker-end="url(#ar)"/>
+  <path class="la" d="M425 68 L425 96 L390 96 L390 136" marker-end="url(#ara)"/>
+  <path class="l"  d="M597 68 L597 96 L470 96 L470 136" marker-end="url(#ar)"/>
+
+  <!-- Núcleo -->
+  <text class="cap" x="20" y="128">NÚCLEO</text>
+  <rect class="kc" x="150" y="136" width="400" height="64" rx="9"/>
+  <text class="kt" x="350" y="160" style="font-size:12.5px">Agente conversacional con IA</text>
+  <text class="kts" x="350" y="176">Interpreta la solicitud, valida los datos y aplica las reglas del laboratorio</text>
+  <text class="kts" x="350" y="190">Más de 450 pruebas automatizadas respaldan su comportamiento</text>
+
+  <path class="l"  d="M230 200 L230 236 L117 236 L117 272" marker-end="url(#ar)"/>
+  <path class="l"  d="M310 200 L310 272" marker-end="url(#ar)"/>
+  <path class="l"  d="M390 200 L390 236 L480 236 L480 272" marker-end="url(#ar)"/>
+  <path class="la" d="M470 200 L470 236 L626 236 L626 272" marker-end="url(#ara)"/>
+
+  <!-- Servicios -->
+  <text class="cap" x="20" y="264">DATOS Y SERVICIOS</text>
+  <rect class="k" x="20" y="272" width="195" height="58" rx="7"/>
+  <text class="kt" x="117" y="293">Base de datos</text>
+  <text class="kts" x="117" y="308">Clientes con NIT, catálogo,</text>
+  <text class="kts" x="117" y="320">órdenes y zonificación</text>
+
+  <rect class="k" x="228" y="272" width="160" height="58" rx="7"/>
+  <text class="kt" x="308" y="293">Alegra</text>
+  <text class="kts" x="308" y="308">Factura preparada</text>
+  <text class="kts" x="308" y="320">desde cada orden</text>
+
+  <rect class="k" x="400" y="272" width="160" height="58" rx="7"/>
+  <text class="kt" x="480" y="293">Motorizados</text>
+  <text class="kts" x="480" y="308">Asignación por clínica</text>
+  <text class="kts" x="480" y="320">y zona territorial</text>
+
+  <rect class="ka" x="572" y="272" width="108" height="58" rx="7"/>
+  <text class="kt" x="626" y="293">Anarvet</text>
+  <text class="kts" x="626" y="308">Falta el acceso</text>
+  <text class="kts" x="626" y="320">de consulta</text>
+
+  <path class="l" d="M117 330 L117 366 L200 366 L200 402" marker-end="url(#ar)"/>
+  <path class="l" d="M308 330 L308 366 L500 366 L500 402" marker-end="url(#ar)"/>
+
+  <text class="cap" x="20" y="394">CONSULTA Y GESTIÓN</text>
+  <rect class="k" x="60" y="402" width="280" height="42" rx="7"/>
+  <text class="kt" x="200" y="420">Portal de la veterinaria</text>
+  <text class="kts" x="200" y="435">Órdenes, avance y descarga de resultados</text>
+
+  <rect class="kp" x="360" y="402" width="280" height="42" rx="7"/>
+  <text class="kt" x="500" y="420">Plataforma de gestión de A3</text>
+  <text class="kts" x="500" y="435">Operación, clientes, muestras y facturación</text>
+</svg>
+</div>
+
+<div class="leyenda">
+  <span><i class="punto ok"></i> Conectado y operando</span>
+  <span><i class="punto pend"></i> Pendiente de accesos de A3</span>
+</div>
+
+<h2 class="salto">5. El proyecto, reunión por reunión</h2>
+<p class="lead">
+  Cada reunión de trabajo dejó definiciones concretas sobre cómo debía comportarse el sistema.
+  Esto es lo que A3 definió en cada una y lo que se construyó a partir de ahí.
+</p>
+
+<div class="reunion">
+  <div class="reunion-cab">
+    <span class="n">1</span>
+    <span class="fecha">7 de abril</span>
+    <span class="tema">Levantamiento — canales y flujos base</span>
+  </div>
+  <div class="reunion-cols">
+    <div>
+      <div class="reunion-tit">Definiciones de A3</div>
+      <ul>
+        <li>La conversación se centraliza en <b>Chatwoot</b>, en reemplazo de LiveConnect</li>
+        <li>El canal de WhatsApp usa el número propio de A3, el que la empresa tiene hace doce años</li>
+        <li><b>Los datos se piden dentro del chat</b>, no en un formulario externo</li>
+        <li>El laboratorio atiende únicamente a médicos veterinarios y clínicas: si escribe el dueño de una mascota, el agente debe identificarlo y no atenderlo</li>
+        <li>Los precios de cada análisis deben poder modificarse desde la plataforma</li>
+        <li>Los perfiles del portafolio deben poder ajustarse cambiando una prueba por otra, validando que el cambio sea congruente en costo</li>
+      </ul>
+    </div>
+    <div>
+      <div class="reunion-tit">Se implementó</div>
+      <ul>
+        <li>Canal de atención sobre Chatwoot, operando</li>
+        <li>Captura de todos los datos dentro de la conversación</li>
+        <li>Rechazo automático de particulares, con derivación al veterinario tratante</li>
+        <li>Personalización del perfil: agregar o quitar pruebas recalculando el total</li>
+      </ul>
+      <span class="entrega">Entregado en abril y mayo</span>
+    </div>
+  </div>
+</div>
+
+<div class="reunion">
+  <div class="reunion-cab">
+    <span class="n">2</span>
+    <span class="fecha">8 de abril</span>
+    <span class="tema">Levantamiento — clientes, documentos y orden de servicio</span>
+  </div>
+  <div class="reunion-cols">
+    <div>
+      <div class="reunion-tit">Definiciones de A3</div>
+      <ul>
+        <li>El tono debe ser <b>técnico y concreto, no comercial</b>: resolver lo que el cliente pide, sin ofrecer servicios</li>
+        <li>Dos arranques distintos: cliente nuevo, a quien se le presenta el respaldo del laboratorio, y cliente ya vinculado, que accede a precios y servicios</li>
+        <li>El alta de un cliente nuevo exige documento —tarjeta profesional o cámara de comercio— y <b>aprobación de una persona</b>, nunca automática</li>
+        <li>La primera solicitud de un cliente nuevo la acompaña una persona; después pasa a ser automática</li>
+        <li>Al pedir la recogida debe confirmarse si es la <b>dirección habitual o una nueva</b></li>
+        <li>Las clínicas afilian a sus médicos veterinarios, y esa vinculación cambia con el tiempo</li>
+        <li>El documento se llama <b>orden de servicio</b>, no remisión</li>
+      </ul>
+    </div>
+    <div>
+      <div class="reunion-tit">Se implementó</div>
+      <ul>
+        <li>Guion con lenguaje técnico y directo, sin ofrecimiento comercial</li>
+        <li>Flujo diferenciado para cliente nuevo y cliente vinculado</li>
+        <li>Alta de cliente derivada a recepción, con aprobación humana desde la plataforma</li>
+        <li>Confirmación de la dirección habitual o captura de una nueva</li>
+        <li>Relación de médicos con su clínica en la base de datos</li>
+        <li>Orden de servicio con los campos del documento original de A3</li>
+      </ul>
+      <span class="entrega">Entregado entre abril y junio</span>
+    </div>
+  </div>
+</div>
+
+<div class="reunion">
+  <div class="reunion-cab">
+    <span class="n">3</span>
+    <span class="fecha">16 de abril</span>
+    <span class="tema">Alcance, fases y estructura</span>
+  </div>
+  <div class="reunion-cols">
+    <div>
+      <div class="reunion-tit">Definiciones de A3</div>
+      <ul>
+        <li>Priorizar el agente para veterinarias antes que el de público general</li>
+        <li>El flujo arranca distinguiendo cliente nuevo de cliente existente</li>
+        <li>El mensajero se asigna según la zona, con posibilidad de cambiarlo en casos excepcionales</li>
+        <li>Función "Crea tu perfil": que el cliente arme su propio conjunto de pruebas, con descuento</li>
+        <li>Cargar el portafolio actualizado con sus precios</li>
+      </ul>
+    </div>
+    <div>
+      <div class="reunion-tit">Se implementó</div>
+      <ul>
+        <li>Catálogo de perfiles y análisis cargado con los precios reales de A3</li>
+        <li>Campos completos de la orden de servicio</li>
+        <li>Derivación de clientes nuevos al área correspondiente</li>
+      </ul>
+      <span class="entrega">Entregado el 29 de abril</span>
+    </div>
+  </div>
+</div>
+
+<div class="reunion">
+  <div class="reunion-cab">
+    <span class="n">4</span>
+    <span class="fecha">22 de abril</span>
+    <span class="tema">Visibilidad de recepción y pagos</span>
+  </div>
+  <div class="reunion-cols">
+    <div>
+      <div class="reunion-tit">Definiciones de A3</div>
+      <ul>
+        <li>Si el usuario dice que es cliente nuevo, el agente deriva directamente a atención al cliente</li>
+        <li>El NIT debe reconocerse con o sin dígito de verificación</li>
+        <li>El agente no debe repetir preguntas ya respondidas</li>
+        <li><b>La ruta se programa siempre, aunque el pago no esté validado</b></li>
+        <li>Recepción debe ver el estado de cada muestra y quién la recogió</li>
+      </ul>
+    </div>
+    <div>
+      <div class="reunion-tit">Se implementó</div>
+      <ul>
+        <li>Búsqueda de cliente tolerante al formato del NIT</li>
+        <li>Memoria de datos ya entregados dentro de la conversación</li>
+        <li>Programación de ruta independiente del estado del pago</li>
+        <li>Estados de muestra: pendiente, recogida, en camino, recibida y en laboratorio</li>
+      </ul>
+      <span class="entrega">Entregado entre abril y mayo</span>
+    </div>
+  </div>
+</div>
+
+<div class="reunion">
+  <div class="reunion-cab">
+    <span class="n">5</span>
+    <span class="fecha">6 de mayo</span>
+    <span class="tema">Flujo dinámico y perfiles</span>
+  </div>
+  <div class="reunion-cols">
+    <div>
+      <div class="reunion-tit">Definiciones de A3</div>
+      <ul>
+        <li>No volver a pedir el NIT si el cliente ya se identificó por nombre</li>
+        <li>Si la veterinaria tiene varias sedes, mostrar las opciones y confirmar cuál</li>
+        <li>Si hay nombres parecidos, mostrar la lista de coincidencias</li>
+        <li><b>El flujo no debe ser un camino único: debe ramificarse según lo que hay en la base</b></li>
+        <li>La orden se diligencia dentro del chat, no en un formulario aparte</li>
+        <li>Cada orden debe llevar un número consecutivo</li>
+      </ul>
+    </div>
+    <div>
+      <div class="reunion-tit">Se implementó</div>
+      <ul>
+        <li>Identificación ramificada: por NIT, por nombre, con sedes o con coincidencias múltiples</li>
+        <li>Confirmación explícita de la sede antes de programar</li>
+        <li>Orden de servicio conversacional, campo por campo</li>
+        <li>Consecutivo anual de orden: A3-2026-001</li>
+      </ul>
+      <span class="entrega">Entregado entre mayo y el 8 de junio</span>
+    </div>
+  </div>
+</div>
+
+<div class="reunion">
+  <div class="reunion-cab">
+    <span class="n">6</span>
+    <span class="fecha">13 de mayo</span>
+    <span class="tema">Plataforma e integraciones</span>
+  </div>
+  <div class="reunion-cols">
+    <div>
+      <div class="reunion-tit">Definiciones de A3</div>
+      <ul>
+        <li>Integrar el archivo de rutas y zonas, contemplando barrios que se repiten en varias localidades</li>
+        <li>Colores por etapa para distinguir el estado de cada pedido</li>
+        <li>Panel de indicadores que A3 pueda personalizar</li>
+        <li>Alegra confirma que su API es pública y se comparte el manual</li>
+        <li>Anarvet requiere un documento firmado; el acceso solicitado es de solo lectura</li>
+      </ul>
+    </div>
+    <div>
+      <div class="reunion-tit">Se implementó</div>
+      <ul>
+        <li><b>Plataforma de gestión interna</b> con operaciones, clientes y muestras</li>
+        <li><b>Zonificación territorial de Bogotá</b>: 8 zonas y 1.649 barrios, con los repetidos resueltos por localidad</li>
+        <li>Mapa de motorizados por zona, con reasignación manual</li>
+        <li>Colores por etapa y preferencias de vista configurables</li>
+      </ul>
+      <span class="entrega">Entregado el 20 de mayo</span>
+    </div>
+  </div>
+</div>
+
+<div class="reunion">
+  <div class="reunion-cab">
+    <span class="n">7</span>
+    <span class="fecha">20 de mayo</span>
+    <span class="tema">Cierre de la etapa conversacional</span>
+  </div>
+  <div class="reunion-cols">
+    <div>
+      <div class="reunion-tit">Definiciones de A3</div>
+      <ul>
+        <li><b>Buscar clientes por palabra clave</b>: si escriben "Venecia" debe aparecer "Consultorio Veterinario Venecia"</li>
+        <li>La orden debe pedir todos los datos: médico remitente, paciente, especie, raza, sexo, edad, propietario y exámenes</li>
+        <li>Una recogida puede contener varias órdenes, una por paciente</li>
+        <li>Tono más cercano y natural para el público colombiano</li>
+      </ul>
+    </div>
+    <div>
+      <div class="reunion-tit">Se implementó</div>
+      <ul>
+        <li>Búsqueda por coincidencia parcial con lista de opciones numeradas</li>
+        <li>Los once campos de la orden, uno por turno</li>
+        <li>Varias órdenes de servicio en una misma recogida</li>
+        <li>Guion revisado con lenguaje local</li>
+      </ul>
+      <span class="entrega">Entregado entre el 29 de mayo y el 8 de junio</span>
+    </div>
+  </div>
+</div>
+
+<div class="reunion">
+  <div class="reunion-cab">
+    <span class="n">8</span>
+    <span class="fecha">27 de mayo</span>
+    <span class="tema">Validaciones y "Crea tu perfil"</span>
+  </div>
+  <div class="reunion-cols">
+    <div>
+      <div class="reunion-tit">Definiciones de A3</div>
+      <ul>
+        <li>El agente no debe avanzar si la clínica no está verificada en la base</li>
+        <li>Un teléfono registrado no debe llevar a un cliente distinto del que se escribió</li>
+        <li><b>El descuento se calcula por cantidad de pruebas</b>, no por tipo de perfil</li>
+        <li>Etiquetas por perfil clínico —cardíaco, tiroideo, senior, cachorro— para sugerir pruebas sin dar recomendación médica</li>
+      </ul>
+    </div>
+    <div>
+      <div class="reunion-tit">Se implementó</div>
+      <ul>
+        <li>Bloqueo del flujo sin clínica validada</li>
+        <li>Corrección de la identificación por teléfono</li>
+        <li><b>Descuentos por cantidad de pruebas</b>, con las pruebas de convenio excluidas</li>
+        <li><b>Etiquetas diagnósticas</b> que agrupan las pruebas de cada perfil clínico</li>
+        <li>Perfiles personalizados por cliente</li>
+      </ul>
+      <span class="entrega">Entregado el 8 de junio</span>
+    </div>
+  </div>
+</div>
+
+<div class="reunion">
+  <div class="reunion-cab">
+    <span class="n">9</span>
+    <span class="fecha">7 de julio</span>
+    <span class="tema">Demostración completa y primera prueba guiada</span>
+  </div>
+  <div class="reunion-cols">
+    <div>
+      <div class="reunion-tit">Definiciones de A3</div>
+      <ul>
+        <li><b>El laboratorio atiende también especies mayores</b>: equinos, bovinos, porcinos y caprinos, además de aves, conejos, roedores y silvestres</li>
+        <li>El sistema debe distinguir especie de raza: "persa" y "San Bernardo" son razas, no especies</li>
+        <li>El médico solicitante debe quedar con nombre completo</li>
+        <li>Varias órdenes para un mismo cliente sin reiniciar la conversación</li>
+        <li>El seguimiento por GPS queda como mejora posterior, fuera del cierre</li>
+      </ul>
+    </div>
+    <div>
+      <div class="reunion-tit">Se implementó</div>
+      <ul>
+        <li><b>Todas las especies del laboratorio</b>, con interpretación del lenguaje real ("toro" se registra como bovino macho)</li>
+        <li><b>323 razas cargadas</b> con validación contra especie</li>
+        <li>Portal de clientes con seguimiento y notificaciones de resultados</li>
+        <li>Varias órdenes por cliente en la misma conversación</li>
+      </ul>
+      <span class="entrega">Entregado el 14 y el 21 de julio</span>
+    </div>
+  </div>
+</div>
+
+<div class="reunion" style="border-left-color:var(--ambar-linea)">
+  <div class="reunion-cab" style="background:var(--ambar-bg)">
+    <span class="n" style="background:var(--ambar)">10</span>
+    <span class="fecha">28 de julio</span>
+    <span class="tema">Prueba con órdenes reales — última reunión</span>
+  </div>
+  <div class="reunion-cols">
+    <div>
+      <div class="reunion-tit">Definiciones de A3</div>
+      <ul>
+        <li><b>Jerarquía del pedido</b>: un pedido agrupa varias órdenes de servicio, y cada orden varios análisis</li>
+        <li>La forma de pago y la factura corresponden al pedido completo, no a cada orden</li>
+        <li>Los perfiles aplican a todas las especies, salvo los que la denominación restringe</li>
+        <li>Las observaciones sobre un análisis van después de elegirlo</li>
+        <li>En el documento impreso de la orden debe figurar el valor del análisis</li>
+      </ul>
+    </div>
+    <div style="background:var(--ambar-bg)">
+      <div class="reunion-tit" style="color:var(--ambar)">Estado</div>
+      <ul>
+        <li>Definiciones incorporadas al plan de trabajo</li>
+        <li>Constituyen el tramo final del agente conversacional</li>
+        <li>El resto del sistema —plataforma, portal, facturación, catálogo— fue validado por A3 en esta misma reunión</li>
+      </ul>
+      <span class="entrega" style="border-color:var(--ambar-linea); color:var(--ambar)">En ejecución</span>
+    </div>
+  </div>
+</div>
+
+<h2 class="salto">6. Avance por fase</h2>
+
+<div class="fases">
+  <div class="fase">
+    <div class="fase-cab">
+      <b>Fase 1 — Agente conversacional</b>
+      <span>4 semanas</span>
+      <span class="pct">80%</span>
+    </div>
+    <div class="barra"><i style="width:80%"></i></div>
+  </div>
+  <div class="fase">
+    <div class="fase-cab">
+      <b>Fase 2 — Integraciones</b>
+      <span>7 semanas</span>
+      <span class="pct">80%</span>
+    </div>
+    <div class="barra"><i style="width:80%"></i></div>
+  </div>
+  <div class="fase">
+    <div class="fase-cab">
+      <b>Fase 3 — Portal y plataforma</b>
+      <span>5 semanas</span>
+      <span class="pct">82%</span>
+    </div>
+    <div class="barra"><i style="width:82%"></i></div>
+  </div>
+</div>
+
+<h3>Qué incluye cada fase, en detalle</h3>
+<table>
+  <thead>
+    <tr><th style="width:29%">Componente</th><th style="width:14%">Estado</th><th>Detalle</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Agente conversacional 24/7</td><td><span class="chip c-ok">ENTREGADO</span></td><td>Identificación de clínica, sedes múltiples, orden completa y validación de datos</td></tr>
+    <tr><td>Catálogo con precios reales</td><td><span class="chip c-ok">ENTREGADO</span></td><td>133 perfiles, 159 análisis y 323 razas, con descuentos por cantidad</td></tr>
+    <tr><td>Todas las especies del laboratorio</td><td><span class="chip c-ok">ENTREGADO</span></td><td>Caninos, felinos, equinos, bovinos, porcinos, caprinos, aves, roedores y silvestres</td></tr>
+    <tr><td>Asignación de motorizado</td><td><span class="chip c-ok">ENTREGADO</span></td><td>Por clínica y zona, con horario de corte de las 17:30 y reasignación manual</td></tr>
+    <tr><td>Zonificación de Bogotá</td><td><span class="chip c-ok">ENTREGADO</span></td><td>8 zonas y 1.649 barrios con cobertura por motorizado</td></tr>
+    <tr><td>Facturación con Alegra</td><td><span class="chip c-ok">ENTREGADO</span></td><td>Factura preparada desde cada orden, con descuentos y datos fiscales</td></tr>
+    <tr><td>Plataforma de gestión</td><td><span class="chip c-ok">ENTREGADO</span></td><td>Operaciones, clientes, motorizados, muestras, catálogo, facturación e indicadores</td></tr>
+    <tr><td>Portal: solicitud en línea</td><td><span class="chip c-ok">ENTREGADO</span></td><td>Con el catálogo completo y su precio, igual que por chat</td></tr>
+    <tr><td>Portal: seguimiento</td><td><span class="chip c-ok">ENTREGADO</span></td><td>Avance paso a paso e historial de movimientos de cada solicitud</td></tr>
+    <tr><td>Portal: resultados 24/7</td><td><span class="chip c-ok">ENTREGADO</span></td><td>Búsqueda, descarga individual y descarga masiva en un solo archivo</td></tr>
+    <tr><td>Ajustes de la reunión del 28/07</td><td><span class="chip c-blk">EN CURSO</span></td><td>Jerarquía del pedido, facturación agrupada y alcance de perfiles por especie</td></tr>
+    <tr><td>Perfiles guardados por clínica</td><td><span class="chip c-blk">EN CURSO</span></td><td>Que el agente reofrezca los perfiles que cada veterinaria ya armó</td></tr>
+    <tr><td>Integración con Anarvet</td><td><span class="chip c-falta">DETENIDO</span></td><td>La orden está lista para volcarse; falta el acceso de consulta</td></tr>
+    <tr><td>Canal WhatsApp</td><td><span class="chip c-falta">DETENIDO</span></td><td>El agente ya opera; falta conectar la cuenta Business</td></tr>
+    <tr><td>Control de inventarios</td><td><span class="chip c-blk">EN CURSO</span></td><td>Módulo sobre Alegra, en reemplazo de DelSol</td></tr>
+  </tbody>
+</table>
+
+<h2>7. Componentes resueltos de otra manera</h2>
+<p class="lead">
+  Durante el proyecto se acordó cubrir varias funciones de forma distinta a la planteada
+  originalmente, manteniendo el resultado para la operación.
+</p>
+<table>
+  <thead>
+    <tr><th style="width:40%">Planteado originalmente</th><th>Cómo quedó resuelto</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Siigo — facturación</td><td>Alegra, integrado y operando</td></tr>
+    <tr><td>DelSol — gestión</td><td>Consolidado en Alegra, todo en un solo lugar</td></tr>
+    <tr><td>LiveConnect — logística</td><td>Chatwoot, ya en operación</td></tr>
+    <tr><td>Tracking GPS en tiempo real</td><td>Avance de la orden paso a paso en el portal. Acordado como mejora posterior en la reunión del 7 de julio</td></tr>
+    <tr><td>Facturación ante la DIAN</td><td>El sistema deja la factura preparada; contabilidad de A3 emite</td></tr>
+    <tr><td>Notificaciones por correo</td><td>Avisos por chat y bandeja del portal</td></tr>
+    <tr><td>Alta de clientes por chat</td><td>Se deriva a recepción para validación humana</td></tr>
+    <tr><td>Transcripción de la orden por foto</td><td>Evaluado en la reunión del 20 de mayo. La prueba del 28 de julio confirmó que la orden manuscrita no resulta legible</td></tr>
+  </tbody>
+</table>
+
+<h2 class="salto">8. Lo que necesitamos de A3</h2>
+<p class="lead">
+  Estos insumos son hoy el principal condicionante para cerrar el proyecto. Ninguno depende
+  del equipo de desarrollo.
+</p>
+
+<ul class="check">
+  <li>
+    <span class="caja"></span>
+    <div>
+      <b>Acceso a Anarvet / LAB3</b>
+      <span>
+        En la reunión del 28 de julio Anarvet planteó otorgar acceso de consulta a la base de
+        datos. Faltan los parámetros de conexión y las credenciales. Es el bloqueante que impide
+        cerrar la consulta de resultados: la orden de servicio ya está construida y lista para
+        volcarse apenas exista el acceso.
+      </span>
+    </div>
+  </li>
+  <li>
+    <span class="caja"></span>
+    <div>
+      <b>Cuenta de WhatsApp Business</b>
+      <span>
+        Número verificado y cuenta habilitada. El agente ya está operando y solo debe conectarse
+        al nuevo canal.
+      </span>
+    </div>
+  </li>
+  <li>
+    <span class="caja"></span>
+    <div>
+      <b>Cuenta de facturación de producción</b>
+      <span>
+        Junto con la definición del IVA por tipo de análisis, el régimen tributario por cliente y
+        la preferencia de facturación a nombre propio o consumidor final, para pasar la
+        facturación del ambiente de pruebas al real.
+      </span>
+    </div>
+  </li>
+  <li>
+    <span class="caja"></span>
+    <div>
+      <b>Datos completos de clientes</b>
+      <span>
+        Dirección, NIT y motorizado asignado. Al 28 de julio, parte de los 992 clientes cargados
+        no tiene esos campos, lo que impide facturar y asignar rutas sobre esos registros.
+      </span>
+    </div>
+  </li>
+  <li>
+    <span class="caja"></span>
+    <div>
+      <b>Confirmación del ambiente de publicación</b>
+      <span>
+        Para dejar el sistema disponible de forma permanente y no depender del entorno de trabajo
+        actual.
+      </span>
+    </div>
+  </li>
+  <li>
+    <span class="caja"></span>
+    <div>
+      <b>Responsable técnico de contacto</b>
+      <span>
+        Una persona de A3 con quien coordinar la entrega de accesos y resolver dudas de
+        integración sin pasar por reuniones.
+      </span>
+    </div>
+  </li>
+</ul>
+
+<div class="aviso azul">
+  <b>Sobre el alcance.</b> La Fase 2 representa 7 de las 16 semanas del proyecto y su eje era la
+  integración con los sistemas del laboratorio. Tres de los cuatro sistemas previstos —Siigo,
+  DelSol y LiveConnect— se resolvieron de forma equivalente y están operando. El cuarto, Anarvet,
+  continúa a la espera de los accesos técnicos.
+</div>
+
+<h2>9. Próximos pasos propuestos</h2>
+<ol>
+  <li>
+    <b>Cerrar los ajustes definidos en la reunión del 28 de julio</b> — jerarquía del pedido,
+    facturación agrupada y alcance de los perfiles por especie. Es el tramo final del agente.
+  </li>
+  <li>
+    <b>Prueba guiada de inicio a fin</b>, con órdenes reales del laboratorio, recorriendo
+    conversación, orden, plataforma y facturación en una sola sesión.
+  </li>
+  <li>
+    <b>Fijar fecha de entrega de los accesos de Anarvet</b> con el responsable técnico. Es el
+    desbloqueo de mayor impacto.
+  </li>
+  <li>
+    <b>Confirmar la cuenta de WhatsApp Business</b> y la cuenta de facturación de producción para
+    habilitar el canal y pasar la facturación al ambiente real.
+  </li>
+</ol>
+
+<div class="nota-pie">
+  El avance del 81 % se calcula sobre el alcance contratado en la propuesta y el plan de trabajo.
+  Las 52 definiciones incorporadas corresponden a los acuerdos alcanzados en las diez reuniones de
+  trabajo mantenidas entre el 7 de abril y el 28 de julio de 2026, y no formaban parte del
+  alcance original.
+  <br><br>
+  Documento preparado por Laberit para A3 Laboratorio Clínico Veterinario S.A.S.
+  El detalle técnico de cada componente está disponible a solicitud.
+</div>
+
+</body>
+</html>

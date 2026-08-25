@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>A3 Laboratorio — Estado del proyecto</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm 18mm 14mm; }
+
+  :root{
+    --tinta:#14171c;
+    --gris:#5b636e;
+    --linea:#dfe3e8;
+    --verde:#0d7a4a;  --verde-bg:#eaf6f0;
+    --ambar:#9a6400;  --ambar-bg:#fdf3e0;
+    --rojo:#b3261e;   --rojo-bg:#fdeceb;
+    --azul:#1c4f8b;   --azul-bg:#eaf1f9;
+  }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    font-family:"Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    font-size:10.2pt; line-height:1.5; color:var(--tinta);
+    margin:0;
+  }
+
+  .portada{ border-bottom:3px solid var(--tinta); padding-bottom:14px; margin-bottom:22px; }
+  .kicker{ font-size:8.4pt; letter-spacing:.14em; text-transform:uppercase; color:var(--gris); font-weight:700; }
+  h1{ font-size:22pt; line-height:1.15; margin:6px 0 4px; letter-spacing:-.02em; }
+  .sub{ font-size:11pt; color:var(--gris); margin:0; }
+  .meta{ margin-top:12px; font-size:8.8pt; color:var(--gris); display:flex; gap:26px; flex-wrap:wrap; }
+  .meta b{ color:var(--tinta); font-weight:600; }
+
+  h2{
+    font-size:13.5pt; margin:26px 0 10px; padding-bottom:5px;
+    border-bottom:1.5px solid var(--tinta); letter-spacing:-.01em;
+    break-after:avoid;
+  }
+  h3{ font-size:10.8pt; margin:16px 0 7px; break-after:avoid; }
+  p{ margin:0 0 9px; }
+  ul,ol{ margin:0 0 9px; padding-left:18px; }
+  li{ margin-bottom:3px; }
+
+  .headline{
+    background:var(--azul-bg); border-left:4px solid var(--azul);
+    padding:13px 16px; margin:0 0 18px; break-inside:avoid;
+  }
+  .headline .cifra{ font-size:27pt; font-weight:800; color:var(--azul); line-height:1; letter-spacing:-.03em; }
+  .headline .cifra small{ font-size:11pt; font-weight:600; }
+  .headline p{ margin:7px 0 0; font-size:9.6pt; }
+
+  table{ width:100%; border-collapse:collapse; margin:9px 0 16px; font-size:9.2pt; break-inside:avoid; }
+  thead th{
+    background:var(--tinta); color:#fff; text-align:left; padding:7px 9px;
+    font-weight:600; font-size:8.5pt; letter-spacing:.03em;
+  }
+  td{ padding:6px 9px; border-bottom:1px solid var(--linea); vertical-align:top; }
+  tbody tr:nth-child(even){ background:#f8f9fb; }
+  td.num{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  th.num{ text-align:right; }
+  tfoot td{ font-weight:700; border-top:2px solid var(--tinta); border-bottom:none; background:#fff; }
+
+  .chip{
+    display:inline-block; padding:1px 7px; border-radius:3px;
+    font-size:7.6pt; font-weight:700; letter-spacing:.04em; white-space:nowrap;
+  }
+  .c-ok{ background:var(--verde-bg); color:var(--verde); }
+  .c-out{ background:var(--verde-bg); color:var(--verde); }
+  .c-blk{ background:var(--ambar-bg); color:var(--ambar); }
+  .c-falta{ background:var(--rojo-bg); color:var(--rojo); }
+
+  .aviso{
+    border-left:3px solid var(--ambar); background:var(--ambar-bg);
+    padding:10px 13px; margin:12px 0; font-size:9.2pt; break-inside:avoid;
+  }
+  .aviso b{ color:var(--ambar); }
+
+  .nota-pie{
+    margin-top:26px; padding-top:11px; border-top:1px solid var(--linea);
+    font-size:8.4pt; color:var(--gris);
+  }
+
+  .salto{ break-before:page; }
+</style>
+</head>
+<body>
+
+<div class="portada">
+  <div class="kicker">Sistema Integral de Automatización IA</div>
+  <h1>A3 Laboratorio Clínico Veterinario</h1>
+  <p class="sub">Estado del proyecto</p>
+  <div class="meta">
+    <span><b>Fecha:</b> 2 de agosto de 2026</span>
+    <span><b>Proyecto:</b> 28/01/2026 – 02/06/2026</span>
+    <span><b>Preparado por:</b> Zidong LLC</span>
+  </div>
+</div>
+
+<div class="headline">
+  <div class="cifra">81 <small>% del alcance entregado</small></div>
+  <p>El agente conversacional, el portal de clientes, el dashboard gerencial y la facturación
+  están construidos y funcionando. Lo que no avanza corresponde a la integración con Anarvet,
+  que depende de accesos aún pendientes de entrega.</p>
+</div>
+
+<h2>1. Entregado y funcionando</h2>
+
+<h3>Agente conversacional</h3>
+<ul>
+  <li>Identifica la clínica aunque el nombre venga aproximado o con errores de tipeo, y resuelve cuál sede solicita cuando hay varias.</li>
+  <li>Levanta la orden de servicio completa con los once campos acordados, pidiendo los exámenes al final.</li>
+  <li>Valida cada dato contra el catálogo real de A3: <b>133 perfiles, 159 análisis y 323 razas</b>, con precios y descuentos por volumen del portafolio.</li>
+  <li>Aplica el horario de corte de las 17:30 y asigna el motorizado correspondiente a la clínica.</li>
+  <li>Permite anexar otra orden de servicio conservando los datos que no cambian.</li>
+  <li>Rechaza solicitudes de propietarios particulares y las deriva al médico tratante.</li>
+  <li>Respaldado por <b>582 pruebas automatizadas</b> que se ejecutan en cada cambio.</li>
+</ul>
+
+<h3>Portal de clientes</h3>
+<ul>
+  <li>Solicitud de retiro en línea, ahora con el <b>catálogo completo de A3</b>: la veterinaria elige perfil y análisis de una lista, con su precio.</li>
+  <li>Historial de solicitudes con <b>búsqueda por paciente, número de orden, estado y fechas</b>.</li>
+  <li><b>Detalle de cada orden</b> con el avance de la muestra paso a paso: recibida, asignada, en ruta, retirada, en laboratorio, procesada y enviada.</li>
+  <li>Resultados con búsqueda, descarga individual y <b>descarga masiva en un solo archivo</b>.</li>
+  <li>Bandeja de notificaciones del laboratorio.</li>
+</ul>
+
+<h3>Gestión interna</h3>
+<ul>
+  <li>Dashboard gerencial con nueve pantallas y KPIs operativos y de negocio sobre datos reales.</li>
+  <li>Zonificación territorial de Bogotá: <b>8 zonas y 1.649 barrios</b> con cobertura por motorizado.</li>
+  <li>Facturación operando de punta a punta en ambiente de pruebas, con registro de cualquier orden que quede pendiente de facturar.</li>
+  <li>Módulo para cargar y publicar resultados a las veterinarias.</li>
+</ul>
+
+<h2>2. Avance por fase</h2>
+<table>
+  <thead>
+    <tr><th>Fase</th><th class="num">Duración</th><th class="num">Avance</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Fase 1 — Agente conversacional</td><td class="num">4 semanas</td><td class="num"><b>80 %</b></td></tr>
+    <tr><td>Fase 2 — Integraciones</td><td class="num">7 semanas</td><td class="num"><b>80 %</b></td></tr>
+    <tr><td>Fase 3 — Portal y dashboard</td><td class="num">5 semanas</td><td class="num"><b>82 %</b></td></tr>
+  </tbody>
+  <tfoot>
+    <tr><td>Global</td><td class="num">16 semanas</td><td class="num">81 %</td></tr>
+  </tfoot>
+</table>
+<p style="font-size:9pt;color:var(--gris)">
+  El avance se calcula sobre el alcance vigente, descontando los componentes que están detenidos
+  a la espera de los accesos detallados en el punto 4.
+</p>
+
+<h2 class="salto">3. Componentes resueltos de forma equivalente</h2>
+<p>
+  Durante el proyecto se acordó cubrir varias funciones de una manera distinta a la planteada
+  originalmente, manteniendo el resultado para la operación de A3.
+</p>
+<table>
+  <thead><tr><th style="width:40%">Planteado originalmente</th><th>Cómo se resolvió</th></tr></thead>
+  <tbody>
+    <tr><td>Siigo — facturación</td><td>Alegra, ya integrado y operando</td></tr>
+    <tr><td>DelSol — sistema de gestión</td><td>Consolidado en Alegra, para tener todo en un solo lugar</td></tr>
+    <tr><td>LiveConnect — logística</td><td>Chatwoot, ya en operación como canal</td></tr>
+    <tr><td>Tracking GPS en tiempo real</td><td><b>Avance de la orden paso a paso</b> en el portal, ya entregado: la veterinaria ve en qué punto está su muestra</td></tr>
+    <tr><td>Facturación electrónica ante la DIAN</td><td>El sistema deja la factura preparada; contabilidad de A3 revisa y emite</td></tr>
+    <tr><td>Notificaciones por correo electrónico</td><td>Avisos por chat y bandeja del portal</td></tr>
+    <tr><td>Avisos en cada etapa</td><td>Aviso cuando el resultado queda disponible</td></tr>
+    <tr><td>Área de PQR en el chat</td><td>Atendida por el área de operaciones</td></tr>
+    <tr><td>Alta y actualización de clientes por chat</td><td>Se deriva a recepción para validación humana</td></tr>
+    <tr><td>Foto de la orden con transcripción automática</td><td>Retirado del alcance de común acuerdo</td></tr>
+    <tr><td>Link de pago en línea</td><td>La solicitud se deriva a contabilidad</td></tr>
+  </tbody>
+</table>
+
+<h2>4. Pendiente de insumos de A3</h2>
+<p>
+  El plan de trabajo aprobado el 28 de enero fija dos entregas a cargo de A3 que siguen
+  pendientes. Son la causa de que la integración con el sistema de laboratorio no haya podido
+  avanzar.
+</p>
+<table>
+  <thead><tr><th style="width:22%">Compromiso</th><th style="width:16%">Fecha acordada</th><th>Situación</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>Accesos y documentación técnica</b></td>
+      <td>Viernes 30/01/2026<br><span style="color:var(--gris)">Día 4 del plan</span></td>
+      <td>Credenciales, sandboxes, contactos técnicos y documentación de API. <b>Pendiente.</b></td>
+    </tr>
+    <tr>
+      <td><b>Accesos de QA y producción</b></td>
+      <td>Lunes 02/03/2026<br><span style="color:var(--gris)">Día 25 del plan</span></td>
+      <td>Accesos a los ambientes y habilitación de direcciones si corresponde. <b>Pendiente.</b></td>
+    </tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th style="width:30%">Qué está detenido</th><th>Qué se necesita</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>Integración con Anarvet / LAB3</b> <span class="chip c-blk">DETENIDO</span></td>
+      <td>Dirección del servicio, credenciales y documentación de la API. <b>La orden de servicio ya está construida y lista para volcarse</b> apenas se disponga del acceso.</td>
+    </tr>
+    <tr>
+      <td><b>Coordinación entre sistemas</b> <span class="chip c-blk">DETENIDO</span></td>
+      <td>Depende de la integración anterior: se activa cuando exista el segundo sistema conectado.</td>
+    </tr>
+    <tr>
+      <td><b>Canal de WhatsApp</b> <span class="chip c-blk">DETENIDO</span></td>
+      <td>Número verificado y cuenta de WhatsApp Business. El agente ya opera y solo debe conectarse al nuevo canal.</td>
+    </tr>
+    <tr>
+      <td><b>Facturación en ambiente real</b> <span class="chip c-blk">DETENIDO</span></td>
+      <td>Cuenta de facturación de A3 y definición del IVA por tipo de análisis y del régimen tributario por cliente.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="aviso">
+  <b>Impacto en el cronograma.</b> La Fase 2 representa 7 de las 16 semanas del proyecto y su eje
+  era la integración con los sistemas del laboratorio. Tres de los cuatro sistemas se resolvieron
+  de forma equivalente, según el punto 3. El cuarto —Anarvet— continúa detenido a la espera de
+  los accesos comprometidos para el 30 de enero.
+</div>
+
+<h2>5. Pendiente de nuestro lado</h2>
+<table>
+  <thead><tr><th style="width:34%">Qué</th><th>Detalle</th></tr></thead>
+  <tbody>
+    <tr><td><b>Control de inventarios</b> <span class="chip c-falta">EN CURSO</span></td><td>Módulo sobre Alegra, en reemplazo de DelSol.</td></tr>
+    <tr><td><b>Paso a producción</b> <span class="chip c-falta">EN CURSO</span></td><td>Publicación del sistema en su ambiente definitivo.</td></tr>
+    <tr><td><b>Gráficos de evolución</b> <span class="chip c-falta">EN CURSO</span></td><td>Tendencias en el tiempo y tiempo de respuesta promedio por orden en el dashboard.</td></tr>
+    <tr><td><b>Consulta de resultados por chat</b> <span class="chip c-falta">EN CURSO</span></td><td>Hoy se consultan y descargan desde el portal.</td></tr>
+    <tr><td><b>Aviso automático al motorizado</b> <span class="chip c-falta">EN CURSO</span></td><td>La asignación ya es automática; falta el aviso al motorizado.</td></tr>
+  </tbody>
+</table>
+
+<h2>6. Próximos pasos propuestos</h2>
+<ol>
+  <li><b>Entrega de accesos de Anarvet.</b> Es el único bloqueante externo del proyecto. Proponemos fijar una fecha concreta con el responsable técnico de A3.</li>
+  <li><b>Definición de WhatsApp.</b> Confirmar el número y la cuenta de WhatsApp Business para conectar el canal.</li>
+  <li><b>Reunión de repriorización.</b> Revisar el orden de lo pendiente y ajustar el cronograma de las fases 2 y 3 según los insumos disponibles.</li>
+</ol>
+
+<div class="nota-pie">
+  Documento preparado por Zidong LLC para A3 Laboratorio Clínico Veterinario S.A.S.
+  El detalle técnico de cada componente está disponible a solicitud.
+</div>
+
+</body>
+</html>

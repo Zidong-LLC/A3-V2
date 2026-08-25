@@ -26,6 +26,7 @@ BASE = {
     "pickup_address": "CL 172A 21A-28", "requesting_doctor": "Diana Pérez",
     "patient_name": "Fifi", "species": "Equino", "breed": "Cuarto de Milla",
     "sex": "Macho", "patient_age": "5 años", "owner_name": "Jorge Toro",
+    "sample_taken_date": "hoy",
     "observations": "Ninguna", "payment_method": "contraentrega",
     "exam_type": "Perfil Parasitológico I",
     "_selected_profile_code": "101",

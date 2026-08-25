@@ -14,6 +14,7 @@ from tests.helpers_pedidos import assert_advances_after_decline
 
 BASE = {"_client_found": True, "species": "Equino", "breed": "Árabe", "sex": "Macho",
         "patient_age": "4 años", "patient_name": "Lolo", "owner_name": "Pedro",
+        "sample_taken_date": "hoy",
         "_selected_profile_code": "152", "_selected_profile_name": "Perfil Prequirúrgico I",
         "_selected_profile_price": 24000, "exam_type": "Perfil Prequirúrgico I",
         "_offering_extra_analysis": True}
@@ -52,9 +53,17 @@ def test_correction_ack_in_normal_intake():
           "phase": "fase_2_recogida_datos", "reply": "(reply del modelo)"}
     out = eflujo._enforce_first_missing_after_progress(SESSION, ai, prev)
     assert "corrijo raza: Tobiano" in out["reply"]
-    # Empuja el siguiente faltante. Desde 2026-08-12 el análisis va antes que las
-    # observaciones (pedido de A3, reunión del 28/07), así que el pendiente es el análisis.
-    assert "análisis o perfil" in out["reply"].lower()
+    # Empuja el siguiente faltante. Con el propietario ya cargado, el pendiente es la fecha
+    # de toma de muestra, que va entre el propietario y el análisis (A3, llamada del 21/08).
+    assert "qué día tomaron la muestra" in out["reply"].lower()
+
+    # Y una vez dada la fecha, el siguiente faltante vuelve a ser el análisis — que sigue
+    # yendo antes que las observaciones (pedido de A3, reunión del 28/07).
+    con_fecha = dict(fields, sample_taken_date="ayer")
+    ai2 = {"intent": "route_scheduling", "captured_fields": con_fecha,
+           "phase": "fase_2_recogida_datos", "reply": "(reply del modelo)"}
+    out2 = eflujo._enforce_first_missing_after_progress(SESSION, ai2, fields)
+    assert "análisis o perfil" in out2["reply"].lower()
 
 
 def test_correction_ack_in_extra_offer_lane_resumes_offer():

@@ -98,6 +98,9 @@ _CORRECTION_FIELD_KEYWORDS = (
     (("sexo", "macho", "hembra"), "sex"),
     (("edad",), "patient_age"),
     (("propietario", "dueño", "dueno", "dueña", "duena"), "owner_name"),
+    # Va antes de 'observaciones' y del análisis: "cambia la fecha de la toma" es de este
+    # campo, no del examen. 'toma'/'tomaron' cubren "la muestra la tomaron ayer".
+    (("fecha", "toma", "tomaron", "tomamos"), "sample_taken_date"),
     (("observacion", "observación", "observaciones"), "observations"),
     (("analisis", "análisis", "examen", "examenes", "exámenes", "perfil", "prueba", "pruebas"), "exam_type"),
     (("pago",), "payment_method"),
@@ -107,7 +110,7 @@ _CORRECTION_FIELD_KEYWORDS = (
 # no pertenece a ningún carril de análisis/pago — el carril debe ceder el turno (ERR-069).
 _STABLE_ORDER_FIELDS = frozenset({
     "requesting_doctor", "patient_name", "species", "breed", "sex",
-    "patient_age", "owner_name", "pickup_address",
+    "patient_age", "owner_name", "pickup_address", "sample_taken_date",
 })
 
 

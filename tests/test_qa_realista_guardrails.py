@@ -315,7 +315,7 @@ def test_summary_shows_volume_discount_breakdown():
         "pickup_address": "DG 51A SUR 61B-03", "_address_confirmed": True,
         "requesting_doctor": "Dr. Prueba", "patient_name": "Pipo", "species": "Canino",
         "breed": "Chihuahua", "sex": "Macho", "patient_age": "5 años",
-        "owner_name": "Luciano", "observations": "sin observaciones",
+        "owner_name": "Luciano", "sample_taken_date": "hoy", "observations": "sin observaciones",
         "payment_method": "contraentrega",
         "exam_type": "Perfil personalizado (2 análisis)",
         "selected_tests": ["1101", "1104"], "removed_tests": [],
@@ -370,7 +370,8 @@ def test_payment_question_does_not_override_add_analysis_request():
     ser pisado re-preguntando el pago: se reabre el paso de agregado."""
     fields = {"_client_found": True, "clinic_name": "X", "pickup_address": "Y",
               "requesting_doctor": "Dr", "patient_name": "Messi", "species": "Caprino",
-              "breed": "Arida", "sex": "Hembra", "patient_age": "9 años", "owner_name": "Matias",
+              "breed": "Arida", "sex": "Hembra", "patient_age": "9 años", "owner_name": "Matias", "sample_taken_date": "hoy",
+              "sample_taken_date": "hoy",
               "observations": "sin observaciones", "exam_type": "Perfil personalizado (3 análisis)",
               "selected_tests": ["1101", "1404", "1405"]}
     ai = _route_resp(fields)
@@ -410,7 +411,8 @@ def test_step_push_yields_to_correction_signal():
     un dato) mientras se pregunta el pago, sin depender de palabras."""
     fields = {"_client_found": True, "clinic_name": "X", "pickup_address": "Y",
               "requesting_doctor": "Dr", "patient_name": "Messi", "species": "Caprino",
-              "breed": "Arida", "sex": "Hembra", "patient_age": "9 años", "owner_name": "Matias",
+              "breed": "Arida", "sex": "Hembra", "patient_age": "9 años", "owner_name": "Matias", "sample_taken_date": "hoy",
+              "sample_taken_date": "hoy",
               "observations": "sin observaciones", "exam_type": "Perfil personalizado (3 análisis)",
               "selected_tests": ["1101", "1404", "1405"]}
     ai = _route_resp(fields)
@@ -433,7 +435,8 @@ def test_change_client_mid_order_keeps_the_order():
     fields = {"clinic_name": "Danimal Planet", "tax_id": "9001", "pickup_address": "CL 59",
               "_client_found": True, "_address_confirmed": True,
               "requesting_doctor": "Sr Juan", "patient_name": "Messi", "species": "Caprino",
-              "breed": "Arida", "sex": "Hembra", "patient_age": "9 años", "owner_name": "Matias",
+              "breed": "Arida", "sex": "Hembra", "patient_age": "9 años", "owner_name": "Matias", "sample_taken_date": "hoy",
+              "sample_taken_date": "hoy",
               "observations": "sin observaciones", "payment_method": "pago_linea",
               "selected_tests": ["1101", "1404", "1405"],
               "exam_type": "Perfil personalizado (3 análisis)"}

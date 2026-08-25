@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>A3 Laboratorio — Avance del proyecto</title>
+<style>
+  @page { size: A4; margin: 15mm 13mm 16mm 13mm; }
+
+  :root{
+    --tinta:#14171c;
+    --gris:#5b636e;
+    --gris-claro:#8b939e;
+    --linea:#dfe3e8;
+    --fondo:#f8f9fb;
+    --verde:#0d7a4a;  --verde-bg:#eaf6f0;  --verde-linea:#8fcdae;
+    --ambar:#9a6400;  --ambar-bg:#fdf3e0;  --ambar-linea:#e8c179;
+    --rojo:#b3261e;   --rojo-bg:#fdeceb;
+    --azul:#1c4f8b;   --azul-bg:#eaf1f9;
+  }
+
+  *{ box-sizing:border-box; }
+
+  body{
+    font-family:"Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    font-size:10.2pt; line-height:1.5; color:var(--tinta); margin:0;
+  }
+
+  /* ---------- Portada ---------- */
+  .portada{ border-bottom:3px solid var(--tinta); padding-bottom:16px; margin-bottom:20px; }
+  .kicker{ font-size:8.4pt; letter-spacing:.14em; text-transform:uppercase; color:var(--gris); font-weight:700; }
+  h1{ font-size:23pt; line-height:1.12; margin:6px 0 4px; letter-spacing:-.02em; }
+  .sub{ font-size:11pt; color:var(--gris); margin:0; }
+  .meta{ margin-top:12px; font-size:8.8pt; color:var(--gris); display:flex; gap:24px; flex-wrap:wrap; }
+  .meta b{ color:var(--tinta); font-weight:600; }
+
+  h2{
+    font-size:13.5pt; margin:24px 0 10px; padding-bottom:5px;
+    border-bottom:1.5px solid var(--tinta); letter-spacing:-.01em; break-after:avoid;
+  }
+  h3{ font-size:10.6pt; margin:16px 0 7px; break-after:avoid; }
+  p{ margin:0 0 9px; }
+  ul{ margin:0 0 9px; padding-left:17px; }
+  li{ margin-bottom:3px; }
+  .lead{ font-size:10.6pt; color:var(--gris); }
+
+  /* ---------- Barra de avance global ---------- */
+  .global{
+    display:flex; align-items:center; gap:22px; background:var(--azul-bg);
+    border-left:4px solid var(--azul); padding:15px 18px; margin-bottom:18px; break-inside:avoid;
+  }
+  .global .cifra{ font-size:34pt; font-weight:800; color:var(--azul); line-height:.95; letter-spacing:-.03em; }
+  .global .cifra small{ display:block; font-size:9pt; font-weight:600; letter-spacing:.02em; margin-top:3px; }
+  .global .texto{ font-size:9.6pt; }
+  .global .texto b{ color:var(--azul); }
+
+  /* ---------- Barras por fase ---------- */
+  .fases{ display:grid; gap:11px; margin:12px 0 6px; }
+  .fase{ break-inside:avoid; }
+  .fase-cab{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px; }
+  .fase-cab b{ font-size:9.8pt; }
+  .fase-cab span{ font-size:8.6pt; color:var(--gris); }
+  .fase-cab .pct{ font-size:11pt; font-weight:800; color:var(--verde); font-variant-numeric:tabular-nums; }
+  .barra{ height:11px; background:#e9ecf1; border-radius:6px; overflow:hidden; }
+  .barra i{ display:block; height:100%; background:linear-gradient(90deg,#129059,#0d7a4a); border-radius:6px; }
+
+  /* ---------- Tarjetas de resumen ---------- */
+  .tarjetas{ display:grid; grid-template-columns:repeat(3,1fr); gap:11px; margin:12px 0 4px; }
+  .tarjeta{ border:1px solid var(--linea); border-top:3px solid var(--verde); padding:11px 13px; background:#fff; break-inside:avoid; }
+  .tarjeta.pend{ border-top-color:var(--ambar); }
+  .tarjeta h4{ margin:0 0 5px; font-size:9.6pt; }
+  .tarjeta p{ margin:0; font-size:8.7pt; color:var(--gris); line-height:1.45; }
+  .tarjeta .dato{ font-size:16pt; font-weight:800; color:var(--verde); line-height:1.1; letter-spacing:-.02em; }
+  .tarjeta.pend .dato{ color:var(--ambar); }
+
+  /* ---------- Tablas ---------- */
+  table{ width:100%; border-collapse:collapse; margin:9px 0 15px; font-size:9.2pt; break-inside:avoid; }
+  thead th{ background:var(--tinta); color:#fff; text-align:left; padding:7px 9px; font-weight:600; font-size:8.5pt; letter-spacing:.03em; }
+  td{ padding:6px 9px; border-bottom:1px solid var(--linea); vertical-align:top; }
+  tbody tr:nth-child(even){ background:var(--fondo); }
+  td.num{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+  .chip{ display:inline-block; padding:1px 7px; border-radius:3px; font-size:7.6pt; font-weight:700; letter-spacing:.04em; white-space:nowrap; }
+  .c-ok{ background:var(--verde-bg); color:var(--verde); }
+  .c-blk{ background:var(--ambar-bg); color:var(--ambar); }
+  .c-falta{ background:var(--rojo-bg); color:var(--rojo); }
+
+  .aviso{ border-left:3px solid var(--ambar); background:var(--ambar-bg); padding:11px 14px; margin:12px 0; font-size:9.2pt; break-inside:avoid; }
+  .aviso b{ color:var(--ambar); }
+
+  /* ---------- Diagramas ---------- */
+  .diagrama{ margin:12px 0 6px; break-inside:avoid; }
+  .diagrama svg{ width:100%; height:auto; display:block; }
+  .leyenda{ display:flex; gap:18px; flex-wrap:wrap; font-size:8.4pt; color:var(--gris); margin-top:8px; }
+  .leyenda span{ display:inline-flex; align-items:center; gap:5px; }
+  .punto{ width:9px; height:9px; border-radius:50%; display:inline-block; }
+  .punto.ok{ background:var(--verde); }
+  .punto.pend{ background:var(--ambar); }
+
+  /* ---------- Checklist final ---------- */
+  .check{ list-style:none; padding:0; margin:10px 0 0; }
+  .check li{ display:flex; gap:11px; align-items:flex-start; padding:9px 0; border-bottom:1px solid var(--linea); }
+  .check li:last-child{ border-bottom:none; }
+  .caja{ width:14px; height:14px; border:1.6px solid var(--ambar); border-radius:3px; flex:0 0 auto; margin-top:2px; }
+  .check b{ display:block; font-size:9.6pt; }
+  .check span{ font-size:8.8pt; color:var(--gris); }
+
+  code{ font-family:"Cascadia Mono", Consolas, monospace; font-size:8.4pt; background:#f1f3f6; padding:1px 4px; border-radius:2px; }
+
+  .nota-pie{ margin-top:24px; padding-top:11px; border-top:1px solid var(--linea); font-size:8.4pt; color:var(--gris); }
+  .salto{ break-before:page; }
+</style>
+</head>
+<body>
+
+<div class="portada">
+  <div class="kicker">Sistema Integral de Automatización IA</div>
+  <h1>A3 Laboratorio Clínico Veterinario</h1>
+  <p class="sub">Avance del proyecto — de lo acordado a lo entregado</p>
+  <div class="meta">
+    <span><b>Fecha:</b> 2 de agosto de 2026</span>
+    <span><b>Proyecto:</b> 28/01/2026 – 02/06/2026</span>
+    <span><b>Preparado por:</b> Zidong LLC</span>
+  </div>
+</div>
+
+<div class="global">
+  <div class="cifra">81%<small>DEL ALCANCE</small></div>
+  <div class="texto">
+    El <b>agente conversacional</b>, el <b>portal de clientes</b>, el <b>dashboard gerencial</b> y
+    la <b>facturación</b> están construidos y funcionando sobre datos reales de A3.
+    Lo que resta se concentra en la integración con el sistema de laboratorio, detenida a la
+    espera de los accesos técnicos.
+  </div>
+</div>
+
+<div class="tarjetas">
+  <div class="tarjeta">
+    <div class="dato">4</div>
+    <h4>Sistemas operando</h4>
+    <p>Agente conversacional, portal web, dashboard y facturación, integrados sobre una misma base de datos.</p>
+  </div>
+  <div class="tarjeta">
+    <div class="dato">615</div>
+    <h4>Registros del catálogo</h4>
+    <p>133 perfiles, 159 análisis y 323 razas cargados con precios y descuentos reales del portafolio.</p>
+  </div>
+  <div class="tarjeta pend">
+    <div class="dato">2</div>
+    <h4>Accesos pendientes</h4>
+    <p>Las credenciales de Anarvet y la cuenta de WhatsApp Business son hoy el único freno del proyecto.</p>
+  </div>
+</div>
+
+<h2>1. Lo que se acordó</h2>
+<p class="lead">
+  El proyecto se estructuró en tres fases sobre 16 semanas, según la propuesta y el plan de
+  trabajo aprobados el 28 de enero.
+</p>
+<table>
+  <thead>
+    <tr><th style="width:13%">Fase</th><th style="width:12%">Duración</th><th>Compromiso</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><b>Fase 1</b></td><td>4 semanas</td><td>Bot con inteligencia artificial 24/7, validación automática de datos, envío automático al motorizado y notificaciones por etapa</td></tr>
+    <tr><td><b>Fase 2</b></td><td>7 semanas</td><td>Hub de integración con los sistemas del laboratorio, facturación, inventarios y logística, con coordinación entre ellos</td></tr>
+    <tr><td><b>Fase 3</b></td><td>5 semanas</td><td>Portal web de clientes, solicitud en línea, seguimiento, descarga de resultados 24/7 y dashboard gerencial de indicadores</td></tr>
+  </tbody>
+</table>
+<p>
+  A eso se sumaron, el 20 de mayo, <b>diez ajustes al guion conversacional</b> solicitados por A3.
+  Hoy están resueltos o cubiertos todos salvo la transcripción de la orden por foto, retirada del
+  alcance de común acuerdo.
+</p>
+
+<h2 class="salto">2. Cómo atiende el agente hoy</h2>
+<p class="lead">
+  Este es el recorrido real de una solicitud, desde que la veterinaria escribe hasta que la orden
+  queda registrada y facturada. Cada paso está construido y en funcionamiento.
+</p>
+
+<div class="diagrama">
+<svg viewBox="0 0 700 470" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flujo conversacional del agente">
+  <defs>
+    <marker id="fl" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+      <path d="M0,0 L7,3.2 L0,6.4 z" fill="#8fcdae"/>
+    </marker>
+    <marker id="fa" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+      <path d="M0,0 L7,3.2 L0,6.4 z" fill="#e8c179"/>
+    </marker>
+  </defs>
+  <style>
+    .bx{ fill:#eaf6f0; stroke:#8fcdae; stroke-width:1.4; }
+    .bxa{ fill:#fdf3e0; stroke:#e8c179; stroke-width:1.4; }
+    .tl{ font:600 11.5px "Segoe UI",Arial; fill:#14171c; }
+    .ts{ font:9.5px "Segoe UI",Arial; fill:#5b636e; }
+    .tn{ font:700 10px "Segoe UI",Arial; fill:#0d7a4a; }
+    .tna{ font:700 10px "Segoe UI",Arial; fill:#9a6400; }
+    .ln{ stroke:#8fcdae; stroke-width:1.6; fill:none; }
+    .lna{ stroke:#e8c179; stroke-width:1.4; fill:none; stroke-dasharray:4 3; }
+  </style>
+
+  <!-- Columna principal -->
+  <rect class="bx" x="20" y="14" width="300" height="44" rx="7"/>
+  <text class="tn" x="34" y="32">1</text>
+  <text class="tl" x="50" y="32">Bienvenida</text>
+  <text class="ts" x="50" y="47">Menú con las cuatro opciones de servicio</text>
+
+  <line class="ln" x1="170" y1="58" x2="170" y2="74" marker-end="url(#fl)"/>
+
+  <rect class="bx" x="20" y="78" width="300" height="44" rx="7"/>
+  <text class="tn" x="34" y="96">2</text>
+  <text class="tl" x="50" y="96">Identificación de la clínica</text>
+  <text class="ts" x="50" y="111">Por NIT o por nombre, tolerando errores de tipeo</text>
+
+  <line class="ln" x1="170" y1="122" x2="170" y2="138" marker-end="url(#fl)"/>
+
+  <rect class="bx" x="20" y="142" width="300" height="44" rx="7"/>
+  <text class="tn" x="34" y="160">3</text>
+  <text class="tl" x="50" y="160">Sede que solicita</text>
+  <text class="ts" x="50" y="175">Cuando la veterinaria tiene varias sucursales</text>
+
+  <line class="ln" x1="170" y1="186" x2="170" y2="202" marker-end="url(#fl)"/>
+
+  <rect class="bx" x="20" y="206" width="300" height="52" rx="7"/>
+  <text class="tn" x="34" y="224">4</text>
+  <text class="tl" x="50" y="224">Orden de servicio</text>
+  <text class="ts" x="50" y="239">Paciente, especie, raza, sexo, edad con unidad,</text>
+  <text class="ts" x="50" y="251">propietario, médico remitente y dirección</text>
+
+  <line class="ln" x1="170" y1="258" x2="170" y2="274" marker-end="url(#fl)"/>
+
+  <rect class="bx" x="20" y="278" width="300" height="52" rx="7"/>
+  <text class="tn" x="34" y="296">5</text>
+  <text class="tl" x="50" y="296">Análisis solicitados</text>
+  <text class="ts" x="50" y="311">Se validan contra el catálogo real y se calcula</text>
+  <text class="ts" x="50" y="323">el total con los descuentos por volumen</text>
+
+  <line class="ln" x1="170" y1="330" x2="170" y2="346" marker-end="url(#fl)"/>
+
+  <rect class="bx" x="20" y="350" width="300" height="44" rx="7"/>
+  <text class="tn" x="34" y="368">6</text>
+  <text class="tl" x="50" y="368">Confirmación</text>
+  <text class="ts" x="50" y="383">Resumen editable: el cliente corrige lo que haga falta</text>
+
+  <line class="ln" x1="170" y1="394" x2="170" y2="410" marker-end="url(#fl)"/>
+
+  <rect class="bx" x="20" y="414" width="300" height="44" rx="7"/>
+  <text class="tn" x="34" y="432">7</text>
+  <text class="tl" x="50" y="432">Registro y cierre</text>
+  <text class="ts" x="50" y="447">N° de orden, motorizado asignado y factura preparada</text>
+
+  <!-- Ramas -->
+  <text class="tl" x="400" y="30" style="font-size:11px">Derivaciones automáticas</text>
+
+  <path class="lna" d="M320 100 L385 100" marker-end="url(#fa)"/>
+  <rect class="bxa" x="390" y="48" width="290" height="40" rx="7"/>
+  <text class="tna" x="404" y="65">→</text>
+  <text class="tl" x="422" y="65" style="font-size:10.5px">Cliente no registrado</text>
+  <text class="ts" x="422" y="79">Se deriva a recepción para el alta</text>
+
+  <path class="lna" d="M320 118 L385 118" marker-end="url(#fa)"/>
+  <rect class="bxa" x="390" y="98" width="290" height="40" rx="7"/>
+  <text class="tna" x="404" y="115">→</text>
+  <text class="tl" x="422" y="115" style="font-size:10.5px">Propietario particular</text>
+  <text class="ts" x="422" y="129">Se deriva al médico veterinario tratante</text>
+
+  <rect class="bxa" x="390" y="148" width="290" height="40" rx="7"/>
+  <text class="tna" x="404" y="165">→</text>
+  <text class="tl" x="422" y="165" style="font-size:10.5px">Consultas de pagos</text>
+  <text class="ts" x="422" y="179">Se derivan al área de contabilidad</text>
+
+  <rect class="bxa" x="390" y="198" width="290" height="40" rx="7"/>
+  <text class="tna" x="404" y="215">→</text>
+  <text class="tl" x="422" y="215" style="font-size:10.5px">Otras solicitudes</text>
+  <text class="ts" x="422" y="229">Se derivan al área de operaciones</text>
+
+  <rect class="bx" x="390" y="262" width="290" height="68" rx="7"/>
+  <text class="tl" x="404" y="282" style="font-size:10.5px">Reglas de negocio aplicadas</text>
+  <text class="ts" x="404" y="298">· Corte de las 17:30 → siguiente día hábil</text>
+  <text class="ts" x="404" y="312">· Motorizado fijo según la clínica</text>
+  <text class="ts" x="404" y="326">· Precios y descuentos del portafolio real</text>
+
+  <path class="lna" d="M320 436 L385 436" marker-end="url(#fa)"/>
+  <rect class="bx" x="390" y="350" width="290" height="108" rx="7"/>
+  <text class="tl" x="404" y="370" style="font-size:10.5px">Al cerrar la orden</text>
+  <text class="ts" x="404" y="386">· Se registra con número consecutivo</text>
+  <text class="ts" x="404" y="400">· Se asigna el motorizado de la zona</text>
+  <text class="ts" x="404" y="414">· Se prepara la factura en Alegra</text>
+  <text class="ts" x="404" y="428">· Queda visible en el portal del cliente</text>
+  <text class="ts" x="404" y="442">· Se ofrece registrar otra orden</text>
+</svg>
+</div>
+
+<div class="leyenda">
+  <span><i class="punto ok"></i> Construido y en funcionamiento</span>
+  <span><i class="punto pend"></i> Derivación a un área humana, por diseño</span>
+</div>
+
+<h2 class="salto">3. Cómo se conecta con los sistemas</h2>
+<p class="lead">
+  El agente es el punto de entrada y coordina el resto. Todo lo que aparece en verde está
+  conectado y operando; en ámbar, lo que espera accesos de A3.
+</p>
+
+<div class="diagrama">
+<svg viewBox="0 0 700 452" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Arquitectura de conexiones">
+  <defs>
+    <marker id="ar" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+      <path d="M0,0 L7,3.2 L0,6.4 z" fill="#8fcdae"/>
+    </marker>
+    <marker id="ara" markerWidth="9" markerHeight="9" refX="7" refY="3.2" orient="auto">
+      <path d="M0,0 L7,3.2 L0,6.4 z" fill="#e8c179"/>
+    </marker>
+  </defs>
+  <style>
+    .k{ fill:#eaf6f0; stroke:#8fcdae; stroke-width:1.4; }
+    .ka{ fill:#fdf3e0; stroke:#e8c179; stroke-width:1.4; stroke-dasharray:5 3; }
+    .kc{ fill:#eaf1f9; stroke:#8fb2d8; stroke-width:1.8; }
+    .kt{ font:600 11px "Segoe UI",Arial; fill:#14171c; text-anchor:middle; }
+    .kts{ font:8.8px "Segoe UI",Arial; fill:#5b636e; text-anchor:middle; }
+    .cap{ font:700 8.6px "Segoe UI",Arial; fill:#8b939e; letter-spacing:.09em; }
+    .l{ stroke:#8fcdae; stroke-width:1.6; fill:none; }
+    .la{ stroke:#e8c179; stroke-width:1.4; fill:none; stroke-dasharray:5 3; }
+  </style>
+
+  <!-- Canales -->
+  <text class="cap" x="20" y="14">CANALES DE ATENCIÓN</text>
+  <rect class="k" x="20" y="22" width="150" height="46" rx="7"/>
+  <text class="kt" x="95" y="42">Telegram</text>
+  <text class="kts" x="95" y="57">Operando</text>
+
+  <rect class="k" x="185" y="22" width="150" height="46" rx="7"/>
+  <text class="kt" x="260" y="42">Chatwoot</text>
+  <text class="kts" x="260" y="57">Operando</text>
+
+  <rect class="ka" x="350" y="22" width="150" height="46" rx="7"/>
+  <text class="kt" x="425" y="42">WhatsApp</text>
+  <text class="kts" x="425" y="57">Falta la cuenta Business</text>
+
+  <rect class="k" x="515" y="22" width="165" height="46" rx="7"/>
+  <text class="kt" x="597" y="42">Portal web</text>
+  <text class="kts" x="597" y="57">Solicitud en línea</text>
+
+  <!-- Flechas hacia el núcleo -->
+  <path class="l"  d="M95 68 L95 96 L230 96 L230 136" marker-end="url(#ar)"/>
+  <path class="l"  d="M260 68 L260 96 L310 96 L310 136" marker-end="url(#ar)"/>
+  <path class="la" d="M425 68 L425 96 L390 96 L390 136" marker-end="url(#ara)"/>
+  <path class="l"  d="M597 68 L597 96 L470 96 L470 136" marker-end="url(#ar)"/>
+
+  <!-- Núcleo -->
+  <text class="cap" x="20" y="128">NÚCLEO</text>
+  <rect class="kc" x="150" y="136" width="400" height="64" rx="9"/>
+  <text class="kt" x="350" y="160" style="font-size:12.5px">Agente conversacional con IA</text>
+  <text class="kts" x="350" y="176">Interpreta la solicitud, valida los datos y aplica las reglas del laboratorio</text>
+  <text class="kts" x="350" y="190">582 pruebas automatizadas respaldan su comportamiento</text>
+
+  <!-- Flechas a servicios -->
+  <path class="l"  d="M230 200 L230 236 L117 236 L117 272" marker-end="url(#ar)"/>
+  <path class="l"  d="M310 200 L310 272" marker-end="url(#ar)"/>
+  <path class="l"  d="M390 200 L390 236 L480 236 L480 272" marker-end="url(#ar)"/>
+  <path class="la" d="M470 200 L470 236 L626 236 L626 272" marker-end="url(#ara)"/>
+
+  <!-- Servicios -->
+  <text class="cap" x="20" y="264">DATOS Y SERVICIOS</text>
+  <rect class="k" x="20" y="272" width="195" height="58" rx="7"/>
+  <text class="kt" x="117" y="293">Base de datos</text>
+  <text class="kts" x="117" y="308">Clientes con NIT, catálogo,</text>
+  <text class="kts" x="117" y="320">órdenes y zonificación</text>
+
+  <rect class="k" x="228" y="272" width="160" height="58" rx="7"/>
+  <text class="kt" x="308" y="293">Alegra</text>
+  <text class="kts" x="308" y="308">Facturación preparada</text>
+  <text class="kts" x="308" y="320">para contabilidad</text>
+
+  <rect class="k" x="400" y="272" width="160" height="58" rx="7"/>
+  <text class="kt" x="480" y="293">Motorizados</text>
+  <text class="kts" x="480" y="308">Asignación automática</text>
+  <text class="kts" x="480" y="320">por clínica y zona</text>
+
+  <rect class="ka" x="572" y="272" width="108" height="58" rx="7"/>
+  <text class="kt" x="626" y="293">Anarvet</text>
+  <text class="kts" x="626" y="308">Falta acceso</text>
+  <text class="kts" x="626" y="320">a la API</text>
+
+  <!-- Salidas -->
+  <path class="l" d="M117 330 L117 366 L200 366 L200 402" marker-end="url(#ar)"/>
+  <path class="l" d="M308 330 L308 366 L500 366 L500 402" marker-end="url(#ar)"/>
+
+  <text class="cap" x="20" y="394">CONSULTA Y GESTIÓN</text>
+  <rect class="k" x="60" y="402" width="280" height="42" rx="7"/>
+  <text class="kt" x="200" y="420">Portal de la veterinaria</text>
+  <text class="kts" x="200" y="435">Órdenes, avance y descarga de resultados</text>
+
+  <rect class="k" x="360" y="402" width="280" height="42" rx="7"/>
+  <text class="kt" x="500" y="420">Dashboard gerencial de A3</text>
+  <text class="kts" x="500" y="435">Indicadores, operación y facturación</text>
+</svg>
+</div>
+
+<div class="leyenda">
+  <span><i class="punto ok"></i> Conectado y operando</span>
+  <span><i class="punto pend"></i> Pendiente de accesos de A3</span>
+</div>
+
+<h2 class="salto">4. Avance por fase</h2>
+
+<div class="fases">
+  <div class="fase">
+    <div class="fase-cab">
+      <b>Fase 1 — Agente conversacional</b>
+      <span>4 semanas</span>
+      <span class="pct">80%</span>
+    </div>
+    <div class="barra"><i style="width:80%"></i></div>
+  </div>
+  <div class="fase">
+    <div class="fase-cab">
+      <b>Fase 2 — Integraciones</b>
+      <span>7 semanas</span>
+      <span class="pct">80%</span>
+    </div>
+    <div class="barra"><i style="width:80%"></i></div>
+  </div>
+  <div class="fase">
+    <div class="fase-cab">
+      <b>Fase 3 — Portal y dashboard</b>
+      <span>5 semanas</span>
+      <span class="pct">82%</span>
+    </div>
+    <div class="barra"><i style="width:82%"></i></div>
+  </div>
+</div>
+
+<h3>Qué incluye cada fase, en detalle</h3>
+<table>
+  <thead><tr><th style="width:30%">Componente</th><th style="width:15%">Estado</th><th>Detalle</th></tr></thead>
+  <tbody>
+    <tr><td>Agente conversacional 24/7</td><td><span class="chip c-ok">ENTREGADO</span></td><td>Identificación de clínica, sedes múltiples, orden completa y validación de datos</td></tr>
+    <tr><td>Catálogo con precios reales</td><td><span class="chip c-ok">ENTREGADO</span></td><td>133 perfiles, 159 análisis y 323 razas, con descuentos por volumen</td></tr>
+    <tr><td>Asignación de motorizado</td><td><span class="chip c-ok">ENTREGADO</span></td><td>Automática por clínica, con horario de corte de las 17:30</td></tr>
+    <tr><td>Facturación</td><td><span class="chip c-ok">ENTREGADO</span></td><td>Factura preparada en Alegra para que contabilidad revise y emita</td></tr>
+    <tr><td>Zonificación de Bogotá</td><td><span class="chip c-ok">ENTREGADO</span></td><td>8 zonas y 1.649 barrios con cobertura por motorizado</td></tr>
+    <tr><td>Portal: solicitud en línea</td><td><span class="chip c-ok">ENTREGADO</span></td><td>Con el catálogo completo y su precio, igual que por chat</td></tr>
+    <tr><td>Portal: seguimiento de la orden</td><td><span class="chip c-ok">ENTREGADO</span></td><td>Avance paso a paso e historial de movimientos de cada solicitud</td></tr>
+    <tr><td>Portal: resultados 24/7</td><td><span class="chip c-ok">ENTREGADO</span></td><td>Búsqueda, descarga individual y descarga masiva en un solo archivo</td></tr>
+    <tr><td>Dashboard gerencial</td><td><span class="chip c-ok">ENTREGADO</span></td><td>Nueve pantallas con indicadores de operación y de negocio</td></tr>
+    <tr><td>Integración con Anarvet</td><td><span class="chip c-blk">DETENIDO</span></td><td>La orden ya está lista para volcarse; falta el acceso a la API</td></tr>
+    <tr><td>Canal WhatsApp</td><td><span class="chip c-blk">DETENIDO</span></td><td>El agente ya opera; falta conectar la cuenta Business</td></tr>
+    <tr><td>Control de inventarios</td><td><span class="chip c-falta">EN CURSO</span></td><td>Módulo sobre Alegra, en reemplazo de DelSol</td></tr>
+    <tr><td>Gráficos de evolución</td><td><span class="chip c-falta">EN CURSO</span></td><td>Tendencias y tiempo de respuesta promedio en el dashboard</td></tr>
+  </tbody>
+</table>
+
+<h2>5. Componentes resueltos de otra manera</h2>
+<p class="lead">
+  Durante el proyecto se acordó cubrir varias funciones de forma distinta a la planteada
+  originalmente, manteniendo el resultado para la operación.
+</p>
+<table>
+  <thead><tr><th style="width:38%">Planteado originalmente</th><th>Cómo quedó resuelto</th></tr></thead>
+  <tbody>
+    <tr><td>Siigo — facturación</td><td>Alegra, integrado y operando</td></tr>
+    <tr><td>DelSol — gestión</td><td>Consolidado en Alegra, todo en un solo lugar</td></tr>
+    <tr><td>LiveConnect — logística</td><td>Chatwoot, ya en operación</td></tr>
+    <tr><td>Tracking GPS en tiempo real</td><td><b>Avance de la orden paso a paso</b> en el portal, ya entregado</td></tr>
+    <tr><td>Facturación ante la DIAN</td><td>El sistema deja la factura preparada; contabilidad de A3 emite</td></tr>
+    <tr><td>Notificaciones por correo</td><td>Avisos por chat y bandeja del portal</td></tr>
+    <tr><td>Alta de clientes por chat</td><td>Se deriva a recepción para validación humana</td></tr>
+    <tr><td>Transcripción de la orden por foto</td><td>Retirado del alcance de común acuerdo</td></tr>
+  </tbody>
+</table>
+
+<h2 class="salto">6. Lo que necesitamos de A3</h2>
+<p class="lead">
+  El plan de trabajo aprobado el 28 de enero fija dos entregas a cargo de A3 que continúan
+  pendientes. Son hoy el principal freno del proyecto.
+</p>
+
+<table>
+  <thead><tr><th style="width:24%">Compromiso</th><th style="width:18%">Fecha acordada</th><th>Situación actual</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><b>Accesos y documentación técnica</b></td>
+      <td>Viernes 30/01/2026<br><span style="color:var(--gris-claro)">Día 4 del plan</span></td>
+      <td>Credenciales, ambientes de prueba, contactos técnicos y documentación de la API. <b>Pendiente.</b></td>
+    </tr>
+    <tr>
+      <td><b>Accesos de QA y producción</b></td>
+      <td>Lunes 02/03/2026<br><span style="color:var(--gris-claro)">Día 25 del plan</span></td>
+      <td>Accesos a los ambientes y habilitación de direcciones si corresponde. <b>Pendiente.</b></td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Checklist de lo que se requiere</h3>
+<ul class="check">
+  <li>
+    <span class="caja"></span>
+    <div>
+      <b>Acceso a la API de Anarvet / LAB3</b>
+      <span>Dirección del servicio, credenciales de autenticación y documentación. Es el único
+      bloqueante que impide cerrar la Fase 2: la orden de servicio ya está construida y lista
+      para volcarse apenas exista el acceso.</span>
+    </div>
+  </li>
+  <li>
+    <span class="caja"></span>
+    <div>
+      <b>Cuenta de WhatsApp Business</b>
+      <span>Número verificado y cuenta habilitada. El agente ya está operando y solo debe
+      conectarse al nuevo canal.</span>
+    </div>
+  </li>
+  <li>
+    <span class="caja"></span>
+    <div>
+      <b>Cuenta de facturación de producción</b>
+      <span>Junto con la definición del IVA por tipo de análisis y del régimen tributario por
+      cliente, para pasar la facturación del ambiente de pruebas al real.</span>
+    </div>
+  </li>
+  <li>
+    <span class="caja"></span>
+    <div>
+      <b>Confirmación del ambiente de publicación</b>
+      <span>Para dejar el sistema disponible de forma permanente y no depender del entorno de
+      trabajo actual.</span>
+    </div>
+  </li>
+  <li>
+    <span class="caja"></span>
+    <div>
+      <b>Responsable técnico de contacto</b>
+      <span>Una persona de A3 con quien coordinar la entrega de accesos y resolver dudas de
+      integración sin pasar por reuniones.</span>
+    </div>
+  </li>
+</ul>
+
+<div class="aviso">
+  <b>Impacto en el cronograma.</b> La Fase 2 representa 7 de las 16 semanas del proyecto y su eje
+  era la integración con los sistemas del laboratorio. Tres de los cuatro sistemas se resolvieron
+  de forma equivalente. El cuarto —Anarvet— continúa detenido desde el 30 de enero a la espera de
+  los accesos. Cada semana sin ellos se traslada directamente a la fecha de cierre.
+</div>
+
+<h2>7. Próximos pasos propuestos</h2>
+<ol>
+  <li><b>Fijar fecha de entrega de los accesos de Anarvet</b> con el responsable técnico de A3. Es el desbloqueo de mayor impacto.</li>
+  <li><b>Confirmar la cuenta de WhatsApp Business</b> para habilitar el canal.</li>
+  <li><b>Reunión de repriorización</b> para revisar el orden de lo pendiente y ajustar el cronograma de las fases 2 y 3 según los insumos disponibles.</li>
+</ol>
+
+<div class="nota-pie">
+  El avance del 81 % se calcula sobre el alcance vigente del proyecto, descontando los
+  componentes detenidos a la espera de los accesos detallados en el punto 6.
+  <br><br>
+  Documento preparado por Zidong LLC para A3 Laboratorio Clínico Veterinario S.A.S.
+  El detalle técnico de cada componente está disponible a solicitud.
+</div>
+
+</body>
+</html>

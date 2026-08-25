@@ -1,0 +1,482 @@
+<title>Portal A3 · Ficha</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&family=Instrument+Sans:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#ffffff; --shell:#f6f5f3; --ink:#181716; --ink-2:#4a4744; --muted:#7b7772; --faint:#a8a4a0;
+  --line:#e3e0dc; --line-soft:#eeece9;
+  --accent:#181716; --accent-deep:#000000; --accent-tint:#eeece9;
+  --r:4px;
+  --sans:"IBM Plex Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  --display:"Instrument Sans","IBM Plex Sans",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#161514; --shell:#0e0d0c; --ink:#f5f4f2; --ink-2:#c9c5c0; --muted:#94908b; --faint:#6f6b67;
+    --line:#2c2a27; --line-soft:#232120;
+    --accent:#f5f4f2; --accent-deep:#ffffff; --accent-tint:#232120;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#161514; --shell:#0e0d0c; --ink:#f5f4f2; --ink-2:#c9c5c0; --muted:#94908b; --faint:#6f6b67;
+  --line:#2c2a27; --line-soft:#232120;
+  --accent:#f5f4f2; --accent-deep:#ffffff; --accent-tint:#232120;
+}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--shell);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+h1,h2,h3,p{margin:0}
+a{color:inherit;text-decoration:none}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ico{width:16px;height:16px;flex:none;stroke-width:1.6}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+
+/* Barra superior */
+.masthead{background:var(--paper);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:10}
+.masthead-in{max-width:1120px;margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:18px;height:60px}
+.mark{display:flex;align-items:center;gap:11px}
+.mark-glyph{width:34px;height:34px;border:1.5px solid var(--accent);border-radius:var(--r);display:grid;place-items:center;font-family:var(--display);font-weight:700;font-size:14px;color:var(--accent);letter-spacing:-.02em}
+.mark-copy{display:grid;line-height:1.25}
+.mark-copy strong{font-family:var(--display);font-size:14px;font-weight:600;letter-spacing:-.01em}
+.mark-copy span{font-size:11px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase}
+.mast-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.cut-note{display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);border-left:1px solid var(--line);padding-left:14px}
+.cut-note b{color:var(--ink);font-family:var(--mono);font-weight:500}
+.acct{display:flex;align-items:center;gap:9px}
+.acct-glyph{width:28px;height:28px;border-radius:var(--r);background:var(--accent-tint);color:var(--accent);display:grid;place-items:center;font-size:11px;font-weight:600;font-family:var(--mono)}
+.acct-copy{display:grid;line-height:1.25}
+.acct-copy strong{font-size:12.5px;font-weight:600}
+.acct-copy span{font-size:11px;color:var(--muted)}
+
+/* Pestañas */
+.tabs{background:var(--paper);border-bottom:1px solid var(--line);position:sticky;top:60px;z-index:9}
+.tabs-in{max-width:1120px;margin:0 auto;padding:0 24px;display:flex;gap:2px;overflow-x:auto}
+.tab{display:inline-flex;align-items:center;gap:8px;padding:12px 14px;font-size:13.5px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;white-space:nowrap;transition:color .14s,border-color .14s}
+.tab:hover{color:var(--ink)}
+.tab.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+.tab .ico{width:15px;height:15px}
+.tab-count{font-family:var(--mono);font-size:10.5px;background:var(--accent);color:var(--paper);border-radius:99px;padding:1px 6px;font-weight:600}
+
+/* Página */
+.wrap{max-width:1120px;margin:0 auto;padding:26px 24px 56px}
+.view{display:none;flex-direction:column;gap:22px}
+.view.on{display:flex}
+.head{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding-bottom:16px}
+.head h1{font-family:var(--display);font-size:26px;font-weight:600;letter-spacing:-.025em;text-wrap:balance}
+.head p{font-size:13.5px;color:var(--muted);margin-top:3px;max-width:60ch}
+.head .right{margin-left:auto;display:flex;gap:8px}
+
+.btn{display:inline-flex;align-items:center;gap:7px;padding:8px 13px;border-radius:var(--r);border:1px solid var(--line);background:var(--paper);font-size:13px;font-weight:500;cursor:pointer;transition:border-color .14s,background .14s,color .14s}
+.btn:hover{border-color:var(--faint)}
+.btn-solid{background:var(--accent);border-color:var(--accent);color:var(--paper);font-weight:600}
+.btn-solid:hover{background:var(--accent-deep);border-color:var(--accent-deep)}
+.btn-sm{padding:5px 10px;font-size:12.5px}
+.btn-link{border:0;background:transparent;color:var(--accent);padding:5px 4px;font-weight:600;font-size:12.5px}
+.btn-link:hover{text-decoration:underline}
+
+/* Resumen */
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));background:var(--paper);border:1px solid var(--line);border-radius:var(--r)}
+.summary div{padding:15px 18px;border-right:1px solid var(--line-soft);display:grid;gap:3px}
+.summary div:last-child{border-right:0}
+.summary span{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:600}
+.summary strong{font-family:var(--mono);font-size:22px;font-weight:500;letter-spacing:-.03em}
+.summary em{font-style:normal;font-size:11.5px;color:var(--faint)}
+
+/* Filtros */
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.filters input,.filters select{padding:7px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--paper);font-size:13px;min-width:170px}
+.filters input:focus,.filters select:focus{outline:none;border-color:var(--accent)}
+.filters .count{margin-left:auto;font-size:12px;color:var(--muted);font-family:var(--mono)}
+
+/* Fichas de orden */
+.orders{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:14px}
+.order{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);display:flex;flex-direction:column;transition:border-color .16s}
+.order:hover{border-color:var(--accent)}
+.order-top{display:flex;align-items:center;gap:10px;padding:11px 14px;background:var(--shell);border-bottom:1px solid var(--line-soft);border-radius:var(--r) var(--r) 0 0}
+.order-no{font-family:var(--mono);font-size:14px;font-weight:600;letter-spacing:-.02em}
+.chip{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:99px;text-transform:uppercase;letter-spacing:.05em}
+.chip i{width:5px;height:5px;border-radius:99px;background:currentColor}
+.c-route{background:var(--ink);color:var(--paper)}
+.c-pick{background:var(--line);color:var(--ink)}
+.c-lab{background:var(--line-soft);color:var(--ink-2);box-shadow:inset 0 0 0 1px var(--line)}
+.c-done{background:transparent;color:var(--muted);box-shadow:inset 0 0 0 1px var(--line)}
+.order-body{padding:14px;display:grid;gap:11px}
+.patient{display:flex;align-items:baseline;gap:8px}
+.patient strong{font-family:var(--display);font-size:17px;font-weight:600;letter-spacing:-.01em}
+.patient span{font-size:12.5px;color:var(--muted)}
+.rows{display:grid;gap:6px}
+.row{display:flex;gap:10px;font-size:12.5px;align-items:baseline}
+.row span{color:var(--muted);min-width:88px}
+.row b{font-weight:500;color:var(--ink-2)}
+.row b.mono{font-weight:500}
+/* Línea de etapas: el orden ES información */
+.track{padding:12px 14px;border-top:1px solid var(--line-soft);display:grid;gap:7px}
+.track-bar{display:flex;gap:3px}
+.seg{height:3px;flex:1;border-radius:2px;background:var(--line)}
+.seg.fill{background:var(--accent)}
+.seg.now{background:var(--accent);position:relative}
+.seg.now::after{content:"";position:absolute;right:-2px;top:-2.5px;width:8px;height:8px;border-radius:99px;background:var(--paper);border:2px solid var(--accent)}
+.track-labels{display:flex;justify-content:space-between;font-size:10.5px;color:var(--faint);letter-spacing:.02em}
+.track-labels b{color:var(--accent);font-weight:600}
+.order-foot{padding:10px 14px;border-top:1px solid var(--line-soft);display:flex;align-items:center;gap:8px}
+.order-foot .price{font-family:var(--mono);font-size:12.5px;color:var(--muted)}
+.order-foot .right{margin-left:auto;display:flex;gap:6px}
+
+/* Tabla (archivo de resultados) */
+.sheet{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.sheet-head{padding:13px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.sheet-head h2{font-family:var(--display);font-size:14.5px;font-weight:600}
+.sheet-head p{font-size:12.5px;color:var(--muted)}
+.sheet-head .right{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.sheet-body{padding:16px}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:600;padding:10px 16px;background:var(--shell);border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:12px 16px;border-bottom:1px solid var(--line-soft);white-space:nowrap;color:var(--ink-2)}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--shell)}
+td.ink{color:var(--ink);font-weight:500}
+.tbl-actions{display:flex;gap:6px;justify-content:flex-end}
+
+/* Formulario */
+.fieldset{display:grid;gap:14px}
+.legend{font-family:var(--display);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:var(--accent);padding-bottom:8px;border-bottom:1px solid var(--line-soft)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+label.f{display:grid;gap:5px;font-size:11.5px;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+label.f input,label.f select,label.f textarea{padding:9px 11px;border:1px solid var(--line);border-radius:var(--r);background:var(--paper);font-size:13.5px;font-family:var(--sans);font-weight:400;text-transform:none;letter-spacing:0;color:var(--ink);width:100%}
+label.f textarea{resize:vertical}
+label.f input:focus,label.f select:focus,label.f textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-tint)}
+.span-all{grid-column:1/-1}
+.tests{display:grid;gap:0;border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.test{display:flex;align-items:center;gap:11px;padding:10px 13px;border-bottom:1px solid var(--line-soft);cursor:pointer;font-size:13.5px}
+.test:last-child{border-bottom:0}
+.test:hover{background:var(--shell)}
+.test input{accent-color:var(--accent);width:15px;height:15px;margin:0}
+.test b{font-weight:500}
+.test .code{font-family:var(--mono);font-size:11.5px;color:var(--faint)}
+.test .cost{margin-left:auto;font-family:var(--mono);font-size:12.5px;color:var(--ink-2)}
+.test:has(input:checked){background:var(--accent-tint)}
+.total-bar{display:flex;align-items:center;gap:12px;padding:14px 16px;border-top:1px solid var(--line);background:var(--shell);flex-wrap:wrap}
+.total-bar .label{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+.total-bar .value{font-family:var(--mono);font-size:19px;font-weight:600;letter-spacing:-.02em}
+.total-bar .when{font-size:12.5px;color:var(--muted)}
+.total-bar .right{margin-left:auto;display:flex;gap:8px}
+
+/* Avisos */
+.notices{display:grid;gap:10px}
+.notice{background:var(--paper);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;gap:13px;align-items:flex-start}
+.notice.unread{border-color:var(--accent);background:var(--accent-tint)}
+.notice-time{font-family:var(--mono);font-size:11.5px;color:var(--muted);min-width:112px;padding-top:2px}
+.notice-body{flex:1;min-width:0}
+.notice-body strong{display:block;font-family:var(--display);font-size:14px;font-weight:600}
+.notice-body p{font-size:13px;color:var(--ink-2);margin-top:3px}
+.notice .right{display:flex;gap:6px;flex-wrap:wrap}
+
+/* Perfil */
+.record{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--paper)}
+.record div{padding:14px 16px;border-right:1px solid var(--line-soft);border-bottom:1px solid var(--line-soft);display:grid;gap:3px}
+.record span{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:600}
+.record strong{font-size:14px;font-weight:500}
+.note{font-size:12.5px;color:var(--muted);max-width:65ch}
+
+@media (max-width:720px){
+  .wrap,.masthead-in,.tabs-in{padding-left:16px;padding-right:16px}
+  .cut-note,.acct-copy{display:none}
+  .notice{flex-direction:column;gap:8px}
+  .notice-time{min-width:0}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<g id="i-bike" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></g>
+<g id="i-flask" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.5L4.6 18a2 2 0 0 0 1.7 3h11.4a2 2 0 0 0 1.7-3L14 9.5V2"/><path d="M8.5 2h7M7 14h10"/></g>
+<g id="i-bell" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></g>
+<g id="i-build" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M10 6h.01M14 6h.01M10 10h.01M14 10h.01M10 14h.01M14 14h.01M10 22v-4h4v4"/></g>
+<g id="i-plus" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></g>
+<g id="i-clock" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></g>
+<g id="i-dl" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></g>
+<g id="i-send" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z"/></g>
+<g id="i-back" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></g>
+</defs></svg>
+
+<header class="masthead">
+  <div class="masthead-in">
+    <div class="mark">
+      <div class="mark-glyph">A3</div>
+      <div class="mark-copy"><strong>Laboratorio A3</strong><span>Portal de clientes</span></div>
+    </div>
+    <div class="mast-right">
+      <div class="cut-note"><svg class="ico" viewBox="0 0 24 24"><use href="#i-clock"/></svg>Corte de hoy <b>5:30 p.m.</b></div>
+      <div class="acct">
+        <div class="acct-glyph">LA</div>
+        <div class="acct-copy"><strong>Veterinaria Los Alpes</strong><span>NIT 900.482.115-3</span></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs">
+  <div class="tabs-in">
+    <a href="#" class="tab on" data-go="solicitudes"><svg class="ico" viewBox="0 0 24 24"><use href="#i-bike"/></svg>Solicitudes</a>
+    <a href="#" class="tab" data-go="resultados"><svg class="ico" viewBox="0 0 24 24"><use href="#i-flask"/></svg>Resultados</a>
+    <a href="#" class="tab" data-go="notificaciones"><svg class="ico" viewBox="0 0 24 24"><use href="#i-bell"/></svg>Avisos<b class="tab-count">2</b></a>
+    <a href="#" class="tab" data-go="perfil"><svg class="ico" viewBox="0 0 24 24"><use href="#i-build"/></svg>Mi cuenta</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <section class="view on" data-view="solicitudes">
+    <div class="head">
+      <div><h1>Solicitudes de retiro</h1><p>Cada ficha muestra en qué punto va la muestra, desde que usted la registra hasta que el informe queda publicado.</p></div>
+      <div class="right"><button class="btn btn-solid" data-go="nueva"><svg class="ico" viewBox="0 0 24 24"><use href="#i-plus"/></svg>Solicitar retiro</button></div>
+    </div>
+
+    <div class="summary">
+      <div><span>Activas</span><strong>4</strong><em>2 en ruta hoy</em></div>
+      <div><span>Informes nuevos</span><strong>2</strong><em>Esta semana</em></div>
+      <div><span>Próximo retiro</span><strong>3:40 p.m.</strong><em>Andrés Gómez</em></div>
+      <div><span>Muestras del mes</span><strong>31</strong><em>Agosto 2026</em></div>
+    </div>
+
+    <div class="filters">
+      <input placeholder="Paciente">
+      <input placeholder="N° de orden">
+      <select><option>Todos los estados</option><option>Programada</option><option>En ruta</option><option>Recogida</option><option>En laboratorio</option><option>Entregada</option></select>
+      <button class="btn btn-sm">Filtrar</button>
+      <span class="count">5 solicitudes</span>
+    </div>
+
+    <div class="orders">
+
+      <article class="order">
+        <div class="order-top"><span class="order-no">OS-2418</span><span class="chip c-route"><i></i>En ruta</span></div>
+        <div class="order-body">
+          <div class="patient"><strong>Kira</strong><span>Canino · Schnauzer · 4 años</span></div>
+          <div class="rows">
+            <div class="row"><span>Análisis</span><b>Perfil prequirúrgico</b></div>
+            <div class="row"><span>Propietario</span><b>María C. Restrepo</b></div>
+            <div class="row"><span>Retiro</span><b class="mono">26 ago · 8:00–11:00</b></div>
+            <div class="row"><span>Motorizado</span><b>Andrés Gómez</b></div>
+          </div>
+        </div>
+        <div class="track">
+          <div class="track-bar"><i class="seg fill"></i><i class="seg fill"></i><i class="seg now"></i><i class="seg"></i><i class="seg"></i></div>
+          <div class="track-labels"><span>Registrada</span><span>Programada</span><b>En ruta</b><span>Laboratorio</span><span>Entregada</span></div>
+        </div>
+        <div class="order-foot"><span class="price">$86.000</span><div class="right"><button class="btn btn-sm">Ver detalle</button></div></div>
+      </article>
+
+      <article class="order">
+        <div class="order-top"><span class="order-no">OS-2409</span><span class="chip c-pick"><i></i>Recogida</span></div>
+        <div class="order-body">
+          <div class="patient"><strong>Michi</strong><span>Felino · Criollo · 7 años</span></div>
+          <div class="rows">
+            <div class="row"><span>Análisis</span><b>Hemograma + química sanguínea</b></div>
+            <div class="row"><span>Propietario</span><b>Jorge Salazar</b></div>
+            <div class="row"><span>Retiro</span><b class="mono">25 ago · 14:00–17:00</b></div>
+            <div class="row"><span>Motorizado</span><b>Julián Ruiz</b></div>
+          </div>
+        </div>
+        <div class="track">
+          <div class="track-bar"><i class="seg fill"></i><i class="seg fill"></i><i class="seg fill"></i><i class="seg now"></i><i class="seg"></i></div>
+          <div class="track-labels"><span>Registrada</span><span>Programada</span><span>En ruta</span><b>Laboratorio</b><span>Entregada</span></div>
+        </div>
+        <div class="order-foot"><span class="price">$130.000</span><div class="right"><button class="btn btn-sm">Ver detalle</button></div></div>
+      </article>
+
+      <article class="order">
+        <div class="order-top"><span class="order-no">OS-2395</span><span class="chip c-lab"><i></i>Procesando</span></div>
+        <div class="order-body">
+          <div class="patient"><strong>Rocky</strong><span>Canino · Labrador · 2 años</span></div>
+          <div class="rows">
+            <div class="row"><span>Análisis</span><b>Cuadro hemático</b></div>
+            <div class="row"><span>Propietario</span><b>Ana Beltrán</b></div>
+            <div class="row"><span>Recogida</span><b class="mono">23 ago · 9:20 a.m.</b></div>
+            <div class="row"><span>Entrega est.</span><b class="mono">26 ago</b></div>
+          </div>
+        </div>
+        <div class="track">
+          <div class="track-bar"><i class="seg fill"></i><i class="seg fill"></i><i class="seg fill"></i><i class="seg now"></i><i class="seg"></i></div>
+          <div class="track-labels"><span>Registrada</span><span>Programada</span><span>En ruta</span><b>Laboratorio</b><span>Entregada</span></div>
+        </div>
+        <div class="order-foot"><span class="price">$38.000</span><div class="right"><button class="btn btn-sm">Ver detalle</button></div></div>
+      </article>
+
+      <article class="order">
+        <div class="order-top"><span class="order-no">OS-2380</span><span class="chip c-done"><i></i>Entregada</span></div>
+        <div class="order-body">
+          <div class="patient"><strong>Luna</strong><span>Felino · Persa · 5 años</span></div>
+          <div class="rows">
+            <div class="row"><span>Análisis</span><b>Uroanálisis completo</b></div>
+            <div class="row"><span>Propietario</span><b>María C. Restrepo</b></div>
+            <div class="row"><span>Recogida</span><b class="mono">21 ago · 3:05 p.m.</b></div>
+            <div class="row"><span>Informe</span><b class="mono">24 ago · 09:12</b></div>
+          </div>
+        </div>
+        <div class="track">
+          <div class="track-bar"><i class="seg fill"></i><i class="seg fill"></i><i class="seg fill"></i><i class="seg fill"></i><i class="seg now"></i></div>
+          <div class="track-labels"><span>Registrada</span><span>Programada</span><span>En ruta</span><span>Laboratorio</span><b>Entregada</b></div>
+        </div>
+        <div class="order-foot"><span class="price">$34.000</span><div class="right"><button class="btn btn-sm" data-go="resultados">Ver informe</button></div></div>
+      </article>
+
+      <article class="order">
+        <div class="order-top"><span class="order-no">OS-2361</span><span class="chip c-done"><i></i>Entregada</span></div>
+        <div class="order-body">
+          <div class="patient"><strong>Toby</strong><span>Canino · Criollo · 9 años</span></div>
+          <div class="rows">
+            <div class="row"><span>Análisis</span><b>Perfil renal</b></div>
+            <div class="row"><span>Propietario</span><b>Camilo Pardo</b></div>
+            <div class="row"><span>Recogida</span><b class="mono">19 ago · 10:40 a.m.</b></div>
+            <div class="row"><span>Informe</span><b class="mono">22 ago · 16:28</b></div>
+          </div>
+        </div>
+        <div class="track">
+          <div class="track-bar"><i class="seg fill"></i><i class="seg fill"></i><i class="seg fill"></i><i class="seg fill"></i><i class="seg now"></i></div>
+          <div class="track-labels"><span>Registrada</span><span>Programada</span><span>En ruta</span><span>Laboratorio</span><b>Entregada</b></div>
+        </div>
+        <div class="order-foot"><span class="price">$74.000</span><div class="right"><button class="btn btn-sm" data-go="resultados">Ver informe</button></div></div>
+      </article>
+
+    </div>
+  </section>
+
+  <section class="view" data-view="resultados">
+    <div class="head">
+      <div><h1>Archivo de resultados</h1><p>Informes firmados por el médico responsable del laboratorio.</p></div>
+      <div class="right"><button class="btn"><svg class="ico" viewBox="0 0 24 24"><use href="#i-dl"/></svg>Descargar los 4 en ZIP</button></div>
+    </div>
+    <div class="filters">
+      <input placeholder="Paciente">
+      <input placeholder="N° de orden">
+      <input type="date" value="2026-08-01">
+      <button class="btn btn-sm">Filtrar</button>
+      <span class="count">4 resultados</span>
+    </div>
+    <div class="sheet">
+      <div class="sheet-head"><div><h2>Informes disponibles</h2><p>2 sin abrir</p></div></div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr><th>Publicado</th><th>Orden</th><th>Paciente</th><th>Propietario</th><th>Análisis</th><th>Estado</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="mono">24 ago 2026</td><td class="mono ink">OS-2380</td><td class="ink">Luna</td><td>María C. Restrepo</td><td>Uroanálisis completo</td><td><span class="chip c-route"><i></i>Nuevo</span></td><td><div class="tbl-actions"><button class="btn btn-sm">Ver informe</button><button class="btn btn-sm btn-solid">PDF</button></div></td></tr>
+            <tr><td class="mono">22 ago 2026</td><td class="mono ink">OS-2361</td><td class="ink">Toby</td><td>Camilo Pardo</td><td>Perfil renal</td><td><span class="chip c-route"><i></i>Nuevo</span></td><td><div class="tbl-actions"><button class="btn btn-sm">Ver informe</button><button class="btn btn-sm btn-solid">PDF</button></div></td></tr>
+            <tr><td class="mono">19 ago 2026</td><td class="mono ink">OS-2344</td><td class="ink">Nube</td><td>Ana Beltrán</td><td>Hemograma completo</td><td><button class="btn-link">Visto</button></td><td><div class="tbl-actions"><button class="btn btn-sm">Ver informe</button><button class="btn btn-sm">PDF</button></div></td></tr>
+            <tr><td class="mono">15 ago 2026</td><td class="mono ink">OS-2321</td><td class="ink">Bruno</td><td>Jorge Salazar</td><td>Perfil hepático</td><td><button class="btn-link">Visto</button></td><td><div class="tbl-actions"><button class="btn btn-sm">Ver informe</button><button class="btn btn-sm">PDF</button></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" data-view="nueva">
+    <div class="head">
+      <div><h1>Nueva solicitud de retiro</h1><p>El motorizado de su zona pasa según el corte de las 5:30 p.m. Después de esa hora, el retiro se programa para el siguiente día hábil.</p></div>
+      <div class="right"><button class="btn" data-go="solicitudes"><svg class="ico" viewBox="0 0 24 24"><use href="#i-back"/></svg>Volver</button></div>
+    </div>
+    <div class="sheet">
+      <div class="sheet-body fieldset">
+        <div class="legend">Paciente</div>
+        <div class="grid">
+          <label class="f">Nombre *<input value="Kira"></label>
+          <label class="f">Especie<input value="Canino"></label>
+          <label class="f">Raza<input value="Schnauzer"></label>
+          <label class="f">Edad<input value="4 años"></label>
+          <label class="f">Propietario<input value="María C. Restrepo"></label>
+          <label class="f">Médico solicitante<input value="Dr. Felipe Ochoa"></label>
+        </div>
+
+        <div class="legend" style="margin-top:8px">Análisis solicitados</div>
+        <label class="f">Perfil del catálogo
+          <select><option>Perfil prequirúrgico — $86.000</option><option>Perfil renal — $74.000</option><option>Perfil hepático — $79.000</option><option>Sin perfil — solo análisis sueltos</option></select>
+        </label>
+        <div class="tests">
+          <label class="test"><input type="checkbox" checked><b>Hemograma completo</b><span class="code">HEM-01</span><span class="cost">$38.000</span></label>
+          <label class="test"><input type="checkbox"><b>Química sanguínea (6 parámetros)</b><span class="code">QUI-06</span><span class="cost">$92.000</span></label>
+          <label class="test"><input type="checkbox" checked><b>Uroanálisis</b><span class="code">URO-01</span><span class="cost">$34.000</span></label>
+          <label class="test"><input type="checkbox"><b>Coprológico seriado</b><span class="code">COP-03</span><span class="cost">$28.000</span></label>
+        </div>
+
+        <div class="legend" style="margin-top:8px">Retiro y pago</div>
+        <div class="grid">
+          <label class="f">Dirección de retiro<input value="Cra. 45 #128-19, Bogotá"></label>
+          <label class="f">Forma de pago<select><option>Crédito a 30 días</option><option>Contado / transferencia</option><option>Pago en línea</option></select></label>
+        </div>
+        <label class="f span-all">Observaciones<textarea rows="3" placeholder="Ayuno, medicación reciente, condición del paciente…"></textarea></label>
+      </div>
+      <div class="total-bar">
+        <span class="label">Total estimado</span>
+        <span class="value">$158.000</span>
+        <span class="when">· retiro el 26 ago entre 8:00 y 11:00 a.m.</span>
+        <div class="right">
+          <button class="btn" data-go="solicitudes">Cancelar</button>
+          <button class="btn btn-solid"><svg class="ico" viewBox="0 0 24 24"><use href="#i-send"/></svg>Registrar solicitud</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="view" data-view="notificaciones">
+    <div class="head">
+      <div><h1>Avisos del laboratorio</h1><p>2 sin leer</p></div>
+      <div class="right"><button class="btn">Marcar todos como leídos</button></div>
+    </div>
+    <div class="notices">
+      <article class="notice unread">
+        <span class="notice-time">24 ago · 09:12</span>
+        <div class="notice-body"><strong>Resultado disponible — Luna (OS-2380)</strong><p>Uroanálisis completo firmado y publicado en su portal.</p></div>
+        <div class="right"><button class="btn btn-sm" data-go="resultados">Ver informe</button></div>
+      </article>
+      <article class="notice unread">
+        <span class="notice-time">25 ago · 08:40</span>
+        <div class="notice-body"><strong>Motorizado en camino</strong><p>Andrés Gómez pasa hoy entre 3:00 y 5:00 p.m. por la orden OS-2418.</p></div>
+        <div class="right"><button class="btn btn-sm" data-go="solicitudes">Ver solicitud</button></div>
+      </article>
+      <article class="notice">
+        <span class="notice-time">23 ago · 17:05</span>
+        <div class="notice-body"><strong>Recuerde el corte de las 5:30 p.m.</strong><p>Las solicitudes registradas después del corte se programan para el siguiente día hábil.</p></div>
+      </article>
+    </div>
+  </section>
+
+  <section class="view" data-view="perfil">
+    <div class="head">
+      <div><h1>Mi cuenta</h1><p>Información registrada en el laboratorio.</p></div>
+    </div>
+    <div class="record">
+      <div><span>Veterinaria</span><strong>Veterinaria Los Alpes</strong></div>
+      <div><span>NIT</span><strong class="mono">900.482.115-3</strong></div>
+      <div><span>Teléfono</span><strong class="mono">(601) 742 1180</strong></div>
+      <div><span>Dirección</span><strong>Cra. 45 #128-19</strong></div>
+      <div><span>Ciudad</span><strong>Bogotá D.C.</strong></div>
+      <div><span>Correo de acceso</span><strong>losalpes@vetalpes.co</strong></div>
+      <div><span>Motorizado asignado</span><strong>Andrés Gómez</strong></div>
+      <div><span>Forma de pago</span><strong>Crédito a 30 días</strong></div>
+    </div>
+    <p class="note">Para actualizar estos datos escriba al laboratorio: la dirección y el teléfono definen la asignación de su motorizado y la identificación de su cuenta.</p>
+  </section>
+
+</main>
+
+<script>
+(function(){
+  function go(name){
+    var views=document.querySelectorAll('.view');
+    for(var i=0;i<views.length;i++){views[i].classList.toggle('on',views[i].dataset.view===name);}
+    var tabs=document.querySelectorAll('.tab');
+    for(var j=0;j<tabs.length;j++){tabs[j].classList.toggle('on',tabs[j].dataset.go===name);}
+    window.scrollTo(0,0);
+  }
+  document.addEventListener('click',function(e){
+    var t=e.target.closest('[data-go]');
+    if(!t) return;
+    e.preventDefault();
+    go(t.dataset.go);
+  });
+})();
+</script>

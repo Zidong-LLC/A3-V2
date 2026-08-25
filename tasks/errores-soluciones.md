@@ -3735,3 +3735,35 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
   Suite: **1245 passed**.
 - **Pendiente de OK:** `db/migrations/025_catalog_nombres_del_pdf.sql` — solo texto de dos
   nombres, sin tocar precios ni códigos. El seed ya quedó sincronizado.
+
+---
+
+## ERR-148 — Fecha de toma de muestra: el PDF mostraba la fecha equivocada y nadie la preguntaba
+
+- **Fecha:** 2026-08-25 · **Estado:** RESUELTO (migración 026 pendiente de aplicar)
+- **Origen:** A3 en la llamada del 21/08 — *"ese campo no se lo pregunta al cliente, del resto
+  sí (…) el que define eso es el cliente"*.
+- **Síntoma doble:** (1) el agente nunca preguntaba cuándo se tomó la muestra; (2) la orden
+  impresa mostraba el campo "Fecha toma de muestras" relleno con `scheduled_pickup_date` —que
+  es cuándo pasa el motorizado, calculado por la regla de corte de las 17:30—, o sea un dato
+  equivocado bajo una etiqueta correcta (`service_order_print.html:98`).
+- **Decisión del usuario (2026-08-25):** la pregunta va **entre el propietario y el análisis**
+  (mismo orden que la orden física impresa; deja intacto el par análisis → observaciones que
+  A3 aprobó en esa llamada) y **no bloquea**: si el cliente no la sabe se registra
+  "no informada" y el flujo sigue.
+- **Solución:** campo `sample_taken_date` en el schema estricto y en `BUSINESS_FIELDS`;
+  posición 9 de `ROUTE_ORDER_FIELDS_BEFORE_PAYMENT` con su etiqueta y su re-pregunta
+  determinística; regla en el prompt (acepta "hoy"/"ayer"/"20/08" sin convertir, nunca la
+  inventa, no repregunta dos veces); alias de corrección ("cambia la fecha de la toma") que
+  apunta a este campo y no al análisis; línea propia en el resumen que ve el cliente; reset
+  entre pacientes del mismo pedido (cada muestra pudo tomarse otro día); persistencia en
+  `event_payload.service_order` sin tocar `requests` (decisión 006) y **migración 026** que
+  recrea la vista `service_orders` con la columna. El PDF ahora imprime el dato real.
+- **Ojo al reparar:** el orden de recolección vive en DOS lugares sincronizados (la lista
+  numerada del PASO 3 en `prompt.py` y la tupla de `flow.py`) — lección L11. Se actualizaron
+  los dos, más la referencia "punto 9"→"punto 10" y la lista de R11.
+- **Tests:** `test_fecha_toma_muestra.py` (10: posición en la secuencia, no-bloqueo,
+  schema/estado, corrección, resumen con y sin dato, no-arrastre entre órdenes) + 34 fixtures
+  de orden completa actualizadas. Suite: **1255 passed**. Secuencia verificada de punta a
+  punta: 11 preguntas, la fecha en el puesto 9.
+- **Contrato:** bloque B4 actualizado y re-aprobado por el usuario.

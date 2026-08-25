@@ -63,7 +63,7 @@ def _complete_fields(address):
     return {
         "_client_found": True, "pickup_address": address, "requesting_doctor": "Dr X",
         "patient_name": "Laila", "species": "Canino", "breed": "Mestiza", "sex": "Hembra",
-        "patient_age": "3 años", "owner_name": "Pedro", "observations": "sin observaciones",
+        "patient_age": "3 años", "owner_name": "Pedro", "sample_taken_date": "hoy", "observations": "sin observaciones",
         "exam_type": "Cuadro Hemático", "payment_method": "contraentrega",
     }
 

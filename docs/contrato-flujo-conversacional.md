@@ -69,8 +69,8 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
 
 ### B4 · Recolección de datos de la orden de recogida
 - **Qué hace:** pide en orden los campos faltantes: dirección de retiro, médico solicitante,
-  paciente (nombre, especie, raza, sexo, edad), propietario, **análisis/perfil,
-  observaciones**, forma de pago. Pregunta de a un dato por turno.
+  paciente (nombre, especie, raza, sexo, edad), propietario, **fecha de toma de muestra,
+  análisis/perfil, observaciones**, forma de pago. Pregunta de a un dato por turno.
 - **Dónde:** `_ROUTE_REQUIRED_FIELDS`, `_missing_route_field`,
   `_enforce_first_missing_after_progress`, `_merge_existing_route_fields`.
 - **Orden de análisis y observaciones (2026-08-12):** el análisis va ANTES que las
@@ -79,9 +79,19 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
   cliente a anticiparse a algo que todavía no había elegido. El "Por último…" se movió del
   análisis a las observaciones. Se sincronizó `app/prompt.py` (pasos 8-9, PASO 4 y R12) para
   que el modelo no empuje el orden viejo.
+- **Fecha de toma de muestra (2026-08-25):** campo NUEVO, entre el propietario y el análisis.
+  A3 lo pidió en la llamada del 21/08 — *"el que define eso es el cliente"* — al notar que la
+  orden impresa mostraba el campo pero nadie lo preguntaba: el PDF rellenaba
+  `scheduled_pickup_date` (cuándo pasa el motorizado) bajo la etiqueta "Fecha toma de
+  muestras". Va en esa posición porque es el orden de la orden física y deja intacto el par
+  análisis → observaciones. **No bloquea:** si el cliente no la sabe se registra
+  `"no informada"` y el flujo sigue. Se acepta lenguaje natural ("hoy", "ayer", "20/08") sin
+  convertir. Persiste en `event_payload.service_order` (migración 026 recrea la vista).
 - **Estado:** ✅ APROBADO (usuario, 2026-06-22) · reordenamiento de análisis/observaciones
   autorizado por el usuario el 2026-08-12, verificado con la secuencia determinística y con
-  cliente simulado sobre datos reales.
+  cliente simulado sobre datos reales · fecha de toma de muestra autorizada por el usuario
+  el 2026-08-25 (posición y no-bloqueo elegidos por él), tests en
+  `tests/test_fecha_toma_muestra.py`.
 
 ### B4b · Raza reconocida contra el catálogo (aporta la especie)
 - **Qué hace:** normaliza la grafía de la raza contra `catalog_breeds` (323 razas del cliente)

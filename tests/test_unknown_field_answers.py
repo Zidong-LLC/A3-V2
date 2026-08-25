@@ -25,7 +25,7 @@ def _response(**fields) -> dict:
 def _order(**fields) -> dict:
     base = {"pickup_address": "Cra 15 #80-20", "requesting_doctor": "Dra Ana", "patient_name": "Rocky",
             "species": "Canino", "breed": None, "sex": "Macho", "patient_age": "4 años",
-            "owner_name": "Luis", "observations": "ninguna", "exam_type": "Cuadro Hemático",
+            "owner_name": "Luis", "sample_taken_date": "hoy", "observations": "ninguna", "exam_type": "Cuadro Hemático",
             "payment_method": "contraentrega"}
     base.update(fields)
     return base

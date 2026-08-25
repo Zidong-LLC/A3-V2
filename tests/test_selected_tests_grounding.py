@@ -117,6 +117,7 @@ def test_payment_push_yields_to_open_menu():
     fields.update({
         "pickup_address": "DG 40", "requesting_doctor": "Dr. Beni", "patient_name": "Simón",
         "breed": "Jabalí", "sex": "Macho", "patient_age": "12 años", "owner_name": "Pepe",
+        "sample_taken_date": "hoy",
         "observations": "sin observaciones",
         "exam_type": "Perfil personalizado (2 análisis)", "selected_tests": ["1404", "1405"],
         "_test_menu_options": [{"code": "1601", "name": "Parcial de Orina", "price": 16000}],

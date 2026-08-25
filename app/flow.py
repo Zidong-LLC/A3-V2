@@ -22,10 +22,13 @@ def age_has_unit(value: str | None) -> bool:
 # El análisis va ANTES que las observaciones: A3 lo pidió en la reunión del 28/07 porque la
 # observación suele referirse al análisis pedido ("el hemograma que sea en ayunas"), y
 # preguntarla antes obliga al cliente a anticiparse a algo que todavía no eligió.
+# La fecha de toma va tras el propietario y antes del análisis: es el orden de la orden
+# física que A3 imprime (el campo vive bajo los datos del paciente) y deja intacto el par
+# análisis → observaciones. Pedida en la llamada del 21/08: "el que define eso es el cliente".
 ROUTE_ORDER_FIELDS_BEFORE_PAYMENT = (
     "pickup_address", "requesting_doctor",
     "patient_name", "species", "breed", "sex", "patient_age",
-    "owner_name", "exam_type", "observations",
+    "owner_name", "sample_taken_date", "exam_type", "observations",
 )
 
 
@@ -55,6 +58,7 @@ FIELD_LABELS = {
     "sex": "sexo",
     "patient_age": "edad",
     "owner_name": "nombre del propietario",
+    "sample_taken_date": "fecha de toma de la muestra",
     "pickup_address": "dirección de retiro",
     "exam_type": "análisis o perfil",
     "observations": "observaciones",
@@ -188,6 +192,8 @@ def missing_route_field_question(field: str) -> str:
         return AGE_QUESTION
     if field == "owner_name":
         return "¿Cuál es el nombre del propietario?"
+    if field == "sample_taken_date":
+        return "¿Qué día tomaron la muestra?"
     if field == "observations":
         return "Por último, ¿quieres dejar alguna observación para la orden o la registramos sin observaciones?"
     return PAYMENT_METHOD_QUESTION

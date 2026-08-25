@@ -32,6 +32,7 @@ BASE_FIELDS = {
     "sex": "Hembra",
     "patient_age": "3 años",
     "owner_name": "Jose",
+    "sample_taken_date": "hoy",
     "observations": "sin observaciones",
     "payment_method": "pago en línea",
     "exam_type": "Perfil Prequirúrgico I",

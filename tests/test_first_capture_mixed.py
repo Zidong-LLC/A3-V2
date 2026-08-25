@@ -135,7 +135,7 @@ def _orden_completa(**extra) -> dict:
     base = {"_client_found": True, "pickup_address": "Cra 15 #80-20",
             "requesting_doctor": "Dra Ana", "patient_name": "Pepe", "species": "Caprino",
             "breed": "Sin determinar", "sex": "Hembra", "patient_age": "3 años",
-            "owner_name": "Juan", "observations": "ninguna", "exam_type": "Sodio, Potasio",
+            "owner_name": "Juan", "sample_taken_date": "hoy", "observations": "ninguna", "exam_type": "Sodio, Potasio",
             "selected_tests": ["1404", "1405"], "payment_method": "contraentrega"}
     base.update(extra)
     return base
