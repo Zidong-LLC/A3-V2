@@ -101,32 +101,6 @@
           </section>
         </div>
 
-        {# ── KPI Negocio ── #}
-        <div data-widget="kpi_biz" class="exec-widget">
-          <section class="kpi-grid four os-stagger">
-            <article class="kpi-card os-lift-card" data-spotlight>
-              <div class="kpi-head"><span>Clientes activos</span><i data-lucide="users"></i></div>
-              <strong>{{ context.summary.total_clients }}</strong>
-              <p class="delta">Registrados en la plataforma</p>
-            </article>
-            <article class="kpi-card os-lift-card" data-spotlight>
-              <div class="kpi-head"><span>Facturacion del mes</span><i data-lucide="receipt"></i></div>
-              <strong class="kpi-money">{{ context.exec_billing.month_total_fmt }}</strong>
-              <p class="delta">Desde cache Alegra</p>
-            </article>
-            <article class="kpi-card os-lift-card" data-spotlight>
-              <div class="kpi-head"><span>Ticket promedio</span><i data-lucide="trending-up"></i></div>
-              <strong class="kpi-money">{{ context.exec_billing.avg_ticket_fmt }}</strong>
-              <p class="delta">Por factura del mes</p>
-            </article>
-            <article class="kpi-card os-lift-card" data-spotlight>
-              <div class="kpi-head"><span>Tasa cancelacion</span><i data-lucide="x-circle"></i></div>
-              <strong>{{ context.exec_cancel_rate }}%</strong>
-              <p class="delta">Del total de solicitudes</p>
-            </article>
-          </section>
-        </div>
-
         {# ── Banner alertas ── #}
         <div data-widget="alerts" class="exec-widget">
           {% if context.exec_alerts %}
@@ -139,128 +113,25 @@
           {% endif %}
         </div>
 
-        {# ── Grid principal 3 columnas ── #}
-        <div class="exec-main-grid os-stagger">
-
-          {# Columna izquierda: Pipeline + Solicitudes recientes #}
-          <div class="exec-col-main">
-            <div data-widget="pipeline" class="exec-widget">
-              <article class="card">
-                <div class="card-head simple"><h3>Pipeline de solicitudes</h3><span class="table-counter">{{ context.requests | length }} total</span></div>
-                {% set pipeline_items = [('received','Recibida','#a3a3a3'),('assigned','Asignada','#0ea5e9'),('on_route','En ruta','#f97316'),('in_lab','En laboratorio','#a855f7'),('processed','Procesada','#22c55e'),('cancelled','Cancelada','#ef4444')] %}
-                {% set total_req = context.requests | length if context.requests else 1 %}
-                <div class="exec-pipeline">
-                  {% for key, label, color in pipeline_items %}
-                  {% set cnt = context.request_status.get(key, 0) %}
-                  {% set pct = ((cnt / total_req * 100) | round | int) if total_req > 0 else 0 %}
-                  <div class="exec-pipe-row">
-                    <span class="exec-pipe-label">{{ label }}</span>
-                    <div class="exec-pipe-track"><div class="exec-pipe-fill" style="width:{{ pct }}%;background:{{ color }}"></div></div>
-                    <strong class="exec-pipe-count">{{ cnt }}</strong>
-                  </div>
-                  {% endfor %}
-                </div>
-              </article>
+        <div data-widget="pipeline" class="exec-widget">
+          <article class="card">
+            <div class="card-head simple"><h3>Pipeline de solicitudes</h3><span class="table-counter">{{ context.requests | length }} total</span></div>
+            {% set pipeline_items = [('received','Recibida','#a3a3a3'),('assigned','Asignada','#0ea5e9'),('on_route','En ruta','#f97316'),('in_lab','En laboratorio','#a855f7'),('processed','Procesada','#22c55e'),('cancelled','Cancelada','#ef4444')] %}
+            {% set total_req = context.requests | length if context.requests else 1 %}
+            <div class="exec-pipeline">
+              {% for key, label, color in pipeline_items %}
+              {% set cnt = context.request_status.get(key, 0) %}
+              {% set pct = ((cnt / total_req * 100) | round | int) if total_req > 0 else 0 %}
+              <div class="exec-pipe-row">
+                <span class="exec-pipe-label">{{ label }}</span>
+                <div class="exec-pipe-track"><div class="exec-pipe-fill" style="width:{{ pct }}%;background:{{ color }}"></div></div>
+                <strong class="exec-pipe-count">{{ cnt }}</strong>
+              </div>
+              {% endfor %}
             </div>
+          </article>
+        </div>
 
-            <div data-widget="requests_recent" class="exec-widget">
-              <article class="card">
-                <div class="card-head simple"><h3>Solicitudes recientes</h3><a class="ghost-btn small" href="{{ url_for('dashboard.operation_page') }}">Ver todas</a></div>
-                {% set sl = {'received':'Recibida','assigned':'Asignada','on_route':'En ruta','picked_up':'En ruta','in_lab':'En lab','processed':'Procesada','sent':'Enviada','cancelled':'Cancelada','error_pending_assignment':'Sin motorizado'} %}
-                <div class="table-wrap slim">
-                  <table>
-                    <thead><tr><th>Cliente</th><th>Estado</th><th>Motorizado</th><th>Fecha</th></tr></thead>
-                    <tbody>
-                    {% for row in context.requests[:10] %}
-                    <tr>
-                      <td><strong>{{ row.clients.clinic_name if row.clients else '-' }}</strong></td>
-                      <td><span class="status-badge status-{{ row.status }}">{{ sl.get(row.status, row.status) }}</span></td>
-                      <td class="muted-text">{{ row.couriers.name if row.couriers else '—' }}</td>
-                      <td class="muted-text">{{ row.requested_at[:10] if row.requested_at else '-' }}</td>
-                    </tr>
-                    {% else %}<tr><td colspan="4">Sin solicitudes.</td></tr>
-                    {% endfor %}
-                    </tbody>
-                  </table>
-                </div>
-              </article>
-            </div>
-          </div>
-
-          {# Columna central: Muestras + Carga motorizados #}
-          <div class="exec-col-side">
-            <div data-widget="samples_state" class="exec-widget">
-              <article class="card">
-                <div class="card-head simple"><h3>Muestras</h3><span class="table-counter">{{ context.summary.total_samples }} total</span></div>
-                {% set sample_items = [('pending_pickup','A retirar'),('picked_up','Recogida'),('in_lab','En lab'),('processed','Procesada'),('sent','Enviada')] %}
-                {% set s_vals = context.sample_status.values() | list %}
-                {% set max_s = (s_vals | max) if s_vals else 1 %}
-                {% if max_s < 1 %}{% set max_s = 1 %}{% endif %}
-                <div class="lead-bars">
-                  {% for key, label in sample_items %}
-                  {% set cnt = context.sample_status.get(key, 0) %}
-                  <div class="lead-row">
-                    <span>{{ label }}</span>
-                    <div class="lead-track"><b style="width:{{ ((cnt / max_s * 100) | round | int) if max_s > 0 else 0 }}%"></b></div>
-                    <strong>{{ cnt }}</strong>
-                  </div>
-                  {% endfor %}
-                </div>
-              </article>
-            </div>
-
-            <div data-widget="courier_load" class="exec-widget">
-              <article class="card">
-                <div class="card-head simple"><h3>Carga por motorizado</h3></div>
-                {% if context.exec_courier_load %}
-                {% set max_c = context.exec_courier_load[0].count if context.exec_courier_load[0].count > 0 else 1 %}
-                <div class="lead-bars">
-                  {% for row in context.exec_courier_load %}
-                  <div class="lead-row">
-                    <span>{{ row.name.split(' ')[0] }}</span>
-                    <div class="lead-track"><b class="exec-courier-bar" style="width:{{ ((row.count / max_c * 100) | round | int) }}%"></b></div>
-                    <strong>{{ row.count }}</strong>
-                  </div>
-                  {% endfor %}
-                </div>
-                {% else %}<p class="muted-text">Sin solicitudes activas.</p>{% endif %}
-              </article>
-            </div>
-          </div>
-
-          {# Columna derecha: Facturación + Top clientes #}
-          <div class="exec-col-side">
-            <div data-widget="billing_mini" class="exec-widget">
-              <article class="card">
-                <div class="card-head simple"><h3>Facturacion</h3>{% if not context.alegra_enabled %}<span class="exec-tag-dim">Sin sync</span>{% endif %}</div>
-                <div class="exec-billing-stack">
-                  <div class="exec-billing-row"><span>Este mes</span><strong>{{ context.exec_billing.month_total_fmt }}</strong></div>
-                  <div class="exec-billing-row"><span>Este año</span><strong>{{ context.exec_billing.year_total_fmt }}</strong></div>
-                  <div class="exec-billing-row"><span>Ticket promedio</span><strong>{{ context.exec_billing.avg_ticket_fmt }}</strong></div>
-                  <div class="exec-billing-row"><span>Facturas hoy</span><strong>{{ context.exec_billing.today_count }}</strong></div>
-                </div>
-                <a class="ghost-btn small" href="{{ url_for('dashboard.billing_page') }}" style="margin-top:10px;display:inline-flex">Ver facturacion</a>
-              </article>
-            </div>
-
-            <div data-widget="top_clients" class="exec-widget">
-              <article class="card">
-                <div class="card-head simple"><h3>Top clientes</h3><span class="table-counter">por solicitudes</span></div>
-                <div class="exec-top-list">
-                  {% for client in context.exec_top_clients_req %}
-                  <div class="exec-top-row">
-                    <span class="exec-rank">{{ loop.index }}</span>
-                    <span class="exec-top-name">{{ client.name[:30] }}{% if client.name | length > 30 %}…{% endif %}</span>
-                    <strong>{{ client.count }}</strong>
-                  </div>
-                  {% endfor %}
-                  {% if not context.exec_top_clients_req %}<p class="muted-text">Sin datos.</p>{% endif %}
-                </div>
-              </article>
-            </div>
-          </div>
-
-        </div>{# /exec-main-grid #}
 
         {# ── TAT: tiempo de proceso ── #}
         <div data-widget="tat" class="exec-widget">
@@ -327,14 +198,8 @@
         </div>
         <ul class="cols-list" id="exec-widget-list">
           <li class="cols-item" data-wid="kpi_ops"><label><input type="checkbox"><span>KPIs Operacion</span></label></li>
-          <li class="cols-item" data-wid="kpi_biz"><label><input type="checkbox"><span>KPIs Negocio</span></label></li>
           <li class="cols-item" data-wid="alerts"><label><input type="checkbox"><span>Alertas criticas</span></label></li>
           <li class="cols-item" data-wid="pipeline"><label><input type="checkbox"><span>Pipeline solicitudes</span></label></li>
-          <li class="cols-item" data-wid="requests_recent"><label><input type="checkbox"><span>Solicitudes recientes</span></label></li>
-          <li class="cols-item" data-wid="samples_state"><label><input type="checkbox"><span>Muestras por estado</span></label></li>
-          <li class="cols-item" data-wid="courier_load"><label><input type="checkbox"><span>Carga motorizados</span></label></li>
-          <li class="cols-item" data-wid="billing_mini"><label><input type="checkbox"><span>Facturacion</span></label></li>
-          <li class="cols-item" data-wid="top_clients"><label><input type="checkbox"><span>Top clientes</span></label></li>
           <li class="cols-item" data-wid="activity"><label><input type="checkbox"><span>Actividad reciente</span></label></li>
           <li class="cols-item" data-wid="tat"><label><input type="checkbox"><span>Tiempo de proceso (TAT)</span></label></li>
           <li class="cols-item" data-wid="trends"><label><input type="checkbox"><span>Tendencias</span></label></li>
