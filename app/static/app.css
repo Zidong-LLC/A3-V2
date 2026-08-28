@@ -409,3 +409,30 @@ select option{background-color:var(--os-space-surface);color:var(--text)}
 
 /* Las pestañas de Facturacion NAVEGAN (la pestaña va en la URL), así que son enlaces. */
 .tab-btn{text-decoration:none}
+
+/* ── Equipo de motorizados: una tarjeta por persona, editable ────────────────
+   Antes era una tabla donde el color no guardaba nada y no se podia crear,
+   renombrar ni dar de baja a nadie. */
+.courier-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;margin-top:4px}
+.courier-card{border:1px solid var(--os-space-border);border-radius:10px;background:var(--os-space-card);
+  padding:12px 14px;display:grid;gap:10px;align-content:start}
+.courier-card.is-inactive{opacity:.55;background:var(--os-space-canvas)}
+.courier-card-new{margin-top:12px;border-color:var(--accent);background:var(--os-space-tint)}
+.courier-card-top{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.courier-card-top .courier-name{flex:1;min-width:120px;font-weight:600}
+.courier-dot,.courier-dot-input{width:22px;height:22px;border-radius:999px;flex:none;padding:0;border:2px solid var(--os-space-card);
+  box-shadow:0 0 0 1px var(--os-space-border);cursor:pointer}
+.courier-dot-input{appearance:none;-webkit-appearance:none;background:none}
+.courier-dot-input::-webkit-color-swatch{border:0;border-radius:999px}
+.courier-dot-input::-webkit-color-swatch-wrapper{padding:0}
+.courier-card-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.courier-card-fields label{display:grid;gap:4px;font-size:11.5px;color:var(--text-dim)}
+.courier-card-load{display:flex;align-items:center;gap:12px;font-size:12.5px;color:var(--os-space-toned)}
+.courier-card-load strong{font-size:15px;color:var(--text)}
+.courier-card-load .save-flag{margin-left:auto}
+.courier-card-locs{margin:0;font-size:11.5px;line-height:1.35}
+.courier-card-warn{margin:0;font-size:11.5px;line-height:1.35;color:#8a5a00;background:#fdf6e7;
+  border:1px solid rgba(138,90,0,.2);border-radius:6px;padding:7px 9px}
+.courier-card-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.courier-card-actions .portal-check{display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer}
+@media(max-width:600px){.courier-card-fields{grid-template-columns:1fr}}

@@ -841,18 +841,19 @@ def test_motorizados_context_uses_internal_territory_when_db_coverage_is_empty(m
     assert "San Cristobal" in by_courier["Javier"]["localities_text"]
 
 
-def test_courier_phone_endpoint_updates_phone(monkeypatch):
+def test_courier_endpoint_updates_phone(monkeypatch):
+    """El endpoint de telefono y el de disponibilidad se unificaron en /api/dashboard/courier."""
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_USER", "admin")
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_PASSWORD", "secret")
 
-    with patch("app.dashboard.db.update_courier_phone", return_value=True) as update_phone:
+    with patch("app.dashboard.db.update_courier", return_value=True) as update:
         client = _get_test_client()
         client.post("/login", data={"username": "admin", "password": "secret"})
-        response = client.post("/api/dashboard/courier-phone", json={"courier_id": "courier-1", "phone": "300 123 4567"})
+        response = client.post("/api/dashboard/courier", json={"courier_id": "courier-1", "phone": "300 123 4567"})
 
     assert response.status_code == 200
     assert response.get_json()["phone"] == "3001234567"
-    update_phone.assert_called_once_with("courier-1", "3001234567")
+    update.assert_called_once_with("courier-1", {"phone": "3001234567"})
 
 
 def test_locality_assignment_endpoint_updates_coverage(monkeypatch):

@@ -151,6 +151,7 @@ def test_dashboard_context_includes_motorizados_data_from_real_builder():
          patch("app.dashboard.db.fetch_rows", return_value=[]), \
          patch("app.dashboard.db.list_pending_client_reviews", return_value=[]), \
          patch("app.dashboard.db.list_active_couriers", return_value=[{"id": "courier-1", "name": "Luis Moto", "phone": "3001234567", "availability": "available"}]), \
+         patch("app.dashboard.db.list_couriers", return_value=[{"id": "courier-1", "name": "Luis Moto", "phone": "3001234567", "availability": "available", "is_active": True, "color": ""}]), \
          patch("app.dashboard.db.list_courier_locality_coverage", return_value=[{"locality_code": "kennedy", "locality_name": "Kennedy", "courier_id": "courier-1", "couriers": {"id": "courier-1", "name": "Luis Moto"}}]):
         from app.dashboard import build_dashboard_context
 

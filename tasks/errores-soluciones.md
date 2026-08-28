@@ -4300,3 +4300,39 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
   Alegra», con 1.200 facturas cargadas. Ahora distingue las dos cosas y ofrece limpiar filtros.
 - **Verificación:** 10 tests nuevos con un doble del constructor de consultas (comprueban qué
   condiciones se le piden a la base) y contra los datos reales desde la pantalla. Suite **1452**.
+
+---
+
+## ERR-165 — Motorizados: el color no guardaba y no se podía crear ni dar de baja a nadie
+
+- **Fecha:** 2026-08-28 · **Estado:** RESUELTO
+- **Pedido del usuario:** «rediseñar motorizados para que tenga coherencia, que se pueda
+  modificar cada cápsula, que se vea lindo y que funcione, no sea una maqueta».
+- **Lo que era maqueta, verificado en el código y la base:**
+  1. **El selector de color no guardaba nada.** El JS solo repintaba el cuadrito
+     (`dashboard.js:110`); no había endpoint. La columna `couriers.color` existe y estaba
+     **vacía en los ocho**: los colores venían de `_courier_color()`, calculados del id.
+  2. **No se podía crear un motorizado, ni renombrarlo, ni darlo de baja.** Solo teléfono y
+     disponibilidad. `couriers.is_active` existía sin usarse.
+  3. **Dos sistemas de zonas se contradecían**: las zonas territoriales (ocho, con barrios) y
+     la cobertura por localidad. Por eso Cesar figuraba con **0 clientes** teniendo la zona 8.
+- **Solución:**
+  - `db.create_courier` + `db.update_courier` con **lista blanca** (`name`, `phone`,
+    `availability`, `color`, `is_active`): la request nunca compone el payload libremente.
+  - Un endpoint `POST /api/dashboard/courier` para editar y otro para el alta, con validación
+    de color `#rrggbb` y de disponibilidad. Reemplazan a `courier-phone` y
+    `courier-availability`, que se retiraron junto con su JS.
+  - **Tarjetas** en vez de tabla (decisión del usuario): color, nombre, teléfono,
+    disponibilidad, carga, localidades y activo/inactivo, guardando campo por campo.
+  - **El color guardado manda** y solo cae al automático si está vacío. Lo usan el mapa de
+    cobertura y ahora también la agenda de recogidas.
+  - **La cobertura por localidad es la verdad operativa** (decisión del usuario). Las zonas
+    territoriales quedan rotuladas como referencia, y la tarjeta de quien tiene zona pero
+    ninguna localidad asignada **lo dice**, en vez de mostrar un cero sin explicación.
+  - Los inactivos se ven atenuados y **desaparecen de los desplegables** de asignación.
+- **Verificación:** 15 tests nuevos. Suite **1470 passed**. Contra la base real: se cambió el
+  color, el nombre y el estado de un motorizado, se comprobó en la base y que desapareciera de
+  las asignaciones, se creó uno de prueba y **se restauró todo** (Cesar volvió a su nombre,
+  color vacío y activo; el de prueba, borrado; quedan los 8 de siempre).
+- **Queda pendiente para A3:** los ocho teléfonos son cadenas inválidas del tipo
+  `0007f3d0970ec`. La pantalla ya lo avisa, pero los datos buenos los tiene que dar A3.

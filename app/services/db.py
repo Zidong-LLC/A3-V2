@@ -1808,7 +1808,7 @@ def _auto_assign_courier(client_id: str) -> dict | None:
 def list_active_couriers(limit: int = 500) -> list[dict]:
     result = (
         _client.table("couriers")
-        .select("id, name, phone, availability, is_active")
+        .select("id, name, phone, availability, is_active, color")
         .eq("is_active", True)
         .order("name")
         .limit(limit)
@@ -1822,9 +1822,45 @@ def update_courier_phone(courier_id: str, phone: str) -> bool:
     return bool(result.data)
 
 
+# Lo unico que la plataforma puede tocar de un motorizado. La request nunca compone
+# el payload libremente: el id, las fechas y cualquier columna nueva quedan afuera.
+CAMPOS_COURIER = ("name", "phone", "availability", "color", "is_active")
+
+
 def update_courier(courier_id: str, payload: dict) -> bool:
-    result = _client.table("couriers").update(payload).eq("id", courier_id).execute()
+    """Edita un motorizado. Solo pasan los campos de `CAMPOS_COURIER`."""
+    cambios = {k: v for k, v in (payload or {}).items() if k in CAMPOS_COURIER}
+    if not courier_id or not cambios:
+        return False
+    result = _client.table("couriers").update(cambios).eq("id", courier_id).execute()
     return bool(result.data)
+
+
+def create_courier(payload: dict) -> dict | None:
+    """Alta de un motorizado. Nace activo; sin nombre no se crea."""
+    datos = {k: v for k, v in (payload or {}).items() if k in CAMPOS_COURIER}
+    nombre = str(datos.get("name") or "").strip()
+    if not nombre:
+        return None
+    datos["name"] = nombre
+    datos.setdefault("availability", "available")
+    datos["is_active"] = True
+    result = _client.table("couriers").insert(datos).execute()
+    return (result.data or [None])[0]
+
+
+def list_couriers(limit: int = 500) -> list[dict]:
+    """Todos los motorizados, activos e inactivos, para la pantalla del equipo.
+    `list_active_couriers` sigue sirviendo a las asignaciones, que solo ven activos."""
+    result = (
+        _client.table("couriers")
+        .select("id, name, phone, availability, is_active, color")
+        .order("is_active", desc=True)
+        .order("name")
+        .limit(limit)
+        .execute()
+    )
+    return result.data or []
 
 
 def list_courier_locality_coverage(limit: int = 500) -> list[dict]:

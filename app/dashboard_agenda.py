@@ -52,8 +52,11 @@ def armar_grilla(pickups: list[dict], couriers: list[dict], dias: list[date]) ->
     filas = []
     for courier in couriers:
         filas.append({"id": courier["id"], "nombre": courier.get("name") or "Sin nombre",
+                      # El color que el equipo eligió en Motorizados: el mismo con el que
+                      # aparece en el mapa de cobertura.
+                      "color": (courier.get("color") or "").strip(),
                       "dias": {clave: [] for clave in claves}, "total": 0})
-    filas.append({"id": SIN_ASIGNAR, "nombre": "Sin asignar",
+    filas.append({"id": SIN_ASIGNAR, "nombre": "Sin asignar", "color": "",
                   "dias": {clave: [] for clave in claves}, "total": 0})
     por_id = {fila["id"]: fila for fila in filas}
 
@@ -66,6 +69,7 @@ def armar_grilla(pickups: list[dict], couriers: list[dict], dias: list[date]) ->
             # Motorizado inactivo o borrado: su carga no se pierde de vista.
             fila = {"id": pickup["assigned_courier_id"],
                     "nombre": (pickup.get("couriers") or {}).get("name") or "Motorizado inactivo",
+                    "color": "",
                     "dias": {clave: [] for clave in claves}, "total": 0}
             por_id[fila["id"]] = fila
             filas.insert(len(filas) - 1, fila)

@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='os-kit.css') }}?v=9">
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=18">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=19">
   <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.1/dist/apexcharts.min.js" defer></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js" defer></script>
@@ -468,7 +468,102 @@
         </section>
         {% for alert in context.motorizados_alerts %}<p class="approval-notice os-spring-in {{ 'error' if alert.level == 'error' else 'ok' }}"><strong>{{ alert.title }}:</strong> {{ alert.detail }}</p>{% endfor %}
         <div class="dashboard-grid motorizados-grid-simple">
-          <article class="card"><div class="card-head simple"><h3>Equipo de motorizados</h3><button type="button" class="cols-btn" data-columns-btn="motorizados"><i data-lucide="columns-3"></i>Columnas</button></div><div class="table-wrap"><table data-columns-table="motorizados"><thead><tr><th data-column="nombre" data-mandatory="true">Motorizado</th><th data-column="telefono">Telefono</th><th data-column="disp">Disponibilidad</th><th data-column="color">Color</th><th data-column="cobertura">Clientes cobertura</th><th data-column="localidades">Localidades</th></tr></thead><tbody>{% for row in context.couriers_rows %}<tr><td><strong>{{ row.name }}</strong><br><span class="muted-text">{{ row.coverage_count }} localidades</span></td><td><input class="cell-input courier-phone-input" value="{{ row.phone }}" data-courier-id="{{ row.id }}" placeholder="Telefono"><small class="save-flag"></small></td><td><select class="cell-select courier-availability-select" data-courier-id="{{ row.id }}"><option value="available" {{ 'selected' if row.availability == 'available' else '' }}>Disponible</option><option value="unavailable" {{ 'selected' if row.availability == 'unavailable' else '' }}>No disponible</option><option value="on_route" {{ 'selected' if row.availability == 'on_route' else '' }}>En ruta</option><option value="territorial" {{ 'selected' if row.availability == 'territorial' else '' }}>Territorial</option></select><small class="save-flag"></small></td><td><input type="color" class="courier-color-picker" value="{{ row.color }}" data-courier-id="{{ row.id }}"><span class="courier-color-dot" style="background: {{ row.color }}"></span></td><td>{{ row.clients_count_from_coverage }}</td><td>{{ row.localities_text }}</td></tr>{% else %}<tr><td colspan="6">No hay motorizados activos.</td></tr>{% endfor %}</tbody></table></div><div class="mot-zonas-mini"><p class="mot-zonas-label">Zonas territoriales A3</p><div class="mot-zonas-list">{% for row in context.territorial_zone_rows %}<div class="mot-zona-row"><span class="mot-zona-badge">Zona {{ row.zone_number }}</span><strong>{{ row.courier_name }}</strong><span class="mot-zona-stats">{{ row.total_barrios }} barrios · {{ row.total_upz }} UPZ</span><span class="mot-zona-locs">{{ row.localities_text }}</span></div>{% else %}<p class="muted-text">Sin zonas cargadas.</p>{% endfor %}</div></div></article>
+          <article class="card">
+            <div class="card-head">
+              <div><h3>Equipo de motorizados</h3><p>Los datos se guardan al salir de cada campo. El color identifica al motorizado en el mapa y en la agenda.</p></div>
+              <button type="button" class="primary-btn" data-courier-new><i data-lucide="user-plus"></i>Nuevo motorizado</button>
+            </div>
+
+            <form class="courier-card courier-card-new" data-courier-form hidden>
+              <div class="courier-card-top">
+                <input type="color" class="courier-dot-input" name="color" value="#7a0d20" aria-label="Color del motorizado">
+                <input class="cell-input" name="name" placeholder="Nombre y apellido" required aria-label="Nombre">
+              </div>
+              <div class="courier-card-fields">
+                <label>Telefono<input class="cell-input" name="phone" placeholder="3001234567" inputmode="tel"></label>
+                <label>Disponibilidad
+                  <select class="cell-select" name="availability">
+                    <option value="available">Disponible</option>
+                    <option value="unavailable">No disponible</option>
+                    <option value="on_route">En ruta</option>
+                    <option value="territorial">Territorial</option>
+                  </select>
+                </label>
+              </div>
+              <div class="courier-card-actions">
+                <button type="submit" class="primary-btn">Crear</button>
+                <button type="button" class="ghost-btn" data-courier-cancel>Cancelar</button>
+                <small class="save-flag" data-courier-new-flag></small>
+              </div>
+            </form>
+
+            <div class="courier-cards">
+              {% for row in context.couriers_rows %}
+              <article class="courier-card{{ ' is-inactive' if not row.is_active else '' }}" data-courier-id="{{ row.id }}"
+                       {{ 'data-courier-readonly' if row.source != 'db' else '' }}>
+                <div class="courier-card-top">
+                  {% if row.source == 'db' %}
+                  <input type="color" class="courier-dot-input" value="{{ row.color }}" data-courier-field="color" aria-label="Color de {{ row.name }}">
+                  <input class="cell-input courier-name" value="{{ row.name }}" data-courier-field="name" aria-label="Nombre">
+                  {% else %}
+                  <span class="courier-dot" style="background: {{ row.color }}"></span>
+                  <strong>{{ row.name }}</strong>
+                  {% endif %}
+                  {% if row.zone_number %}<span class="mot-zona-badge">Zona {{ row.zone_number }}</span>{% endif %}
+                </div>
+
+                {% if row.source == 'db' %}
+                <div class="courier-card-fields">
+                  <label>Telefono<input class="cell-input" value="{{ row.phone }}" data-courier-field="phone" inputmode="tel" placeholder="Sin telefono"></label>
+                  <label>Disponibilidad
+                    <select class="cell-select" data-courier-field="availability">
+                      <option value="available" {{ 'selected' if row.availability == 'available' else '' }}>Disponible</option>
+                      <option value="unavailable" {{ 'selected' if row.availability == 'unavailable' else '' }}>No disponible</option>
+                      <option value="on_route" {{ 'selected' if row.availability == 'on_route' else '' }}>En ruta</option>
+                      <option value="territorial" {{ 'selected' if row.availability == 'territorial' else '' }}>Territorial</option>
+                    </select>
+                  </label>
+                </div>
+                {% endif %}
+
+                <div class="courier-card-load">
+                  <span><strong>{{ row.clients_count_from_coverage }}</strong> clientes</span>
+                  <span><strong>{{ row.coverage_count }}</strong> localidades</span>
+                  <small class="save-flag" data-courier-flag></small>
+                </div>
+                <p class="courier-card-locs muted-text">{{ row.localities_text }}</p>
+
+                {% if row.zone_number and row.coverage_count == 0 %}
+                {# La carga sale de la asignacion por localidad: con la zona territorial sola,
+                   el motorizado figura con cero clientes aunque tenga barrios a cargo. #}
+                <p class="courier-card-warn">Tiene zona territorial y ninguna localidad asignada, por eso figura sin clientes. Asignale localidades en «Cobertura por localidad».</p>
+                {% endif %}
+
+                {% if row.source == 'db' %}
+                <div class="courier-card-actions">
+                  <label class="portal-check">
+                    <input type="checkbox" data-courier-field="is_active" {{ 'checked' if row.is_active else '' }}>
+                    {{ 'Activo' if row.is_active else 'Inactivo' }}
+                  </label>
+                </div>
+                {% else %}
+                <p class="muted-text">Viene de las zonas territoriales, no de la tabla de motorizados.</p>
+                {% endif %}
+              </article>
+              {% else %}
+              <p class="muted-text">No hay motorizados cargados.</p>
+              {% endfor %}
+            </div>
+
+            <div class="mot-zonas-mini">
+              <p class="mot-zonas-label">Zonas territoriales A3 <span class="muted-text">referencia: la carga sale de la cobertura por localidad</span></p>
+              <div class="mot-zonas-list">
+                {% for row in context.territorial_zone_rows %}
+                <div class="mot-zona-row"><span class="mot-zona-badge">Zona {{ row.zone_number }}</span><strong>{{ row.courier_name }}</strong><span class="mot-zona-stats">{{ row.total_barrios }} barrios · {{ row.total_upz }} UPZ</span><span class="mot-zona-locs">{{ row.localities_text }}</span></div>
+                {% else %}<p class="muted-text">Sin zonas cargadas.</p>{% endfor %}
+              </div>
+            </div>
+          </article>
           <article class="card"><div class="card-head simple"><h3>Cobertura por localidad</h3></div><div class="table-wrap"><table><thead><tr><th>Localidad</th><th>Clientes</th><th>Motorizado</th></tr></thead><tbody>{% for row in context.localities_rows %}<tr><td><strong>{{ row.locality_name }}</strong><br><span class="muted-text">{{ row.coverage_state }}</span></td><td>{{ row.clients_count }}</td><td><select class="cell-select locality-assignment-select" data-locality-code="{{ row.locality_code }}"><option value="">Sin asignar</option>{% for courier in context.couriers_options %}<option value="{{ courier.id }}" {{ 'selected' if row.assigned_courier_id == courier.id else '' }}>{{ courier.name }}</option>{% endfor %}</select><small class="save-flag"></small></td></tr>{% endfor %}</tbody></table></div></article>
         </div>
 
@@ -672,8 +767,9 @@
     });
   </script>
   <script src="{{ url_for('static', filename='columns-config.js') }}?v=4" defer></script>
-  <script src="{{ url_for('static', filename='dashboard.js') }}?v=8" defer></script>
+  <script src="{{ url_for('static', filename='dashboard.js') }}?v=9" defer></script>
   <script src="{{ url_for('static', filename='client-search.js') }}?v=1" defer></script>
+  <script src="{{ url_for('static', filename='couriers.js') }}?v=1" defer></script>
   <script src="{{ url_for('static', filename='invoices.js') }}?v=1" defer></script>
   <script src="{{ url_for('static', filename='os-fx.js') }}?v=1" defer></script>
 </body>

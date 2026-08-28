@@ -756,7 +756,9 @@ def _demo_sample_process_lanes() -> list[dict]:
 
 
 def _build_motorizados_context(clients: list[dict]) -> dict:
-    couriers = _safe_fetch(lambda: db.list_active_couriers(limit=500), [])
+    # La pantalla del equipo muestra activos E inactivos (para poder reactivar a uno);
+    # los desplegables de asignación se arman aparte, solo con los activos.
+    couriers = _safe_fetch(lambda: db.list_couriers(limit=500), [])
     coverage = _safe_fetch(lambda: db.list_courier_locality_coverage(limit=500), [])
     territorial_zone_rows = _safe_fetch(lambda: db.list_territorial_zones(limit=100), []) or territory.build_zone_rows()
     territorial_locality_rows = _safe_fetch(lambda: db.list_territorial_neighborhoods(limit=3000), []) or territory.build_locality_zone_rows()
@@ -767,7 +769,10 @@ def _build_motorizados_context(clients: list[dict]) -> dict:
             "name": row.get("name") or "Sin nombre",
             "phone": row.get("phone") or "",
             "availability": row.get("availability") or "available",
-            "color": _courier_color(str(row.get("id") or ""), row.get("name")),
+            # El color elegido manda; el automático es solo el respaldo de quien no tiene.
+            "color": (row.get("color") or "").strip() or _courier_color(str(row.get("id") or ""), row.get("name")),
+            "color_guardado": bool((row.get("color") or "").strip()),
+            "is_active": row.get("is_active", True),
             "zone_number": None,
             "source": "db",
         }
@@ -876,6 +881,8 @@ def _build_motorizados_context(clients: list[dict]) -> dict:
             "phone": courier["phone"],
             "availability": courier["availability"],
             "color": courier["color"],
+            "color_guardado": courier.get("color_guardado", False),
+            "is_active": courier.get("is_active", True),
             "zone_number": courier.get("zone_number"),
             "source": courier.get("source", "db"),
             "coverage_count": len(assigned_localities),
@@ -895,7 +902,10 @@ def _build_motorizados_context(clients: list[dict]) -> dict:
         alerts.append({"level": "warning", "title": "Telefonos incompletos", "detail": "Hay motorizados activos sin telefono operativo."})
 
     context = {
-        "couriers_options": sorted(couriers_options, key=lambda row: (row.get("source") != "db", row["name"])),
+        "couriers_options": sorted(
+            (row for row in couriers_options if row.get("is_active", True)),
+            key=lambda row: (row.get("source") != "db", row["name"]),
+        ),
         "couriers_rows": sorted(couriers_rows, key=lambda row: (row.get("source") != "db", row["name"])),
         "localities_rows": sorted(localities_rows, key=lambda row: row["locality_name"]),
         "motorizados_summary": {
@@ -1950,45 +1960,82 @@ def neighborhood_search():
     return jsonify({"count": len(rows), "rows": rows})
 
 
-@dashboard.post("/api/dashboard/courier-phone")
+DISPONIBILIDAD_COURIER = {"available", "unavailable", "on_route", "territorial"}
+
+
+def _courier_payload(payload: dict) -> tuple[dict, str | None]:
+    """Toma del JSON solo lo editable y ya validado. Devuelve (cambios, error)."""
+    cambios: dict = {}
+    if "name" in payload:
+        nombre = _sanitize_text(payload.get("name"), 80)
+        if not nombre:
+            return {}, "El nombre no puede quedar vacio"
+        cambios["name"] = nombre
+    if "phone" in payload:
+        telefono = _normalize_phone(payload.get("phone"))
+        if telefono and len(telefono) < 7:
+            return {}, "Telefono invalido"
+        cambios["phone"] = telefono
+    if "availability" in payload:
+        disponibilidad = str(payload.get("availability") or "").strip()
+        if disponibilidad not in DISPONIBILIDAD_COURIER:
+            return {}, "Disponibilidad invalida"
+        cambios["availability"] = disponibilidad
+    if "color" in payload:
+        color = str(payload.get("color") or "").strip().lower()
+        if not re.fullmatch(r"#[0-9a-f]{6}", color):
+            return {}, "Color invalido"
+        cambios["color"] = color
+    if "is_active" in payload:
+        cambios["is_active"] = bool(payload.get("is_active"))
+    return cambios, None
+
+
+@dashboard.post("/api/dashboard/courier")
 @_login_required
-def update_courier_phone():
+def update_courier_endpoint():
+    """Edita un motorizado: nombre, telefono, disponibilidad, color o alta/baja.
+
+    Reemplaza a los endpoints separados de telefono y disponibilidad: la pantalla
+    guarda campo por campo y todos pasan por la misma validacion."""
     payload = request.get_json(silent=True) or {}
     courier_id = str(payload.get("courier_id") or "").strip()
-    phone = _normalize_phone(payload.get("phone"))
     if not courier_id:
         return jsonify({"error": "Missing courier_id"}), 400
-    if not phone or len(phone) < 7:
-        return jsonify({"error": "Invalid phone"}), 400
+    cambios, error = _courier_payload(payload)
+    if error:
+        return jsonify({"error": error}), 400
+    if not cambios:
+        return jsonify({"error": "Nada para actualizar"}), 400
     try:
-        ok = db.update_courier_phone(courier_id, phone)
+        ok = db.update_courier(courier_id, cambios)
     except Exception as exc:
-        if "duplicate" in str(exc).lower() or "couriers_phone_key" in str(exc).lower():
-            return jsonify({"error": "Phone already exists for another courier"}), 409
-        return jsonify({"error": "Unable to update courier phone"}), 503
+        if "duplicate" in str(exc).lower():
+            return jsonify({"error": "Ese telefono ya es de otro motorizado"}), 409
+        return jsonify({"error": "No se pudo guardar el motorizado"}), 503
     if not ok:
         return jsonify({"error": "Courier not found"}), 404
-    return jsonify({"ok": True, "courier_id": courier_id, "phone": phone})
+    return jsonify({"ok": True, "courier_id": courier_id, **cambios})
 
 
-@dashboard.post("/api/dashboard/courier-availability")
+@dashboard.post("/api/dashboard/courier-create")
 @_login_required
-def update_courier_availability():
+def create_courier_endpoint():
     payload = request.get_json(silent=True) or {}
-    courier_id = str(payload.get("courier_id") or "").strip()
-    availability = str(payload.get("availability") or "").strip()
-    if not courier_id:
-        return jsonify({"error": "Missing courier_id"}), 400
-    valid_options = {"available", "unavailable", "on_route", "territorial"}
-    if availability not in valid_options:
-        return jsonify({"error": "Invalid availability value"}), 400
+    cambios, error = _courier_payload(payload)
+    if error:
+        return jsonify({"error": error}), 400
+    if not cambios.get("name"):
+        return jsonify({"error": "El nombre es obligatorio"}), 400
     try:
-        ok = db.update_courier(courier_id, {"availability": availability})
-    except Exception:
-        return jsonify({"error": "Unable to update courier availability"}), 503
-    if not ok:
-        return jsonify({"error": "Courier not found"}), 404
-    return jsonify({"ok": True, "courier_id": courier_id, "availability": availability})
+        creado = db.create_courier(cambios)
+    except Exception as exc:
+        if "duplicate" in str(exc).lower():
+            return jsonify({"error": "Ese telefono ya es de otro motorizado"}), 409
+        return jsonify({"error": "No se pudo crear el motorizado"}), 503
+    if not creado:
+        return jsonify({"error": "No se pudo crear el motorizado"}), 503
+    return jsonify({"ok": True, "courier": creado})
 
 
 @dashboard.post("/api/dashboard/courier-locality-assignment")

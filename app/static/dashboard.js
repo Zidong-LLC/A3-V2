@@ -104,13 +104,6 @@
     select.addEventListener('change', async () => { const flag = select.parentElement.querySelector('.save-flag'); try { await postJsonSafe('/api/dashboard/request-status', {request_id: select.dataset.requestId, status: select.value}); if (flag) flag.textContent = 'Guardado'; } catch (err) { if (flag) flag.textContent = err.message; } });
   });
 
-  document.querySelectorAll('.courier-phone-input').forEach((input) => {
-    input.addEventListener('change', async () => { const flag = input.parentElement.querySelector('.save-flag'); try { await postJsonSafe('/api/dashboard/courier-phone', {courier_id: input.dataset.courierId, phone: input.value}); if (flag) flag.textContent = 'Guardado'; } catch (err) { if (flag) flag.textContent = err.message; } });
-  });
-  document.querySelectorAll('.courier-color-picker').forEach((picker) => { const dot = picker.parentElement.querySelector('.courier-color-dot'); picker.addEventListener('input', () => { if (dot) dot.style.background = picker.value; }); });
-  document.querySelectorAll('.courier-availability-select').forEach((select) => {
-    select.addEventListener('change', async () => { const flag = select.parentElement.querySelector('.save-flag'); try { await postJsonSafe('/api/dashboard/courier-availability', {courier_id: select.dataset.courierId, availability: select.value}); if (flag) flag.textContent = 'Guardado'; } catch (err) { if (flag) flag.textContent = err.message; } });
-  });
   document.querySelectorAll('.locality-assignment-select').forEach((select) => {
     select.addEventListener('change', async () => { const flag = select.parentElement.querySelector('.save-flag'); try { await postJsonSafe('/api/dashboard/courier-locality-assignment', {locality_code: select.dataset.localityCode, courier_id: select.value}); if (flag) flag.textContent = 'Guardado'; } catch (err) { if (flag) flag.textContent = err.message; } });
   });

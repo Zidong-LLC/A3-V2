@@ -113,3 +113,15 @@ def test_la_semana_vacia_lo_dice_en_vez_de_quedar_en_blanco():
          patch("app.dashboard_agenda.db.list_active_couriers", return_value=COURIERS):
         cuerpo = client.get("/agenda").get_data(as_text=True)
     assert "No hay recogidas programadas" in cuerpo
+
+
+def test_la_agenda_muestra_el_color_de_cada_motorizado():
+    """El color elegido en Motorizados identifica al mismo mensajero en toda la
+    plataforma: mapa de cobertura y agenda."""
+    filas = armar_grilla([], [{"id": COURIER_A, "name": "Javier", "color": "#0e7490"},
+                              {"id": COURIER_B, "name": "Jeeferson", "color": ""}], SEMANA)
+    javier = next(f for f in filas if f["id"] == COURIER_A)
+    jeeferson = next(f for f in filas if f["id"] == COURIER_B)
+    assert javier["color"] == "#0e7490"
+    assert jeeferson["color"] == ""          # sin color propio no se pinta nada
+    assert filas[-1]["color"] == ""          # la fila de "sin asignar" tampoco
