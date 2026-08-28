@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='os-kit.css') }}?v=9">
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=10">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=12">
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="crm-theme">
@@ -16,7 +16,7 @@
   <main class="client-wizard os-scene">
     <header class="wizard-hero">
       <a class="ghost-btn" href="{{ url_for('dashboard.clients_page') }}"><i data-lucide="arrow-left"></i>Volver</a>
-      <div><p class="hello-label">Registro documental</p><h1>Nuevo Cliente</h1><span>Quedara en revision hasta validar documentos, facturacion y datos operativos.</span></div>
+      <div><p class="hello-label">Registro documental</p><h1>Nuevo Cliente</h1><span>Quedara en revision hasta validar documentos, facturacion y datos operativos.</span><p class="req-hint">Los campos con <span class="req">*</span> son obligatorios.</p></div>
     </header>
     {% if error %}<p class="approval-notice os-spring-in error">{{ error }}</p>{% endif %}
     <form method="post" action="{{ url_for('dashboard.new_client_page') }}" class="wizard-form os-stagger">
@@ -25,36 +25,36 @@
         <div class="step-badge">1</div>
         <div class="section-copy"><h2>Identificacion fiscal</h2><p>Datos para evitar duplicados y crear el registro base.</p></div>
         <div class="form-grid">
-          <label>Razon social / clinica *<input name="clinic_name" required value="{{ form.get('clinic_name', '') }}"></label>
-          <label>Nombre comercial<input name="commercial_name" value="{{ form.get('commercial_name', '') }}"></label>
-          <label>Codigo cliente interno<input name="client_code" value="{{ form.get('client_code', '') }}"></label>
-          <label>NIT / Documento *<input name="tax_id" required value="{{ form.get('tax_id', '') }}"></label>
-          <label>Tipo de cliente *<select name="client_type" required><option value="">Seleccionar</option>{% for option_value, option_label in client_type_options.items() %}<option value="{{ option_value }}" {{ 'selected' if form.get('client_type') == option_value else '' }}>{{ option_label }}</option>{% endfor %}</select></label>
+          <label class="wide"><span class="label-text">Razon social / clinica <span class="req">*</span></span><input name="clinic_name" required value="{{ form.get('clinic_name', '') }}"></label>
+          <label><span class="label-text">Nombre comercial</span><input name="commercial_name" value="{{ form.get('commercial_name', '') }}"></label>
+          <label><span class="label-text">Codigo cliente interno</span><input name="client_code" value="{{ form.get('client_code', '') }}"></label>
+          <label><span class="label-text">NIT / Documento <span class="req">*</span></span><input name="tax_id" required value="{{ form.get('tax_id', '') }}"></label>
+          <label><span class="label-text">Tipo de cliente <span class="req">*</span></span><select name="client_type" required><option value="">Seleccionar</option>{% for option_value, option_label in client_type_options.items() %}<option value="{{ option_value }}" {{ 'selected' if form.get('client_type') == option_value else '' }}>{{ option_label }}</option>{% endfor %}</select></label>
         </div>
       </section>
       <section class="wizard-card">
         <div class="step-badge">2</div>
         <div class="section-copy"><h2>Contacto y facturacion</h2><p>Informacion necesaria para comunicacion, cobro y facturacion electronica.</p></div>
         <div class="form-grid">
-          <label>Telefono principal *<input name="phone" required value="{{ form.get('phone', '') }}"></label>
-          <label>Correo contacto *<input name="email" type="email" required value="{{ form.get('email', '') }}"></label>
-          <label>Correo facturacion *<input name="billing_email" type="email" required value="{{ form.get('billing_email', '') }}"></label>
-          <label>Regimen IVA *<select name="vat_regime" required><option value="">Seleccionar</option>{% for option_value, option_label in vat_regime_options.items() %}<option value="{{ option_value }}" {{ 'selected' if form.get('vat_regime') == option_value else '' }}>{{ option_label }}</option>{% endfor %}</select></label>
-          <label>Facturacion electronica *<select name="electronic_invoicing" required><option value="">Seleccionar</option><option value="si" {{ 'selected' if form.get('electronic_invoicing') == 'si' else '' }}>Si</option><option value="no" {{ 'selected' if form.get('electronic_invoicing') == 'no' else '' }}>No</option></select></label>
-          <label>URL RUT facturacion electronica<input name="invoicing_rut_url" type="url" value="{{ form.get('invoicing_rut_url', '') }}"></label>
+          <label><span class="label-text">Telefono principal <span class="req">*</span></span><input name="phone" required value="{{ form.get('phone', '') }}"></label>
+          <label><span class="label-text">Correo contacto <span class="req">*</span></span><input name="email" type="email" required value="{{ form.get('email', '') }}"></label>
+          <label><span class="label-text">Correo facturacion <span class="req">*</span></span><input name="billing_email" type="email" required value="{{ form.get('billing_email', '') }}"></label>
+          <label><span class="label-text">Regimen IVA <span class="req">*</span></span><select name="vat_regime" required><option value="">Seleccionar</option>{% for option_value, option_label in vat_regime_options.items() %}<option value="{{ option_value }}" {{ 'selected' if form.get('vat_regime') == option_value else '' }}>{{ option_label }}</option>{% endfor %}</select></label>
+          <label><span class="label-text">Facturacion electronica <span class="req">*</span></span><select name="electronic_invoicing" required><option value="">Seleccionar</option><option value="si" {{ 'selected' if form.get('electronic_invoicing') == 'si' else '' }}>Si</option><option value="no" {{ 'selected' if form.get('electronic_invoicing') == 'no' else '' }}>No</option></select></label>
+          <label><span class="label-text">URL RUT facturacion electronica</span><input name="invoicing_rut_url" type="url" value="{{ form.get('invoicing_rut_url', '') }}"></label>
         </div>
       </section>
       <section class="wizard-card">
         <div class="step-badge">3</div>
         <div class="section-copy"><h2>Ubicacion y operacion</h2><p>Datos para rutas, motorizado y contacto operativo.</p></div>
         <div class="form-grid">
-          <label>Direccion *<input name="address" required value="{{ form.get('address', '') }}" data-location-field></label>
-          <label class="autocomplete-field">Barrio<input name="neighborhood" value="{{ form.get('neighborhood', '') }}" placeholder="Ej: Castilla" autocomplete="off" data-location-field data-neighborhood-input><div class="autocomplete-panel" data-neighborhood-results hidden></div></label>
-          <label>Localidad<input name="locality" value="{{ form.get('locality', '') }}" placeholder="Ej: Kennedy" data-location-field data-locality-input></label>
-          <label>Zona / Localidad *<input name="zone" required value="{{ form.get('zone', '') }}" data-location-field></label>
-          <label>Contacto principal *<input name="contact_name" required value="{{ form.get('contact_name', '') }}"></label>
-          <label>Tipo de facturacion<select name="billing_type"><option value="cash" {{ 'selected' if form.get('billing_type', 'cash') == 'cash' else '' }}>Contado</option><option value="credit" {{ 'selected' if form.get('billing_type') == 'credit' else '' }}>Credito</option></select></label>
-          <label>Motorizado sugerido<select name="courier_id" data-courier-select><option value="">Asignar despues</option>{% for courier in couriers %}<option value="{{ courier.id }}" {{ 'selected' if form.get('courier_id') == courier.id else '' }}>{{ courier.name }}{% if courier.availability %} - {{ courier.availability }}{% endif %}</option>{% endfor %}</select><small class="muted-text" data-courier-suggestion>Completa barrio/localidad para sugerir automaticamente.</small></label>
+          <label class="wide"><span class="label-text">Direccion <span class="req">*</span></span><input name="address" required value="{{ form.get('address', '') }}" data-location-field></label>
+          <label class="autocomplete-field"><span class="label-text">Barrio</span><input name="neighborhood" value="{{ form.get('neighborhood', '') }}" placeholder="Ej: Castilla" autocomplete="off" data-location-field data-neighborhood-input><div class="autocomplete-panel" data-neighborhood-results hidden></div></label>
+          <label><span class="label-text">Localidad</span><input name="locality" value="{{ form.get('locality', '') }}" placeholder="Ej: Kennedy" data-location-field data-locality-input></label>
+          <label><span class="label-text">Zona / Localidad <span class="req">*</span></span><input name="zone" required value="{{ form.get('zone', '') }}" data-location-field></label>
+          <label><span class="label-text">Contacto principal <span class="req">*</span></span><input name="contact_name" required value="{{ form.get('contact_name', '') }}"></label>
+          <label><span class="label-text">Tipo de facturacion</span><select name="billing_type"><option value="cash" {{ 'selected' if form.get('billing_type', 'cash') == 'cash' else '' }}>Contado</option><option value="credit" {{ 'selected' if form.get('billing_type') == 'credit' else '' }}>Credito</option></select></label>
+          <label><span class="label-text">Motorizado sugerido</span><select name="courier_id" data-courier-select><option value="">Asignar despues</option>{% for courier in couriers %}<option value="{{ courier.id }}" {{ 'selected' if form.get('courier_id') == courier.id else '' }}>{{ courier.name }}{% if courier.availability %} - {{ courier.availability }}{% endif %}</option>{% endfor %}</select><small class="muted-text" data-courier-suggestion>Completa barrio/localidad para sugerir automaticamente.</small></label>
         </div>
       </section>
       <section class="wizard-card">
@@ -68,7 +68,7 @@
             <label><input type="checkbox" name="additional_support_received" {{ 'checked' if form.get('additional_support_received') else '' }}> Soporte adicional</label>
             <label><input type="checkbox" name="entered_flag" {{ 'checked' if form.get('entered_flag') else '' }}> Ingresado en sistema interno</label>
           </div>
-          <label class="full-field">Observaciones internas<textarea name="notes" rows="4">{{ form.get('notes', '') }}</textarea></label>
+          <label class="full-field"><span class="label-text">Observaciones internas</span><textarea name="notes" rows="4">{{ form.get('notes', '') }}</textarea></label>
         </div>
       </section>
       <footer class="wizard-actions"><a class="ghost-btn" href="{{ url_for('dashboard.clients_page') }}">Cancelar</a><button type="submit" class="primary-btn"><i data-lucide="send"></i>Enviar a revision</button></footer>
