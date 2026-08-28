@@ -1433,3 +1433,19 @@ escribir: una fila por archivo, agenda semana por mensajero, y las tres cargas p
       antes de escribir y revalidación contra la base al confirmar. 18 tests
 - [x] Suite **1387 passed**. Verificado en el navegador contra datos reales, con el rastro
       borrado en cada prueba
+
+---
+
+## Publicación del código y migraciones (2026-08-28) — COMPLETADO
+
+- [x] **Migraciones 023 a 030: ya estaban aplicadas** en la base real. Verificado en solo
+      lectura, una por una: tablas del espejo de Anarvet, vistas `anarvet_informes` y
+      `service_orders` con fecha de toma, `clients.electronic_invoice`, `invoices_cache.balance`,
+      los nombres del PDF y los 92 análisis de Mascolab. **Hay un solo proyecto de Supabase**
+      (confirmado por el usuario): el de local es el mismo que usará Render
+- [x] **Código publicado** (OK explícito del usuario). La rama de trabajo ya se venía
+      publicando y solo le faltaban 3 commits; lo que estaba parado en el 8 de junio era
+      `master`, que avanzó sin conflictos hasta el trabajo de hoy. `origin/master` quedó en
+      `944e53f`, a cero de diferencia con local
+- [ ] **Falta el despliegue**: Render todavía no corre este código. Runbook en
+      `docs/runbooks/deploy.md` (runtime Docker, variables, primer arranque con el PDF apagado)

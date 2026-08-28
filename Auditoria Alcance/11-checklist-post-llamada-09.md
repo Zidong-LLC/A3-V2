@@ -97,13 +97,21 @@ Siguen abiertos y no se mencionaron el 21 de agosto. Detalle en `07-tenemos-falt
 
 ---
 
-## 5 · Riesgo de despliegue — mirar antes de prometer fechas
+## 5 · Estado del despliegue (actualizado el 2026-08-28)
 
-- La rama local está **112 commits adelante del remoto**. El último commit publicado es del **8 de junio**: todo julio y agosto —el pedido con pago agrupado, el catálogo de convenios, los fixes de dinero, Anarvet— **existe solo en esta máquina**.
-- Antes de producción: aplicar las migraciones **023 y 024** en el Supabase real, **apagar `PORTAL_DEMO_MODE`** (hoy encendido en el `.env`: entra al portal sin credenciales a los datos reales del cliente demo) y cargar `SUPABASE_ANON_KEY`.
-- Arrastrados de la auditoría: webhook de Chatwoot sin firma y `POST /setup-webhook` sin autenticación.
-
----
+- **El código ya está publicado.** `master` estaba parado en el 8 de junio y hoy quedó a la
+  altura del trabajo de julio y agosto: pedido con pago agrupado, catálogo de convenios, los
+  fixes de dinero, Anarvet, el portal real, cartera, la consulta de resultados por chat, la
+  agenda de mensajeros y las cargas por CSV. La rama de trabajo también.
+- **Las migraciones 023 a 030 ya estaban aplicadas** en la base real, verificado tabla por
+  tabla en solo lectura. **Hay un solo proyecto de Supabase**: el local y el que usará Render
+  son el mismo, así que no queda ninguna migración por aplicar.
+- **`PORTAL_DEMO_MODE` está apagado** desde el 27/08 y el portal entra con nombre y NIT reales.
+- **Falta el despliegue en sí**: el servicio de Render todavía no corre este código. Pasos en
+  `docs/runbooks/deploy.md`: runtime Docker, variables de entorno, primer arranque con
+  `PDF_ENABLED=false`, verificar `/health` y recién ahí encender el PDF.
+- Arrastrados de la auditoría, todavía abiertos: webhook de Chatwoot sin firma y
+  `POST /setup-webhook` sin autenticación.
 
 ## Resumen
 
