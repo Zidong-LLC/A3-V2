@@ -220,3 +220,31 @@ def telegram_chat_for_client(client_id: str) -> str | None:
         .execute()
     )
     return result.data[0]["external_chat_id"] if result.data else None
+
+@_safe(lambda: None)
+def unpublish_lab_result(result_id: str) -> dict | None:
+    """Saca el informe del portal sin borrarlo: vuelve a borrador.
+
+    Borra también el aviso: si quedara, el cliente vería en sus notificaciones un
+    «resultado disponible» que ya no puede abrir.
+    """
+    _client.table("portal_notifications").delete().eq("result_id", result_id).execute()
+    result = (
+        _client.table("lab_results")
+        .update({"published": False, "published_at": None})
+        .eq("id", result_id)
+        .execute()
+    )
+    rows = result.data or []
+    return rows[0] if rows else None
+
+
+@_safe(lambda: None)
+def delete_lab_result(result_id: str) -> None:
+    """Borra el informe y el aviso que se le mandó al cliente.
+
+    Primero la notificación: si quedara colgando, el cliente vería un aviso que lleva a un
+    informe que ya no existe.
+    """
+    _client.table("portal_notifications").delete().eq("result_id", result_id).execute()
+    _client.table("lab_results").delete().eq("id", result_id).execute()

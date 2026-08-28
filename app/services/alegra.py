@@ -243,11 +243,15 @@ def create_invoice(
     date: str,
     due_date: str | None = None,
     status: str | None = None,
+    anotation: str | None = None,
 ) -> dict:
     """Crea una factura de venta. `items` son líneas ya mapeadas:
     [{"id": <alegra_item_id>, "quantity": int, "price": int}]. El mapeo del catálogo vive
     fuera de este módulo (capa de negocio). Sin `status`, Alegra la deja en borrador para
-    cuentas sin facturación electrónica: la emisión DIAN se habilita aparte."""
+    cuentas sin facturación electrónica: la emisión DIAN se habilita aparte.
+
+    `anotation` es el campo «Notas» que se imprime en la factura. A3 lo usa para escribir
+    la veterinaria o el médico cuando la factura sale a Consumidor Final."""
     body = {
         "date": date,
         "dueDate": due_date or date,
@@ -256,4 +260,6 @@ def create_invoice(
     }
     if status:
         body["status"] = status
+    if anotation:
+        body["anotation"] = anotation
     return _request("POST", "/invoices", body)

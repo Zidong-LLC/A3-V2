@@ -18,9 +18,9 @@ def _base_context(**overrides) -> dict:
                        "client_type_options", "vat_regime_options"}:
         context[key] = {}
     for key in keys & {"exec_alerts_count", "exec_processed_week", "exec_cancel_rate",
-                       "clients_page", "clients_pages", "clients_total", "sample_demo_total"}:
+                       "clients_page", "clients_pages", "clients_total"}:
         context[key] = 0
-    for key in keys & {"error", "demo_mode", "alegra_enabled", "invoices_actions_locked"}:
+    for key in keys & {"error", "alegra_enabled", "invoices_actions_locked"}:
         context[key] = False
     context.update(overrides)
     return context
@@ -480,39 +480,6 @@ def test_samples_page_renders_profile_builder_catalog(monkeypatch):
     assert "data-sample-process-board" in body
     assert "data-sample-process-card" in body
     assert "Tubo Tapa Morada" in body
-
-
-def test_samples_page_demo_mode_renders_mock_process_lanes(monkeypatch):
-    monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_USER", "admin")
-    monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_PASSWORD", "secret")
-    context = {
-        "summary": {},
-        "request_status": {},
-        "requests": [],
-        "messages": [],
-        "samples": [],
-        "clients_rows": [],
-        "profile_catalog_rows": [],
-        "profile_analysis_rows": [],
-        "profile_builder_items": [],
-        "profile_categories": [],
-        "profile_species": [],
-        "sample_requirements": [],
-        "sample_process_lanes": [],
-    }
-
-    with patch("app.dashboard.build_dashboard_context", return_value=context):
-        client = _get_test_client()
-        client.post("/login", data={"username": "admin", "password": "secret"})
-        response = client.get("/muestras?demo=1")
-
-    assert response.status_code == 200
-    body = response.get_data(as_text=True)
-    assert "Modo demo" in body
-    assert "Demo A retirar" in body
-    assert "Demo Recibida laboratorio" in body
-    assert "Demo Analizados resultados listos" in body
-    assert "data-demo-sample-card" in body
 
 
 def test_new_client_page_requires_login():

@@ -31,3 +31,10 @@ def download_result_pdf(path: str) -> bytes:
     servidor baja del bucket privado y entrega un solo archivo al cliente,
     sin exponer una signed URL por cada resultado."""
     return _client.storage.from_(PORTAL_RESULTS_BUCKET).download(path)
+
+
+def delete_result_pdf(path: str | None) -> None:
+    """Borra el PDF del bucket. Sin path no hace nada: el llamador ya decidió borrar."""
+    if not path:
+        return
+    _client.storage.from_(PORTAL_RESULTS_BUCKET).remove([path])

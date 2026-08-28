@@ -20,7 +20,7 @@ from app.config import (
     DASHBOARD_ADMIN_USER,
     DISCOUNT_TIERS,
 )
-from app import billing_charts, client_filters, demo_data
+from app import billing_charts, client_filters
 from app.services import db, alegra
 from app import anarvet_sync, dashboard_metrics, orders, pricing, territory, billing
 
@@ -188,8 +188,6 @@ def _empty_context(error: str | None = None) -> dict:
         "samples": [],
         "sample_process_lanes": [],
         "service_order_rows": [],
-        "demo_mode": False,
-        "sample_demo_total": 0,
         "clients_rows": [],
         "catalog_rows": [],
         "profile_catalog_rows": [],
@@ -720,39 +718,6 @@ def _build_sample_process_lanes_with_orders(samples: list[dict], events: list[di
         {"status_key": status, "label": label, "count": len(cards_by_status.get(status, [])), "cards": cards_by_status.get(status, [])}
         for status, label in SAMPLE_PROCESS_STAGES
     ]
-
-
-def _demo_sample_process_lanes() -> list[dict]:
-    examples = {
-        "pending_pickup": ("Clinica Norte", "Demo A retirar", "PREQ-DMO", "Tubo Rojo y Tapa Morada", ["Tubo Rojo", "Tubo Tapa Morada"]),
-        "picked_up": ("Vet Chapinero", "Demo Recogida y en camino", "REN-DMO", "Orina Fresca", ["Orina Fresca"]),
-        "received_lab": ("Clinica Sur", "Demo Recibida laboratorio", "FEL-DMO", "Perfil personalizado", ["Tubo Rojo", "Materia Fecal"]),
-        "in_lab": ("Vet Express", "Demo En analisis", "BIO-DMO", "Tubo Rojo o Amarillo", ["Tubo Rojo o Amarillo"]),
-        "processed": ("Mascotas 24h", "Demo Analizados resultados listos", "TIR-DMO", "Tubo Rojo", ["Tubo Rojo"]),
-        "sent": ("Caninos Centro", "Demo Enviada", "DER-DMO", "Piel y Pelos", ["Piel y Pelos"]),
-    }
-    lanes = []
-    for status, label in SAMPLE_PROCESS_STAGES:
-        client_name, profile_name, profile_code, sample_type, requirements = examples[status]
-        card = {
-            "sample_id": f"demo-{status}",
-            "status": status,
-            "status_label": SAMPLE_STATUS_LABELS.get(status, status),
-            "dropdown_status": _DROPDOWN_STATUS_MAP.get(status, status),
-            "client_name": client_name,
-            "profile_name": profile_name,
-            "profile_code": profile_code,
-            "profile_type": "profile",
-            "selected_items": [{"code": profile_code, "name": profile_name, "item_type": "profile"}],
-            "sample_requirements": requirements,
-            "sample_type": sample_type,
-            "priority": "normal",
-            "created_at": "2026-05-12T10:00:00",
-            "events": [{"event_type": "demo_profile_assigned", "created_at": "2026-05-12T10:00:00"}],
-            "is_demo": True,
-        }
-        lanes.append({"status_key": status, "label": label, "count": 1, "cards": [card]})
-    return lanes
 
 
 def _build_motorizados_context(clients: list[dict]) -> dict:
@@ -2802,27 +2767,9 @@ def _render_dashboard(active_tab: str):
     summary = _empty_context()["summary"]
     summary.update(loaded.get("summary", {}))
     context["summary"] = summary
-    # Vista de ejemplo (?demo=1): datos en memoria para ver el diseño con movimiento
-    # mientras lo transaccional está vacío. NO toca la base y se avisa en pantalla.
-    modo_demo = request.args.get("demo") in {"1", "true", "si"}
-    if modo_demo:
-        context["demo_mode"] = True
-    if active_tab == "muestras" and modo_demo:
-        demo_lanes = _demo_sample_process_lanes()
-        context["sample_process_lanes"] = demo_lanes
-        context["sample_demo_total"] = sum(lane["count"] for lane in demo_lanes)
-        # La tabla también, no solo el tablero: ahí es donde se ve si una muestra con
-        # tres perfiles del mismo paciente entra o desborda la celda.
-        context["samples"] = demo_data.samples()
-    if active_tab == "solicitudes" and modo_demo:
-        context["requests"] = demo_data.requests(couriers=context.get("couriers_options") or [])
-        context["request_status"] = demo_data.request_status_counts(context["requests"])
     if active_tab == "pedidos":
-        if modo_demo:
-            pedidos = demo_data.pedidos()
-        else:
-            # Solo se consulta en su pestaña: son dos queries y no hacen falta en el resto.
-            pedidos = db.list_pedidos_for_dashboard()
+        # Solo se consulta en su pestaña: son dos queries y no hacen falta en el resto.
+        pedidos = db.list_pedidos_for_dashboard()
         context["pedidos"] = pedidos
         context["pedidos_abiertos"] = sum(1 for p in pedidos if p.get("status") == "abierto")
         context["pedidos_sin_facturar"] = sum(1 for p in pedidos if p.get("status") == "cerrado")

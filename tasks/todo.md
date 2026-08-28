@@ -1468,3 +1468,22 @@ causa raíz en `tasks/errores-soluciones.md` (ERR-161).
 - [x] 17 tests nuevos. Suite **1420 passed**. Verificado en el navegador contra los 992 reales
 - [ ] **Pendiente aparte**: la pantalla de Clientes tarda ~7 s porque el contexto arma todo el
       dashboard en cada request. Es previo a este cambio
+
+---
+
+## Vista de ejemplo: se usó para revisar el diseño y se retiró (2026-08-28)
+
+Pedido del usuario: ver cómo quedaban las pantallas con movimiento y, una vez revisadas,
+**sacar todos los datos falsos de la plataforma**.
+
+- [x] Se revisaron con datos de ejemplo: Solicitudes, Pedidos (con órdenes de varios perfiles y
+      hasta siete análisis, el peor caso) y la Agenda de motorizados (14 recogidas repartidas
+      entre los 8 motorizados reales, con dos sin asignar)
+- [x] **Retirado todo**: `app/demo_data.py` y sus tests, el `?demo=1` de Solicitudes, Pedidos y
+      Agenda, y también el **modo demo de Muestras que existía desde antes**
+      (`_demo_sample_process_lanes`, la marca `is_demo` de las tarjetas y su aviso)
+- [x] Verificado en el navegador: ninguna de las ocho rutas muestra datos inventados, ni
+      siquiera agregando `?demo=1`, que ya no hace nada. Suite **1460 passed**
+- **Queda a propósito**: `PORTAL_DEMO_MODE` en el portal del cliente, apagado desde el 27/08 por
+  decisión del usuario («el código de demo queda, apagado»). No genera datos falsos: entra al
+  portal con un cliente real sin pedir credenciales, y hoy está en `false`

@@ -22,4 +22,4 @@ def _notification_badge():
         return {"notif_unread": 0}
 
 
-from app.portal import auth, client_requests, client_results  # noqa: E402,F401
+from app.portal import auth, client_requests, client_results, client_cartera  # noqa: E402,F401

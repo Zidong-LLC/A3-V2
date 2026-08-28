@@ -17,7 +17,7 @@ from app.portal import portal_bp
 from app.services.db import client_name_matches, find_clients_by_tax_id, get_client_by_id
 from app.config import PORTAL_DEMO_MODE, PORTAL_DEMO_CLIENT_ID
 
-_SESSION_KEYS = ("portal_user_id", "portal_client_id", "portal_email")
+_SESSION_KEYS = ("portal_user_id", "portal_client_id", "portal_email", "portal_clinic_name")
 
 # Mensaje único para todo fallo de identificación: no revela si el NIT existe.
 _GENERIC_ERROR = "El nombre y el NIT no coinciden con un cliente registrado. Verifica los datos."
@@ -76,6 +76,9 @@ def _start_client_session(client: dict, nit: str) -> None:
     nit_clean = re.sub(r"[^0-9]", "", nit) or nit.strip()
     session["portal_user_id"] = f"nit:{nit_clean}"
     session["portal_client_id"] = client["id"]
+    # Con login real no hay email de acceso (se entra con clínica + NIT). El menú del
+    # portal muestra el nombre de la sede: con el modo demo ahí iba el correo ficticio.
+    session["portal_clinic_name"] = client.get("clinic_name") or ""
     session.pop("portal_email", None)
 
 

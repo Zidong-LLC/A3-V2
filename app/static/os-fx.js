@@ -12,7 +12,7 @@
     card.addEventListener('mousemove', function (e) {
       var r = card.getBoundingClientRect();
       halo.style.background = 'radial-gradient(circle at ' + (e.clientX - r.left) + 'px ' +
-        (e.clientY - r.top) + 'px, rgba(245,245,247,.09), transparent 70%)';
+        (e.clientY - r.top) + 'px, rgba(122,13,32,.06), transparent 70%)';
     });
     card.addEventListener('mouseenter', function () { halo.style.opacity = '1'; });
     card.addEventListener('mouseleave', function () { halo.style.opacity = '0'; });
