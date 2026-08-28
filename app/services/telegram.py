@@ -1,6 +1,7 @@
 import urllib.request
 import json
 from app.config import TELEGRAM_BOT_TOKEN
+from app.services.multipart import encode as _encode_multipart
 
 _BASE = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}"
 
@@ -11,6 +12,22 @@ def send_message(chat_id: str, text: str) -> None:
         f"{_BASE}/sendMessage",
         data=payload,
         headers={"Content-Type": "application/json; charset=utf-8"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req) as r:
+        r.read()
+
+
+def send_document(chat_id: str, filename: str, content: bytes, caption: str | None = None) -> None:
+    """Envía un archivo al chat. Se usa para entregar el PDF de un resultado."""
+    content_type, body = _encode_multipart(
+        {"chat_id": str(chat_id), "caption": caption},
+        [("document", filename, content, "application/pdf")],
+    )
+    req = urllib.request.Request(
+        f"{_BASE}/sendDocument",
+        data=body,
+        headers={"Content-Type": content_type},
         method="POST",
     )
     with urllib.request.urlopen(req) as r:

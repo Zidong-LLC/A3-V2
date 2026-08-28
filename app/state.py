@@ -112,6 +112,9 @@ FLAGS_CIERRE = frozenset({
     # Corrección POST-CIERRE (2026-08-24, guiones M/M2): el id/número de la última orden
     # registrada y las dos marcas del flujo corregir→confirmar→actualizar.
     "_last_request_id", "_last_order_number", "_post_close_correction_field", "_post_close_correction",
+    # Consulta de resultados por chat (paso 3.4a): ids de los PDF que main.py entrega
+    # después de responder. Vive un solo turno: se limpia apenas se intenta el envío.
+    "_deliver_results",
 })
 KNOWN_FLAGS = FLAGS_IDENTIFICACION | FLAGS_ANALISIS | FLAGS_DIRECCION | FLAGS_CIERRE
 
@@ -124,7 +127,7 @@ BUSINESS_FIELDS = frozenset({
 })
 
 # Flags que NUNCA se arrastran al turno siguiente (se recomputan cada turno).
-_NO_CARRY = frozenset({"_pending_intents"})
+_NO_CARRY = frozenset({"_pending_intents", "_deliver_results"})
 
 # Menús mutuamente excluyentes: mostrar uno limpia el otro (evita menús pegados).
 _MENU_FLAGS = ("_test_menu_options", "_profile_menu_options")

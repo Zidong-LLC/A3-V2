@@ -71,6 +71,13 @@ POST_TERMINAL_GREETING_REPLY = "Hola. ¿En qué podemos ayudarte hoy?"
 # ── Opciones del menú (resultados / reconsiderar) ───────────────────────────────
 # Opción 2 del menú (consultar resultados). Todavía no se resuelve por este medio:
 # la consulta de estados se habilitará cuando se integre la plataforma.
+# El cliente pide un resultado sin haberse identificado todavía: sin saber de qué
+# clínica escribe no se puede buscar nada (ni se debe).
+RESULTS_NEED_CLIENT_MESSAGE = (
+    "Con gusto te paso el resultado 🙌. Para buscarlo, ¿me confirmas el nombre de la "
+    "veterinaria o el NIT?"
+)
+
 RESULTS_PENDING_MESSAGE = (
     "Por ahora la consulta de resultados y estados de muestra todavía no está disponible por este medio. "
     "La estamos integrando con nuestra plataforma y muy pronto vas a poder consultarlos por aquí 🙌.\n"

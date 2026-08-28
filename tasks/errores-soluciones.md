@@ -4093,3 +4093,42 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
   cambió de figura jurídica — el tipo de cosa que solo A3 puede confirmar.
 - **Salidas:** `docs/anarvet-consulta-clientes.html` (versionado) y el PDF de 5 páginas en
   Descargas. Suite: **1327 passed**.
+
+---
+
+## ERR-159 — Consulta de resultados por chat: el agente manda el PDF
+
+- **Fecha:** 2026-08-28 · **Estado:** RESUELTO (falta prueba en vivo por Telegram)
+- **Pedido del usuario:** que el cliente pida el resultado por chat, el agente lo busque en
+  lo que ya está cargado en la plataforma y **le mande el PDF por el mismo chat**. Decisión
+  explícita: el archivo, no un enlace al portal. OK dado para tocar el bloque B15 del
+  contrato, que hasta hoy respondía un mensaje fijo de "no disponible por este medio".
+- **Qué había:** la carga y publicación de resultados por paciente ya existía completa
+  (`lab_results` con paciente, dueño, examen y orden; bucket privado; publicar + notificar).
+  Faltaban dos cosas: **ningún canal sabía mandar archivos** (Telegram y Chatwoot solo
+  texto de salida) y el enforcer del paso 3.4a nunca consultaba nada.
+- **Solución, en cuatro piezas chicas:**
+  1. `app/services/multipart.py` — codificador multipart mínimo. Los dos canales aceptan
+     archivos solo por multipart y el proyecto habla con ellos por `urllib`; se arma el
+     cuerpo a mano en vez de sumar `requests` para esto.
+  2. `telegram.send_document` y `chatwoot.send_document`.
+  3. `app/results_lookup.py` — busca los resultados **publicados** del cliente por paciente
+     o por número de orden (`A3-00042` se reconoce en el texto) y arma la respuesta.
+  4. `app/results_delivery.py` — manda los PDF después del texto. Lo llama `main.py`, no el
+     agente: `process_turn` devuelve texto y no conoce el canal.
+- **Reglas que quedaron dentro:**
+  - El `client_id` sale **siempre de la sesión, nunca del mensaje**, y se verifica dos veces:
+    al buscar y antes de enviar. Un resultado despublicado tampoco sale.
+  - Sin cliente identificado no se busca nada: se pide el nombre de la veterinaria o el NIT.
+  - Más de 3 coincidencias se listan y se pregunta cuál, en vez de disparar media docena de
+    PDFs porque alguien escribió "mándame los resultados".
+  - Si la búsqueda falla, cae al mensaje fijo de antes: un problema de base nunca deja al
+    cliente sin respuesta.
+  - La marca de entrega se limpia **antes** de intentar el envío y no se arrastra de turno
+    (`_NO_CARRY`), así un fallo no reenvía el mismo archivo en cada turno siguiente.
+- **Verificación:** 16 tests nuevos (`tests/test_resultados_por_chat.py`), suite **1356
+  passed**. Contra la base real, con un resultado de prueba creado y borrado en el acto:
+  encuentra por paciente y por número de orden, ofrece los últimos cuando no hay
+  coincidencia, y **otro cliente no lo ve**.
+- **Pendiente:** probar el envío del archivo con un chat real de Telegram (runbook de sesión
+  local). El código de envío no se ejerció contra la API, solo con dobles en los tests.

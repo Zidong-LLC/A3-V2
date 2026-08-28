@@ -243,9 +243,18 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
 - **Estado:** ✅ APROBADO (usuario, 2026-06-22) — andaba bien; falta re-verificar en el último test.
 
 ### B15 · Opción 2 · Consultar resultados
-- **Qué hace:** informa que aún no está disponible por este medio (en integración).
-- **Dónde:** `_enforce_results_message`.
-- **Estado:** ⏳ POR CONFIRMAR
+- **Qué hace:** busca en los resultados publicados de la plataforma los del cliente que
+  escribe y le manda el PDF por el mismo chat. Si no sabe quién es, pide el nombre de la
+  veterinaria o el NIT: sin cliente identificado no se busca nada. Si el pedido no coincide
+  con nada cargado, ofrece los últimos resultados de esa clínica. Con más de tres
+  coincidencias los lista y pregunta cuál, en vez de mandar todo. Si la búsqueda falla,
+  cae al mensaje de "todavía no está disponible" de antes.
+- **Dónde:** `_enforce_results_message`, `app/results_lookup.py`, `app/results_delivery.py`,
+  `telegram.send_document`, `chatwoot.send_document`.
+- **Regla dura:** el `client_id` sale SIEMPRE de la sesión, nunca del mensaje. Se verifica dos
+  veces, al buscar y antes de enviar: el cliente solo recibe lo suyo, y solo lo publicado.
+- **Estado:** ⏳ POR CONFIRMAR — reescrito el 2026-08-28 con OK explícito del usuario. Antes
+  era un mensaje fijo de "no disponible por este medio".
 
 ### B16 · Opción 3 · Pagos → Contabilidad
 - **Qué hace:** deriva siempre a Contabilidad.

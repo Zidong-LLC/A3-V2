@@ -5,6 +5,7 @@ from app.config import (
     CHATWOOT_URL, CHATWOOT_ACCOUNT_ID, CHATWOOT_API_TOKEN,
     CHATWOOT_TEAM_CONTABILIDAD, CHATWOOT_TEAM_OPERACIONES,
 )
+from app.services.multipart import encode as _encode_multipart
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,24 @@ def send_message(conversation_id: str, text: str) -> None:
         "message_type": "outgoing",
         "private": False,
     })
+
+
+def send_document(conversation_id: str, filename: str, content: bytes, caption: str | None = None) -> None:
+    """Adjunta un archivo a la conversación. Chatwoot solo acepta adjuntos por
+    multipart, así que no puede pasar por `_post`, que manda JSON."""
+    content_type, body = _encode_multipart(
+        {"content": caption or "", "message_type": "outgoing", "private": "false"},
+        [("attachments[]", filename, content, "application/pdf")],
+    )
+    headers = {"Content-Type": content_type, "api_access_token": CHATWOOT_API_TOKEN}
+    req = urllib.request.Request(
+        f"{_BASE}/conversations/{conversation_id}/messages",
+        data=body,
+        headers=headers,
+        method="POST",
+    )
+    with urllib.request.urlopen(req) as r:
+        r.read()
 
 
 def send_typing(conversation_id: str) -> None:

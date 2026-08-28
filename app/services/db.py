@@ -68,6 +68,19 @@ def update_session(chat_id: str, ai_response: dict) -> None:
     _client.table("telegram_sessions").update(update_data).eq("external_chat_id", chat_id).execute()
 
 
+def clear_pending_result_delivery(chat_id: str) -> None:
+    """Baja la marca de PDFs por entregar (paso 3.4a). Se limpia apenas se intenta
+    el envío, para que un fallo no reenvíe el mismo archivo en cada turno."""
+    result = _client.table("telegram_sessions").select("captured_fields").eq("external_chat_id", chat_id).execute()
+    if not result.data:
+        return
+    fields = result.data[0].get("captured_fields") or {}
+    if "_deliver_results" not in fields:
+        return
+    fields.pop("_deliver_results")
+    _client.table("telegram_sessions").update({"captured_fields": fields}).eq("external_chat_id", chat_id).execute()
+
+
 def link_client_to_session(chat_id: str, client_id: str) -> None:
     _client.table("telegram_sessions").update({"client_id": client_id}).eq("external_chat_id", chat_id).execute()
 
@@ -1132,6 +1145,101 @@ def get_cached_invoice(invoice_id: str) -> dict | None:
     return rows[0] if rows else None
 
 
+# ------------------------------------ Cartera ------------------------------------
+# Lo pagado y lo que falta cobrar, para el dashboard de A3 y para el portal del cliente.
+# Se lee del cache (`invoices_cache`), que se refresca desde Alegra; los pagos siempre se
+# gestionan en Alegra y escalan a contabilidad — acá es solo lectura.
+
+_CARTERA_COLUMNAS = (
+    "alegra_invoice_id, number, client_nit, client_name, status, total, balance, "
+    "total_paid, invoice_date, due_date"
+)
+
+
+def list_cartera(client_nit: str | None = None, solo_pendientes: bool = False,
+                 limit: int = 5000) -> list[dict]:
+    """Facturas para la vista de cartera, de la más reciente a la más vieja.
+
+    `client_nit` acota al cliente (portal); sin él trae todo (dashboard). Los borradores
+    y las anuladas se excluyen: no son deuda ni cobro real."""
+    rows: list[dict] = []
+    desde = 0
+    PAGE = 1000
+    while len(rows) < limit:
+        query = _client.table("invoices_cache").select(_CARTERA_COLUMNAS)
+        if client_nit:
+            base = re.sub(r"[^0-9]", "", str(client_nit).split("-", 1)[0])
+            if base:
+                query = query.ilike("client_nit", f"%{base}%")
+        if solo_pendientes:
+            query = query.gt("balance", 0)
+        lote = (
+            query.not_.in_("status", ["draft", "void", "cancelled", "canceled"])
+            .order("due_date", desc=True)
+            .range(desde, min(desde + PAGE, limit) - 1)
+            .execute()
+            .data
+        ) or []
+        rows.extend(lote)
+        if len(lote) < PAGE:
+            break
+        desde += PAGE
+    return rows
+
+
+def cartera_totales(rows: list[dict], hoy: str | None = None) -> dict:
+    """Resume una lista de facturas: facturado, cobrado, por cobrar y vencido.
+
+    Vencido = con saldo y fecha de vencimiento ya pasada. Es lo que A3 tiene que salir a
+    cobrar, y lo que el cliente ve como deuda vencida en su portal."""
+    referencia = hoy or datetime.now(timezone.utc).date().isoformat()
+    facturado = sum(int(r.get("total") or 0) for r in rows)
+    cobrado = sum(int(r.get("total_paid") or 0) for r in rows)
+    por_cobrar = sum(int(r.get("balance") or 0) for r in rows)
+    vencido = sum(
+        int(r.get("balance") or 0)
+        for r in rows
+        if int(r.get("balance") or 0) > 0 and (r.get("due_date") or "9999") < referencia
+    )
+    pendientes = [r for r in rows if int(r.get("balance") or 0) > 0]
+    return {
+        "facturado": facturado,
+        "cobrado": cobrado,
+        "por_cobrar": por_cobrar,
+        "vencido": vencido,
+        "facturas": len(rows),
+        "facturas_pendientes": len(pendientes),
+        "facturas_vencidas": sum(1 for r in pendientes if (r.get("due_date") or "9999") < referencia),
+    }
+
+
+def cartera_por_cliente(rows: list[dict], hoy: str | None = None) -> list[dict]:
+    """Agrupa la cartera por cliente, ordenando por lo que más se debe."""
+    referencia = hoy or datetime.now(timezone.utc).date().isoformat()
+    por_nit: dict[str, dict] = {}
+    for r in rows:
+        nit = str(r.get("client_nit") or "-")
+        item = por_nit.setdefault(nit, {
+            "client_nit": nit,
+            "client_name": r.get("client_name") or "Cliente sin nombre",
+            "facturado": 0, "cobrado": 0, "por_cobrar": 0, "vencido": 0,
+            "facturas": 0, "pendientes": 0, "vence_primero": None,
+        })
+        saldo = int(r.get("balance") or 0)
+        item["facturado"] += int(r.get("total") or 0)
+        item["cobrado"] += int(r.get("total_paid") or 0)
+        item["por_cobrar"] += saldo
+        item["facturas"] += 1
+        if saldo > 0:
+            item["pendientes"] += 1
+            vence = r.get("due_date") or ""
+            if vence and (item["vence_primero"] is None or vence < item["vence_primero"]):
+                item["vence_primero"] = vence
+            if vence and vence < referencia:
+                item["vencido"] += saldo
+    return sorted(por_nit.values(), key=lambda x: x["por_cobrar"], reverse=True)
+
+
 # --------------------------- Espejo Anarvet (resultados) ---------------------------
 
 def upsert_anarvet_results(rows: list[dict]) -> int:
@@ -1815,6 +1923,7 @@ def list_clients_with_assignment(limit: int = 5000) -> list[dict]:
             _client.table("clients")
             .select(
                 "id, clinic_name, tax_id, phone, address, zone, billing_type, is_active, email, "
+                "electronic_invoice, invoice_note, "
                 "client_courier_assignment(courier_id, couriers(id, name, phone, availability, is_active))"
             )
             .order("clinic_name")
@@ -2220,3 +2329,26 @@ def get_last_order_for_client(client_id: str) -> dict | None:
         .execute()
     )
     return result.data[0] if result.data else None
+
+
+def search_clients_for_dashboard(term: str, limit: int = 12) -> list[dict]:
+    """Busca clientes por nombre o NIT para el autocompletar de la ficha del dashboard.
+
+    Una sola consulta con `or_`: el usuario escribe «alpes» o «900482» y la ficha aparece.
+    Los activos primero, porque son los que se usan a diario.
+    """
+    termino = (term or "").strip()
+    if len(termino) < 2:
+        return []
+    seguro = termino.replace(",", " ").replace("%", " ").strip()
+    filas = (
+        _client.table("clients")
+        .select("id, clinic_name, tax_id, zone, is_active")
+        .or_(f"clinic_name.ilike.%{seguro}%,tax_id.ilike.%{seguro}%")
+        .order("clinic_name")
+        .limit(limit * 3)
+        .execute()
+        .data
+    ) or []
+    filas.sort(key=lambda f: (not f.get("is_active"), (f.get("clinic_name") or "").lower()))
+    return filas[:limit]

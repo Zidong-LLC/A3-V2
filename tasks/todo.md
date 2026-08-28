@@ -1400,9 +1400,11 @@ Recorte y confirmación de alcance sobre el balance del 25/08. Detalle y motivo 
 - [x] **Roles: solo dos** — personal interno de A3 (todos con el usuario administrador) y
       cliente final en el portal. **El motorizado no se loguea a nada.** Elimina la tabla de
       usuarios y el rol de mensajero del pendiente.
-- [ ] **Consulta de resultados por chat — SÍ entra** (pedido explícito). El agente busca en
-      los resultados cargados en la plataforma los del paciente que le piden y le envía el PDF
-      por el chat. Toca el paso 3.4a del contrato (hoy mensaje fijo) → plan y OK antes de tocar
+- [x] **Consulta de resultados por chat — HECHA** (ERR-159, OK del usuario 28/08). El agente
+      busca los resultados publicados del cliente por paciente o número de orden y manda el
+      PDF por Telegram o Chatwoot. Piezas nuevas: `multipart.py`, `send_document` en los dos
+      canales, `results_lookup.py`, `results_delivery.py`. Bloque B15 del contrato reescrito.
+      16 tests nuevos, suite 1356. **Falta probarlo con un chat real de Telegram**
 - [x] **Validación del médico veterinario: FUERA DE ALCANCE** (decisión del usuario 28/08).
       El agente sigue anotando el nombre que le den sin comprobar que esté registrado
 - [x] **Los 17 mapeos de Anarvet: en manos de A3** (decisión del usuario 28/08). No se escribe

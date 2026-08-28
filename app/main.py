@@ -6,6 +6,7 @@ from app.config import (
     MESSAGE_DEBOUNCE_SECONDS, MESSAGE_DEBOUNCE_MAX_WAIT,
 )
 from app.agent import process_turn
+from app.results_delivery import deliver_pending
 from app.health import check_all
 from app.services import telegram, chatwoot
 from app.services.db import get_or_create_session
@@ -14,14 +15,20 @@ import app.pricing  # registra el provider de tramos de descuento en rules
 from app.platform_api import platform_api
 from app.dashboard import dashboard
 from app.dashboard_results import dashboard_results
+from app.dashboard_client import dashboard_client
 from app.dashboard_anarvet import dashboard_anarvet
 from app.portal import portal_bp
+from app.text import money
 
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
+# Formato de dinero colombiano en las plantillas ({{ total | money }} -> $18.000).
+# `app.text.money` es una utilidad de formato pura, no lógica de negocio.
+app.jinja_env.filters["money"] = money
 app.register_blueprint(platform_api)
 app.register_blueprint(dashboard)
 app.register_blueprint(dashboard_results)
+app.register_blueprint(dashboard_client)
 app.register_blueprint(dashboard_anarvet)
 app.register_blueprint(portal_bp)
 
@@ -117,6 +124,12 @@ def _process_telegram(chat_id: str, user_text: str) -> None:
     except Exception as e:
         app.logger.error("Error sending message to %s: %s", chat_id, e)
 
+    # Resultados pedidos por chat: el PDF va después del texto (paso 3.4a).
+    try:
+        deliver_pending(chat_id, channel="telegram")
+    except Exception as e:
+        app.logger.error("Error entregando resultados a %s: %s", chat_id, e)
+
 
 @app.route("/chatwoot/webhook", methods=["POST"])
 def chatwoot_webhook():
@@ -162,6 +175,12 @@ def _process_chatwoot(conversation_id: str, content: str) -> None:
             chatwoot.assign_team(conversation_id, session["handoff_area"])
     except Exception as e:
         app.logger.error("Error enviando a chatwoot %s: %s", conversation_id, e, exc_info=True)
+
+    # Resultados pedidos por chat: el PDF va después del texto (paso 3.4a).
+    try:
+        deliver_pending(conversation_id, channel="chatwoot")
+    except Exception as e:
+        app.logger.error("Error entregando resultados a chatwoot %s: %s", conversation_id, e)
 
 
 @app.route("/setup-webhook", methods=["POST"])
