@@ -20,7 +20,7 @@ from app.config import (
     DASHBOARD_ADMIN_USER,
     DISCOUNT_TIERS,
 )
-from app import billing_charts
+from app import billing_charts, client_filters
 from app.services import db, alegra
 from app import anarvet_sync, dashboard_metrics, orders, pricing, territory, billing
 
@@ -2764,14 +2764,40 @@ def _render_dashboard(active_tab: str):
         context["pedidos_abiertos"] = sum(1 for p in pedidos if p.get("status") == "abierto")
         context["pedidos_sin_facturar"] = sum(1 for p in pedidos if p.get("status") == "cerrado")
     if active_tab == "clientes":
-        all_rows = context.get("clients_rows") or []
+        # La búsqueda y los filtros corren ACÁ, sobre los 992 clientes, y recién después se
+        # corta la página: hacerlo en el navegador solo miraba las 15 filas visibles y
+        # buscar «animal pet» devolvía cero con el cliente cargado en otra página.
+        criterios = client_filters.desde_args(request.args)
+        todas = context.get("clients_rows") or []
+        all_rows = client_filters.filtrar(
+            todas,
+            q=criterios.get("q", ""),
+            tipo=criterios.get("tipo", "all"),
+            estado=criterios.get("estado", "all"),
+            motorizado=criterios.get("motorizado", "all"),
+            fe=criterios.get("fe", "all"),
+        )
         per_page = 15
-        page = max(1, min(int(request.args.get("page", 1)), max(1, (len(all_rows) + per_page - 1) // per_page) or 1))
+        try:
+            pedida = int(request.args.get("page", 1))
+        except (TypeError, ValueError):
+            pedida = 1
+        paginas = max(1, (len(all_rows) + per_page - 1) // per_page)
+        page = max(1, min(pedida, paginas))
         context["clients_total"] = len(all_rows)
+        context["clients_all_total"] = len(todas)
         context["clients_page"] = page
         context["clients_per_page"] = per_page
-        context["clients_pages"] = max(1, (len(all_rows) + per_page - 1) // per_page)
+        context["clients_pages"] = paginas
         context["clients_rows"] = all_rows[(page - 1) * per_page : page * per_page]
+        context["clients_filters"] = criterios
+        context["clients_query"] = criterios.get("q", "")
+        context["clients_filter_values"] = {
+            "tipo": criterios.get("tipo", "all"),
+            "estado": criterios.get("estado", "all"),
+            "motorizado": criterios.get("motorizado", "all"),
+            "fe": criterios.get("fe", "all"),
+        }
     if active_tab == "facturacion":
         try:
             page = max(1, int(request.args.get("page", 1)))

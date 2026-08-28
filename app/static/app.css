@@ -287,3 +287,7 @@ select option{background-color:var(--os-space-surface);color:var(--text)}
 .billing-table summary{cursor:pointer;color:var(--text-dim);font-size:12px}
 .billing-table[open] summary{margin-bottom:8px}
 .billing-month em{font-style:normal;font-size:10px;color:var(--text-dim);display:block;text-transform:none}
+
+/* Buscador de cliente dentro de la barra de filtros: necesita ancho propio y quedar
+   por encima de la tabla cuando despliega las sugerencias. */
+.filter-bar .client-finder{flex:1 1 260px;min-width:220px;max-width:360px}

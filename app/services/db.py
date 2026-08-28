@@ -2416,18 +2416,27 @@ def search_clients_for_dashboard(term: str, limit: int = 12) -> list[dict]:
     Una sola consulta con `or_`: el usuario escribe «alpes» o «900482» y la ficha aparece.
     Los activos primero, porque son los que se usan a diario.
     """
-    termino = (term or "").strip()
+    termino = re.sub(r"\s+", " ", (term or "").replace(",", " ").replace("%", " ")).strip()
     if len(termino) < 2:
         return []
-    seguro = termino.replace(",", " ").replace("%", " ").strip()
+    # Se consulta por la palabra más larga y las demás se afinan acá. Con varias palabras,
+    # `ilike` de la frase entera exige el mismo orden ("pet animal" no encontraba
+    # "Animal Pets") y dos espacios seguidos no devolvían nada.
+    palabras = termino.split()
+    ancla = max(palabras, key=len)
     filas = (
         _client.table("clients")
         .select("id, clinic_name, tax_id, zone, is_active")
-        .or_(f"clinic_name.ilike.%{seguro}%,tax_id.ilike.%{seguro}%")
+        .or_(f"clinic_name.ilike.%{ancla}%,tax_id.ilike.%{ancla}%")
         .order("clinic_name")
-        .limit(limit * 3)
+        .limit(max(limit * 3, 60))
         .execute()
         .data
     ) or []
+    if len(palabras) > 1:
+        def coincide(fila: dict) -> bool:
+            texto = f"{fila.get('clinic_name') or ''} {fila.get('tax_id') or ''}".lower()
+            return all(palabra.lower() in texto for palabra in palabras)
+        filas = [fila for fila in filas if coincide(fila)]
     filas.sort(key=lambda f: (not f.get("is_active"), (f.get("clinic_name") or "").lower()))
     return filas[:limit]

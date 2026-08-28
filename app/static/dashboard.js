@@ -149,31 +149,28 @@
     });
   }
 
+  // El filtrado ya NO se hace acá: lo hace el servidor sobre los 992 clientes y después
+  // pagina (app/client_filters.py). Filtrar en el navegador solo miraba las 15 filas de la
+  // página visible, así que buscar un cliente cargado en la página 40 daba cero resultados.
+  // Lo único que queda es enviar el formulario al elegir un desplegable.
   function mountClientFilters() {
-    const rows = Array.from(document.querySelectorAll('.client-table-row'));
-    if (!rows.length) return;
-    const search = document.querySelector('[data-clients-search-input]');
-    const type = document.querySelector('[data-clients-type-filter]');
-    const status = document.querySelector('[data-clients-status-filter]');
-    const assignment = document.querySelector('[data-clients-assignment-filter]');
-    const fe = document.querySelector('[data-clients-fe-filter]');
-    const count = document.querySelector('[data-clients-count-pill]');
-    function apply() {
-      const q = String(search && search.value || '').toLowerCase().trim();
-      const t = String(type && type.value || 'all');
-      const s = String(status && status.value || 'all');
-      const a = String(assignment && assignment.value || 'all');
-      const f = String(fe && fe.value || 'all');
-      let visible = 0;
-      rows.forEach((row) => {
-        const ok = (!q || String(row.dataset.search || '').includes(q)) && (t === 'all' || String(row.dataset.clientType || '') === t) && (s === 'all' || String(row.dataset.clientStatus || '') === s) && (a === 'all' || String(row.dataset.clientHasCourier || '') === a) && (f === 'all' || String(row.dataset.clientFe || 'sin_dato') === f);
-        row.style.display = ok ? '' : 'none';
-        if (ok) visible++;
+    const selects = document.querySelectorAll('[data-clients-submit]');
+    if (!selects.length) return;
+    const form = selects[0].form;
+    selects.forEach((select) => {
+      select.addEventListener('change', () => form && form.requestSubmit());
+    });
+    // Los campos vacíos o en "todos" no viajan: sin esto la URL queda
+    // ?q=&tipo=all&estado=all&motorizado=all&fe=all y no se puede compartir.
+    if (form) {
+      form.addEventListener('submit', () => {
+        [...form.elements].forEach((campo) => {
+          if (!campo.name) return;
+          if (campo.value === '' || campo.value === 'all') campo.disabled = true;
+        });
+        setTimeout(() => [...form.elements].forEach((c) => { c.disabled = false; }), 0);
       });
-      if (count) count.textContent = `${visible} visibles`;
     }
-    [search, type, status, assignment, fe].forEach((el) => { if (el) el.addEventListener('input', apply), el.addEventListener('change', apply); });
-    apply();
   }
 
   mountClientDeleteActions();

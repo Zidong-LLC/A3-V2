@@ -4182,3 +4182,40 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
   precios corrió con precios reales **sin escribir nada**; una carga de portafolio se aplicó de
   verdad (ítem creado con auditoría) y se borró; y se subieron dos informes de una vez, con su
   paciente y su orden correctos.
+
+---
+
+## ERR-161 — Buscar un cliente no lo encontraba: el filtro solo miraba la página visible
+
+- **Fecha:** 2026-08-28 · **Estado:** RESUELTO
+- **Síntoma (usuario):** escribir «animal pet» en la pantalla de Clientes no devolvía nada,
+  con el cliente cargado en la base.
+- **Causa raíz:** la tabla se pagina en el servidor de a **15 filas sobre 992 clientes** (67
+  páginas) y el buscador —junto con los cuatro filtros— era **JavaScript que escondía filas de
+  la página ya renderizada** (`dashboard.js:mountClientFilters`). Nunca preguntaba por el
+  resto. Las dos coincidencias reales, «Animal Pets» (activa) y «Animal Pet» (inactiva), caen
+  lejos de la página 1, así que el contador informaba «0 visibles» y parecía que el cliente no
+  existía.
+- **Solución:** `app/client_filters.py` (puro) + filtrado **antes de paginar** en
+  `_render_dashboard`. La barra pasó a ser un formulario GET y el JS de filtrado se retiró:
+  con los dos conviviendo, nadie sabría cuál mandó.
+  - La búsqueda exige **todas las palabras en cualquier orden**: «pet animal» encuentra
+    «Animal Pets», y los espacios de más dejan de importar.
+  - Busca sobre los mismos campos que la fila muestra (nombre, NIT, teléfono, correos,
+    dirección, zona, mensajero, médicos), sin tildes ni mayúsculas.
+  - Los **inactivos aparecen** (decisión del usuario): que no aparezca hace pensar que el
+    cliente no está cargado, y casi siempre está pero inactivo.
+  - La paginación conserva búsqueda y filtros; antes «Siguiente» los borraba.
+  - El contador dice **cuántos encontró en total**, no cuántos hay en la página.
+- **Sugerencias mientras se escribe** (`static/client-search.js`) reusando el endpoint que ya
+  existía, `GET /clientes/buscar`. Al elegir se abre la ficha.
+- **De paso, en `db.search_clients_for_dashboard`:** «animal  pet» con dos espacios devolvía
+  cero y «pet animal» tampoco encontraba nada, porque el `ilike` de la frase entera exige el
+  mismo orden. Ahora se consulta por la palabra más larga y las demás se afinan en Python.
+- **Verificación:** 17 tests nuevos (`tests/test_client_filters.py`), suite **1420 passed**. En
+  el navegador contra los 992 reales: «animal pet» y «pet animal» devuelven las 4 coincidencias
+  con «Animal Pet» marcada inactiva; el filtro de sin motorizado da 672 de 992; pasar de página
+  conserva el término; la sugerencia abre la ficha correcta.
+- **Nota aparte, no tocada:** la pantalla de Clientes tarda ~7 s en cargar porque
+  `build_dashboard_context` arma TODO el dashboard (clientes, catálogo, muestras, solicitudes,
+  facturación) en cada request. Es previo a este cambio y merece su propia tarea.

@@ -1449,3 +1449,22 @@ escribir: una fila por archivo, agenda semana por mensajero, y las tres cargas p
       `944e53f`, a cero de diferencia con local
 - [ ] **Falta el despliegue**: Render todavía no corre este código. Runbook en
       `docs/runbooks/deploy.md` (runtime Docker, variables, primer arranque con el PDF apagado)
+
+---
+
+## Búsqueda de clientes arreglada (2026-08-28) — COMPLETADO
+
+Reporte del usuario: buscar «animal pet» no encontraba al cliente entre los 992. Detalle y
+causa raíz en `tasks/errores-soluciones.md` (ERR-161).
+
+- [x] `app/client_filters.py`: búsqueda por todas las palabras en cualquier orden, sin tildes,
+      sobre los mismos campos que muestra la fila; más los cuatro filtros
+- [x] Se filtra ANTES de paginar (`_render_dashboard`), no en el navegador sobre 15 filas
+- [x] La barra pasó a formulario GET; la paginación conserva búsqueda y filtros; el contador
+      informa el total encontrado
+- [x] Sugerencias mientras se escribe, reusando `GET /clientes/buscar`; las inactivas van
+      marcadas (decisión del usuario)
+- [x] `db.search_clients_for_dashboard`: espacios repetidos y palabras en otro orden
+- [x] 17 tests nuevos. Suite **1420 passed**. Verificado en el navegador contra los 992 reales
+- [ ] **Pendiente aparte**: la pantalla de Clientes tarda ~7 s porque el contexto arma todo el
+      dashboard en cada request. Es previo a este cambio
