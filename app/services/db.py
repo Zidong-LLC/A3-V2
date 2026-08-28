@@ -1091,6 +1091,18 @@ def upsert_invoices_cache(rows: list[dict]) -> int:
     return len(rows)
 
 
+def _like_sin_tildes(texto: str) -> str:
+    """Patrón LIKE que encuentra igual con tilde y sin ella.
+
+    En la base conviven «Clinica» y «Clínica»: buscar una no encontraba la otra
+    (89 facturas contra 8). `ilike` no ignora tildes y PostgREST no expone `unaccent`,
+    así que cada vocal se cambia por `_`, que en LIKE es «un carácter cualquiera»:
+    «clinica» pasa a «cl_n_c_» y encuentra las dos formas. Los comodines que escriba
+    el usuario se neutralizan antes."""
+    limpio = re.sub(r"[%_]", " ", str(texto or "")).strip()
+    return re.sub(r"[aeiouáéíóúüñAEIOUÁÉÍÓÚÜÑ]", "_", limpio)
+
+
 def list_cached_invoices(
     filters: dict | None = None,
     page: int = 1,
@@ -1107,7 +1119,10 @@ def list_cached_invoices(
     if f.get("document_type"):
         query = query.eq("document_type", f["document_type"])
     if f.get("client_nit"):
-        query = query.ilike("client_nit", f"%{f['client_nit']}%")
+        # Sin el dígito de verificación ni puntos: en el cache el NIT viene pelado y
+        # escribirlo como figura en la factura («32180929-1») no encontraba nada.
+        nit = re.sub(r"[^0-9]", "", str(f["client_nit"]).split("-", 1)[0]) or f["client_nit"]
+        query = query.ilike("client_nit", f"%{nit}%")
     if f.get("number"):
         query = query.ilike("number", f"%{f['number']}%")
     if f.get("date_from"):
@@ -1119,11 +1134,18 @@ def list_cached_invoices(
     if f.get("total_max") is not None:
         query = query.lte("total", f["total_max"])
     if f.get("search"):
-        term = str(f["search"]).replace(",", " ").strip()
-        if term:
+        palabras = [p for p in re.split(r"[\s,]+", str(f["search"]).strip()) if p]
+        if len(palabras) == 1:
+            term = _like_sin_tildes(palabras[0])
             query = query.or_(
                 f"number.ilike.%{term}%,client_name.ilike.%{term}%,client_nit.ilike.%{term}%"
             )
+        elif palabras:
+            # Varias palabras: TODAS tienen que estar en el nombre, en cualquier orden.
+            # Antes se buscaba la frase entera y «lopez isabel» no encontraba a
+            # «Dra Isabel Cristina Lopez».
+            for palabra in palabras:
+                query = query.ilike("client_name", f"%{_like_sin_tildes(palabra)}%")
     field = order_field if order_field in _INVOICE_ORDER_FIELDS else "invoice_date"
     query = query.order(field, desc=order_desc)
     start = max(page - 1, 0) * per_page

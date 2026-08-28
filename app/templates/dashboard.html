@@ -620,7 +620,7 @@
             <td><div class="invoice-actions"><button type="button" class="ghost-btn" data-invoice-view="{{ row.alegra_invoice_id }}">Ver</button><a class="ghost-btn" href="https://app.alegra.com/invoice/view/id/{{ row.alegra_invoice_id }}" target="_blank" rel="noopener">Alegra</a><button type="button" class="ghost-btn" data-invoice-copy="{{ row.number }}">Copiar</button></div></td>
           </tr>
         {% else %}
-          <tr><td colspan="13">No hay facturas en cache. Usa "Sincronizar con Alegra" para traerlas.</td></tr>
+          <tr><td colspan="13">{% if request.args.get("search") or request.args.get("status") or request.args.get("client_nit") or request.args.get("date_from") or request.args.get("date_to") or request.args.get("total_min") or request.args.get("total_max") %}Ninguna factura coincide con la busqueda. <a class="ghost-btn small" href="{{ url_for('dashboard.billing_page') }}">Limpiar filtros</a>{% else %}No hay facturas en cache. Usa "Sincronizar con Alegra" para traerlas.{% endif %}</td></tr>
         {% endfor %}
         </tbody></table></div>
         {% if inv.invoices_pages and inv.invoices_pages > 1 %}<div class="filter-bar"><span class="table-counter">Pagina {{ inv.invoices_page }} de {{ inv.invoices_pages }}</span>{% if inv.invoices_page > 1 %}<a class="ghost-btn" data-invoices-page="{{ inv.invoices_page - 1 }}" href="#">Anterior</a>{% endif %}{% if inv.invoices_page < inv.invoices_pages %}<a class="ghost-btn" data-invoices-page="{{ inv.invoices_page + 1 }}" href="#">Siguiente</a>{% endif %}</div>{% endif %}

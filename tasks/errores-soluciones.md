@@ -4269,3 +4269,29 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
   clientes y el catálogo real: sede múltiple con dirección correcta, dos perfiles y dos
   análisis elegidos y quitados desde las etiquetas, y una orden registrada de punta a punta
   con los tres ítems en el detalle (creada y borrada).
+
+---
+
+## ERR-164 — La búsqueda de facturas fallaba igual que la de clientes
+
+- **Fecha:** 2026-08-28 · **Estado:** RESUELTO
+- **Reporte del usuario:** «en la búsqueda de facturas, cuando pongo el nombre de un cliente,
+  pasa lo mismo que en solicitudes: no funcionaba». Verificado contra las 1.200 facturas reales
+  del cache; fallaban tres cosas y el resto andaba bien.
+- **1. Tildes.** En la base conviven «Clinica» y «Clínica». Buscar sin tilde traía 89 facturas y
+  con tilde 8: dos mundos separados. `ilike` no ignora tildes y PostgREST no expone `unaccent`.
+  **Solución:** cada vocal del término se cambia por `_`, que en LIKE es «un carácter
+  cualquiera»: «clinica» pasa a «cl_n_c_» y encuentra las dos formas. Ahora las dos dan 97.
+- **2. Dos palabras.** «lopez isabel» devolvía 0 aunque existe «Dra Isabel Cristina Lopez»,
+  porque se buscaba la frase entera como subcadena. **Solución:** con varias palabras se exige
+  que **todas** estén en el nombre, en cualquier orden. La coma pasa a ser separador (antes
+  «clinica, veterinaria» devolvía 0).
+- **3. NIT con guion.** Escribirlo como figura en la factura («32180929-1») devolvía 0: en el
+  cache el NIT viene pelado. **Solución:** se busca por los dígitos, sin puntos ni dígito de
+  verificación, igual que ya hacía la cartera.
+- **Lo que sí funcionaba** y quedó verificado: estado, rango de totales, rango de fechas,
+  búsqueda por número de factura, por NIT completo y las combinaciones.
+- **De paso:** sin coincidencias la tabla decía «No hay facturas en cache, usá Sincronizar con
+  Alegra», con 1.200 facturas cargadas. Ahora distingue las dos cosas y ofrece limpiar filtros.
+- **Verificación:** 10 tests nuevos con un doble del constructor de consultas (comprueban qué
+  condiciones se le piden a la base) y contra los datos reales desde la pantalla. Suite **1452**.
