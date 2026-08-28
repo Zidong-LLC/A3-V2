@@ -545,7 +545,7 @@
         </div>
         <div class="sample-tab-panel" data-tab-panel="guardados" hidden>
         <details class="builder-wrap catalog-panel">
-          <summary><span><strong>Crear perfil a medida</strong><small>Arma un perfil para una veterinaria eligiendo del catalogo</small></span><span class="muted-text">Tocar para abrir</span></summary>
+          <summary><span><strong>Crear perfil a medida</strong><small>Elegis del catalogo y lo guardas para esa veterinaria. El agente se lo reofrece la proxima vez que escriba.</small></span><span class="muted-text">Tocar para abrir</span></summary>
           <aside class="profile-builder-panel"><div class="builder-sticky"><p class="hello-label">Constructor personalizado</p><h3>Perfil a medida</h3><label>Cliente<select class="cell-select" data-builder-client><option value="">Seleccionar cliente</option>{% for row in context.clients_rows %}<option value="{{ row.client_id }}">{{ row.display_name or row.clinic_name }}</option>{% endfor %}</select></label><div class="builder-selection" data-builder-selection><div class="flow-empty">Agrega perfiles o analisis del catalogo.</div></div><div class="builder-samples"><strong>Muestras requeridas</strong><div data-builder-samples><span class="muted-text">Sin items seleccionados</span></div></div><div class="builder-total"><span>Total estimado</span><strong data-builder-total>$ 0</strong></div><label>Resumen para cliente<textarea class="cell-input" data-builder-summary rows="7" readonly></textarea></label><button type="button" class="ghost-btn" data-builder-copy>Copiar resumen</button></div></aside></details>
         <section class="custom-profiles-section">
           <div class="card-head sample-lab-head">
@@ -771,7 +771,7 @@
     });
   </script>
   <script src="{{ url_for('static', filename='columns-config.js') }}?v=4" defer></script>
-  <script src="{{ url_for('static', filename='dashboard.js') }}?v=14" defer></script>
+  <script src="{{ url_for('static', filename='dashboard.js') }}?v=15" defer></script>
   <script src="{{ url_for('static', filename='client-search.js') }}?v=1" defer></script>
   <script src="{{ url_for('static', filename='couriers.js') }}?v=1" defer></script>
   <script src="{{ url_for('static', filename='custom-profiles.js') }}?v=1" defer></script>

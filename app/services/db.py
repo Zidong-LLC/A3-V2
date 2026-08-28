@@ -1466,7 +1466,42 @@ def list_custom_profiles(client_id: str | None = None, limit: int = 100) -> list
 
 
 def save_custom_profile(payload: dict) -> dict:
-    result = _client.table("client_custom_profiles").insert(payload).execute()
+    """Guarda un perfil personalizado armado a mano en el dashboard.
+
+    Entra al MISMO circuito que los que registra el agente: con su `items_signature` y su
+    `usage_count`. Sin eso, el perfil guardado desde la plataforma quedaba fuera de
+    `list_favorite_profiles` (que ordena por usos) y, cuando la clínica volvía a pedir lo
+    mismo por el chat, `record_custom_profile_use` no lo reconocía y creaba una fila
+    duplicada. El sentido de guardarlo es que el agente se lo reofrezca a esa veterinaria.
+    """
+    datos = dict(payload or {})
+    items = datos.get("items_json") or []
+    firma = _items_signature(items)
+    datos.setdefault("items_signature", firma)
+    datos.setdefault("usage_count", 1)
+    datos.setdefault("last_used_at", datetime.now(timezone.utc).isoformat())
+
+    # Si esa clínica ya tiene el mismo conjunto de análisis, se renombra en vez de duplicar.
+    if datos.get("client_id") and firma:
+        existente = (
+            _client.table("client_custom_profiles")
+            .select("id")
+            .eq("client_id", datos["client_id"])
+            .eq("items_signature", firma)
+            .limit(1)
+            .execute()
+        ).data or []
+        if existente:
+            actualizado = (
+                _client.table("client_custom_profiles")
+                .update({"name": datos.get("name") or "Perfil personalizado",
+                         "last_used_at": datos["last_used_at"]})
+                .eq("id", existente[0]["id"])
+                .execute()
+            )
+            return (actualizado.data or [{}])[0]
+
+    result = _client.table("client_custom_profiles").insert(datos).execute()
     return (result.data or [{}])[0]
 
 

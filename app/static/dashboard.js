@@ -266,10 +266,20 @@
   if (!panel.querySelector('[data-builder-add-analysis]')) panel.insertAdjacentHTML('beforeend', '<button type="button" class="ghost-btn" data-builder-add-analysis>Agregar analisis extra</button>');
   if (!panel.querySelector('[data-builder-clear]')) panel.insertAdjacentHTML('beforeend', '<button type="button" class="ghost-btn" data-builder-clear>Limpiar seleccion</button>');
   if (!panel.querySelector('[data-builder-save-profile]')) panel.insertAdjacentHTML('beforeend', '<button type="button" class="ghost-btn" data-builder-save-profile>Guardar perfil personalizado</button>');
-  if (!panel.querySelector('[data-builder-accept]')) panel.insertAdjacentHTML('beforeend', '<button type="button" class="primary-btn" data-builder-accept>Aceptar y registrar muestras</button><small class="save-flag" data-builder-save-flag></small>');
+  if (!panel.querySelector('[data-builder-save-flag]')) panel.insertAdjacentHTML('beforeend', '<small class="save-flag" data-builder-save-flag></small>');
 
   panel.querySelector('[data-builder-clear]')?.addEventListener('click', () => { selectedItems.splice(0); renderBuilder(); });
-  panel.querySelector('[data-builder-add-analysis]')?.addEventListener('click', () => { const typeFilter = document.querySelector('[data-builder-type-filter]'); const search = document.querySelector('[data-builder-search]'); if (typeFilter) typeFilter.value = 'analysis'; applyBuilderCatalogFilters(); catalog.scrollIntoView({behavior:'smooth', block:'start'}); if (search) search.focus(); });
+  panel.querySelector('[data-builder-add-analysis]')?.addEventListener('click', () => {
+    // El catálogo vive en la OTRA pestaña desde que el constructor se mudó: sin cambiar
+    // de pestaña, este botón hacía scroll hacia algo invisible.
+    document.querySelector('.sample-tab-btn[data-tab="catalogo"]')?.click();
+    const typeFilter = document.querySelector('[data-builder-type-filter]');
+    const search = document.querySelector('[data-builder-search]');
+    if (typeFilter) typeFilter.value = 'analysis';
+    applyBuilderCatalogFilters();
+    catalog.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (search) search.focus();
+  });
   panel.querySelector('[data-builder-save-profile]')?.addEventListener('click', async () => {
     const flag = panel.querySelector('[data-builder-save-flag]');
     const name = panel.querySelector('[data-builder-profile-name]')?.value || 'Perfil personalizado';
@@ -279,16 +289,6 @@
       await postJsonSafe('/api/dashboard/save-custom-profile', { client_id: client.value, name, items: selectedItems.map((item) => ({ code: item.code, item_type: item.item_type, name: item.name, source: item.selection_source, included_from_profile_code: item.included_from_profile_code, price: item.selection_source === 'profile_included' ? 0 : Number(item.price || 0) })) });
       if (flag) flag.textContent = 'Perfil guardado';
       setTimeout(() => location.reload(), 1000);
-    } catch (err) { if (flag) flag.textContent = err.message; }
-  });
-  panel.querySelector('[data-builder-accept]')?.addEventListener('click', async () => {
-    const flag = panel.querySelector('[data-builder-save-flag]');
-    if (!client?.value) { if (flag) flag.textContent = 'Selecciona un cliente'; return; }
-    if (!selectedItems.length) { if (flag) flag.textContent = 'Agrega al menos un analisis'; return; }
-    try {
-      const result = await postJsonSafe('/api/dashboard/profile-assignment', { client_id: client.value, items: selectedItems.map((item) => ({ code: item.code, item_type: item.item_type, source: item.selection_source, included_from_profile_code: item.included_from_profile_code })), notes: summary?.value || '' });
-      if (flag) flag.textContent = `Registradas ${result.created_count} muestra(s)`;
-      setTimeout(() => location.reload(), 1200);
     } catch (err) { if (flag) flag.textContent = err.message; }
   });
   document.querySelectorAll('[data-load-profile]').forEach((button) => button.addEventListener('click', () => {

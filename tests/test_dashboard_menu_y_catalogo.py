@@ -180,3 +180,45 @@ def test_el_constructor_vive_con_los_perfiles_personalizados():
     assert "builder-sticky" not in catalogo
     assert "builder-sticky" in guardados
     assert 'class="builder-wrap catalog-panel"' in guardados
+
+# ── Perfil a medida: que sirva para lo que dice servir ───────────────────────
+
+def test_el_perfil_guardado_a_mano_entra_al_circuito_del_agente():
+    """Se guarda para que el agente se lo reofrezca a esa veterinaria. Sin firma ni
+    contador quedaba fuera de `list_favorite_profiles`, que ordena por usos, y el chat
+    creaba un duplicado al reconocer el mismo conjunto."""
+    from unittest.mock import MagicMock
+
+    from app.services import db as dbs
+
+    cliente = MagicMock()
+    cliente.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
+    with patch.object(dbs, "_client", cliente):
+        dbs.save_custom_profile({"client_id": "c-1", "name": "Perfil Renal Max",
+                                 "items_json": [{"code": "653"}, {"code": "1101"}]})
+    enviado = cliente.table.return_value.insert.call_args.args[0]
+    assert enviado["items_signature"] == "1101|653"      # ordenada, no depende del orden de carga
+    assert enviado["usage_count"] == 1
+    assert enviado["last_used_at"]
+
+
+def test_guardar_el_mismo_conjunto_renombra_en_vez_de_duplicar():
+    from unittest.mock import MagicMock
+
+    from app.services import db as dbs
+
+    cliente = MagicMock()
+    cliente.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = [{"id": "p-9"}]
+    with patch.object(dbs, "_client", cliente):
+        dbs.save_custom_profile({"client_id": "c-1", "name": "Otro nombre",
+                                 "items_json": [{"code": "653"}]})
+    cliente.table.return_value.insert.assert_not_called()
+    assert cliente.table.return_value.update.call_args.args[0]["name"] == "Otro nombre"
+
+
+def test_el_constructor_ya_no_registra_muestras_sueltas():
+    """Ese botón creaba filas sin orden, sin motorizado y sin factura, en una tabla que
+    no se muestra en ninguna pantalla."""
+    js = (pathlib.Path("app/static") / "dashboard.js").read_text(encoding="utf-8")
+    assert "data-builder-accept" not in js
+    assert "profile-assignment" not in js

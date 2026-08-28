@@ -4409,3 +4409,38 @@ puede bajar al subir el tramo»).
   aunque esten en pestañas distintas: dos items sumaron $38.000 en el resumen.
 - **Tests:** 3 nuevos, uno de ellos recorre los cuatro bloques para que ninguno vuelva a quedar
   dentro del Centro Operativo. Suite **1473 passed**.
+
+---
+
+## ERR-168 — «Perfil a medida» no servia para lo unico que deberia servir
+
+- **Fecha:** 2026-08-28 · **Estado:** RESUELTO
+- **Reporte del usuario:** «dale una vuelta a crear perfil a medida, no me parece que funcione
+  con lo que tenemos, queda raro».
+- **Lo que estaba raro, mirado a fondo:**
+  1. **El boton «Aceptar y registrar muestras»** creaba filas en `lab_samples`: muestras
+     sueltas, **sin orden, sin motorizado, sin pedido y sin factura**. Con el flujo actual
+     (solicitud → pedido → orden) no encajan, y ademas **esa tabla ya no se muestra en ninguna
+     pantalla**: `context.samples` y `sample_lanes` quedaron sin uso al retirar el proceso de
+     muestras. Eran registros que nadie volvia a ver. **Decision del usuario: se retira.**
+  2. **El perfil guardado desde la plataforma quedaba fuera del circuito del agente**, que es
+     justamente para lo que se guarda (decision 012, pedido de A3 del 06/05).
+     `save_custom_profile` insertaba sin `items_signature` ni `usage_count`, y
+     `list_favorite_profiles` ordena por usos: el perfil guardado a mano no se reofrecia. Peor:
+     cuando esa clinica volvia a pedir lo mismo por el chat, `record_custom_profile_use` no lo
+     reconocia por la firma y **creaba una fila duplicada**.
+     Ahora se guarda con su firma y su contador, y si esa clinica ya tiene el mismo conjunto de
+     analisis **se renombra en vez de duplicar**.
+  3. **«Agregar analisis extra»** hacia scroll hacia el catalogo, que desde la mudanza vive en
+     la OTRA pestaña: no llevaba a ningun lado. Ahora cambia de pestaña y enfoca el buscador.
+  4. La pantalla no decia para que sirve. El bloque ahora lo explica: lo que se guarda ahi el
+     agente se lo reofrece a esa veterinaria la proxima vez que escriba.
+- **Dato que corrige una sospecha inicial:** los 44 perfiles que ya existen **los creo el
+  agente** (`created_by: agente`), todos con firma y contador, sin duplicados. El circuito del
+  chat estaba bien; lo que no entraba era lo guardado desde el dashboard.
+- **Verificacion:** 3 tests nuevos y prueba completa contra la base: se armo un perfil con dos
+  analisis ($26.000), se guardo para una veterinaria real, quedo con firma `1101|1701` y usos 1,
+  y `list_favorite_profiles` lo devolvio — o sea, **el agente se lo reofreceria**. Rastro
+  borrado. Suite **1476 passed**.
+- **Queda sin consumidor** el endpoint `/api/dashboard/profile-assignment`: no se retira por
+  ahora (es escritura y puede tener otros usos), pero ninguna pantalla lo llama.
