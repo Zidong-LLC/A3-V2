@@ -184,131 +184,49 @@
     });
   })();
 
-  const catalog = document.querySelector('[data-builder-catalog]');
-  const selection = document.querySelector('[data-builder-selection]');
-  const samples = document.querySelector('[data-builder-samples]');
-  const total = document.querySelector('[data-builder-total]');
-  const summary = document.querySelector('[data-builder-summary]');
-  const client = document.querySelector('[data-builder-client]');
-  const panel = document.querySelector('.builder-sticky');
-  if (!catalog || !selection || !panel) return;
-  catalog.querySelectorAll('[data-builder-add]').forEach((button) => { button.textContent = button.dataset.type === 'profile' ? 'Usar perfil' : 'Agregar analisis'; });
-
-  const selectedItems = [];
-  function applyBuilderCatalogFilters() {
-    const search = document.querySelector('[data-builder-search]');
-    const typeFilter = document.querySelector('[data-builder-type-filter]');
-    const speciesFilter = document.querySelector('[data-builder-species-filter]');
-    const categoryFilter = document.querySelector('[data-builder-category-filter]');
-    // Sin tildes en los dos lados: el catalogo esta lleno de acentos y buscar
-    // "hepatico" devolvia CERO tarjetas mientras "Hepático" devolvia nueve.
+  // ── Buscador y filtros del catalogo ─────────────────────────────────────────
+  // Vivia dentro del constructor de perfil a medida; al retirarlo habria quedado sin
+  // ejecutarse (`if (!panel) return;`) y el catalogo se habria quedado sin busqueda.
+  (() => {
+    const catalog = document.querySelector('[data-builder-catalog]');
+    if (!catalog) return;
     const plano = (v) => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-    const palabras = plano(search?.value).trim().split(/\s+/).filter(Boolean);
-    const type = String(typeFilter?.value || 'all');
-    const species = String(speciesFilter?.value || 'all');
-    const category = String(categoryFilter?.value || 'all');
-    let visibles = 0;
-    catalog.querySelectorAll('[data-builder-card]').forEach((card) => {
-      const text = plano(`${card.dataset.name || ''} ${card.dataset.code || ''}`);
-      // Todas las palabras, en cualquier orden: "renal canino" encuentra "Perfil Renal Canino".
-      const matches = palabras.every((p) => text.includes(p)) && (type === 'all' || card.dataset.type === type) && (species === 'all' || card.dataset.species === species) && (category === 'all' || card.dataset.category === category);
-      card.style.display = matches ? '' : 'none';
-      if (matches) visibles++;
-    });
-    const contador = document.querySelector('[data-builder-count]');
-    if (contador) contador.textContent = `${visibles} de ${catalog.querySelectorAll('[data-builder-card]').length}`;
-    const vacio = document.querySelector('[data-builder-empty]');
-    if (vacio) vacio.hidden = visibles > 0;
-  }
-  document.querySelectorAll('[data-builder-search],[data-builder-type-filter],[data-builder-species-filter],[data-builder-category-filter]').forEach((control) => {
-    control.addEventListener('input', applyBuilderCatalogFilters);
-    control.addEventListener('change', applyBuilderCatalogFilters);
-  });
-  function addItem(item, source = 'manual_extra', baseProfileCode = '') {
-    if (!item || selectedItems.some((s) => s.code === item.code && s.item_type === item.item_type)) return;
-    selectedItems.push({...item, selection_source: item.item_type === 'profile' ? 'base_profile' : source, included_from_profile_code: baseProfileCode});
-    if (item.item_type === 'profile' && Array.isArray(item.composed_tests)) {
-      item.composed_tests.forEach((test) => addItem(builderItemsSafe.find((candidate) => candidate.item_type === 'analysis' && candidate.code === test.code), 'profile_included', item.code));
-    }
-  }
-  function renderBuilder() {
-    const sampleSet = [...new Set(selectedItems.map((item) => item.sample).filter(Boolean))];
-    const totalValue = selectedItems.reduce((sum, item) => sum + (item.selection_source === 'profile_included' ? 0 : Number(item.price || 0)), 0);
-    selection.innerHTML = selectedItems.length ? selectedItems.map((item, index) => { const label = item.selection_source === 'base_profile' ? 'Perfil base · precio bonificado' : item.selection_source === 'profile_included' ? `Incluido en perfil ${esc(item.included_from_profile_code)} · sin costo extra` : 'Analisis adicional · suma al total'; return `<div class="builder-selected-item" data-code="${esc(item.code)}" data-type="${esc(item.item_type)}" data-source="${esc(item.selection_source)}" data-included-from="${esc(item.included_from_profile_code)}"><span><strong>${esc(item.name)}</strong><small>${esc(item.code)} · ${label}</small></span><button type="button" data-builder-remove="${index}">Quitar</button></div>`; }).join('') : '<div class="flow-empty">Agrega perfiles o analisis del catalogo.</div>';
-    if (samples) samples.innerHTML = sampleSet.length ? sampleSet.map((sample) => `<span class="status-badge">${esc(sample)}</span>`).join(' ') : '<span class="muted-text">Sin items seleccionados</span>';
-    if (total) total.textContent = money(totalValue);
-    if (summary) {
-      const clientName = client && client.value ? client.options[client.selectedIndex].textContent : 'Cliente por definir';
-      summary.value = `Cliente: ${clientName}\nItems:\n${selectedItems.map((item) => `- ${item.code} ${item.name} (${item.selection_source === 'base_profile' ? 'Perfil base bonificado' : item.selection_source === 'profile_included' ? 'Incluido sin costo extra' : 'Analisis adicional'})`).join('\n') || '- Sin items'}\nMuestras requeridas: ${sampleSet.join(', ') || 'Sin definir'}\nTotal estimado: ${money(totalValue)}`;
-    }
-  }
-  catalog.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-builder-add]');
-    if (!button) return;
-    addItem(builderItemsSafe.find((item) => item.code === button.dataset.code && item.item_type === button.dataset.type));
-    renderBuilder();
-  });
-  selection.addEventListener('click', (event) => {
-    const button = event.target.closest('[data-builder-remove]');
-    if (!button) return;
-    const removed = selectedItems.splice(Number(button.dataset.builderRemove), 1)[0];
-    if (removed && removed.selection_source === 'base_profile') {
-      for (let i = selectedItems.length - 1; i >= 0; i--) {
-        if (selectedItems[i].selection_source === 'profile_included' && selectedItems[i].included_from_profile_code === removed.code) selectedItems.splice(i, 1);
-      }
-    }
-    renderBuilder();
-  });
 
-  if (!panel.querySelector('[data-builder-profile-name]')) {
-    panel.insertAdjacentHTML('afterbegin', '<label>Nombre del perfil personalizado<input class="cell-input" data-builder-profile-name placeholder="Ej. Perfil renal Max"></label>');
-  }
-  if (!panel.querySelector('[data-builder-add-analysis]')) panel.insertAdjacentHTML('beforeend', '<button type="button" class="ghost-btn" data-builder-add-analysis>Agregar analisis extra</button>');
-  if (!panel.querySelector('[data-builder-clear]')) panel.insertAdjacentHTML('beforeend', '<button type="button" class="ghost-btn" data-builder-clear>Limpiar seleccion</button>');
-  if (!panel.querySelector('[data-builder-save-profile]')) panel.insertAdjacentHTML('beforeend', '<button type="button" class="ghost-btn" data-builder-save-profile>Guardar perfil personalizado</button>');
-  if (!panel.querySelector('[data-builder-save-flag]')) panel.insertAdjacentHTML('beforeend', '<small class="save-flag" data-builder-save-flag></small>');
+    function aplicar() {
+      const search = document.querySelector('[data-builder-search]');
+      const typeFilter = document.querySelector('[data-builder-type-filter]');
+      const speciesFilter = document.querySelector('[data-builder-species-filter]');
+      const categoryFilter = document.querySelector('[data-builder-category-filter]');
+      // Sin tildes y por palabras: «hepatico» tiene que encontrar «Perfil Hepático».
+      const palabras = plano(search?.value).trim().split(/\s+/).filter(Boolean);
+      const type = String(typeFilter?.value || 'all');
+      const species = String(speciesFilter?.value || 'all');
+      const category = String(categoryFilter?.value || 'all');
+      let visibles = 0;
+      catalog.querySelectorAll('[data-builder-card]').forEach((card) => {
+        const text = plano(`${card.dataset.name || ''} ${card.dataset.code || ''}`);
+        const matches = palabras.every((p) => text.includes(p))
+          && (type === 'all' || card.dataset.type === type)
+          && (species === 'all' || card.dataset.species === species)
+          && (category === 'all' || card.dataset.category === category);
+        card.style.display = matches ? '' : 'none';
+        if (matches) visibles++;
+      });
+      const contador = document.querySelector('[data-builder-count]');
+      if (contador) contador.textContent = `${visibles} de ${catalog.querySelectorAll('[data-builder-card]').length}`;
+      const vacio = document.querySelector('[data-builder-empty]');
+      if (vacio) vacio.hidden = visibles > 0;
+    }
 
-  panel.querySelector('[data-builder-clear]')?.addEventListener('click', () => { selectedItems.splice(0); renderBuilder(); });
-  panel.querySelector('[data-builder-add-analysis]')?.addEventListener('click', () => {
-    // El catálogo vive en la OTRA pestaña desde que el constructor se mudó: sin cambiar
-    // de pestaña, este botón hacía scroll hacia algo invisible.
-    document.querySelector('.sample-tab-btn[data-tab="catalogo"]')?.click();
-    const typeFilter = document.querySelector('[data-builder-type-filter]');
-    const search = document.querySelector('[data-builder-search]');
-    if (typeFilter) typeFilter.value = 'analysis';
-    applyBuilderCatalogFilters();
-    catalog.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    if (search) search.focus();
-  });
-  panel.querySelector('[data-builder-save-profile]')?.addEventListener('click', async () => {
-    const flag = panel.querySelector('[data-builder-save-flag]');
-    const name = panel.querySelector('[data-builder-profile-name]')?.value || 'Perfil personalizado';
-    if (!client?.value) { if (flag) flag.textContent = 'Selecciona un cliente'; return; }
-    if (!selectedItems.length) { if (flag) flag.textContent = 'Agrega analisis al perfil'; return; }
-    try {
-      await postJsonSafe('/api/dashboard/save-custom-profile', { client_id: client.value, name, items: selectedItems.map((item) => ({ code: item.code, item_type: item.item_type, name: item.name, source: item.selection_source, included_from_profile_code: item.included_from_profile_code, price: item.selection_source === 'profile_included' ? 0 : Number(item.price || 0) })) });
-      if (flag) flag.textContent = 'Perfil guardado';
-      setTimeout(() => location.reload(), 1000);
-    } catch (err) { if (flag) flag.textContent = err.message; }
-  });
-  document.querySelectorAll('[data-load-profile]').forEach((button) => button.addEventListener('click', () => {
-    const profile = customProfilesSafe.find((item) => item.id === button.dataset.loadProfile);
-    if (!profile) return;
-    selectedItems.splice(0);
-    (profile.items_json || []).forEach((saved) => addItem(builderItemsSafe.find((item) => item.code === saved.code && item.item_type === saved.item_type)));
-    if (client && profile.client_id) client.value = profile.client_id;
-    const nameInput = panel.querySelector('[data-builder-profile-name]');
-    if (nameInput) nameInput.value = profile.name || '';
-    renderBuilder();
-  }));
-  document.querySelectorAll('[data-delete-profile]').forEach((button) => button.addEventListener('click', async () => {
-    if (!window.confirm('Eliminar este perfil personalizado?')) return;
-    await postJsonSafe('/api/dashboard/delete-custom-profile', { profile_id: button.dataset.deleteProfile });
-    button.closest('.custom-profile-card')?.remove();
-  }));
-  client?.addEventListener('change', renderBuilder);
-  renderBuilder();
-  applyBuilderCatalogFilters();
+    document.querySelectorAll('[data-builder-search],[data-builder-type-filter],[data-builder-species-filter],[data-builder-category-filter]')
+      .forEach((control) => {
+        control.addEventListener('input', aplicar);
+        control.addEventListener('change', aplicar);
+      });
+    aplicar();
+  })();
+
+
 })();
 
 // ── Panel Ejecutivo — sistema de widgets ─────────────────────────────────────

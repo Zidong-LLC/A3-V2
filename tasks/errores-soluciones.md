@@ -4444,3 +4444,26 @@ puede bajar al subir el tramo»).
   borrado. Suite **1476 passed**.
 - **Queda sin consumidor** el endpoint `/api/dashboard/profile-assignment`: no se retira por
   ahora (es escritura y puede tener otros usos), pero ninguna pantalla lo llama.
+
+---
+
+## ERR-169 — Se retira el constructor de perfil a medida
+
+- **Fecha:** 2026-08-28 · **Estado:** RESUELTO
+- **Decision del usuario**, despues de ver el diagnostico de ERR-168: el bloque «Crear perfil a
+  medida» se retira entero. Su unico boton util guardaba un perfil que, hasta el arreglo de
+  ERR-168, ni siquiera entraba en la lista que el agente reofrece; y el otro registraba muestras
+  sueltas que no se veian en ninguna pantalla.
+- **Que queda:** la pestaña «Perfiles personalizados» sigue mostrando los **44 perfiles que crea
+  el agente solo** cuando una veterinaria pide siempre lo mismo, agrupados por veterinaria, con
+  buscador, renombrar y borrar. Ese circuito nunca dependio del constructor.
+- **Cuidado que hubo que tener:** el buscador y los filtros del catalogo **vivian dentro del
+  bloque del constructor** (`if (!catalog || !selection || !panel) return;`). Retirarlo a secas
+  habria dejado las 438 tarjetas sin busqueda. Se separo en su propio bloque antes de sacar el
+  resto. Es el mismo patron que ya habia roto los descuentos, el lapiz del catalogo, el cierre
+  de pedidos y las tendencias (ERR-166 y ERR-167).
+- **Tambien se retiran** los botones que apuntaban al constructor: «Agregar/Usar perfil» en las
+  tarjetas del catalogo y «Cargar en builder» en los perfiles guardados.
+- **Verificacion:** el catalogo conserva buscador (9 resultados con «hepatico», 1 con «1101»),
+  contador y el lapiz para editar precio y especie; los 44 perfiles quedan con Renombrar y
+  Eliminar. Sin errores de consola. Suite **1473 passed**.

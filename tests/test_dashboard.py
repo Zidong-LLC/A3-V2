@@ -432,27 +432,21 @@ def test_dashboard_context_groups_samples_by_process_status(monkeypatch):
     assert card["events"][0]["event_type"] == "profile_assigned_from_dashboard"
 
 
-def test_samples_page_renders_profile_builder_catalog(monkeypatch):
+def test_samples_page_renders_catalogo(monkeypatch):
+    """El catálogo se lee y se busca; el constructor de perfil a medida se retiró
+    (registraba muestras sueltas y lo que guardaba no servía para nada del flujo)."""
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_USER", "admin")
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_PASSWORD", "secret")
-    context = {
-        "summary": {},
-        "request_status": {},
-        "requests": [],
-        "messages": [],
-        "samples": [],
-        "clients_rows": [{"client_id": "client-1", "display_name": "Clinica Norte", "clinic_name": "Clinica Norte"}],
-        "profile_catalog_rows": [{"code": "P001", "name": "Perfil Renal", "category": "Renal", "species": "canino", "description": "Control renal", "price": 50000}],
-        "profile_analysis_rows": [{"code": "H001", "name": "Hemograma", "category": "Hematologia", "species": "ambos", "sample": "Tubo Tapa Morada", "price": 10000}],
-        "profile_builder_items": [
-            {"item_type": "profile", "code": "P001", "name": "Perfil Renal", "category": "Renal", "species": "canino", "sample": "Perfil", "price": 50000, "description": "Control renal"},
-            {"item_type": "analysis", "code": "H001", "name": "Hemograma", "category": "Hematologia", "species": "ambos", "sample": "Tubo Tapa Morada", "price": 10000, "description": ""},
+    context = _base_context(
+        profile_builder_items=[
+            {"item_type": "profile", "code": "P001", "name": "Perfil Renal", "category": "Renal",
+             "species": "canino", "sample": "Perfil", "price": 50000, "description": "Control renal"},
+            {"item_type": "analysis", "code": "H001", "name": "Hemograma", "category": "Hematologia",
+             "species": "ambos", "sample": "Tubo Tapa Morada", "price": 10000, "description": ""},
         ],
-        "profile_categories": ["Hematologia", "Renal"],
-        "profile_species": ["ambos", "canino"],
-        "sample_requirements": ["Tubo Tapa Morada"],
-        "sample_process_lanes": [{"status_key": "received_lab", "label": "Recibida laboratorio", "count": 1, "cards": [{"sample_id": "sample-1", "client_name": "Clinica Norte", "profile_name": "Perfil Renal", "profile_code": "P001", "sample_type": "Perfil personalizado", "sample_requirements": ["Tubo Tapa Morada"], "priority": "normal", "created_at": "2026-05-12T10:00:00", "events": []}]}],
-    }
+        profile_categories=["Hematologia", "Renal"],
+        profile_species=["ambos", "canino"],
+    )
 
     with patch("app.dashboard.build_dashboard_context", return_value=context):
         client = _get_test_client()
@@ -461,18 +455,11 @@ def test_samples_page_renders_profile_builder_catalog(monkeypatch):
 
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "Constructor personalizado" in body
     assert "Perfil Renal" in body
     assert "Hemograma" in body
-    assert "data-builder-add" in body
-    assert "Usar perfil" in body or "data-builder-add" in body
-    assert "applyBuilderCatalogFilters" in body or "data-builder-catalog" in body
-    assert "Resumen para cliente" in body or "data-builder-summary" in body
-    assert "Tubo Tapa Morada" in body
-    # La pestaña «Proceso de muestras» se retiró (duplicaba los estados de Solicitudes):
-    # la sección queda con el catálogo y los perfiles guardados.
-    assert "data-sample-process-board" not in body
-
+    assert "data-builder-catalog" in body        # la grilla y su buscador siguen
+    assert "data-builder-search" in body
+    assert "data-builder-summary" not in body    # el constructor ya no está
 
 def test_new_client_page_requires_login():
     client = _get_test_client()
