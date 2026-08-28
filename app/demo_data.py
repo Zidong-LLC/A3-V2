@@ -39,6 +39,24 @@ ESTADOS = ("received", "assigned", "on_route", "in_lab", "processed",
            "sent", "assigned", "in_lab", "received", "error_pending_assignment")
 PRIORIDADES = ("normal", "normal", "alta", "normal", "urgente", "normal")
 
+# Lo que pide una veterinaria de verdad: desde un análisis suelto hasta una orden con
+# tres perfiles y varios sueltos para el mismo paciente. Sirve para ver si la tabla
+# aguanta el peor caso, que es justo el que antes no se podía cargar.
+COMBINACIONES = (
+    ["Cuadro Hemático Completo"],
+    ["Perfil Prequirúrgico I", "Cuadro Hemático Completo"],
+    ["Perfil Renal I", "Perfil Hepático Canino I", "Uroanálisis"],
+    ["Perfil Parasitológico I"],
+    ["Perfil Prequirúrgico II", "Perfil Renal I", "Perfil Hepático Canino II",
+     "Cuadro Hemático Completo", "Recuento de Plaquetas"],
+    ["Citología PAF", "Cultivo y Antibiograma"],
+    ["Perfil Hepático Canino I", "Perfil Renal I", "Perfil Tiroideo",
+     "Hemoparásitos", "Uroanálisis", "Coprológico Seriado", "Ionograma"],
+    ["Coprológico Seriado"],
+    ["Perfil Geriátrico", "Perfil Cardíaco", "Cuadro Hemático Completo"],
+    ["Hemoglobina y Hematocrito"],
+)
+
 
 def _ahora() -> datetime:
     return datetime.now(timezone.utc)
@@ -55,7 +73,9 @@ def requests(cantidad: int = 10, couriers: list[dict] | None = None) -> list[dic
     filas = []
     for i in range(cantidad):
         clinica, direccion, motorizado = CLIENTES[i % len(CLIENTES)]
-        examen, muestra, cantidad_muestras = ANALISIS[i % len(ANALISIS)]
+        combinacion = COMBINACIONES[i % len(COMBINACIONES)]
+        _, muestra, _ = ANALISIS[i % len(ANALISIS)]
+        cantidad_muestras = min(len(combinacion), 6)
         paciente, especie = PACIENTES[i % len(PACIENTES)]
         estado = ESTADOS[i % len(ESTADOS)]
         pedida = ahora - timedelta(hours=3 * i + 1)
@@ -67,7 +87,7 @@ def requests(cantidad: int = 10, couriers: list[dict] | None = None) -> list[dic
             "clients": {"clinic_name": clinica},
             "pickup_address": direccion,
             "sample_count": cantidad_muestras,
-            "exam_type": examen,
+            "exam_type": ", ".join(combinacion),
             "sample_types": muestra,
             "priority": PRIORIDADES[i % len(PRIORIDADES)],
             "assigned_courier_id": None if estado == "error_pending_assignment" or not reales
@@ -93,12 +113,12 @@ def pedidos(cantidad: int = 6) -> list[dict]:
         ordenes = []
         for j in range((i % 3) + 1):
             paciente, especie = PACIENTES[(i + j) % len(PACIENTES)]
-            examen, _, _ = ANALISIS[(i + j) % len(ANALISIS)]
+            combinacion = COMBINACIONES[(i + j) % len(COMBINACIONES)]
             ordenes.append({
                 "order_number": f"A3-2026-{900 + i * 3 + j}",
                 "patient_name": paciente,
                 "species": especie,
-                "exam_type": examen,
+                "exam_type": ", ".join(combinacion),
             })
         filas.append({
             "id": f"demo-pedido-{i + 1}",
@@ -120,3 +140,36 @@ def request_status_counts(filas: list[dict]) -> dict:
     for fila in filas:
         conteo[fila["status"]] = conteo.get(fila["status"], 0) + 1
     return conteo
+
+
+# ── Muestras ──────────────────────────────────────────────────────────────────
+
+ESTADOS_MUESTRA = ("pending_pickup", "picked_up", "received_lab", "in_lab", "processed", "sent")
+TIPOS_MUESTRA = ("Tubo Tapa Morada", "Tubo Rojo", "Orina Fresca", "Materia Fecal",
+                 "Tubo Rojo y Tapa Morada", "Lámina")
+
+
+def samples(cantidad: int = 10) -> list[dict]:
+    """Muestras de ejemplo para la tabla de Muestras.
+
+    Cada una lleva la MISMA combinación de análisis que la solicitud que le
+    corresponde: es el caso que hay que mirar, porque una sola muestra puede
+    responder a tres perfiles del mismo paciente."""
+    ahora = _ahora()
+    filas = []
+    for i in range(cantidad):
+        clinica, _, motorizado = CLIENTES[i % len(CLIENTES)]
+        combinacion = COMBINACIONES[i % len(COMBINACIONES)]
+        estado = ESTADOS_MUESTRA[i % len(ESTADOS_MUESTRA)]
+        filas.append({
+            "id": f"demo-sample-{i + 1}",
+            "created_at": (ahora - timedelta(hours=4 * i + 2)).isoformat(),
+            "clients": {"clinic_name": clinica},
+            "sample_type": TIPOS_MUESTRA[i % len(TIPOS_MUESTRA)],
+            "test_name": ", ".join(combinacion),
+            "test_code": None,
+            "status": estado,
+            "dropdown_status": estado if estado in ("pending_pickup", "picked_up", "received_lab", "in_lab") else "in_lab",
+            "couriers": {"name": motorizado},
+        })
+    return filas

@@ -2764,6 +2764,9 @@ def _render_dashboard(active_tab: str):
         demo_lanes = _demo_sample_process_lanes()
         context["sample_process_lanes"] = demo_lanes
         context["sample_demo_total"] = sum(lane["count"] for lane in demo_lanes)
+        # La tabla también, no solo el tablero: ahí es donde se ve si una muestra con
+        # tres perfiles del mismo paciente entra o desborda la celda.
+        context["samples"] = demo_data.samples()
     if active_tab == "solicitudes" and modo_demo:
         context["requests"] = demo_data.requests(couriers=context.get("couriers_options") or [])
         context["request_status"] = demo_data.request_status_counts(context["requests"])
