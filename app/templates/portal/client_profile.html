@@ -12,7 +12,8 @@
     <div><span>Teléfono</span><strong>{{ (client or {}).phone or '—' }}</strong></div>
     <div><span>Dirección</span><strong>{{ (client or {}).address or '—' }}</strong></div>
     <div><span>Ciudad</span><strong>{{ (client or {}).city or '—' }}</strong></div>
-    <div><span>Correo de acceso</span><strong>{{ session.portal_email or '—' }}</strong></div>
+    <div><span>Correo registrado</span><strong>{{ (client or {}).email or '—' }}</strong></div>
+    <div><span>Acceso al portal</span><strong>Nombre de la veterinaria + NIT</strong></div>
   </div>
   <p class="muted-text portal-profile-note">Para actualizar estos datos, contacte al laboratorio: la dirección y el teléfono definen la asignación de su motorizado y la identificación de su cuenta.</p>
 </section>

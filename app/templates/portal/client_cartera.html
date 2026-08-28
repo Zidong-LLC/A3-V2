@@ -1,0 +1,88 @@
+{% extends "portal/base.html" %}
+{% block title %}A3 Portal - Estado de cuenta{% endblock %}
+{% block subtitle %}Mi cuenta{% endblock %}
+{% block heading %}Estado de cuenta{% endblock %}
+
+{% block content %}
+{% if sin_nit %}
+<section class="card">
+  <div class="card-head"><h3>Sin NIT registrado</h3><p>No podemos mostrar su estado de cuenta</p></div>
+  <p class="muted-text">Su cuenta no tiene NIT registrado en el laboratorio, y las facturas se
+  identifican por ese dato. Escríbanos para completarlo.</p>
+</section>
+{% else %}
+
+<section class="kpi-grid four">
+  <article class="kpi-card">
+    <div class="kpi-head"><span>Facturado</span></div>
+    <strong class="kpi-money">{{ totales.facturado | money }}</strong>
+    <p class="delta">{{ totales.facturas }} factura(s)</p>
+  </article>
+  <article class="kpi-card">
+    <div class="kpi-head"><span>Pagado</span></div>
+    <strong class="kpi-money">{{ totales.cobrado | money }}</strong>
+    <p class="delta">Registrado por el laboratorio</p>
+  </article>
+  <article class="kpi-card{% if totales.por_cobrar %} kpi-alert{% endif %}">
+    <div class="kpi-head"><span>Pendiente</span></div>
+    <strong class="kpi-money">{{ totales.por_cobrar | money }}</strong>
+    <p class="delta">{{ totales.facturas_pendientes }} sin pagar</p>
+  </article>
+  <article class="kpi-card{% if totales.vencido %} kpi-alert{% endif %}">
+    <div class="kpi-head"><span>Vencido</span></div>
+    <strong class="kpi-money">{{ totales.vencido | money }}</strong>
+    <p class="delta">{{ totales.facturas_vencidas }} pasada(s) de fecha</p>
+  </article>
+</section>
+
+<section class="card">
+  <div class="card-head"><h3>Facturas sin pagar</h3><p>{{ pendientes|length }} pendiente(s)</p></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Factura</th><th>Fecha</th><th>Vence</th><th>Total</th><th>Abonado</th><th>Saldo</th></tr></thead>
+      <tbody>
+        {% for f in pendientes %}
+        <tr>
+          <td>{{ f.number or '—' }}</td>
+          <td>{{ f.invoice_date or '—' }}</td>
+          <td>{{ f.due_date or '—' }}</td>
+          <td>{{ f.total | money }}</td>
+          <td>{{ f.total_paid | money }}</td>
+          <td><span class="status-badge status-error_pending_assignment">{{ f.balance | money }}</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6" class="muted-text">No tiene facturas pendientes. Está al día.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="card">
+  <div class="card-head"><h3>Facturas pagadas</h3><p>{{ pagadas_total }} en total</p></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Factura</th><th>Fecha</th><th>Total</th><th>Estado</th></tr></thead>
+      <tbody>
+        {% for f in pagadas %}
+        <tr>
+          <td>{{ f.number or '—' }}</td>
+          <td>{{ f.invoice_date or '—' }}</td>
+          <td>{{ f.total | money }}</td>
+          <td><span class="status-badge status-processed">Pagada</span></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" class="muted-text">Todavía no hay facturas pagadas.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if pagadas_total > pagadas|length %}
+  <p class="muted-text portal-profile-note">Mostrando las {{ pagadas|length }} más recientes de {{ pagadas_total }}.</p>
+  {% endif %}
+</section>
+
+<p class="muted-text portal-profile-note">Para pagos o aclaraciones de facturación, escríbanos:
+el equipo de contabilidad del laboratorio lo atiende directamente.</p>
+{% endif %}
+{% endblock %}

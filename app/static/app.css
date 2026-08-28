@@ -291,3 +291,23 @@ select option{background-color:var(--os-space-surface);color:var(--text)}
 /* Buscador de cliente dentro de la barra de filtros: necesita ancho propio y quedar
    por encima de la tabla cuando despliega las sugerencias. */
 .filter-bar .client-finder{flex:1 1 260px;min-width:220px;max-width:360px}
+
+
+/* ── Buscador de veterinaria con sugerencias (Resultados y tabla de Clientes) ──
+   Vivía en portal.css, que el dashboard NO carga: la lista salía cruda, con
+   viñetas y enlaces azules empujando la tabla hacia abajo. Es un desplegable:
+   flota sobre el contenido y no mueve nada de lugar. */
+.client-finder{position:relative;padding:4px 0}
+.client-finder .cell-input{width:100%;min-width:0}
+.client-finder-list{position:absolute;z-index:60;left:0;right:0;top:calc(100% + 6px);margin:0;padding:6px;
+  list-style:none;background:var(--os-space-card);border:1px solid var(--os-space-border);border-radius:10px;
+  box-shadow:0 14px 38px -14px rgba(24,24,27,.32);max-height:340px;overflow-y:auto;min-width:280px;
+  animation:client-finder-in .14s ease-out}
+@keyframes client-finder-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.client-finder-list li{margin:0}
+.client-finder-list li + li{border-top:1px solid var(--os-space-border)}
+.client-finder-list a{display:grid;gap:1px;padding:9px 10px;border-radius:7px;text-decoration:none;color:var(--text)}
+.client-finder-list a:hover,.client-finder-list a:focus-visible{background:var(--os-space-tint);color:var(--accent)}
+.client-finder-list strong{font-size:13px;font-weight:600;line-height:1.25}
+.client-finder-list span{font-size:11px;color:var(--text-dim);line-height:1.3}
+.client-finder-list a:hover span{color:var(--text-dim)}
