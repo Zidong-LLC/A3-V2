@@ -1133,9 +1133,26 @@ def list_cached_invoices(
 
 
 def list_all_cached_invoices(columns: str = "*", limit: int = 10000) -> list[dict]:
-    """Lee el cache completo (acotado) para métricas y exportación."""
-    result = _client.table("invoices_cache").select(columns).limit(limit).execute()
-    return result.data or []
+    """Lee el cache completo (acotado) para métricas y exportación.
+
+    Pagina de a 1000 porque ese es el tope por request de Supabase: con `.limit(10000)`
+    a secas devolvía 1000 de 1200 facturas y las métricas del panel salían por debajo
+    de la realidad, sin ningún error visible (mismo problema que en
+    `list_a3_knowledge_index`)."""
+    PAGE = 1000
+    rows: list[dict] = []
+    while len(rows) < limit:
+        batch = (
+            _client.table("invoices_cache")
+            .select(columns)
+            .range(len(rows), min(len(rows) + PAGE, limit) - 1)
+            .execute()
+            .data
+        ) or []
+        rows.extend(batch)
+        if len(batch) < PAGE:
+            break
+    return rows
 
 
 def get_cached_invoice(invoice_id: str) -> dict | None:

@@ -77,7 +77,7 @@
 
         {# ── KPI Operación ── #}
         <div data-widget="kpi_ops" class="exec-widget">
-          <section class="kpi-grid four os-stagger">
+          <section class="kpi-grid five os-stagger">
             <article class="kpi-card os-lift-card" data-spotlight>
               <div class="kpi-head"><span>Solicitudes activas</span><i data-lucide="radio-tower"></i></div>
               <strong>{{ context.summary.active_requests }}</strong>
@@ -97,6 +97,11 @@
               <div class="kpi-head"><span>Sin motorizado</span><i data-lucide="triangle-alert"></i></div>
               <strong>{{ context.exec_alerts_count }}</strong>
               <p class="delta">Activas sin asignar</p>
+            </article>
+            <article class="kpi-card os-lift-card" data-spotlight>
+              <div class="kpi-head"><span>Facturacion del mes</span><i data-lucide="receipt"></i></div>
+              <strong class="kpi-money">{{ context.exec_billing.month_total_fmt }}</strong>
+              <p class="delta">Desde cache Alegra</p>
             </article>
           </section>
         </div>
@@ -129,6 +134,86 @@
               </div>
               {% endfor %}
             </div>
+          </article>
+        </div>
+
+        <div data-widget="billing_mini" class="exec-widget">
+          <article class="card">
+            <div class="card-head simple">
+              <h3>Facturacion{% if context.exec_billing_chart and context.exec_billing_chart.titulo %} de {{ context.exec_billing_chart.titulo }}{% endif %}</h3>
+              {% if not context.alegra_enabled %}<span class="exec-tag-dim">Sin sync</span>{% endif %}
+              <div class="chip-row">
+                {% for clave, nombre in [('mes', 'Meses'), ('semana', 'Semanas'), ('dia', 'Dias')] %}
+                <a class="chip{{ ' active' if context.exec_billing_chart and context.exec_billing_chart.periodo == clave else '' }}"
+                   href="{{ url_for('dashboard.dashboard_home', facturacion=clave) }}">{{ nombre }}</a>
+                {% endfor %}
+                <a class="ghost-btn small" href="{{ url_for('dashboard.billing_page') }}">Ver facturacion</a>
+              </div>
+            </div>
+
+            {% set chart = context.exec_billing_chart %}
+            {% if not chart or not chart.serie %}
+            <p class="muted-text">Todavia no hay facturas sincronizadas para graficar.</p>
+            {% else %}
+            {% set crec = chart.crecimiento %}
+            <div class="billing-head">
+              <div>
+                <span class="billing-head-label">Facturado {{ 'este mes' if chart.periodo == 'mes' else 'esta semana' if chart.periodo == 'semana' else 'hoy' }}</span>
+                <strong class="billing-hero">{{ crec.actual | money }}</strong>
+                <p class="billing-delta {{ 'up' if crec.diferencia > 0 else 'down' if crec.diferencia < 0 else '' }}">
+                  {% if crec.pct is none %}
+                    Sin facturacion en el periodo anterior para comparar
+                  {% else %}
+                    {{ '▲' if crec.diferencia > 0 else '▼' if crec.diferencia < 0 else '=' }}
+                    {{ crec.pct | abs }}% {{ 'mas' if crec.diferencia > 0 else 'menos' if crec.diferencia < 0 else 'igual' }} que {{ 'el mes' if chart.periodo == 'mes' else 'la semana' if chart.periodo == 'semana' else 'el dia' }} anterior
+                    ({{ crec.anterior | money }}){% if chart.ultimo_en_curso %} · {{ chart.unidad }} en curso{% endif %}
+                  {% endif %}
+                </p>
+              </div>
+              <div class="billing-totals">
+                <div><span>Cobrado en {{ chart.titulo }}</span><strong>{{ chart.total_cobrado | money }}</strong></div>
+                <div><span>Por cobrar</span><strong class="billing-debt">{{ chart.total_por_cobrar | money }}</strong></div>
+              </div>
+            </div>
+
+            <ul class="chart-legend" aria-hidden="true">
+              <li><span class="chart-swatch cobrado"></span>Cobrado</li>
+              <li><span class="chart-swatch por-cobrar"></span>Por cobrar</li>
+            </ul>
+
+            <div class="billing-chart" role="img"
+                 aria-label="Facturacion de {{ chart.titulo }}, separada entre lo cobrado y lo que falta cobrar. Los numeros estan en la tabla de abajo.">
+              {% for p in chart.serie %}
+              <div class="billing-col{% if loop.last %} is-last{% endif %}">
+                <div class="billing-bar" title="{{ p.detalle }} · facturado {{ p.facturado | money }} · cobrado {{ p.cobrado | money }} · por cobrar {{ p.por_cobrar | money }} · {{ p.facturas }} factura(s)">
+                  <span class="billing-seg por-cobrar" style="height:{{ p.por_cobrar_pct }}%"></span>
+                  <span class="billing-seg cobrado" style="height:{{ p.cobrado_pct }}%"></span>
+                </div>
+                <span class="billing-month">{{ p.etiqueta }}{% if loop.last and chart.ultimo_en_curso %} <em>en curso</em>{% endif %}</span>
+              </div>
+              {% endfor %}
+            </div>
+
+            <details class="billing-table">
+              <summary>Ver los numeros</summary>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Periodo</th><th>Facturado</th><th>Cobrado</th><th>Por cobrar</th><th>Facturas</th></tr></thead>
+                  <tbody>
+                    {% for p in chart.serie %}
+                    <tr>
+                      <td>{{ p.detalle }}</td>
+                      <td>{{ p.facturado | money }}</td>
+                      <td>{{ p.cobrado | money }}</td>
+                      <td>{{ p.por_cobrar | money }}</td>
+                      <td>{{ p.facturas }}</td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+            {% endif %}
           </article>
         </div>
 
@@ -200,6 +285,7 @@
           <li class="cols-item" data-wid="kpi_ops"><label><input type="checkbox"><span>KPIs Operacion</span></label></li>
           <li class="cols-item" data-wid="alerts"><label><input type="checkbox"><span>Alertas criticas</span></label></li>
           <li class="cols-item" data-wid="pipeline"><label><input type="checkbox"><span>Pipeline solicitudes</span></label></li>
+          <li class="cols-item" data-wid="billing_mini"><label><input type="checkbox"><span>Facturacion</span></label></li>
           <li class="cols-item" data-wid="activity"><label><input type="checkbox"><span>Actividad reciente</span></label></li>
           <li class="cols-item" data-wid="tat"><label><input type="checkbox"><span>Tiempo de proceso (TAT)</span></label></li>
           <li class="cols-item" data-wid="trends"><label><input type="checkbox"><span>Tendencias</span></label></li>

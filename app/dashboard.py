@@ -6,19 +6,21 @@ import math
 import re
 import urllib.request
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from functools import wraps
 
 from flask import Blueprint, Response, abort, jsonify, redirect, render_template, request, session, url_for
 
 from app.config import (
     ALEGRA_ENABLED,
+    APP_TIMEZONE,
     ALEGRA_PRODUCTION,
     ANARVET_ENABLED,
     DASHBOARD_ADMIN_PASSWORD,
     DASHBOARD_ADMIN_USER,
     DISCOUNT_TIERS,
 )
+from app import billing_charts
 from app.services import db, alegra
 from app import anarvet_sync, dashboard_metrics, orders, pricing, territory, billing
 
@@ -421,7 +423,10 @@ def _build_client_rows(clients: list[dict], requests_rows: list[dict], samples: 
         display_name = commercial_name or clinic_name
         secondary_name = clinic_name if commercial_name and commercial_name != clinic_name else "-"
         assigned_courier_id = str((assignment or {}).get("courier_id") or courier.get("id") or "").strip()
-        electronic_option = _bool_option(knowledge.get("electronic_invoicing"))
+        # La facturación electrónica sale de `clients`, no de la ficha de knowledge: es la
+        # columna que lee la facturación al decidir si emite al NIT del cliente o a
+        # Consumidor Final (migración 028). La de knowledge quedó siempre vacía.
+        electronic_option = _bool_option(client.get("electronic_invoice"))
         entered_option = _bool_option(knowledge.get("entered_flag"))
         raw_zone = client.get("zone") or ""
         zone_display = _resolve_zone_display(raw_zone)
@@ -445,6 +450,7 @@ def _build_client_rows(clients: list[dict], requests_rows: list[dict], samples: 
             "billing_email": knowledge.get("billing_email") or "-",
             "vat_regime": knowledge.get("vat_regime") or "",
             "electronic_invoicing_option": electronic_option,
+            "invoice_note": client.get("invoice_note") or "",
             "invoicing_rut_url": knowledge.get("invoicing_rut_url") or "-",
             "registration_timestamp": knowledge.get("registration_timestamp") or knowledge.get("source_updated_at") or "-",
             "registration_date": knowledge.get("registration_date") or "-",
@@ -1151,6 +1157,8 @@ def _invoice_cache_payload(row: dict, raw: dict) -> dict:
         "subtotal": row["subtotal"],
         "tax": row["tax"],
         "total": row["total"],
+        "balance": row.get("balance", 0),
+        "total_paid": row.get("total_paid", 0),
         "is_stamped": row["is_stamped"],
         "invoice_date": row["date"] if row["date"] != "-" else None,
         "due_date": row["due_date"] if row["due_date"] != "-" else None,
@@ -1158,6 +1166,24 @@ def _invoice_cache_payload(row: dict, raw: dict) -> dict:
         "origin": row["origin"],
         "raw": raw,
         "synced_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def _build_cartera_context(top: int = 25) -> dict:
+    """Cartera para el módulo Facturación: cuánto se facturó, cuánto entró y cuánto falta
+    cobrar, con el detalle por cliente. Sale del cache; los pagos se registran en Alegra."""
+    rows = _safe_fetch(lambda: db.list_cartera(), [])
+    totales = db.cartera_totales(rows)
+    por_cliente = db.cartera_por_cliente(rows)
+    hoy = datetime.now(APP_TIMEZONE).date()
+    for item in por_cliente:
+        vence = item.get("vence_primero")
+        item["dias_mora"] = (hoy - date.fromisoformat(vence)).days if vence else 0
+    return {
+        "cartera_totales": totales,
+        "cartera_clientes": por_cliente[:top],
+        "cartera_clientes_total": len(por_cliente),
+        "cartera_deudores": sum(1 for c in por_cliente if c["por_cobrar"] > 0),
     }
 
 
@@ -1376,7 +1402,7 @@ def _build_executive_panel(requests_rows: list, request_events: list) -> dict:
     }
 
 
-def build_dashboard_context() -> dict:
+def build_dashboard_context(billing_period: str = "auto") -> dict:
     try:
         clients = db.list_clients_with_assignment()
         requests_rows = db.list_requests(limit=500)
@@ -1501,8 +1527,11 @@ def build_dashboard_context() -> dict:
     exec_data = _build_executive_panel(requests_rows, request_events)
     context.update(exec_data)
     context.update(dashboard_metrics.build_tat_and_trends(requests_rows, request_events))
-    _billing_rows = _safe_fetch(lambda: db.list_all_cached_invoices("total, invoice_date, client_name"), [])
+    _billing_rows = _safe_fetch(
+        lambda: db.list_all_cached_invoices("total, balance, invoice_date, client_name"), [])
     _raw_billing = _compute_invoice_metrics(_billing_rows)
+    # Serie de los últimos 12 meses para el gráfico del Panel (facturado, cobrado y deuda).
+    context["exec_billing_chart"] = billing_charts.chart_data(_billing_rows, periodo=billing_period)
     context["exec_billing"] = {
         **_raw_billing,
         "month_total_fmt": _money_fmt(_raw_billing.get("month_total", 0)),
@@ -2062,8 +2091,9 @@ def update_client_profile():
     clinic_name = _sanitize_text(payload.get("clinic_name"), 180)
     field = str(payload.get("field") or "").strip()
     value = payload.get("value")
-    allowed_client_fields = {"clinic_name", "phone", "address", "zone", "billing_type", "tax_id", "is_active"}
-    allowed_profile_fields = {"client_code", "commercial_name", "client_type", "email", "billing_email", "vat_regime", "electronic_invoicing", "invoicing_rut_url", "observations", "entered_flag"}
+    allowed_client_fields = {"clinic_name", "phone", "address", "zone", "billing_type", "tax_id", "is_active",
+                             "electronic_invoicing", "invoice_note"}
+    allowed_profile_fields = {"client_code", "commercial_name", "client_type", "email", "billing_email", "vat_regime", "invoicing_rut_url", "observations", "entered_flag"}
     if not client_id and not clinic_key:
         return jsonify({"error": "Missing client_id"}), 400
     if field not in allowed_client_fields and field not in allowed_profile_fields:
@@ -2073,6 +2103,10 @@ def update_client_profile():
             update_payload = {field: value}
             if field == "is_active":
                 update_payload = {field: value is True or str(value).lower() == "true"}
+            elif field == "electronic_invoicing":
+                # La columna de `clients` se llama electronic_invoice; el selector del
+                # dashboard manda si/no. Sin dato = sí lleva, que es el default seguro.
+                update_payload = {"electronic_invoice": _bool_option(value) != "no"}
             db.update_client_profile(client_id, update_payload)
             if field == "clinic_name" and clinic_key:
                 db.upsert_client_profile({
@@ -2710,7 +2744,10 @@ def dashboard_overview():
 
 def _render_dashboard(active_tab: str):
     context = _empty_context()
-    loaded = build_dashboard_context()
+    # El período del gráfico de facturación llega por la URL (?facturacion=mes|semana|dia);
+    # `auto` deja que lo elija el propio dato. Se lee acá y no dentro del builder para que
+    # build_dashboard_context siga funcionando fuera de un request.
+    loaded = build_dashboard_context(billing_period=(request.args.get("facturacion") or "auto"))
     context.update(loaded)
     summary = _empty_context()["summary"]
     summary.update(loaded.get("summary", {}))
@@ -2744,6 +2781,7 @@ def _render_dashboard(active_tab: str):
         order_field = request.args.get("order_field") or "invoice_date"
         order_desc = (request.args.get("order_dir") or "desc").lower() != "asc"
         context.update(_build_invoices_context(page, filters, order_field, order_desc))
+        context.update(_build_cartera_context())
     return render_template(
         "dashboard.html",
         active_tab=active_tab,
