@@ -20,7 +20,7 @@ from app.config import (
     DASHBOARD_ADMIN_USER,
     DISCOUNT_TIERS,
 )
-from app import billing_charts, client_filters
+from app import billing_charts, client_filters, demo_data
 from app.services import db, alegra
 from app import anarvet_sync, dashboard_metrics, orders, pricing, territory, billing
 
@@ -2752,14 +2752,24 @@ def _render_dashboard(active_tab: str):
     summary = _empty_context()["summary"]
     summary.update(loaded.get("summary", {}))
     context["summary"] = summary
-    if active_tab == "muestras" and request.args.get("demo") in {"1", "true", "si"}:
-        demo_lanes = _demo_sample_process_lanes()
+    # Vista de ejemplo (?demo=1): datos en memoria para ver el diseño con movimiento
+    # mientras lo transaccional está vacío. NO toca la base y se avisa en pantalla.
+    modo_demo = request.args.get("demo") in {"1", "true", "si"}
+    if modo_demo:
         context["demo_mode"] = True
+    if active_tab == "muestras" and modo_demo:
+        demo_lanes = _demo_sample_process_lanes()
         context["sample_process_lanes"] = demo_lanes
         context["sample_demo_total"] = sum(lane["count"] for lane in demo_lanes)
+    if active_tab == "solicitudes" and modo_demo:
+        context["requests"] = demo_data.requests(couriers=context.get("couriers_options") or [])
+        context["request_status"] = demo_data.request_status_counts(context["requests"])
     if active_tab == "pedidos":
-        # Solo se consulta en su pestaña: son dos queries y no hacen falta en el resto.
-        pedidos = db.list_pedidos_for_dashboard()
+        if modo_demo:
+            pedidos = demo_data.pedidos()
+        else:
+            # Solo se consulta en su pestaña: son dos queries y no hacen falta en el resto.
+            pedidos = db.list_pedidos_for_dashboard()
         context["pedidos"] = pedidos
         context["pedidos_abiertos"] = sum(1 for p in pedidos if p.get("status") == "abierto")
         context["pedidos_sin_facturar"] = sum(1 for p in pedidos if p.get("status") == "cerrado")

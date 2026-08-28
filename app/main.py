@@ -20,13 +20,14 @@ from app.dashboard_anarvet import dashboard_anarvet
 from app.dashboard_agenda import dashboard_agenda
 from app.dashboard_import import dashboard_import
 from app.portal import portal_bp
-from app.text import money
+from app.text import money, short_datetime
 
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
 # Formato de dinero colombiano en las plantillas ({{ total | money }} -> $18.000).
 # `app.text.money` es una utilidad de formato pura, no lógica de negocio.
 app.jinja_env.filters["money"] = money
+app.jinja_env.filters["fecha_corta"] = short_datetime
 app.register_blueprint(platform_api)
 app.register_blueprint(dashboard)
 app.register_blueprint(dashboard_results)

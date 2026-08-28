@@ -28,6 +28,16 @@ def money(value: int | None) -> str:
     return f"${int(value or 0):,}".replace(",", ".")
 
 
+def short_datetime(value) -> str:
+    """Fecha legible para las tablas: '2026-08-28T16:22:03+00:00' -> '28/08 16:22'.
+    Antes se recortaba a mano en la plantilla y salía el ISO crudo, partido en dos
+    líneas dentro de la celda."""
+    texto = str(value or "")
+    if len(texto) < 16:
+        return texto or "-"
+    return f"{texto[8:10]}/{texto[5:7]} {texto[11:16]}"
+
+
 def catalog_item_key(value) -> str:
     """Clave normalizada (sin tildes ni símbolos, con `_`) para comparar nombres/códigos."""
     text = str(value or "").strip().lower()
