@@ -1,0 +1,46 @@
+{# Informes del espejo de Anarvet. Lo usan la pestaña Anarvet de Resultados y la
+   pantalla propia: una sola tabla, un solo filtro, un solo paginador.
+   Quien lo incluye pasa `destino` (a donde vuelven el filtro y las paginas) y, si hace
+   falta, `extra_query` para no perder la pestaña. #}
+{% set extra_query = extra_query | default('') %}
+<div class="card-head"><h3>Informes en el espejo</h3><p>Un informe = un paciente en una fecha de solicitud. Los datos vienen del último sync con Anarvet; para actualizarlos usá «Sincronizar ahora».</p></div>
+        <form method="get" action="{{ destino }}" class="filter-bar">
+          <input class="cell-input" name="search" value="{{ filters.search }}" placeholder="Paciente, propietario, veterinaria o código">
+          <input class="cell-input" name="date_from" type="date" value="{{ filters.date_from }}">
+          <input class="cell-input" name="date_to" type="date" value="{{ filters.date_to }}">
+          <button type="submit" class="ghost-btn small">Filtrar</button>
+          <span class="table-counter">{{ total }} informe(s)</span>
+        </form>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Fecha</th><th>Veterinaria</th><th>Paciente</th><th>Propietario</th><th>Especie / Raza</th><th>Exámenes</th><th>Analitos</th><th>Validación</th><th>Acciones</th></tr></thead>
+            <tbody>
+              {% for i in informes %}
+              <tr>
+                <td>{{ i.fecha_solicitud or '—' }}</td>
+                <td>{{ i.nombre_cliente or '—' }}</td>
+                <td>{{ i.mascota or '—' }} <span class="muted-text">({{ i.codigo }})</span></td>
+                <td>{{ i.nombre_propietario or '—' }}</td>
+                <td>{{ i.especie or '—' }}{% if i.raza %} / {{ i.raza }}{% endif %}</td>
+                <td>{{ i.examen_codigos or '—' }}</td>
+                <td>{{ i.analitos }}</td>
+                <td>{% if i.ultima_validacion %}{{ i.ultima_validacion }}{% else %}<span class="muted-text">sin registro</span>{% endif %}</td>
+                <td class="invoice-actions">
+                  <a class="ghost-btn small" href="{{ url_for('dashboard_anarvet.informe_detalle', codigo=i.codigo, fecha=i.fecha_solicitud) }}">Ver informe</a>
+                  <a class="ghost-btn small" target="_blank" href="{{ url_for('dashboard_anarvet.informe_imprimir', codigo=i.codigo, fecha=i.fecha_solicitud) }}">PDF</a>
+                </td>
+              </tr>
+              {% else %}
+              <tr><td colspan="9" class="muted-text">Sin informes para los filtros seleccionados. Probá ampliar el rango de fechas o correr un sync.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% if pages > 1 %}
+        <div class="portal-upload-actions">
+          {% if page > 1 %}<a class="ghost-btn small" href="{{ destino }}?page={{ page-1 }}&search={{ filters.search }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}{{ extra_query }}">&larr; Anterior</a>{% endif %}
+          <span class="table-counter">Página {{ page }} de {{ pages }}</span>
+          {% if page < pages %}<a class="ghost-btn small" href="{{ destino }}?page={{ page+1 }}&search={{ filters.search }}&date_from={{ filters.date_from }}&date_to={{ filters.date_to }}{{ extra_query }}">Siguiente &rarr;</a>{% endif %}
+        </div>
+        {% endif %}
+      

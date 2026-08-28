@@ -30,6 +30,36 @@
       {% endwith %}
 
       <section class="card">
+        {# Dos pestañas: lo que carga el equipo de A3, y el espejo de Anarvet. La pestaña
+           viaja en la URL porque filtrar y paginar recargan. #}
+        <div class="tabs-nav">
+          <a class="tab-btn{{ ' active' if vista != 'anarvet' else '' }}"
+             href="{{ url_for('dashboard_results.results_page') }}"><i data-lucide="file-check-2"></i>Informes de A3</a>
+          <a class="tab-btn{{ ' active' if vista == 'anarvet' else '' }}"
+             href="{{ url_for('dashboard_results.results_page', vista='anarvet') }}"><i data-lucide="refresh-cw"></i>Espejo Anarvet</a>
+        </div>
+
+        {% if vista == 'anarvet' %}
+        <section class="card">
+          <div class="card-head">
+            <div><h3>Sincronizacion con Anarvet</h3><p>Trae los analitos validados desde Anarvet (solo lectura) al espejo local. Por defecto sincroniza los ultimos 7 dias.</p></div>
+            <div class="portal-upload-actions">
+              <button type="button" class="ghost-btn" data-anarvet-sync{{ ' disabled' if not anarvet_enabled else '' }}><i data-lucide="refresh-cw"></i>Sincronizar ahora</button>
+              <a class="ghost-btn" href="{{ url_for('dashboard_anarvet.clientes_page') }}"><i data-lucide="users"></i>Emparejar veterinarias</a>
+              <span class="table-counter" data-anarvet-sync-flag></span>
+            </div>
+          </div>
+          {% if not anarvet_enabled %}<p class="approval-notice error">La conexion con Anarvet esta apagada (ANARVET_ENABLED=false): se ve el espejo local, pero no se puede sincronizar.</p>{% endif %}
+        </section>
+
+        <section class="card">
+          {% set filters = anarvet_filters %}{% set informes = anarvet_informes %}
+          {% set total = anarvet_total %}{% set page = anarvet_page %}{% set pages = anarvet_pages %}
+          {% set destino = url_for('dashboard_results.results_page') %}{% set extra_query = '&vista=anarvet' %}
+          <input type="hidden" name="vista" value="anarvet">
+          {% include '_anarvet_informes.html' %}
+        </section>
+        {% else %}
         <div class="card-head"><div><h3>Buscar veterinaria</h3><p>Abre su ficha: informes, solicitudes y estado de cuenta en un solo lugar</p></div></div>
         <div class="client-finder">
           <input class="cell-input" id="buscar-vet" type="search" autocomplete="off"
@@ -73,16 +103,7 @@
         </form>
       </section>
 
-      {% if anarvet_enabled %}
-      <section class="card">
-        <div class="card-head"><h3>Espejo Anarvet</h3><p>Trae los analitos validados desde Anarvet (solo lectura) al espejo local. Por defecto sincroniza los últimos 7 días.</p></div>
-        <div class="portal-upload-actions">
-          <button type="button" class="ghost-btn" data-anarvet-sync><i data-lucide="refresh-cw"></i>Sincronizar Anarvet</button>
-          <a class="ghost-btn" href="{{ url_for('dashboard_anarvet.informes_page') }}"><i data-lucide="clipboard-list"></i>Ver informes del espejo</a>
-          <span class="table-counter" data-anarvet-sync-flag></span>
-        </div>
-      </section>
-      {% endif %}
+
 
       <section class="card">
         <div class="card-head"><h3>Historial de resultados emitidos</h3><p>Buscar por paciente, propietario, veterinaria, fecha o número de orden</p></div>
@@ -111,12 +132,21 @@
                 <td>{% if r.published %}<span class="status-badge status-processed">Compartido</span>{% else %}<span class="status-badge">Borrador</span>{% endif %}</td>
                 <td class="invoice-actions">
                   <a class="ghost-btn small" href="{{ url_for('dashboard_results.result_pdf', result_id=r.id) }}" target="_blank">Ver PDF</a>
-                  {% if not r.published %}
+                  {% if r.published %}
+                  <form method="post" action="{{ url_for('dashboard_results.unpublish_result', result_id=r.id) }}" onsubmit="return confirm('El cliente dejará de ver este informe en su portal. ¿Seguimos?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="ghost-btn small">Dejar de compartir</button>
+                  </form>
+                  {% else %}
                   <form method="post" action="{{ url_for('dashboard_results.publish_result', result_id=r.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <button type="submit" class="ghost-btn small">Compartir</button>
                   </form>
                   {% endif %}
+                  <form method="post" action="{{ url_for('dashboard_results.delete_result', result_id=r.id) }}" onsubmit="return confirm('Se borra el informe y su archivo, sin vuelta atrás. ¿Seguro?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="reject-btn">Eliminar</button>
+                  </form>
                 </td>
               </tr>
               {% else %}
@@ -126,6 +156,7 @@
           </table>
         </div>
       </section>
+        {% endif %}
     </main>
   </div>
   <script>window.addEventListener('DOMContentLoaded', function () { if (window.lucide) lucide.createIcons(); });</script>

@@ -300,3 +300,77 @@ def test_upload_multiple_publica_todos_si_se_pide_compartir():
          patch("app.dashboard_results.portal_db.list_lab_results", return_value=[]):
         _upload_many(client, [(b"%PDF-1.4 a", "a.pdf"), (b"%PDF-1.4 b", "b.pdf")], publish_now="1")
     assert publish.call_count == 2
+
+
+# ── Las dos pestañas: informes de A3 y espejo de Anarvet ─────────────────────
+
+INFORME_ESPEJO = {"codigo": "20091939", "fecha_solicitud": "2026-08-25",
+                  "nombre_cliente": "Petusos", "mascota": "Mandarino",
+                  "nombre_propietario": "Yina Reyes", "especie": "Felino", "raza": "CRIOLLO",
+                  "examen_codigos": "H4", "analitos": 22, "analitos_validados": 0,
+                  "ultima_validacion": None, "cod_cliente": "1234"}
+
+
+def test_por_defecto_abre_la_pestana_de_informes_de_a3():
+    """El uso diario es cargar y compartir informes; el espejo es consulta."""
+    client = _get_test_client()
+    _login_dashboard(client)
+    with patch("app.dashboard_results.portal_db.list_lab_results", return_value=[]), \
+         patch("app.dashboard_results.db.list_anarvet_informes") as espejo:
+        cuerpo = client.get("/resultados").get_data(as_text=True)
+    assert "Subir informe de resultados" in cuerpo
+    assert "Historial de resultados emitidos" in cuerpo
+    espejo.assert_not_called()  # no se consulta el espejo para mostrar la otra pestaña
+
+
+def test_la_pestana_del_espejo_trae_los_informes_de_anarvet():
+    client = _get_test_client()
+    _login_dashboard(client)
+    with patch("app.dashboard_results.db.list_anarvet_informes",
+               return_value=([INFORME_ESPEJO], 1)) as espejo, \
+         patch("app.dashboard_results.portal_db.list_lab_results") as historial:
+        cuerpo = client.get("/resultados?vista=anarvet").get_data(as_text=True)
+    assert "Mandarino" in cuerpo and "Petusos" in cuerpo
+    espejo.assert_called_once()
+    historial.assert_not_called()  # ni el historial para mostrar el espejo
+
+
+def test_una_vista_inventada_cae_en_la_de_informes():
+    client = _get_test_client()
+    _login_dashboard(client)
+    with patch("app.dashboard_results.portal_db.list_lab_results", return_value=[]):
+        cuerpo = client.get("/resultados?vista=cualquiera").get_data(as_text=True)
+    assert "Subir informe de resultados" in cuerpo
+
+
+def test_el_espejo_pagina_de_a_cincuenta():
+    client = _get_test_client()
+    _login_dashboard(client)
+    with patch("app.dashboard_results.db.list_anarvet_informes",
+               return_value=([INFORME_ESPEJO], 120)) as espejo:
+        cuerpo = client.get("/resultados?vista=anarvet&page=2").get_data(as_text=True)
+    assert espejo.call_args.kwargs == {"page": 2, "per_page": 50}
+    assert "120 informe" in cuerpo
+
+
+def test_una_pagina_invalida_no_rompe_la_pantalla():
+    client = _get_test_client()
+    _login_dashboard(client)
+    with patch("app.dashboard_results.db.list_anarvet_informes",
+               return_value=([], 0)) as espejo:
+        respuesta = client.get("/resultados?vista=anarvet&page=cero")
+    assert respuesta.status_code == 200
+    assert espejo.call_args.kwargs["page"] == 1
+
+
+def test_el_historial_deja_revertir_y_eliminar_sin_ir_a_la_ficha():
+    """Compartir con la veterinaria equivocada se corrige donde se subió el informe."""
+    client = _get_test_client()
+    _login_dashboard(client)
+    compartido = {"id": RESULT_ID, "client_id": CLIENT_A, "patient_name": "Rocky",
+                  "published": True, "clients": {"clinic_name": "Vet Prueba"}}
+    with patch("app.dashboard_results.portal_db.list_lab_results", return_value=[compartido]):
+        cuerpo = client.get("/resultados").get_data(as_text=True)
+    assert f"/resultados/{RESULT_ID}/dejar-de-compartir" in cuerpo
+    assert f"/resultados/{RESULT_ID}/eliminar" in cuerpo
+    assert f"/resultados/{RESULT_ID}/publicar" not in cuerpo  # ya está compartido

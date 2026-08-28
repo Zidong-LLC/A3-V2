@@ -12,8 +12,10 @@ from flask import (
     Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for,
 )
 
-from app.config import ANARVET_ENABLED
-from app.services import portal_db, storage, telegram
+from datetime import datetime, timedelta
+
+from app.config import ANARVET_ENABLED, APP_TIMEZONE
+from app.services import db, portal_db, storage, telegram
 from app.services.db import find_clients_by_tax_id, get_client_by_id
 
 dashboard_results = Blueprint("dashboard_results", __name__)
@@ -115,20 +117,61 @@ def _publish_and_notify(result: dict) -> None:
         pass
 
 
+ANARVET_PER_PAGE = 50
+
+
+def _anarvet_filters() -> dict:
+    """Mismos filtros que la pantalla propia del espejo, para que la pestaña y esa
+    pantalla se comporten igual."""
+    hoy = datetime.now(APP_TIMEZONE).date()
+    return {
+        "search": (request.args.get("search") or "").strip(),
+        "cod_cliente": (request.args.get("cod_cliente") or "").strip(),
+        "date_from": (request.args.get("date_from") or "").strip() or str(hoy - timedelta(days=7)),
+        "date_to": (request.args.get("date_to") or "").strip(),
+    }
+
+
 @dashboard_results.get("/resultados")
 @_dashboard_login_required
 def results_page():
-    filters = _search_filters()
-    results = portal_db.list_lab_results(filters)
-    # Cliente precargado al entrar desde su ficha (?client_id=...): el formulario queda
-    # apuntado a esa veterinaria y no hay que buscarla de nuevo.
-    preset = get_client_by_id(request.args.get("client_id", "").strip()) if request.args.get("client_id") else None
-    return render_template(
-        "dashboard_results.html", results=results, filters=filters,
-        username=session.get("dashboard_username", ""),
-        anarvet_enabled=ANARVET_ENABLED,
-        preset_client=preset,
-    )
+    """Dos pestañas: los informes que carga el equipo de A3, y el espejo de Anarvet.
+
+    Se arma SOLO la que se está viendo: el historial de resultados y el espejo son dos
+    consultas distintas y no hacen falta las dos para mostrar una."""
+    vista = (request.args.get("vista") or "").strip().lower()
+    if vista not in ("informes", "anarvet"):
+        vista = "informes"
+
+    contexto = {
+        "vista": vista,
+        "username": session.get("dashboard_username", ""),
+        "anarvet_enabled": ANARVET_ENABLED,
+        "filters": _search_filters(),
+        "results": [],
+        "preset_client": None,
+        "anarvet_informes": [], "anarvet_total": 0, "anarvet_page": 1, "anarvet_pages": 1,
+        "anarvet_filters": _anarvet_filters(),
+    }
+
+    if vista == "anarvet":
+        try:
+            page = max(int(request.args.get("page", "1")), 1)
+        except ValueError:
+            page = 1
+        informes, total = db.list_anarvet_informes(contexto["anarvet_filters"], page=page, per_page=ANARVET_PER_PAGE)
+        contexto.update({
+            "anarvet_informes": informes, "anarvet_total": total, "anarvet_page": page,
+            "anarvet_pages": max((total + ANARVET_PER_PAGE - 1) // ANARVET_PER_PAGE, 1),
+        })
+    else:
+        contexto["results"] = portal_db.list_lab_results(contexto["filters"])
+        # Cliente precargado al entrar desde su ficha (?client_id=...): el formulario queda
+        # apuntado a esa veterinaria y no hay que buscarla de nuevo.
+        client_id = request.args.get("client_id", "").strip()
+        contexto["preset_client"] = get_client_by_id(client_id) if client_id else None
+
+    return render_template("dashboard_results.html", **contexto)
 
 
 def _upload_one(file, index: int, tax_id: str, explicit_client: str) -> tuple[dict | None, str]:

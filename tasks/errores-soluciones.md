@@ -4467,3 +4467,29 @@ puede bajar al subir el tramo»).
 - **Verificacion:** el catalogo conserva buscador (9 resultados con «hepatico», 1 con «1101»),
   contador y el lapiz para editar precio y especie; los 44 perfiles quedan con Renombrar y
   Eliminar. Sin errores de consola. Suite **1473 passed**.
+
+---
+
+## ERR-170 — Resultados: el espejo de Anarvet pasa a una pestaña y el historial deja corregir
+
+- **Fecha:** 2026-08-28 · **Estado:** RESUELTO
+- **Sintoma / pedido:** la seccion Resultados mostraba solo los informes que carga A3; el espejo
+  de Anarvet vivia en pantallas aparte, aunque para el equipo es lo mismo: resultados. Ademas,
+  un informe **ya compartido** no se podia revertir ni borrar desde ahi — «Dejar de compartir» y
+  «Eliminar» existian **solo en la ficha del cliente**, asi que quien subia un informe a la
+  veterinaria equivocada tenia que ir a buscarla para corregirlo.
+- **Solucion:** dos pestañas por URL (`?vista=informes|anarvet`), con la tabla del espejo movida
+  a un parcial (`app/templates/_anarvet_informes.html`) que usan la pestaña y la pantalla propia
+  de Anarvet, para que no se dupliquen filtros ni paginacion. Se arma **solo** la pestaña que se
+  esta viendo: el historial y el espejo son dos consultas distintas. Al historial se le agregaron
+  las mismas acciones que ya tenia la ficha, reusando los endpoints existentes.
+- **Verificacion contra datos reales** (cliente real, rastro borrado al final): se subio un
+  informe con «compartir» → quedo `published: True`; el cliente **lo vio** en `/portal/mis/
+  resultados`; «Dejar de compartir» lo dejo en `False` y **desaparecio del portal**; «Eliminar»
+  borro fila y archivo. La pestaña del espejo mostro 50 informes y el boton «Sincronizar ahora»
+  trajo 20.586 analitos nuevos (27.102 → 41.296 filas). Sin errores de consola.
+- **Tests:** 6 nuevos en `tests/test_dashboard_results.py` (pestaña por defecto, que cada vista
+  consulte solo lo suyo, vista inventada, paginado de a 50, pagina invalida, y que el historial
+  ofrezca revertir y eliminar). Suite **1479 passed**.
+- **Trampa de entorno:** el Flask local corria sin recarga de plantillas, asi que los cambios en
+  el HTML **no se veian** aunque el archivo estuviera bien. Se relanzo con `--reload`.
