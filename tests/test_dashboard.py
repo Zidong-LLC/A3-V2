@@ -216,7 +216,7 @@ def test_samples_page_muestra_catalogo_y_perfiles(monkeypatch):
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert "Catalogo y perfiles" in body
-    assert "Perfiles guardados" in body
+    assert "Perfiles personalizados" in body
     assert "data-sample-process-board" not in body
     assert 'data-columns-table="muestras"' not in body
 

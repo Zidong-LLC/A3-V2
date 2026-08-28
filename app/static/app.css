@@ -450,3 +450,15 @@ select option{background-color:var(--os-space-surface);color:var(--text)}
    los tres desplegables caian apilados, uno por linea. */
 .catalog-toolbar [data-builder-search],.catalog-toolbar [data-profiles-search]{flex:1 1 260px;min-width:200px;max-width:420px}
 .catalog-toolbar .cell-select{flex:0 1 190px;min-width:150px}
+
+/* El constructor de perfil a medida se mudó a la pestaña de perfiles personalizados:
+   el catálogo se queda con todo el ancho, que es lo que necesita con 438 tarjetas. */
+.lab-workbench.sin-panel{grid-template-columns:minmax(0,1fr)}
+.builder-wrap{margin-bottom:18px}
+.builder-wrap > summary{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;list-style:none}
+.builder-wrap > summary::-webkit-details-marker{display:none}
+.builder-wrap > summary strong{font-size:15px}
+.builder-wrap > summary small{display:block;font-size:12px;color:var(--text-dim);margin-top:2px}
+.builder-wrap[open] > summary{margin-bottom:12px;border-bottom:1px solid var(--os-space-border);padding-bottom:10px}
+/* En su lugar nuevo el constructor no se pega a nada: es una columna angosta y ordenada. */
+.builder-wrap .builder-sticky{position:static;max-width:460px}

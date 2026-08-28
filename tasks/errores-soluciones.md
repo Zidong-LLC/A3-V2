@@ -4382,3 +4382,30 @@ puede bajar al subir el tramo»).
   devolviendole su nombre.
 - **Verificacion:** 12 tests nuevos, dos de ellos para que el editor de descuentos no vuelva a
   quedar dentro de un bloque que se corta. Suite **1472 passed**.
+
+---
+
+## ERR-167 — El lapiz del catalogo, el cierre de pedidos y las tendencias tampoco corrian
+
+- **Fecha:** 2026-08-28 · **Estado:** RESUELTO
+- **Reporte del usuario:** «cuando quiero editar el detalle de un perfil, el lapicito no me
+  agarra»; y mover el constructor de perfil personalizado a la pestaña de perfiles guardados
+  para que el catalogo tenga mas espacio.
+- **La causa era la misma de ERR-166, y alcanzaba a mas cosas.** Dentro del IIFE del Centro
+  Operativo, que arranca con `if (!panel) return;` y cuyo panel solo existe en `/operacion`,
+  vivian **cuatro** bloques que nunca se ejecutaban en sus propias pantallas:
+  1. el editor de descuentos (ya corregido en ERR-166),
+  2. **el lapiz del catalogo** (editar precio y especie de un analisis o perfil),
+  3. **el cierre manual de un pedido** («Cerrar y facturar» en /pedidos),
+  4. **el grafico de tendencias del Panel** (por eso ese bloque se veia vacio).
+  Los tres restantes se movieron a un bloque propio. Al moverlos aparecieron dos dependencias
+  del IIFE grande, `postJsonSafe` y `money`, que se resolvieron localmente: sin eso, guardar un
+  precio funcionaba pero terminaba mostrando «money is not defined».
+- **Verificado contra la base:** el lapiz abre el editor y guardar cambio el precio del 1101 de
+  $14.000 a $15.000; restaurado.
+- **El constructor de perfil a medida se mudo** a la pestaña de perfiles personalizados, plegado
+  y en una columna ordenada. El catalogo pasa de compartir el ancho a ocuparlo entero (1246 px)
+  con sus 438 tarjetas. Se comprobo que agregar desde el catalogo sigue llegando al constructor
+  aunque esten en pestañas distintas: dos items sumaron $38.000 en el resumen.
+- **Tests:** 3 nuevos, uno de ellos recorre los cuatro bloques para que ninguno vuelva a quedar
+  dentro del Centro Operativo. Suite **1473 passed**.

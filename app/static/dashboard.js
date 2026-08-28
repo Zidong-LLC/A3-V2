@@ -490,122 +490,6 @@
     });
   });
 
-  // ── Edición del catálogo (precio y etiqueta de especie) ─────────────────────
-  // El catálogo era de solo lectura: cambiar un precio exigía SQL a mano (pedido de A3 del
-  // 07/04). La etiqueta de especie marca los ítems EXCLUSIVOS de una especie; el resto
-  // queda disponible para todas (decisión 012).
-  document.querySelectorAll('[data-catalog-edit]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const row = btn.closest('[data-builder-card]')?.querySelector('[data-catalog-edit-row]');
-      if (row) row.hidden = !row.hidden;
-    });
-  });
-
-  document.querySelectorAll('[data-catalog-save]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const card = btn.closest('[data-builder-card]');
-      const row = btn.closest('[data-catalog-edit-row]');
-      const flag = row?.querySelector('[data-catalog-flag]');
-      const precio = row?.querySelector('[data-catalog-price-input]');
-      const especie = row?.querySelector('[data-catalog-species-input]');
-      if (!card || !precio || !especie) return;
-      const payload = {
-        kind: btn.dataset.kind,
-        code: btn.dataset.code,
-        price: precio.value.trim(),
-        species: especie.value,
-      };
-      if (flag) flag.textContent = 'Guardando…';
-      btn.disabled = true;
-      try {
-        const data = await postJsonSafe('/api/dashboard/catalog-item', payload);
-        const nuevo = Number(data.item?.price || 0);
-        const label = card.querySelector('[data-catalog-price]');
-        if (label) label.textContent = nuevo ? money(nuevo) : 'Sin precio';
-        // La card se filtra por especie desde la barra de arriba: hay que actualizar el
-        // dataset o el filtro seguiría usando el valor viejo hasta recargar.
-        card.dataset.species = especie.value;
-        const meta = card.querySelector('.lab-card-meta span');
-        if (meta) meta.textContent = especie.value;
-        if (flag) flag.textContent = 'Guardado';
-        setTimeout(() => { if (flag) flag.textContent = ''; if (row) row.hidden = true; }, 1200);
-      } catch (err) {
-        if (flag) flag.textContent = err.message || 'No se pudo guardar';
-      } finally {
-        btn.disabled = false;
-      }
-    });
-  });
-
-
-  // ── Cierre manual de un pedido ──────────────────────────────────────────────
-  // Respaldo humano del barrido automático: ese barrido corre de forma oportunista (sin
-  // scheduler), así que un pedido abandonado sin tráfico posterior necesita que alguien
-  // pueda cerrarlo desde acá.
-  document.querySelectorAll('[data-pedido-close]').forEach((btn) => {
-    btn.addEventListener('click', async () => {
-      const pedidoId = btn.dataset.pedidoClose;
-      const flag = document.querySelector(`[data-pedido-flag="${pedidoId}"]`);
-      if (!window.confirm('Se cerrará el pedido y se intentará emitir su factura. ¿Continuar?')) return;
-      btn.disabled = true;
-      if (flag) flag.textContent = 'Procesando…';
-      try {
-        const data = await postJsonSafe('/api/dashboard/pedido-close', { pedido_id: pedidoId, invoice: true });
-        if (flag) flag.textContent = data.warning || (data.invoice ? `Facturado ${data.invoice}` : 'Cerrado');
-        if (!data.warning) setTimeout(() => window.location.reload(), 1200);
-      } catch (err) {
-        if (flag) flag.textContent = err.message || 'No se pudo cerrar';
-      } finally {
-        btn.disabled = false;
-      }
-    });
-  });
-
-
-
-
-  // ── Tendencias del Panel Ejecutivo (ApexCharts, ya cargado por CDN) ─────────
-  (() => {
-    const dataNode = document.getElementById('exec-metrics-data');
-    if (!dataNode || !window.ApexCharts) return;
-    let metrics;
-    try { metrics = JSON.parse(dataNode.textContent); } catch { return; }
-
-    // Estilo compartido de la piel ZIDONG OS: fondo transparente, texto
-    // atenuado, serie monocroma blanca y grid sutil sobre el canvas oscuro.
-    const osChartBase = {
-      chart: { background: 'transparent', foreColor: 'rgba(230,230,238,.62)', fontFamily: '"Public Sans",Inter,sans-serif', toolbar: { show: false } },
-      colors: ['#f5f5f7'],
-      grid: { borderColor: 'rgba(255,255,255,.08)' },
-      tooltip: { theme: 'dark' },
-    };
-
-    const dailyNode = document.getElementById('chart-requests-daily');
-    if (dailyNode && (metrics.daily || []).length) {
-      new ApexCharts(dailyNode, {
-        ...osChartBase,
-        chart: { ...osChartBase.chart, type: 'bar', height: 200 },
-        plotOptions: { bar: { borderRadius: 3, columnWidth: '60%' } },
-        series: [{ name: 'Solicitudes', data: metrics.daily.map(d => d.count) }],
-        xaxis: { categories: metrics.daily.map(d => d.date.slice(5)), labels: { rotate: -45, style: { fontSize: '10px' } } },
-        dataLabels: { enabled: false },
-        title: { text: 'Solicitudes por día (30 días)', style: { fontSize: '12px', color: 'rgba(230,230,238,.72)' } },
-      }).render();
-    }
-
-    const weeklyNode = document.getElementById('chart-tat-weekly');
-    if (weeklyNode && (metrics.weekly || []).length) {
-      new ApexCharts(weeklyNode, {
-        ...osChartBase,
-        chart: { ...osChartBase.chart, type: 'line', height: 180 },
-        series: [{ name: 'TAT promedio (h)', data: metrics.weekly.map(w => w.avg_hours) }],
-        xaxis: { categories: metrics.weekly.map(w => w.week) },
-        stroke: { curve: 'smooth', width: 3 },
-        markers: { size: 4 },
-        title: { text: 'TAT promedio por semana', style: { fontSize: '12px', color: 'rgba(230,230,238,.72)' } },
-      }).render();
-    }
-  })();
 
 })();
 
@@ -662,4 +546,135 @@
       saveBtn.disabled = false;
     }
   });
+})();
+
+// Estos tres bloques vivian DENTRO del IIFE del Centro Operativo, que arranca con
+// `if (!panel) return;`: el lapiz del catalogo, el cierre de pedidos y el grafico de
+// tendencias nunca corrian en las pantallas donde se muestran.
+(() => {
+  const enviar = async (url, payload) => {
+    const res = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Error');
+    return data;
+  };
+  // `money` tambien vive en el IIFE grande: al mover el bloque, guardar un precio
+  // terminaba con "money is not defined" aunque el precio SI se hubiera guardado.
+  const money = (value) => `$ ${Number(value || 0).toLocaleString('es-CO')}`;
+  // ── Edición del catálogo (precio y etiqueta de especie) ─────────────────────
+  // El catálogo era de solo lectura: cambiar un precio exigía SQL a mano (pedido de A3 del
+  // 07/04). La etiqueta de especie marca los ítems EXCLUSIVOS de una especie; el resto
+  // queda disponible para todas (decisión 012).
+  document.querySelectorAll('[data-catalog-edit]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const row = btn.closest('[data-builder-card]')?.querySelector('[data-catalog-edit-row]');
+      if (row) row.hidden = !row.hidden;
+    });
+  });
+
+  document.querySelectorAll('[data-catalog-save]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const card = btn.closest('[data-builder-card]');
+      const row = btn.closest('[data-catalog-edit-row]');
+      const flag = row?.querySelector('[data-catalog-flag]');
+      const precio = row?.querySelector('[data-catalog-price-input]');
+      const especie = row?.querySelector('[data-catalog-species-input]');
+      if (!card || !precio || !especie) return;
+      const payload = {
+        kind: btn.dataset.kind,
+        code: btn.dataset.code,
+        price: precio.value.trim(),
+        species: especie.value,
+      };
+      if (flag) flag.textContent = 'Guardando…';
+      btn.disabled = true;
+      try {
+        const data = await enviar('/api/dashboard/catalog-item', payload);
+        const nuevo = Number(data.item?.price || 0);
+        const label = card.querySelector('[data-catalog-price]');
+        if (label) label.textContent = nuevo ? money(nuevo) : 'Sin precio';
+        // La card se filtra por especie desde la barra de arriba: hay que actualizar el
+        // dataset o el filtro seguiría usando el valor viejo hasta recargar.
+        card.dataset.species = especie.value;
+        const meta = card.querySelector('.lab-card-meta span');
+        if (meta) meta.textContent = especie.value;
+        if (flag) flag.textContent = 'Guardado';
+        setTimeout(() => { if (flag) flag.textContent = ''; if (row) row.hidden = true; }, 1200);
+      } catch (err) {
+        if (flag) flag.textContent = err.message || 'No se pudo guardar';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
+
+  // ── Cierre manual de un pedido ──────────────────────────────────────────────
+  // Respaldo humano del barrido automático: ese barrido corre de forma oportunista (sin
+  // scheduler), así que un pedido abandonado sin tráfico posterior necesita que alguien
+  // pueda cerrarlo desde acá.
+  document.querySelectorAll('[data-pedido-close]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const pedidoId = btn.dataset.pedidoClose;
+      const flag = document.querySelector(`[data-pedido-flag="${pedidoId}"]`);
+      if (!window.confirm('Se cerrará el pedido y se intentará emitir su factura. ¿Continuar?')) return;
+      btn.disabled = true;
+      if (flag) flag.textContent = 'Procesando…';
+      try {
+        const data = await enviar('/api/dashboard/pedido-close', { pedido_id: pedidoId, invoice: true });
+        if (flag) flag.textContent = data.warning || (data.invoice ? `Facturado ${data.invoice}` : 'Cerrado');
+        if (!data.warning) setTimeout(() => window.location.reload(), 1200);
+      } catch (err) {
+        if (flag) flag.textContent = err.message || 'No se pudo cerrar';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
+
+
+
+  // ── Tendencias del Panel Ejecutivo (ApexCharts, ya cargado por CDN) ─────────
+  (() => {
+    const dataNode = document.getElementById('exec-metrics-data');
+    if (!dataNode || !window.ApexCharts) return;
+    let metrics;
+    try { metrics = JSON.parse(dataNode.textContent); } catch { return; }
+
+    // Estilo compartido de la piel ZIDONG OS: fondo transparente, texto
+    // atenuado, serie monocroma blanca y grid sutil sobre el canvas oscuro.
+    const osChartBase = {
+      chart: { background: 'transparent', foreColor: 'rgba(230,230,238,.62)', fontFamily: '"Public Sans",Inter,sans-serif', toolbar: { show: false } },
+      colors: ['#f5f5f7'],
+      grid: { borderColor: 'rgba(255,255,255,.08)' },
+      tooltip: { theme: 'dark' },
+    };
+
+    const dailyNode = document.getElementById('chart-requests-daily');
+    if (dailyNode && (metrics.daily || []).length) {
+      new ApexCharts(dailyNode, {
+        ...osChartBase,
+        chart: { ...osChartBase.chart, type: 'bar', height: 200 },
+        plotOptions: { bar: { borderRadius: 3, columnWidth: '60%' } },
+        series: [{ name: 'Solicitudes', data: metrics.daily.map(d => d.count) }],
+        xaxis: { categories: metrics.daily.map(d => d.date.slice(5)), labels: { rotate: -45, style: { fontSize: '10px' } } },
+        dataLabels: { enabled: false },
+        title: { text: 'Solicitudes por día (30 días)', style: { fontSize: '12px', color: 'rgba(230,230,238,.72)' } },
+      }).render();
+    }
+
+    const weeklyNode = document.getElementById('chart-tat-weekly');
+    if (weeklyNode && (metrics.weekly || []).length) {
+      new ApexCharts(weeklyNode, {
+        ...osChartBase,
+        chart: { ...osChartBase.chart, type: 'line', height: 180 },
+        series: [{ name: 'TAT promedio (h)', data: metrics.weekly.map(w => w.avg_hours) }],
+        xaxis: { categories: metrics.weekly.map(w => w.week) },
+        stroke: { curve: 'smooth', width: 3 },
+        markers: { size: 4 },
+        title: { text: 'TAT promedio por semana', style: { fontSize: '12px', color: 'rgba(230,230,238,.72)' } },
+      }).render();
+    }
+  })();
 })();

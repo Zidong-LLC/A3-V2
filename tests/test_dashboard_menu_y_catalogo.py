@@ -77,7 +77,7 @@ def test_la_seccion_ya_no_trae_el_proceso_de_muestras():
     assert "data-sample-process-board" not in cuerpo
     assert 'data-tab-panel="proceso"' not in cuerpo
     assert "Catalogo y perfiles" in cuerpo
-    assert "Perfiles guardados" in cuerpo
+    assert "Perfiles personalizados" in cuerpo
 
 
 def test_los_descuentos_arrancan_plegados_con_su_resumen():
@@ -144,14 +144,16 @@ def test_update_custom_profile_solo_cambia_el_nombre():
     assert cliente.table.return_value.update.call_args.args[0] == {"name": "Nuevo"}
 
 
-def test_el_editor_de_descuentos_no_depende_del_centro_operativo():
-    """Vivía dentro del bloque que arranca con `if (!panel) return;` del Centro Operativo,
-    así que en Muestras —la única pantalla donde se ve— sus botones no hacían nada."""
+def test_nada_de_otras_pantallas_depende_del_centro_operativo():
+    """Cuatro cosas vivían dentro del bloque que arranca con `if (!panel) return;` del
+    Centro Operativo, y ese panel solo existe en /operacion: el editor de descuentos, el
+    lápiz del catálogo, el cierre manual de un pedido y el gráfico de tendencias. En sus
+    propias pantallas no hacían nada."""
     js = (pathlib.Path("app/static") / "dashboard.js").read_text(encoding="utf-8")
     corte = js.index("const panel = document.getElementById('op-detail-panel')")
-    cierre = js.index("\n})();", corte)
-    descuentos = js.index("data-discount-card")
-    assert descuentos > cierre, "el editor de descuentos volvió a quedar dentro del bloque del Centro Operativo"
+    cierre = js.index(chr(10) + "})();", corte)
+    for marca in ("data-discount-card", "data-catalog-edit", "data-pedido-close", "exec-metrics-data"):
+        assert js.index(marca) > cierre, f"{marca} quedo dentro del bloque del Centro Operativo"
 
 
 def test_el_editor_de_descuentos_no_usa_ayudas_de_otro_bloque():
@@ -166,3 +168,15 @@ def test_el_editor_de_descuentos_no_usa_ayudas_de_otro_bloque():
     )
     assert "postJsonSafe" not in codigo
     assert "discount-tiers" in codigo
+
+
+
+def test_el_constructor_vive_con_los_perfiles_personalizados():
+    """Ocupaba la columna derecha del catalogo y le quitaba ancho a las 438 tarjetas.
+    Ahora esta donde se ven los perfiles ya guardados, y arranca plegado."""
+    plantilla = (pathlib.Path("app/templates") / "dashboard.html").read_text(encoding="utf-8")
+    catalogo = plantilla[plantilla.index('data-tab-panel="catalogo"'):plantilla.index('data-tab-panel="guardados"')]
+    guardados = plantilla[plantilla.index('data-tab-panel="guardados"'):]
+    assert "builder-sticky" not in catalogo
+    assert "builder-sticky" in guardados
+    assert 'class="builder-wrap catalog-panel"' in guardados
