@@ -2815,15 +2815,25 @@ def _render_dashboard(active_tab: str):
             "fe": criterios.get("fe", "all"),
         }
     if active_tab == "facturacion":
-        try:
-            page = max(1, int(request.args.get("page", 1)))
-        except (TypeError, ValueError):
-            page = 1
-        filters = _parse_invoice_filters(request.args)
-        order_field = request.args.get("order_field") or "invoice_date"
-        order_desc = (request.args.get("order_dir") or "desc").lower() != "asc"
-        context.update(_build_invoices_context(page, filters, order_field, order_desc))
-        context.update(_build_cartera_context())
+        # Dos pestañas, y se arma SOLO la que se está viendo: cada una lee el cache de
+        # facturas entero (1.200 filas), así que calcular las dos en cada visita era leerlo
+        # dos veces para mostrar la mitad. La pestaña va en la URL y no en el navegador
+        # porque los filtros y la paginación recargan la página.
+        vista = (request.args.get("vista") or "").strip().lower()
+        if vista not in ("facturas", "cartera"):
+            vista = "facturas"
+        context["billing_view"] = vista
+        if vista == "cartera":
+            context.update(_build_cartera_context())
+        else:
+            try:
+                page = max(1, int(request.args.get("page", 1)))
+            except (TypeError, ValueError):
+                page = 1
+            filters = _parse_invoice_filters(request.args)
+            order_field = request.args.get("order_field") or "invoice_date"
+            order_desc = (request.args.get("order_dir") or "desc").lower() != "asc"
+            context.update(_build_invoices_context(page, filters, order_field, order_desc))
     return render_template(
         "dashboard.html",
         active_tab=active_tab,

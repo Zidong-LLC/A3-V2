@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='os-kit.css') }}?v=9">
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=17">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=18">
   <script src="https://cdn.jsdelivr.net/npm/apexcharts@3.54.1/dist/apexcharts.min.js" defer></script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js" defer></script>
@@ -498,7 +498,22 @@
         {% set inv = context %}
         {% set invoice_status_labels = {'draft':'Borrador','open':'Abierta','closed':'Pagada','paid':'Pagada','void':'Anulada','cancelled':'Anulada'} %}
         <div class="card-head simple"><h3>Facturacion</h3><div class="header-actions"><button type="button" class="primary-btn" data-invoices-sync {{ 'disabled' if not inv.alegra_enabled else '' }}><i data-lucide="refresh-cw"></i>Sincronizar con Alegra</button><small class="save-flag" data-invoices-sync-flag></small></div></div>
-        {# ── Cartera: pagado y por cobrar (datos del cache de Alegra) ── #}
+
+{% if not inv.alegra_enabled %}<p class="approval-notice os-spring-in">Alegra esta deshabilitado (ALEGRA_ENABLED=false). Se muestra el cache local; la sincronizacion esta apagada.</p>{% endif %}
+        {% if inv.invoices_actions_locked %}<p class="approval-notice os-spring-in">Entorno de pruebas: las acciones de reenvio por correo y descarga de XML/comprobante estan bloqueadas hasta produccion.</p>{% endif %}
+
+        {# Dos pestañas: cada una con SUS numeros y SU tabla. Antes iban una debajo de la
+           otra y al bajar parecia empezar otra pantalla. La pestaña viaja en la URL porque
+           filtrar o pasar de pagina recarga. #}
+        <div class="tabs-nav">
+          <a class="tab-btn{{ ' active' if context.billing_view != 'cartera' else '' }}"
+             href="{{ url_for('dashboard.billing_page') }}"><i data-lucide="receipt"></i>Facturas</a>
+          <a class="tab-btn{{ ' active' if context.billing_view == 'cartera' else '' }}"
+             href="{{ url_for('dashboard.billing_page', vista='cartera') }}"><i data-lucide="hourglass"></i>Cartera</a>
+        </div>
+
+        {% if context.billing_view == 'cartera' %}
+{# ── Cartera: pagado y por cobrar (datos del cache de Alegra) ── #}
         <section class="exec-widget">
           <section class="kpi-grid four os-stagger">
             <article class="kpi-card os-lift-card">
@@ -551,10 +566,8 @@
           <p class="muted-text" style="padding:8px 4px 0">Mostrando los {{ context.cartera_clientes|length }} de mayor saldo, de {{ context.cartera_clientes_total }} clientes.</p>
           {% endif %}
         </section>
-
-        {% if not inv.alegra_enabled %}<p class="approval-notice os-spring-in">Alegra esta deshabilitado (ALEGRA_ENABLED=false). Se muestra el cache local; la sincronizacion esta apagada.</p>{% endif %}
-        {% if inv.invoices_actions_locked %}<p class="approval-notice os-spring-in">Entorno de pruebas: las acciones de reenvio por correo y descarga de XML/comprobante estan bloqueadas hasta produccion.</p>{% endif %}
-        <section class="kpi-grid four os-stagger">
+        {% else %}
+<section class="kpi-grid four os-stagger">
           <article class="kpi-card os-lift-card" data-spotlight><div class="kpi-head"><span>Facturas hoy</span><i data-lucide="calendar-check"></i></div><strong>{{ inv.invoices_metrics.today_count }}</strong><p class="delta">Emitidas hoy</p></article>
           <article class="kpi-card os-lift-card" data-spotlight><div class="kpi-head"><span>Facturacion del mes</span><i data-lucide="trending-up"></i></div><strong>$ {{ "{:,}".format(inv.invoices_metrics.month_total).replace(",", ".") }}</strong><p class="delta">Total del mes</p></article>
           <article class="kpi-card os-lift-card" data-spotlight><div class="kpi-head"><span>Facturacion del ano</span><i data-lucide="calendar"></i></div><strong>$ {{ "{:,}".format(inv.invoices_metrics.year_total).replace(",", ".") }}</strong><p class="delta">Total del ano</p></article>
@@ -613,6 +626,7 @@
         {% if inv.invoices_pages and inv.invoices_pages > 1 %}<div class="filter-bar"><span class="table-counter">Pagina {{ inv.invoices_page }} de {{ inv.invoices_pages }}</span>{% if inv.invoices_page > 1 %}<a class="ghost-btn" data-invoices-page="{{ inv.invoices_page - 1 }}" href="#">Anterior</a>{% endif %}{% if inv.invoices_page < inv.invoices_pages %}<a class="ghost-btn" data-invoices-page="{{ inv.invoices_page + 1 }}" href="#">Siguiente</a>{% endif %}</div>{% endif %}
         <div class="invoice-modal" data-invoice-modal hidden><div class="invoice-modal-card"><div class="invoice-modal-head"><strong data-invoice-modal-title>Factura</strong><button type="button" class="cols-close" data-invoice-modal-close aria-label="Cerrar">&times;</button></div><div class="invoice-modal-body" data-invoice-modal-body></div></div></div>
         {% endif %}
+{% endif %}
       </section>
       {% endif %}
     </main>

@@ -203,10 +203,10 @@ table[data-columns-table].cols-fitted td>*{max-width:100%}
 .mot-zona-stats{color:var(--text-dim);font-size:12px;flex-shrink:0}
 .mot-zona-locs{color:var(--text-dim);font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* Sample tabs */
-.sample-tabs-nav{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
-.sample-tab-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;border:1px solid var(--line);background:var(--os-space-field);color:var(--text-dim);font-size:13px;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
-.sample-tab-btn:hover{background:var(--os-space-hover);border-color:var(--line-strong);color:var(--text)}
-.sample-tab-btn.active{background:var(--os-space-tint);border-color:color-mix(in oklab,var(--accent) 34%,transparent);color:var(--text)}
+.tabs-nav,.sample-tabs-nav{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap}
+.tab-btn,.sample-tab-btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:10px;border:1px solid var(--line);background:var(--os-space-field);color:var(--text-dim);font-size:13px;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+.tab-btn:hover,.sample-tab-btn:hover{background:var(--os-space-hover);border-color:var(--line-strong);color:var(--text)}
+.tab-btn.active,.sample-tab-btn.active{background:var(--os-space-tint);border-color:color-mix(in oklab,var(--accent) 34%,transparent);color:var(--text)}
 .tab-count{background:var(--os-space-canvas);color:var(--text);border-radius:999px;padding:1px 7px;font-size:11px;font-weight:700}
 .sample-tab-panel[hidden]{display:none}
 
@@ -406,3 +406,6 @@ select option{background-color:var(--os-space-surface);color:var(--text)}
 /* Un solo hijo por celda de la grilla del paso: si no, cada bloque cae en su
    propia columna y se encima con el de al lado. */
 .wizard-content{display:grid;gap:14px;min-width:0}
+
+/* Las pestañas de Facturacion NAVEGAN (la pestaña va en la URL), así que son enlaces. */
+.tab-btn{text-decoration:none}
