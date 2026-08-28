@@ -779,7 +779,7 @@ PAYMENT_METHOD_OPTIONS = [
 ]
 
 
-def resolve_catalog_selection(profile_code: str, test_codes: list[str]) -> dict:
+def resolve_catalog_selection(profile_code, test_codes: list[str]) -> dict:
     """Traduce lo elegido en un formulario a los campos que espera create_request.
 
     ERR-097: el portal mandaba `exam_type` como texto libre y la orden quedaba con
@@ -795,13 +795,25 @@ def resolve_catalog_selection(profile_code: str, test_codes: list[str]) -> dict:
     fields: dict = {}
     labels: list[str] = []
 
-    profile = db.find_catalog_profile(profile_code) if profile_code else None
-    if profile:
+    # `profile_code` acepta uno o VARIOS: una orden real puede llevar tres perfiles para el
+    # mismo paciente. El primero es el base y el resto viajan en `_extra_profiles` con su
+    # precio de catálogo, igual que cuando el cliente elige varios en el chat (ERR-077):
+    # un código de perfil no resuelve como análisis, así que no pueden ir en selected_tests.
+    codigos = [profile_code] if isinstance(profile_code, str) else list(profile_code or [])
+    perfiles = [p for p in (db.find_catalog_profile(c) for c in codigos if c) if p]
+
+    if perfiles:
+        profile = perfiles[0]
         fields["_selected_profile_code"] = profile.get("code")
         fields["_selected_profile_name"] = profile.get("name")
         fields["_selected_profile_price"] = profile.get("price")
         fields["_selected_profile_description"] = profile.get("description")
         labels.append(profile.get("name") or "")
+        extras = [{"code": p.get("code"), "name": p.get("name"), "price": p.get("price")}
+                  for p in perfiles[1:]]
+        if extras:
+            fields["_extra_profiles"] = extras
+            labels.extend(p["name"] or "" for p in extras)
 
     tests = db.get_tests_by_codes_or_names(test_codes) if test_codes else []
     if tests:

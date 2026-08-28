@@ -145,3 +145,77 @@ def test_el_formulario_ofrece_el_catalogo_y_los_clientes(monkeypatch):
     assert "Emergencias Veterinarias" in html
     assert "952" in html and "1903" in html
     assert "csrf_token" in html
+
+
+# ── Varios perfiles y varios análisis en la misma orden (2026-08-28) ──────────
+
+PERFIL_2 = {"code": "653", "name": "Perfil Renal", "price": 45000, "description": ""}
+
+
+def test_una_orden_puede_llevar_varios_perfiles(monkeypatch):
+    """Un paciente puede necesitar tres perfiles: el primero es el base y el resto
+    viajan como adicionales, con su precio de catálogo."""
+    client = _get_test_client()
+    _login(client, monkeypatch)
+    perfiles = {"952": dict(PERFIL), "653": dict(PERFIL_2)}
+    p = _patches()
+    with p[0], p[1], p[2], p[3], \
+         patch("app.orders.db.find_catalog_profile", side_effect=lambda c: perfiles.get(str(c))), \
+         p[5], p[6] as create:
+        client.post("/solicitudes/nueva", data=_form(profile_codes=["952", "653"]))
+
+    fields = create.call_args.kwargs["ai_response"]["captured_fields"]
+    assert fields["_selected_profile_code"] == "952"
+    assert fields["_extra_profiles"] == [{"code": "653", "name": "Perfil Renal", "price": 45000}]
+    assert "Perfil Renal" in fields["exam_type"]
+
+
+def test_un_solo_perfil_no_genera_adicionales(monkeypatch):
+    client = _get_test_client()
+    _login(client, monkeypatch)
+    p = _patches()
+    with p[0], p[1], p[2], p[3], p[4], p[5], p[6] as create:
+        client.post("/solicitudes/nueva", data=_form(profile_codes=["952"]))
+    fields = create.call_args.kwargs["ai_response"]["captured_fields"]
+    assert "_extra_profiles" not in fields
+
+
+def test_el_formulario_ofrece_casillas_y_no_un_select_gigante(monkeypatch):
+    client = _get_test_client()
+    _login(client, monkeypatch)
+    p = _patches()
+    with p[0], p[1], p[2], p[3]:
+        cuerpo = client.get("/solicitudes/nueva").get_data(as_text=True)
+    assert 'name="profile_codes"' in cuerpo
+    assert 'type="checkbox"' in cuerpo
+    assert "multiple" not in cuerpo
+    # la dirección de retiro se completa desde la ficha del cliente
+    assert "data-pickup-address" in cuerpo
+    assert "data-sede-select" in cuerpo
+
+
+def test_la_seleccion_por_string_sigue_funcionando_para_el_portal():
+    """El portal llama a la misma función con UN código en texto."""
+    from app import orders
+
+    with patch("app.orders.db.find_catalog_profile", return_value=dict(PERFIL)), \
+         patch("app.orders.db.get_tests_by_codes_or_names", return_value=[]):
+        fields = orders.resolve_catalog_selection("952", [])
+    assert fields["_selected_profile_code"] == "952"
+    assert "_extra_profiles" not in fields
+
+
+def test_el_total_persistido_suma_los_perfiles_adicionales():
+    """El resumen del chat ya los sumaba; el payload que se guarda —el que después
+    factura— los ignoraba."""
+    from app.services import db as dbs
+
+    campos = {
+        "_selected_profile_code": "952", "_selected_profile_name": "Perfil Prequirurgico",
+        "_selected_profile_price": 90000, "_selected_profile_description": "",
+        "_extra_profiles": [{"code": "653", "name": "Perfil Renal", "price": 45000}],
+    }
+    with patch("app.services.db._event_test_rows", return_value=[]):
+        payload = dbs._profile_event_payload(campos)
+    assert payload["extra_profiles"] == [{"code": "653", "name": "Perfil Renal", "price": 45000}]
+    assert payload["total_estimated"] == 135000

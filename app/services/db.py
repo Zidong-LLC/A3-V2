@@ -1648,6 +1648,14 @@ def _profile_event_payload(fields: dict) -> dict | None:
     base_price = _as_int(fields.get("_selected_profile_price"))
     added_tests = _event_test_rows(added_items)
     removed_tests = _event_test_rows(_as_catalog_item_list(fields.get("removed_tests")))
+    # Perfiles ADICIONALES de la misma orden (ERR-077 en el chat, y desde 2026-08-28 también
+    # en la carga manual). El resumen que ve el cliente ya los sumaba, pero el payload que se
+    # persiste —el que después factura `build_invoice_lines`— los ignoraba: una orden con tres
+    # perfiles se facturaba con uno solo.
+    extra_profiles = [
+        {"code": str(p.get("code") or ""), "name": p.get("name") or "", "price": _as_int(p.get("price"))}
+        for p in (fields.get("_extra_profiles") or [])
+    ]
     if not code and not base_price and added_tests:
         # Perfil PERSONALIZADO (solo pruebas sueltas): el total persistido debe ser el
         # cotizado en el chat, que incluye el descuento por volumen (2026-07-16: la orden
@@ -1662,9 +1670,11 @@ def _profile_event_payload(fields: dict) -> dict | None:
             "total": custom["total"],
         }
     else:
+        # Mismo criterio que el resumen del chat (orders.py): los perfiles adicionales
+        # entran como agregados, para que el total persistido sea el que se cotizó.
         totals = calculate_profile_adjusted_total(
             base_price,
-            [test["price"] for test in added_tests],
+            [test["price"] for test in added_tests] + [p["price"] for p in extra_profiles],
             [test["price"] for test in removed_tests],
         )
 
@@ -1675,6 +1685,7 @@ def _profile_event_payload(fields: dict) -> dict | None:
             "price": base_price,
         },
         "included_tests": _catalog_description_items(fields.get("_selected_profile_description")),
+        "extra_profiles": extra_profiles,
         "added_tests": added_tests,
         "removed_tests": removed_tests,
         "total_estimated": totals["total"],

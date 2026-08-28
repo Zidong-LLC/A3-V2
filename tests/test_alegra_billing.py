@@ -80,7 +80,7 @@ def test_invoice_order_pasa_el_descuento_a_alegra(monkeypatch):
     monkeypatch.setattr(alegra, "get_or_create_item", lambda ref, name, price: {"id": f"i-{ref}"})
     captured = {}
 
-    def fake_create_invoice(contact_id, items, date, due_date=None, status=None):
+    def fake_create_invoice(contact_id, items, date, due_date=None, status=None, anotation=None):
         captured["items"] = items
         return {"id": "55", "total": 41280}
 
@@ -242,3 +242,97 @@ def test_sin_paciente_la_linea_no_trae_descripcion():
     perfil = {"base_profile": {"code": "160", "name": "Perfil", "price": 50000},
               "added_tests": [], "removed_tests": []}
     assert "description" not in billing.build_invoice_lines(perfil)[0]
+
+
+# ── Factura electrónica vs. Consumidor Final (pedido de A3, 2026-08-27) ──────────
+# En la cuenta real, las facturas de los clientes sin factura electrónica salen al
+# contacto genérico «Consumidor Final» (NIT 222222222222) con el nombre de la
+# veterinaria o del médico en las notas. Los demás se facturan a su propio NIT.
+
+def test_cliente_con_factura_electronica_se_factura_a_su_nombre():
+    nit, nombre, nota = billing.invoice_target(
+        {"electronic_invoice": True, "clinic_name": "Animal Pets"}, "53115419", "Animal Pets"
+    )
+    assert (nit, nombre, nota) == ("53115419", "Animal Pets", None)
+
+
+def test_cliente_sin_factura_electronica_va_a_consumidor_final_con_nota():
+    nit, nombre, nota = billing.invoice_target(
+        {"electronic_invoice": False, "invoice_note": "Dr Diego Figueroa", "clinic_name": "Vet Sais"},
+        "80871972",
+        "Vet Sais",
+    )
+    assert nit == billing.CONSUMIDOR_FINAL_NIT
+    assert nombre == "Consumidor Final"
+    assert nota == "Dr Diego Figueroa"
+
+
+def test_sin_nota_propia_usa_el_nombre_de_la_veterinaria():
+    _, _, nota = billing.invoice_target(
+        {"electronic_invoice": False, "clinic_name": "Veterinaria Piscis"}, "80871972", "X"
+    )
+    assert nota == "Veterinaria Piscis"
+
+
+def test_sin_fila_de_cliente_se_factura_a_nombre_propio():
+    """Default seguro: si no se pudo leer el cliente, no se desvía a Consumidor Final."""
+    assert billing.invoice_target(None, "53115419", "Animal Pets") == ("53115419", "Animal Pets", None)
+
+
+def test_la_factura_a_consumidor_final_manda_la_nota_y_no_los_datos_del_cliente(monkeypatch):
+    creado = {}
+
+    def fake_get_or_create_contact(tax_id, name, extra=None, **kwargs):
+        creado["contacto"] = (tax_id, name, extra)
+        return {"id": "1"}
+
+    def fake_get_or_create_item(reference, name, price):
+        return {"id": "77"}
+
+    def fake_create_invoice(client_id, items, date, due_date=None, status=None, anotation=None):
+        creado["factura"] = {"client": client_id, "anotation": anotation}
+        return {"id": "900", "total": 38000}
+
+    monkeypatch.setattr(alegra, "get_or_create_contact", fake_get_or_create_contact)
+    monkeypatch.setattr(alegra, "get_or_create_item", fake_get_or_create_item)
+    monkeypatch.setattr(alegra, "create_invoice", fake_create_invoice)
+
+    lines = [{"reference": "1101", "name": "Cuadro Hemático", "price": 38000, "quantity": 1}]
+    billing.invoice_order(
+        "80871972",
+        "Veterinaria Piscis",
+        lines,
+        "2026-08-27",
+        client_extra={"email": "piscis@correo.co"},
+        client_row={"electronic_invoice": False, "invoice_note": "German Chacon"},
+    )
+
+    assert creado["contacto"][0] == billing.CONSUMIDOR_FINAL_NIT
+    assert creado["contacto"][2] is None, "el email del cliente no se cuelga del contacto compartido"
+    assert creado["factura"]["anotation"] == "German Chacon"
+
+
+# ── Perfiles adicionales en la misma orden (ERR-162, 2026-08-28) ──────────────
+
+def test_factura_una_linea_por_cada_perfil_adicional():
+    """Una orden con tres perfiles se facturaba solo con el primero: la plata de los
+    otros dos no llegaba a la factura."""
+    payload = {
+        "base_profile": {"code": "952", "name": "Perfil Prequirurgico", "price": 90000},
+        "extra_profiles": [{"code": "653", "name": "Perfil Renal", "price": 45000},
+                           {"code": "101", "name": "Perfil Parasitologico", "price": 30000}],
+        "added_tests": [{"code": "1101", "name": "Cuadro Hematico", "price": 14000}],
+        "removed_tests": [],
+    }
+    lineas = billing.build_invoice_lines(payload, patient="Firulais")
+    assert [l["reference"] for l in lineas] == ["952", "653", "101", "1101"]
+    assert sum(l["price"] for l in lineas) == 179000
+
+
+def test_sin_perfiles_adicionales_la_factura_no_cambia():
+    payload = {
+        "base_profile": {"code": "952", "name": "Perfil Prequirurgico", "price": 90000},
+        "added_tests": [], "removed_tests": [],
+    }
+    lineas = billing.build_invoice_lines(payload)
+    assert len(lineas) == 1 and lineas[0]["price"] == 90000

@@ -4219,3 +4219,53 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
 - **Nota aparte, no tocada:** la pantalla de Clientes tarda ~7 s en cargar porque
   `build_dashboard_context` arma TODO el dashboard (clientes, catálogo, muestras, solicitudes,
   facturación) en cada request. Es previo a este cambio y merece su propia tarea.
+
+---
+
+## ERR-162 — Una orden con varios perfiles se facturaba con uno solo
+
+- **Fecha:** 2026-08-28 · **Estado:** RESUELTO
+- **Cómo apareció:** habilitando la carga manual de varios perfiles por orden (pedido del
+  usuario), al revisar qué se guardaba.
+- **El bug, que es de plata:** desde ERR-077 el chat permite varios perfiles en una orden
+  («el 1, el 3 y el 6»). El resumen que ve el cliente los suma bien (`orders.py`), pero
+  `db._profile_event_payload` —el payload que se PERSISTE y del que después sale la factura—
+  ignoraba `_extra_profiles`: ni los guardaba ni los sumaba al total. Y `build_invoice_lines`
+  factura sobre ese payload, así que **el borrador salía con el perfil base y nada más**. Con
+  tres perfiles de $90.000, $45.000 y $30.000 se facturaban $90.000.
+- **Solución:** el payload lleva `extra_profiles`, el total los suma con el MISMO criterio del
+  resumen del chat (entran como agregados en `calculate_profile_adjusted_total`), y la factura
+  emite una línea por cada uno.
+- **Alcance:** afecta a las órdenes ya registradas con varios perfiles. Las que estén sin
+  facturar salen bien de ahora en más; las ya facturadas habría que revisarlas a mano contra
+  Alegra si aparece alguna.
+- **Verificación:** 3 tests nuevos (líneas de factura, total persistido y que sin adicionales
+  nada cambie). Suite **1436 passed**.
+
+---
+
+## ERR-163 — Solicitudes y carga de órdenes: lo que el usuario reportó el 28/08
+
+- **Fecha:** 2026-08-28 · **Estado:** RESUELTO
+- **1. La columna Prioridad no dice nada** («no hay prioridad alta ni baja»): se retira de la
+  tabla de Solicitudes, junto con su guardado en el JS. El campo sigue en la base y en la API.
+- **2. Los análisis se veían apretados en una línea.** Una orden lleva varios perfiles y
+  varios sueltos para el mismo paciente: la celda pasa a mostrar «N analisis» desplegable con
+  el detalle, como ya hacía Pedidos. La cantidad de muestras, que sí sirve, queda igual.
+- **3. Al elegir cliente no se traía la dirección de retiro.** Ahora se completa sola desde la
+  ficha, y si esa veterinaria tiene **varias sedes con el mismo NIT** (36 casos en la base)
+  aparece un selector de sede. Elegir otra sede cambia el cliente de la orden, no solo el
+  texto: la factura y el motorizado salen de la sede que atiende.
+- **4. Elegir análisis era imposible:** dos `<select multiple>` con 163 y 275 opciones,
+  encimados con las observaciones porque cada bloque caía en una celda distinta de la grilla
+  del paso. Ahora son dos cajas con casillas y buscador (sin tildes: «hepatico» encuentra
+  «Perfil Hepático»), y debajo la lista de lo elegido con su botón para quitar.
+  `resolve_catalog_selection` acepta varios perfiles: el primero es el base y el resto van
+  como adicionales con su precio de catálogo.
+- **Hallazgo de camino:** `[hidden]` no ocultaba nada porque varias reglas propias ponen
+  `display:flex/grid` y le ganaban. Por eso el filtro del catálogo no filtraba. Se corrigió
+  globalmente.
+- **Verificación:** 5 tests nuevos. Suite **1436 passed**. En el navegador contra los 992
+  clientes y el catálogo real: sede múltiple con dirección correcta, dos perfiles y dos
+  análisis elegidos y quitados desde las etiquetas, y una orden registrada de punta a punta
+  con los tres ítems en el detalle (creada y borrada).

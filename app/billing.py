@@ -14,6 +14,11 @@ from app.rules import calculate_custom_profile_total, is_convenio_test
 from app.services import alegra
 
 
+# Contacto genérico de la cuenta real de A3 (id=1 en Alegra). A él salen las facturas de
+# los clientes que NO llevan factura electrónica; su nombre va en las notas.
+CONSUMIDOR_FINAL_NIT = "222222222222"
+CONSUMIDOR_FINAL_NAME = "Consumidor Final"
+
 # Estados de factura de Alegra → etiqueta en español para el dashboard.
 INVOICE_STATUS_LABELS = {
     "draft": "Borrador",
@@ -67,6 +72,9 @@ def invoice_to_row(invoice: dict, request_id: str | None = None, origin: str | N
         "subtotal": _money(invoice.get("subtotal")),
         "tax": _money(invoice.get("tax")),
         "total": _money(invoice.get("total")),
+        # Cartera: lo que falta cobrar y lo ya abonado. Alegra los trae en cada factura.
+        "balance": _money(invoice.get("balance")),
+        "total_paid": _money(invoice.get("totalPaid")),
         "status": status or "draft",
         "status_label": INVOICE_STATUS_LABELS.get(status, status.capitalize() or "Borrador"),
         "is_stamped": bool(stamp.get("cufe") or stamp.get("legalStatus") == "STAMPED_AND_ACCEPTED"),
@@ -120,6 +128,10 @@ def build_invoice_lines(profile_payload: dict | None, patient: str | None = None
     # un ítem facturable: solo agregaría una línea de $0 como ruido en la factura.
     if not pure_custom and (base.get("name") or base.get("code")):
         lines.append(_line(base.get("code"), base.get("name") or "Perfil", base_price, patient))
+    # Una línea por cada perfil adicional de la orden: sin esto, un pedido con tres
+    # perfiles se facturaba solo con el primero.
+    for extra in profile_payload.get("extra_profiles") or []:
+        lines.append(_line(extra.get("code"), extra.get("name") or "Perfil", extra.get("price"), patient))
     for test in added:
         lines.append(_line(test.get("code"), test.get("name"), test.get("price"), patient))
 
@@ -138,20 +150,55 @@ def build_invoice_lines(profile_payload: dict | None, patient: str | None = None
     return lines
 
 
+def invoice_target(client_row: dict | None, client_nit: str, client_name: str) -> tuple[str, str, str | None]:
+    """Decide a nombre de quién sale la factura. Devuelve (nit, nombre, nota).
+
+    Regla acordada con A3 (2026-08-27): el cliente marcado SIN factura electrónica
+    (`clients.electronic_invoice = false`) se factura al contacto genérico «Consumidor
+    Final» y su nombre viaja en las notas de la factura — que es lo que A3 venía
+    escribiendo a mano. El resto se factura a su propio NIT y razón social.
+
+    Sin `client_row` (llamadores que solo tienen el NIT) se factura a nombre propio, que
+    es el default de la columna."""
+    if not client_row or client_row.get("electronic_invoice") is not False:
+        return client_nit, client_name, None
+    nota = (client_row.get("invoice_note") or client_row.get("clinic_name") or client_name or "").strip()
+    return CONSUMIDOR_FINAL_NIT, CONSUMIDOR_FINAL_NAME, nota or None
+
+
 def invoice_order(
     client_nit: str,
     client_name: str,
     lines: list[dict],
     date: str,
     client_extra: dict | None = None,
+    client_row: dict | None = None,
 ) -> dict | None:
     """Asegura el contacto y los ítems en Alegra y crea la factura (borrador). Devuelve
     {contact_id, invoice_id, number, total} o None si no hay líneas. Propaga AlegraError:
-    el llamador (agente) la captura para no romper el cierre de la orden."""
+    el llamador (agente) la captura para no romper el cierre de la orden.
+
+    `client_row` es la fila de `clients`: define si la factura sale a nombre propio o a
+    Consumidor Final (ver `invoice_target`)."""
     if not lines or not client_nit:
         return None
 
-    contact = alegra.get_or_create_contact(client_nit, client_name, client_extra)
+    if client_row is None:
+        # Import perezoso: billing no depende de la base en tiempo de import (los tests
+        # de armado de líneas no tocan Supabase). Si la consulta falla se factura a
+        # nombre propio, que es el default de la columna.
+        try:
+            from app.services import db
+
+            client_row = db.identify_client(tax_id=client_nit)
+        except Exception:  # noqa: BLE001 — nunca romper el cierre de la orden por esto
+            client_row = None
+
+    nit, nombre, nota = invoice_target(client_row, client_nit, client_name)
+    # Los datos de contacto (email, teléfono) son del cliente real: no se le cuelgan al
+    # contacto genérico Consumidor Final, que es compartido por muchas facturas.
+    extra = client_extra if nit == client_nit else None
+    contact = alegra.get_or_create_contact(nit, nombre, extra)
     contact_id = contact.get("id")
 
     invoice_items = []
@@ -164,7 +211,7 @@ def invoice_order(
             invoice_item["discount"] = line["discount"]
         invoice_items.append(invoice_item)
 
-    invoice = alegra.create_invoice(contact_id, invoice_items, date)
+    invoice = alegra.create_invoice(contact_id, invoice_items, date, anotation=nota)
     return {
         "contact_id": contact_id,
         "invoice_id": invoice.get("id"),

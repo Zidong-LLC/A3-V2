@@ -358,3 +358,51 @@ select option{background-color:var(--os-space-surface);color:var(--text)}
 .demo-notice.on{border-color:rgba(122,13,32,.28);border-left:3px solid var(--accent);background:var(--os-space-tint)}
 .demo-notice .ghost-btn{margin-left:auto}
 .nowrap{white-space:nowrap}
+
+/* Analisis de una orden en la tabla de Solicitudes: una orden puede llevar varios
+   perfiles y varios sueltos, y en una linea quedaban ilegibles. */
+.analisis-cell{max-width:260px}
+.analisis-lista summary{cursor:pointer;font-size:12.5px;color:var(--accent);font-weight:600}
+.analisis-lista ul{margin:6px 0 0;padding-left:16px;display:grid;gap:2px}
+.analisis-lista li{font-size:12px;color:var(--os-space-toned)}
+
+/* ── Elegir perfiles y analisis en la carga manual de una orden ──────────────
+   Antes eran dos <select multiple> con 163 y 275 opciones, encimados con las
+   observaciones y sin forma de buscar. Una orden real lleva varios perfiles y
+   varios sueltos para el mismo paciente, así que se eligen con casillas. */
+.catalog-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.catalog-box{border:1px solid var(--os-space-border);border-radius:8px;background:var(--os-space-canvas);padding:12px;display:grid;gap:8px;align-content:start}
+.catalog-box-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.catalog-box-head strong{font-size:13px}
+.catalog-box .table-counter.on{background:var(--os-space-tint);color:var(--accent);font-weight:700}
+.catalog-list{max-height:260px;overflow-y:auto;display:grid;gap:2px;padding-right:2px}
+.catalog-item{display:flex;align-items:flex-start;gap:9px;padding:7px 8px;border-radius:6px;cursor:pointer;font-size:13px}
+.catalog-item:hover{background:var(--os-space-hover)}
+.catalog-item:has(:checked){background:var(--os-space-tint)}
+.catalog-item span{display:grid;gap:1px;min-width:0}
+.catalog-item strong{font-weight:600;line-height:1.25}
+.catalog-item small{color:var(--text-dim);font-size:11px}
+.catalog-item input[type=checkbox]{appearance:none;-webkit-appearance:none;width:16px;height:16px;flex:none;margin-top:2px;
+  border:1.5px solid var(--os-space-border-strong);border-radius:4px;background:var(--os-space-card);cursor:pointer;
+  display:grid;place-content:center}
+.catalog-item input[type=checkbox]::after{content:'';width:8px;height:4px;border-left:2px solid var(--os-space-on-accent);
+  border-bottom:2px solid var(--os-space-on-accent);transform:rotate(-45deg) translateY(-1px);opacity:0}
+.catalog-item input[type=checkbox]:checked{background:var(--accent);border-color:var(--accent)}
+.catalog-item input[type=checkbox]:checked::after{opacity:1}
+
+.catalog-chosen{margin-top:12px;display:grid;gap:6px}
+.catalog-chosen ul{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.catalog-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;font-size:12px;
+  background:var(--os-space-canvas);border:1px solid var(--os-space-border);color:var(--os-space-toned)}
+.catalog-chip.es-perfil{background:var(--os-space-tint);border-color:rgba(122,13,32,.25);color:var(--accent);font-weight:600}
+.catalog-chip button{border:0;background:none;color:inherit;cursor:pointer;font-size:14px;line-height:1;padding:0}
+@media(max-width:900px){.catalog-picker{grid-template-columns:1fr}}
+
+/* `hidden` tiene que ganarle a cualquier display de la hoja: varias reglas propias
+   ponen display:flex o grid y dejaban a la vista elementos marcados como ocultos
+   (el filtro del catalogo no filtraba nada, y los campos del formulario de cliente
+   seguian visibles al apagarlos). */
+[hidden]{display:none !important}
+/* Un solo hijo por celda de la grilla del paso: si no, cada bloque cae en su
+   propia columna y se encima con el de al lado. */
+.wizard-content{display:grid;gap:14px;min-width:0}

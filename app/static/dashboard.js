@@ -85,13 +85,6 @@
     });
   });
 
-  document.querySelectorAll('.request-priority-select').forEach((select) => {
-    select.addEventListener('change', async () => {
-      const flag = select.parentElement.querySelector('.save-flag');
-      try { await postJsonSafe('/api/dashboard/request-operation', {request_id: select.dataset.requestId, priority: select.value}); if (flag) flag.textContent = 'Guardado'; }
-      catch (err) { if (flag) flag.textContent = err.message; }
-    });
-  });
   document.querySelectorAll('.request-sample-count-input').forEach((input) => {
     input.addEventListener('change', async () => { try { await postJsonSafe('/api/dashboard/request-operation', {request_id: input.dataset.requestId, sample_count: input.value}); } catch (err) {} });
   });

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='os-kit.css') }}?v=9">
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=12">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=17">
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="crm-theme">
@@ -34,14 +34,21 @@
             <select name="client_id" required>
               <option value="">Seleccionar veterinaria</option>
               {% for c in clients %}
-              <option value="{{ c.id }}" {{ 'selected' if form.get('client_id') == c.id|string else '' }}>
+              <option value="{{ c.id }}" data-address="{{ c.address or '' }}" data-tax-id="{{ c.tax_id or '' }}"
+                      data-clinic="{{ c.clinic_name }}" {{ 'selected' if form.get('client_id') == c.id|string else '' }}>
                 {{ c.clinic_name }}{% if c.tax_id %} — NIT {{ c.tax_id }}{% endif %}
               </option>
               {% endfor %}
             </select>
           </label>
           <label>Direccion de retiro
-            <input name="pickup_address" value="{{ form.get('pickup_address', '') }}" placeholder="Vacio = la direccion registrada del cliente">
+            <input name="pickup_address" value="{{ form.get('pickup_address', '') }}"
+                   placeholder="Se completa con la direccion del cliente" data-pickup-address>
+            <small class="muted-text" data-address-hint></small>
+          </label>
+          <label hidden data-sede-field>Sede
+            <select data-sede-select class="cell-select"></select>
+            <small class="muted-text">Esta veterinaria tiene varias sedes con el mismo NIT.</small>
           </label>
           <label>Medico solicitante
             <input name="requesting_doctor" value="{{ form.get('requesting_doctor', '') }}">
@@ -74,17 +81,49 @@
       <section class="wizard-card">
         <div class="step-badge">3</div>
         <div class="section-copy"><h2>Analisis</h2><p>Del catalogo: el codigo y el precio nunca se escriben a mano.</p></div>
-        <div class="form-grid">
-          <label>Perfil
-            <select name="profile_code" class="cell-select">
-              <option value="">Sin perfil — solo analisis sueltos</option>
+        <div class="wizard-content">
+        <div class="catalog-picker">
+          <div class="catalog-box" data-picker="profile">
+            <div class="catalog-box-head">
+              <strong>Perfiles</strong>
+              <span class="table-counter" data-picker-count>0</span>
+            </div>
+            <input type="search" class="cell-input" placeholder="Buscar perfil por nombre o codigo" data-picker-search aria-label="Buscar perfil">
+            <div class="catalog-list" data-picker-list>
               {% for p in catalog.profiles %}
-              <option value="{{ p.code }}" {{ 'selected' if form.get('profile_code') == p.code else '' }}>
-                {{ p.code }} — {{ p.name }}{% if p.price %} — ${{ '{:,.0f}'.format(p.price|float)|replace(',', '.') }}{% endif %}
-              </option>
+              <label class="catalog-item" data-text="{{ (p.code ~ ' ' ~ p.name) | lower }}">
+                <input type="checkbox" name="profile_codes" value="{{ p.code }}"
+                       {{ 'checked' if p.code in selected_profile_codes else '' }}>
+                <span><strong>{{ p.name }}</strong><small>{{ p.code }}{% if p.price %} · ${{ '{:,.0f}'.format(p.price|float)|replace(',', '.') }}{% endif %}</small></span>
+              </label>
               {% endfor %}
-            </select>
-          </label>
+            </div>
+          </div>
+
+          <div class="catalog-box" data-picker="test">
+            <div class="catalog-box-head">
+              <strong>Analisis sueltos</strong>
+              <span class="table-counter" data-picker-count>0</span>
+            </div>
+            <input type="search" class="cell-input" placeholder="Buscar analisis por nombre o codigo" data-picker-search aria-label="Buscar analisis">
+            <div class="catalog-list" data-picker-list>
+              {% for t in catalog.tests %}
+              <label class="catalog-item" data-text="{{ (t.code ~ ' ' ~ t.name) | lower }}">
+                <input type="checkbox" name="test_codes" value="{{ t.code }}"
+                       {{ 'checked' if t.code in selected_test_codes else '' }}>
+                <span><strong>{{ t.name }}</strong><small>{{ t.code }}{% if t.price %} · ${{ '{:,.0f}'.format(t.price|float)|replace(',', '.') }}{% endif %}</small></span>
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <div class="catalog-chosen" data-picker-chosen hidden>
+          <span class="muted-text">En esta orden:</span>
+          <ul data-picker-chips></ul>
+        </div>
+
+        <div class="form-grid">
           <label>Forma de pago
             <select name="payment_method" class="cell-select">
               {% for value, label in payment_options %}
@@ -94,21 +133,10 @@
           </label>
         </div>
         <div class="full-field">
-          <label>Analisis sueltos
-            <span class="muted-text">Elige uno o varios con Ctrl/Cmd. Si ya elegiste un perfil, estos se suman.</span>
-            <select name="test_codes" class="cell-select catalog-multi" multiple size="10">
-              {% for t in catalog.tests %}
-              <option value="{{ t.code }}" {{ 'selected' if t.code in selected_test_codes else '' }}>
-                {{ t.code }} — {{ t.name }}{% if t.price %} — ${{ '{:,.0f}'.format(t.price|float)|replace(',', '.') }}{% endif %}
-              </option>
-              {% endfor %}
-            </select>
-          </label>
-        </div>
-        <div class="full-field">
           <label>Observaciones
             <textarea name="observations" rows="3">{{ form.get('observations', '') }}</textarea>
           </label>
+        </div>
         </div>
       </section>
 
@@ -118,5 +146,6 @@
     </form>
   </main>
   <script>lucide.createIcons();</script>
+  <script src="{{ url_for('static', filename='new-request.js') }}?v=2" defer></script>
 </body>
 </html>

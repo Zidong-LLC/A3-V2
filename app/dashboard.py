@@ -1661,6 +1661,7 @@ def new_request_page():
         return render_template(
             "new_request.html", error=error, form=form or {}, catalog=catalog,
             clients=clients, selected_test_codes=selected or [],
+            selected_profile_codes=(form or {}).getlist("profile_codes") if hasattr(form, "getlist") else [],
             payment_options=orders.PAYMENT_METHOD_OPTIONS, active_tab="solicitudes",
         )
 
@@ -1682,8 +1683,10 @@ def new_request_page():
         )
     }
     selected_test_codes = form.getlist("test_codes")
-    fields.update(orders.resolve_catalog_selection(
-        (form.get("profile_code") or "").strip(), selected_test_codes))
+    selected_profile_codes = [c.strip() for c in form.getlist("profile_codes") if c.strip()]
+    if not selected_profile_codes and (form.get("profile_code") or "").strip():
+        selected_profile_codes = [form["profile_code"].strip()]
+    fields.update(orders.resolve_catalog_selection(selected_profile_codes, selected_test_codes))
 
     if not fields.get("patient_name") or not fields.get("exam_type"):
         return _render("Indica el paciente y al menos un perfil o análisis del catálogo.",
