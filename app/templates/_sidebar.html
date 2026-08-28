@@ -1,0 +1,44 @@
+{# Menú lateral del CRM, uno solo para todas las pantallas.
+
+   Estaba copiado a mano en ocho plantillas y no todas tenían la misma lista: a Agenda,
+   Cargas, Resultados, la ficha del cliente y las de Anarvet les faltaban Solicitudes y
+   Pedidos, así que al entrar ahí el menú "perdía" secciones. Cada vez que se agregaba una
+   sección había que acordarse de las ocho.
+
+   Se incluye con: {% include '_sidebar.html' %} y la variable `seccion` marca cuál está
+   activa (en dashboard.html llega como `active_tab`). #}
+{% set actual = seccion | default(active_tab) | default('') %}
+{% set secciones = [
+  ('dashboard',   'dashboard.dashboard_home',        'layout-dashboard', 'Panel'),
+  ('operacion',   'dashboard.operation_page',        'radio-tower',      'Operacion'),
+  ('clientes',    'dashboard.clients_page',          'users',            'Clientes'),
+  ('solicitudes', 'dashboard.requests_page',         'clipboard-list',   'Solicitudes'),
+  ('pedidos',     'dashboard.pedidos_page',          'package',          'Pedidos'),
+  ('facturacion', 'dashboard.billing_page',          'receipt',          'Facturacion'),
+  ('motorizados', 'dashboard.motorizados_page',      'bike',             'Motorizados'),
+  ('agenda',      'dashboard_agenda.agenda_page',    'calendar-days',    'Agenda'),
+  ('muestras',    'dashboard.samples_page',          'test-tube-2',      'Muestras'),
+  ('resultados',  'dashboard_results.results_page',  'file-check-2',     'Resultados'),
+  ('cargas',      'dashboard_import.cargas_page',    'upload-cloud',     'Cargas'),
+] %}
+<aside class="crm-sidebar">
+  <div class="brand-row">
+    <div class="brand-mark">A3</div>
+    <div class="brand-copy"><strong>CRM Operativo</strong><span>Centro de control</span></div>
+    {% if con_toggle %}<button class="sidebar-toggle" id="sidebar-toggle" type="button" aria-label="Colapsar menu"><span></span><span></span><span></span></button>{% endif %}
+  </div>
+
+  <div class="menu-block">
+    <span class="menu-caption">Menu principal</span>
+    <nav class="menu-list os-stagger">
+      {% for clave, endpoint, icono, etiqueta in secciones %}
+      <a href="{{ url_for(endpoint) }}" class="menu-link{{ ' active' if actual == clave else '' }}"><i data-lucide="{{ icono }}"></i><span>{{ etiqueta }}</span></a>
+      {% endfor %}
+    </nav>
+  </div>
+
+  <div class="menu-block menu-foot">
+    <span class="menu-caption">Soporte</span>
+    <a href="{{ url_for('dashboard.logout') }}" class="menu-link"><i data-lucide="log-out"></i><span>Cerrar sesion</span></a>
+  </div>
+</aside>

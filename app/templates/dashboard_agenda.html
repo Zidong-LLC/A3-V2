@@ -9,38 +9,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='os-kit.css') }}?v=9">
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=19">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=21">
   <link rel="stylesheet" href="{{ url_for('static', filename='portal.css') }}?v=10">
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js" defer></script>
 </head>
 <body class="crm-theme" data-sidebar="expanded">
   <div class="crm-app">
-    <aside class="crm-sidebar">
-      <div class="brand-row">
-        <div class="brand-mark">A3</div>
-        <div class="brand-copy"><strong>CRM Operativo</strong><span>Centro de control</span></div>
-      </div>
-
-      <div class="menu-block">
-        <span class="menu-caption">Menu principal</span>
-        <nav class="menu-list os-stagger">
-          <a href="{{ url_for('dashboard.dashboard_home') }}" class="menu-link"><i data-lucide="layout-dashboard"></i><span>Panel</span></a>
-          <a href="{{ url_for('dashboard.operation_page') }}" class="menu-link"><i data-lucide="radio-tower"></i><span>Operacion</span></a>
-          <a href="{{ url_for('dashboard.clients_page') }}" class="menu-link"><i data-lucide="users"></i><span>Clientes</span></a>
-          <a href="{{ url_for('dashboard.billing_page') }}" class="menu-link"><i data-lucide="receipt"></i><span>Facturacion</span></a>
-          <a href="{{ url_for('dashboard.motorizados_page') }}" class="menu-link"><i data-lucide="bike"></i><span>Motorizados</span></a>
-          <a href="{{ url_for('dashboard_agenda.agenda_page') }}" class="menu-link active"><i data-lucide="calendar-days"></i><span>Agenda</span></a>
-          <a href="{{ url_for('dashboard.samples_page') }}" class="menu-link"><i data-lucide="test-tube-2"></i><span>Muestras</span></a>
-          <a href="{{ url_for('dashboard_results.results_page') }}" class="menu-link"><i data-lucide="file-check-2"></i><span>Resultados</span></a>
-          <a href="{{ url_for('dashboard_import.cargas_page') }}" class="menu-link"><i data-lucide="upload-cloud"></i><span>Cargas</span></a>
-        </nav>
-      </div>
-
-      <div class="menu-block menu-foot">
-        <span class="menu-caption">Soporte</span>
-        <a href="{{ url_for('dashboard.logout') }}" class="menu-link"><i data-lucide="log-out"></i><span>Cerrar sesion</span></a>
-      </div>
-    </aside>
+    {% set seccion = 'agenda' %}{% include '_sidebar.html' %}
 
     <main class="crm-main os-scene">
       <header class="top-header">

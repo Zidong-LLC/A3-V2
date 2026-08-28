@@ -2342,6 +2342,25 @@ def save_custom_profile():
         return jsonify({"error": "Falta crear la tabla client_custom_profiles en Supabase"}), 503
 
 
+@dashboard.post("/api/dashboard/rename-custom-profile")
+@_login_required
+def rename_custom_profile():
+    payload = request.get_json(silent=True) or {}
+    profile_id = str(payload.get("profile_id") or "").strip()
+    nombre = _sanitize_text(payload.get("name"), 120)
+    if not profile_id:
+        return jsonify({"error": "Missing profile_id"}), 400
+    if not nombre:
+        return jsonify({"error": "El nombre no puede quedar vacio"}), 400
+    try:
+        actualizado = db.update_custom_profile(profile_id, {"name": nombre})
+    except Exception:
+        return jsonify({"error": "No se pudo renombrar el perfil"}), 503
+    if not actualizado:
+        return jsonify({"error": "Perfil no encontrado"}), 404
+    return jsonify({"ok": True, "profile_id": profile_id, "name": nombre})
+
+
 @dashboard.post("/api/dashboard/delete-custom-profile")
 @_login_required
 def delete_custom_profile():

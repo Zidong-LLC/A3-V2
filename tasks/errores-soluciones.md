@@ -4336,3 +4336,49 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
   color vacío y activo; el de prueba, borrado; quedan los 8 de siempre).
 - **Queda pendiente para A3:** los ocho teléfonos son cadenas inválidas del tipo
   `0007f3d0970ec`. La pantalla ya lo avisa, pero los datos buenos los tiene que dar A3.
+
+---
+
+## ERR-166 — El menu perdia secciones, y el editor de descuentos nunca guardo nada
+
+- **Fecha:** 2026-08-28 · **Estado:** RESUELTO
+- **Reporte del usuario:** «cuando entro a agenda o a otros lugares, en el sidebar se borran
+  secciones»; y en Muestras, que el proceso de muestras ya no hace falta, que los descuentos no
+  ocupen toda la pantalla y que se verifique que esa seccion funcione.
+
+### 1. El menu lateral perdia secciones (bug real)
+Estaba **escrito a mano en ocho plantillas** y no todas tenian la misma lista: a **Agenda,
+Cargas, Resultados, la ficha del cliente y las tres de Anarvet** les faltaban **Solicitudes y
+Pedidos** (a una de Anarvet, ademas, «Cerrar sesion»). Cada vez que se agrego una seccion se
+actualizaron unas y otras no. Ahora hay **un solo parcial** (`app/templates/_sidebar.html`) que
+las ocho incluyen, con la seccion activa como parametro. Las diez pantallas muestran los once
+enlaces, verificado en el navegador.
+
+### 2. «Proceso de muestras» se retira
+Duplicaba los estados que ya se ven en Solicitudes. Se van el tablero y la tabla; la seccion
+queda con **Catalogo y perfiles** y **Perfiles guardados**. Se conservan `SAMPLE_PROCESS_STAGES`
+y `_build_sample_process_lanes`, que ademas alimentan el Centro Operativo.
+
+### 3. El editor de descuentos por volumen NUNCA funciono
+Al probarlo se vio que «Agregar tramo», «Quitar tramo» y «Guardar» no hacian nada. La causa: el
+bloque JS vive **dentro del IIFE del Centro Operativo**, que arranca con
+`if (!panel) return;` — y ese panel solo existe en `/operacion`. En Muestras, la unica pantalla
+donde se muestran los descuentos, el bloque **nunca se ejecutaba**. Verificado que ya pasaba
+antes de esta tanda (`git show HEAD:app/static/dashboard.js`, mismas lineas). Se movio a su
+propio bloque y se le dio su propio envio (`postJsonSafe` vivia en el IIFE grande y daba
+«postJsonSafe is not defined»). **Ahora guarda**: probado contra la base, el primer tramo paso
+de 12% a 11% y se restauro. La validacion del servidor tambien responde («el porcentaje no
+puede bajar al subir el tramo»).
+
+### 4. El resto de la seccion
+- **Descuentos plegados**: de **944 px a 69 px**. El resumen dice cuantos tramos hay y de que
+  porcentaje a cual; se abre solo para editar. De paso, el resumen mostraba `0.12%` en vez de
+  `12%`: los tramos se guardan como fraccion.
+- **Busqueda del catalogo sin tildes** (438 items): «hepatico» devolvia **0 tarjetas** y
+  «Hepático» 9; ahora las dos dan 9, y «prequirurgico» pasa de 0 a 11. Ademas exige todas las
+  palabras en cualquier orden, muestra el contador «N de 438» y avisa cuando nada coincide.
+- **Perfiles guardados**: agrupados por veterinaria, con buscador, fecha legible (25/08 22:09 en
+  vez del ISO) y **renombrar** con endpoint nuevo y lista blanca. Probado renombrando uno real y
+  devolviendole su nombre.
+- **Verificacion:** 12 tests nuevos, dos de ellos para que el editor de descuentos no vuelva a
+  quedar dentro de un bloque que se corta. Suite **1472 passed**.

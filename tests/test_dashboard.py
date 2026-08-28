@@ -201,20 +201,12 @@ def test_service_order_event_is_visible_in_operation_center():
     assert "Toby" in op["route_rows"][0]["order_summary"]
 
 
-def test_samples_page_renders_service_order_sheet(monkeypatch):
-    """UI actual: las órdenes de servicio se movieron a /operacion ('Ordenes del dia',
-    cubierto arriba); /muestras hoy muestra el proceso de muestras y el catálogo."""
+def test_samples_page_muestra_catalogo_y_perfiles(monkeypatch):
+    """La pestaña «Proceso de muestras» se retiró: duplicaba los estados que ya se ven
+    en Solicitudes. La sección queda con el catálogo y los perfiles guardados."""
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_USER", "admin")
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_PASSWORD", "secret")
-    context = _base_context(
-        sample_process_lanes=[{"status_key": "a_retirar", "label": "A retirar", "count": 1,
-                               "cards": [{"status_label": "A retirar", "created_at": "2026-05-24T10:00",
-                                          "profile_name": "Hemograma", "client_name": "Clinica Norte",
-                                          "profile_code": "0301", "sample_type": "Sangre",
-                                          "sample_requirements": [], "sample_id": "s-1",
-                                          "dropdown_status": "a_retirar", "is_demo": False,
-                                          "selected_items": []}]}],
-    )
+    context = _base_context()
 
     with patch("app.dashboard.build_dashboard_context", return_value=context):
         client = _get_test_client()
@@ -223,10 +215,10 @@ def test_samples_page_renders_service_order_sheet(monkeypatch):
 
     assert response.status_code == 200
     body = response.get_data(as_text=True)
-    assert "Proceso de muestras" in body
-    assert "Clinica Norte" in body
-    assert "Hemograma" in body
-
+    assert "Catalogo y perfiles" in body
+    assert "Perfiles guardados" in body
+    assert "data-sample-process-board" not in body
+    assert 'data-columns-table="muestras"' not in body
 
 def test_service_order_print_page_renders_pdf_ready_form(monkeypatch):
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_USER", "admin")
@@ -305,7 +297,7 @@ def test_dashboard_keeps_legacy_sections_connected(monkeypatch):
         client.post("/login", data={"username": "admin", "password": "secret"})
         pages = {
             "/clientes": "Clinica Norte",
-            "/muestras": "Hemograma",
+            "/muestras": "Catalogo y perfiles",
             "/motorizados": "Luis Moto",
         }
         for path, expected in pages.items():
@@ -476,10 +468,10 @@ def test_samples_page_renders_profile_builder_catalog(monkeypatch):
     assert "Usar perfil" in body or "data-builder-add" in body
     assert "applyBuilderCatalogFilters" in body or "data-builder-catalog" in body
     assert "Resumen para cliente" in body or "data-builder-summary" in body
-    assert "Proceso de muestras" in body
-    assert "data-sample-process-board" in body
-    assert "data-sample-process-card" in body
     assert "Tubo Tapa Morada" in body
+    # La pestaña «Proceso de muestras» se retiró (duplicaba los estados de Solicitudes):
+    # la sección queda con el catálogo y los perfiles guardados.
+    assert "data-sample-process-board" not in body
 
 
 def test_new_client_page_requires_login():

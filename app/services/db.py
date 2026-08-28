@@ -1541,6 +1541,17 @@ def replace_discount_tiers(tiers: list[dict], updated_by: str | None) -> list[di
     return result.data or []
 
 
+def update_custom_profile(profile_id: str, payload: dict) -> dict | None:
+    """Edita un perfil guardado. Por ahora solo el nombre: los items y el cliente se
+    definen al crearlo desde el builder, y cambiarlos por acá dejaria la cotizacion
+    fuera de sincronia con lo que se guardo."""
+    nombre = str((payload or {}).get("name") or "").strip()
+    if not profile_id or not nombre:
+        return None
+    result = _client.table("client_custom_profiles").update({"name": nombre}).eq("id", profile_id).execute()
+    return (result.data or [None])[0]
+
+
 def delete_custom_profile(profile_id: str) -> bool:
     result = _client.table("client_custom_profiles").delete().eq("id", profile_id).execute()
     return bool(result.data)

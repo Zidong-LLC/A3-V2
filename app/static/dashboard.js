@@ -41,50 +41,6 @@
     });
   });
 
-  function moveSampleCard(select) {
-    const card = select.closest('.sample-process-card');
-    if (!card) return;
-    let status = select.value;
-    if (status === 'on_route') status = 'picked_up';
-    if (status === 'ready_results') status = 'processed';
-    const targetLane = document.querySelector(`[data-sample-status="${status}"]`);
-    if (!targetLane) return;
-    const sourceLane = card.closest('[data-sample-status]');
-    if (sourceLane && sourceLane !== targetLane) {
-      const sourceCount = sourceLane.querySelector('header strong');
-      if (sourceCount) sourceCount.textContent = Math.max(0, Number(sourceCount.textContent || 0) - 1);
-      const targetCount = targetLane.querySelector('header strong');
-      if (targetCount) targetCount.textContent = Number(targetCount.textContent || 0) + 1;
-    }
-    targetLane.appendChild(card);
-    const badge = card.querySelector('.sample-card-top .status-badge');
-    const selected = select.options[select.selectedIndex];
-    if (badge && selected) badge.textContent = selected.textContent;
-  }
-
-  document.querySelectorAll('.sample-status-select').forEach((select) => {
-    if (select.dataset.safeBound) return;
-    select.dataset.safeBound = '1';
-    select.dataset.originalValue = select.value;
-    select.addEventListener('change', async () => {
-      const flag = select.parentElement.querySelector('.save-flag');
-      const label = select.options[select.selectedIndex]?.textContent || select.value;
-      if (!window.confirm(`Cambiar estado a "${label}"?`)) {
-        select.value = select.dataset.originalValue;
-        return;
-      }
-      try {
-        await postJsonSafe('/api/dashboard/sample-status', { sample_id: select.dataset.sampleId, status: select.value });
-        select.dataset.originalValue = select.value;
-        if (flag) flag.textContent = 'Guardado';
-        moveSampleCard(select);
-      } catch (err) {
-        select.value = select.dataset.originalValue;
-        if (flag) flag.textContent = err.message;
-      }
-    });
-  });
-
   document.querySelectorAll('.request-sample-count-input').forEach((input) => {
     input.addEventListener('change', async () => { try { await postJsonSafe('/api/dashboard/request-operation', {request_id: input.dataset.requestId, sample_count: input.value}); } catch (err) {} });
   });
@@ -244,15 +200,25 @@
     const typeFilter = document.querySelector('[data-builder-type-filter]');
     const speciesFilter = document.querySelector('[data-builder-species-filter]');
     const categoryFilter = document.querySelector('[data-builder-category-filter]');
-    const query = String(search?.value || '').toLowerCase().trim();
+    // Sin tildes en los dos lados: el catalogo esta lleno de acentos y buscar
+    // "hepatico" devolvia CERO tarjetas mientras "Hepático" devolvia nueve.
+    const plano = (v) => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const palabras = plano(search?.value).trim().split(/\s+/).filter(Boolean);
     const type = String(typeFilter?.value || 'all');
     const species = String(speciesFilter?.value || 'all');
     const category = String(categoryFilter?.value || 'all');
+    let visibles = 0;
     catalog.querySelectorAll('[data-builder-card]').forEach((card) => {
-      const text = `${card.dataset.name || ''} ${card.dataset.code || ''}`.toLowerCase();
-      const matches = (!query || text.includes(query)) && (type === 'all' || card.dataset.type === type) && (species === 'all' || card.dataset.species === species) && (category === 'all' || card.dataset.category === category);
+      const text = plano(`${card.dataset.name || ''} ${card.dataset.code || ''}`);
+      // Todas las palabras, en cualquier orden: "renal canino" encuentra "Perfil Renal Canino".
+      const matches = palabras.every((p) => text.includes(p)) && (type === 'all' || card.dataset.type === type) && (species === 'all' || card.dataset.species === species) && (category === 'all' || card.dataset.category === category);
       card.style.display = matches ? '' : 'none';
+      if (matches) visibles++;
     });
+    const contador = document.querySelector('[data-builder-count]');
+    if (contador) contador.textContent = `${visibles} de ${catalog.querySelectorAll('[data-builder-card]').length}`;
+    const vacio = document.querySelector('[data-builder-empty]');
+    if (vacio) vacio.hidden = visibles > 0;
   }
   document.querySelectorAll('[data-builder-search],[data-builder-type-filter],[data-builder-species-filter],[data-builder-category-filter]').forEach((control) => {
     control.addEventListener('input', applyBuilderCatalogFilters);
@@ -596,50 +562,6 @@
   });
 
 
-  // ── Descuentos por volumen editables ────────────────────────────────────────
-  // Los tramos viven en discount_tiers (migración 021); el % se muestra como
-  // porcentaje (12) y viaja como fracción (0.12). El server valida en serio.
-  (() => {
-    const card = document.querySelector('[data-discount-card]');
-    if (!card) return;
-    const rowsBox = card.querySelector('[data-discount-rows]');
-    const flag = card.querySelector('[data-discount-flag]');
-    const saveBtn = card.querySelector('[data-discount-save]');
-
-    card.querySelector('[data-tier-add]').addEventListener('click', () => {
-      const tr = document.createElement('tr');
-      tr.setAttribute('data-discount-row', '');
-      tr.innerHTML = '<td><input class="cell-input" data-tier-min type="number" min="2" max="99"></td>'
-        + '<td><input class="cell-input" data-tier-pct type="number" step="0.5" min="0" max="90"></td>'
-        + '<td><button type="button" class="ghost-btn" data-tier-remove title="Quitar tramo">✕</button></td>';
-      rowsBox.appendChild(tr);
-    });
-
-    rowsBox.addEventListener('click', (ev) => {
-      const btn = ev.target.closest('[data-tier-remove]');
-      if (btn) btn.closest('tr').remove();
-    });
-
-    saveBtn.addEventListener('click', async () => {
-      const tiers = [];
-      rowsBox.querySelectorAll('[data-discount-row]').forEach((tr) => {
-        const min = parseInt(tr.querySelector('[data-tier-min]').value, 10);
-        const pct = parseFloat(tr.querySelector('[data-tier-pct]').value);
-        if (!Number.isNaN(min) && !Number.isNaN(pct)) tiers.push({ min_tests: min, pct: pct / 100 });
-      });
-      flag.textContent = 'Guardando…';
-      saveBtn.disabled = true;
-      try {
-        await postJsonSafe('/api/dashboard/discount-tiers', { tiers });
-        flag.textContent = 'Guardado';
-        setTimeout(() => { flag.textContent = ''; }, 1500);
-      } catch (err) {
-        flag.textContent = err.message || 'No se pudo guardar';
-      } finally {
-        saveBtn.disabled = false;
-      }
-    });
-  })();
 
 
   // ── Tendencias del Panel Ejecutivo (ApexCharts, ya cargado por CDN) ─────────
@@ -685,4 +607,59 @@
     }
   })();
 
+})();
+
+// El editor de descuentos vivia dentro del IIFE del Centro Operativo, que arranca
+// con `if (!panel) return;`: en Muestras, que es donde se muestra, los botones no
+// hacian nada. Va en su propio bloque.
+// ── Descuentos por volumen editables ────────────────────────────────────────
+// Los tramos viven en discount_tiers (migración 021); el % se muestra como
+// porcentaje (12) y viaja como fracción (0.12). El server valida en serio.
+(() => {
+  const card = document.querySelector('[data-discount-card]');
+  if (!card) return;
+  // Envío propio: `postJsonSafe` vive dentro del IIFE grande y este bloque quedó afuera.
+  const enviar = async (url, payload) => {
+    const res = await fetch(url, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Error');
+    return data;
+  };
+  const rowsBox = card.querySelector('[data-discount-rows]');
+  const flag = card.querySelector('[data-discount-flag]');
+  const saveBtn = card.querySelector('[data-discount-save]');
+
+  card.querySelector('[data-tier-add]').addEventListener('click', () => {
+    const tr = document.createElement('tr');
+    tr.setAttribute('data-discount-row', '');
+    tr.innerHTML = '<td><input class="cell-input" data-tier-min type="number" min="2" max="99"></td>'
+      + '<td><input class="cell-input" data-tier-pct type="number" step="0.5" min="0" max="90"></td>'
+      + '<td><button type="button" class="ghost-btn" data-tier-remove title="Quitar tramo">✕</button></td>';
+    rowsBox.appendChild(tr);
+  });
+
+  rowsBox.addEventListener('click', (ev) => {
+    const btn = ev.target.closest('[data-tier-remove]');
+    if (btn) btn.closest('tr').remove();
+  });
+
+  saveBtn.addEventListener('click', async () => {
+    const tiers = [];
+    rowsBox.querySelectorAll('[data-discount-row]').forEach((tr) => {
+      const min = parseInt(tr.querySelector('[data-tier-min]').value, 10);
+      const pct = parseFloat(tr.querySelector('[data-tier-pct]').value);
+      if (!Number.isNaN(min) && !Number.isNaN(pct)) tiers.push({ min_tests: min, pct: pct / 100 });
+    });
+    flag.textContent = 'Guardando…';
+    saveBtn.disabled = true;
+    try {
+      await enviar('/api/dashboard/discount-tiers', { tiers });
+      flag.textContent = 'Guardado';
+      setTimeout(() => { flag.textContent = ''; }, 1500);
+    } catch (err) {
+      flag.textContent = err.message || 'No se pudo guardar';
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
 })();

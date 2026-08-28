@@ -432,3 +432,21 @@ select option{background-color:var(--os-space-surface);color:var(--text)}
 .courier-card-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .courier-card-actions .portal-check{display:flex;align-items:center;gap:8px;font-size:12.5px;cursor:pointer}
 @media(max-width:600px){.courier-card-fields{grid-template-columns:1fr}}
+
+/* Descuentos por volumen: plegado, porque con 14 tramos ocupaba 944 px. */
+.discount-panel > summary{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  cursor:pointer;list-style:none;padding:2px 0}
+.discount-panel > summary::-webkit-details-marker{display:none}
+.discount-panel > summary strong{font-size:15px}
+.discount-panel > summary small{display:block;font-size:12px;color:var(--text-dim);margin-top:2px}
+.discount-panel[open] > summary{margin-bottom:10px;border-bottom:1px solid var(--os-space-border);padding-bottom:10px}
+
+/* Perfiles guardados agrupados por veterinaria. */
+.profiles-group{margin-top:16px}
+.profiles-group-title{margin:0 0 8px;font-size:13px;display:flex;align-items:center;gap:8px}
+.catalog-toolbar .table-counter{margin-left:auto}
+
+/* La barra del catalogo es flex: sin anchos propios el buscador se comia la fila y
+   los tres desplegables caian apilados, uno por linea. */
+.catalog-toolbar [data-builder-search],.catalog-toolbar [data-profiles-search]{flex:1 1 260px;min-width:200px;max-width:420px}
+.catalog-toolbar .cell-select{flex:0 1 190px;min-width:150px}
