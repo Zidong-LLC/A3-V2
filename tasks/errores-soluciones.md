@@ -4280,8 +4280,13 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
   del cache; fallaban tres cosas y el resto andaba bien.
 - **1. Tildes.** En la base conviven «Clinica» y «Clínica». Buscar sin tilde traía 89 facturas y
   con tilde 8: dos mundos separados. `ilike` no ignora tildes y PostgREST no expone `unaccent`.
-  **Solución:** cada vocal del término se cambia por `_`, que en LIKE es «un carácter
-  cualquiera»: «clinica» pasa a «cl_n_c_» y encuentra las dos formas. Ahora las dos dan 97.
+  **Primer intento, descartado:** cambiar cada vocal por `_` (un carácter cualquiera en LIKE).
+  Encontraba las dos formas pero era demasiado grosero: «EVI» pasaba a «_V_» y devolvía **441
+  facturas de 1.200**. Lo destapó probar con una sigla corta.
+  **Solución final:** el NOMBRE se resuelve por lista. Son ~116 nombres distintos en 1.200
+  facturas, así que se traen y se comparan en Python sin tildes (exacto, sin falsos positivos);
+  la consulta filtra por `client_name.in.(...)`. El número y el NIT siguen por `ilike`, que ahí
+  alcanza. Ahora «clinica» y «Clínica» dan 97 las dos, y «EVI» da 21.
 - **2. Dos palabras.** «lopez isabel» devolvía 0 aunque existe «Dra Isabel Cristina Lopez»,
   porque se buscaba la frase entera como subcadena. **Solución:** con varias palabras se exige
   que **todas** estén en el nombre, en cualquier orden. La coma pasa a ser separador (antes

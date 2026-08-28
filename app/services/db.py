@@ -1091,16 +1091,35 @@ def upsert_invoices_cache(rows: list[dict]) -> int:
     return len(rows)
 
 
-def _like_sin_tildes(texto: str) -> str:
-    """Patrón LIKE que encuentra igual con tilde y sin ella.
+def _sin_tildes(texto) -> str:
+    """Minúsculas y sin acentos, para comparar nombres como los escribe una persona."""
+    plano = unicodedata.normalize("NFD", str(texto or ""))
+    return "".join(c for c in plano if unicodedata.category(c) != "Mn").lower()
 
-    En la base conviven «Clinica» y «Clínica»: buscar una no encontraba la otra
-    (89 facturas contra 8). `ilike` no ignora tildes y PostgREST no expone `unaccent`,
-    así que cada vocal se cambia por `_`, que en LIKE es «un carácter cualquiera»:
-    «clinica» pasa a «cl_n_c_» y encuentra las dos formas. Los comodines que escriba
-    el usuario se neutralizan antes."""
-    limpio = re.sub(r"[%_]", " ", str(texto or "")).strip()
-    return re.sub(r"[aeiouáéíóúüñAEIOUÁÉÍÓÚÜÑ]", "_", limpio)
+
+def _limpiar_like(texto: str) -> str:
+    """Quita los comodines que escriba el usuario, para que `%` no traiga todo."""
+    return re.sub(r"[%_]", " ", str(texto or "")).strip()
+
+
+def clientes_del_cache_que_coinciden(palabras: list[str], tope: int = 60) -> list[str]:
+    """Nombres de cliente del cache que contienen TODAS las palabras, sin mirar tildes.
+
+    Se resuelve acá y no con `ilike` porque en la base conviven «Clinica» y «Clínica» y
+    PostgREST no expone `unaccent`: comparar en Python es exacto. Son ~116 nombres
+    distintos en 1.200 facturas, así que el filtro después va por lista de nombres.
+    """
+    if not palabras:
+        return []
+    filas = list_all_cached_invoices("client_name")
+    buscadas = [_sin_tildes(p) for p in palabras]
+    nombres = {
+        fila.get("client_name") or ""
+        for fila in filas
+        if all(b in _sin_tildes(fila.get("client_name")) for b in buscadas)
+    }
+    nombres.discard("")
+    return sorted(nombres)[:tope]
 
 
 def list_cached_invoices(
@@ -1134,18 +1153,26 @@ def list_cached_invoices(
     if f.get("total_max") is not None:
         query = query.lte("total", f["total_max"])
     if f.get("search"):
-        palabras = [p for p in re.split(r"[\s,]+", str(f["search"]).strip()) if p]
-        if len(palabras) == 1:
-            term = _like_sin_tildes(palabras[0])
-            query = query.or_(
-                f"number.ilike.%{term}%,client_name.ilike.%{term}%,client_nit.ilike.%{term}%"
-            )
-        elif palabras:
-            # Varias palabras: TODAS tienen que estar en el nombre, en cualquier orden.
-            # Antes se buscaba la frase entera y «lopez isabel» no encontraba a
-            # «Dra Isabel Cristina Lopez».
-            for palabra in palabras:
-                query = query.ilike("client_name", f"%{_like_sin_tildes(palabra)}%")
+        palabras = [p for p in re.split(r"[\s,]+", _limpiar_like(f["search"])) if p]
+        if palabras:
+            # El nombre se resuelve por lista de clientes (comparación sin tildes en
+            # Python, exacta); el número y el NIT siguen por `ilike`, que ahí alcanza.
+            condiciones = []
+            crudo = " ".join(palabras)
+            if len(palabras) == 1:
+                condiciones.append(f"number.ilike.%{crudo}%")
+                digitos = re.sub(r"[^0-9]", "", crudo)
+                if digitos:
+                    condiciones.append(f"client_nit.ilike.%{digitos}%")
+            nombres = clientes_del_cache_que_coinciden(palabras)
+            if nombres:
+                lista = ",".join('"' + n.replace('"', "") + '"' for n in nombres)
+                condiciones.append(f"client_name.in.({lista})")
+            if condiciones:
+                query = query.or_(",".join(condiciones))
+            else:
+                # Nada puede coincidir: se fuerza el vacío en vez de devolver todo.
+                query = query.eq("alegra_invoice_id", "__sin_coincidencias__")
     field = order_field if order_field in _INVOICE_ORDER_FIELDS else "invoice_date"
     query = query.order(field, desc=order_desc)
     start = max(page - 1, 0) * per_page

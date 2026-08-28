@@ -147,37 +147,85 @@ def _consulta(filtros):
     return registro
 
 
-def test_una_palabra_busca_en_numero_nombre_y_nit():
-    registro = _consulta({"search": "zoopecas"})
-    condicion = next(r[1] for r in registro if r[0] == "or")
-    assert "number.ilike" in condicion and "client_name.ilike" in condicion and "client_nit.ilike" in condicion
+def _consulta_con_nombres(filtros, nombres_del_cache):
+    """Como `_consulta`, pero con los nombres de cliente que hay en el cache."""
+    from unittest.mock import MagicMock
+
+    from app.services import db as dbs
+
+    registro = []
+    cliente = MagicMock()
+    cliente.table.return_value = _QueryFalsa(registro)
+    with patch.object(dbs, "_client", cliente),          patch.object(dbs, "list_all_cached_invoices",
+                      return_value=[{"client_name": n} for n in nombres_del_cache]):
+        dbs.list_cached_invoices(filtros, page=1, per_page=10)
+    return registro
 
 
-def test_la_busqueda_encuentra_con_tilde_y_sin_tilde():
-    """En la base conviven «Clinica» y «Clínica»: buscar una traía 89 y la otra 8."""
-    registro = _consulta({"search": "clinica"})
+CACHE = ["Clinica Veterinaria Zoopecas SAS", "Clínica Animal El Corralito",
+         "Dra Isabel Cristina Lopez", "EVI EMERGENCIAS VETERINARIAS INTEGRALES SAS",
+         "Consumidor Final"]
+
+
+def test_una_palabra_busca_en_numero_nit_y_nombre():
+    registro = _consulta_con_nombres({"search": "zoopecas"}, CACHE)
     condicion = next(r[1] for r in registro if r[0] == "or")
-    assert "cl_n_c_" in condicion          # cada vocal es un comodín de un carácter
-    assert "clinica" not in condicion
+    assert "number.ilike" in condicion
+    assert "client_name.in." in condicion
+    assert "Zoopecas" in condicion
+
+
+def test_el_nombre_se_encuentra_con_tilde_y_sin_tilde():
+    """En el cache conviven «Clinica» y «Clínica»: una sola búsqueda trae las dos."""
+    registro = _consulta_con_nombres({"search": "clinica"}, CACHE)
+    condicion = next(r[1] for r in registro if r[0] == "or")
+    assert "Clinica Veterinaria Zoopecas SAS" in condicion
+    assert "Clínica Animal El Corralito" in condicion
+
+
+def test_una_sigla_corta_no_arrastra_medio_cache():
+    """Con el patrón por comodines, «EVI» devolvía 441 facturas de 1.200."""
+    registro = _consulta_con_nombres({"search": "EVI"}, CACHE)
+    condicion = next(r[1] for r in registro if r[0] == "or")
+    assert "EVI EMERGENCIAS" in condicion
+    assert "Consumidor Final" not in condicion
 
 
 def test_dos_palabras_se_buscan_todas_en_cualquier_orden():
     """«lopez isabel» tiene que encontrar a «Dra Isabel Cristina Lopez»."""
-    registro = _consulta({"search": "lopez isabel"})
-    nombres = [r for r in registro if r[0] == "ilike" and r[1] == "client_name"]
-    assert len(nombres) == 2
+    registro = _consulta_con_nombres({"search": "lopez isabel"}, CACHE)
+    condicion = next(r[1] for r in registro if r[0] == "or")
+    assert "Dra Isabel Cristina Lopez" in condicion
+    assert "number.ilike" not in condicion       # dos palabras no son un numero de factura
+
+
+def test_la_coma_separa_palabras():
+    registro = _consulta_con_nombres({"search": "clinica, veterinaria"}, CACHE)
+    condicion = next(r[1] for r in registro if r[0] == "or")
+    assert "Clinica Veterinaria Zoopecas SAS" in condicion
+
+
+def test_un_termino_sin_ninguna_coincidencia_no_devuelve_todo():
+    """Sin cliente que coincida queda solo la busqueda por numero de factura, que
+    tampoco coincide: la tabla sale vacia en vez de mostrar las 1.200."""
+    registro = _consulta_con_nombres({"search": "noexisteestecliente"}, CACHE)
+    condicion = next(r[1] for r in registro if r[0] == "or")
+    assert condicion == "number.ilike.%noexisteestecliente%"
+    assert "client_name.in." not in condicion
+
+
+def test_dos_palabras_sin_coincidencia_fuerzan_el_vacio():
+    """Con dos palabras no hay busqueda por numero: sin nombres que coincidan, la
+    consulta tiene que devolver vacio y no la tabla entera."""
+    registro = _consulta_con_nombres({"search": "no existe"}, CACHE)
     assert not [r for r in registro if r[0] == "or"]
-
-
-def test_la_coma_separa_palabras_y_no_rompe_la_consulta():
-    registro = _consulta({"search": "clinica, veterinaria"})
-    assert len([r for r in registro if r[0] == "ilike" and r[1] == "client_name"]) == 2
+    assert ("eq", "alegra_invoice_id", "__sin_coincidencias__") in registro
 
 
 def test_los_comodines_que_escriba_el_usuario_no_viajan_a_la_consulta():
-    registro = _consulta({"search": "cli%nica_"})
-    condicion = next(r[1] for r in registro if r[0] == "or")
-    assert "%nica" not in condicion
+    registro = _consulta_con_nombres({"search": "cli%nica_"}, CACHE)
+    texto = str(registro)
+    assert "%nica" not in texto
 
 
 def test_el_nit_se_busca_sin_puntos_ni_digito_de_verificacion():
