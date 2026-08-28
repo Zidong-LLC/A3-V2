@@ -1202,3 +1202,214 @@ Los cuatro frentes cerrados (ERR-150 a ERR-155). Suite **1317 passed**.
       validación, TLS y whitelist de IPs de Render
 - [ ] **A decidir con A3**: desde qué fecha quieren ver resultados en el portal — el espejo
       hoy cubre una semana y traer el historial es repetir el sync por tramos
+
+---
+
+## Retema a la identidad A3 — plataforma y portal (2026-08-27) — EN CURSO
+
+Plan aprobado: `~/.claude/plans/okey-mira-podriamos-adaptar-linear-tulip.md`. Pedido del
+usuario: que la interfaz deje el oscuro monocromo y adopte la estética de las plantillas de
+Nuxt con los colores de `https://a3laboratorio.co/`. Solo capa de presentación: ni lógica
+Python, ni rutas, ni el flujo conversacional.
+
+Identidad verificada en el sitio del cliente: marca `#7a0d20` (vinotinto del logo, y color
+primario de su tema Divi), tipografías Nunito Sans / Open Sans, logo `A3` blanco sobre
+círculo vinotinto. Decisiones del usuario: vinotinto de acento sobre neutros (no barra
+lateral vinotinta), tema claro único, Nunito Sans, y maqueta aprobada antes de tocar código.
+
+- [x] **Fase 1 — Maqueta de referencia**: `mockups/v1-nuxt.html` retemado a la identidad A3
+      (portal de clientes) y `mockups/v4-dashboard-a3.html` nuevo (dashboard interno con
+      kpi-card, filter-bar, cols-btn, approval-notice, service-order-sheet). Ambas usan los
+      nombres de clase REALES del proyecto, así sirven de referencia 1:1 al retemar app.css.
+      Publicadas como Artifacts. **Pendiente: visto bueno del usuario.**
+- [x] **Fase 2 — Tokens**: `:root` de os-kit.css a paleta clara con los nombres `--os-space-*`
+      intactos; acento `#7a0d20`; tokens nuevos `--os-space-hover/field/inset/tint/on-accent`
+- [x] **Fase 3 — Barrido de hardcodes**: los 36 `rgba(255,255,255,…)` de app.css clasificados
+      por rol (campo / hover / superficie tonal / marca) + 4 de dashboard.css + 3 de
+      portal.css; sombras negras aligeradas; halo del spotlight a vinotinto; orbes apagados
+      (`.os-shell-ambient{display:none}`), el markup queda intacto
+- [x] **Fase 4 — Forma**: radios 14→10 / 10→6, `.card-head` y `.filter-bar` con tono propio,
+      `.crm-main` al gris del lienzo, sidebar blanca, `th` con fondo y corte, `.menu-link.active`
+      en tinte + texto vinotinto. **Estados corregidos**: había inventado nombres
+      (`status-programada`…); los reales de `REQUEST_STATUS_LABELS` son received/assigned/
+      on_route/picked_up/in_lab/processed/sent/cancelled/error_pending_assignment — los 9
+      cubiertos y los 4 que tenían texto claro sobre tinte oscuro, corregidos
+- [ ] **Fase 5 — Tipografía**: se mantiene Public Sans (decisión del usuario 2026-08-27: la
+      estética de Nuxt queda intacta, solo cambia la paleta). Nada que tocar.
+- [x] **Verificación**: 16 pantallas recorridas con Playwright sobre Flask local (11 del CRM
+      + 5 del portal), todas responden; contraste medido con getComputedStyle: todos los
+      textos ≥4.5:1 (el más bajo, `.hello-label`, 4.79:1); `rgba(255,255,255` en cero en los
+      4 CSS; suite **1327 passed, 4 skipped, 1 xfailed**; las vistas de impresión llevan
+      `<style>` propio y no dependen del tema
+- [ ] **Pendiente ajeno al retema**: `/solicitudes/nueva` paso 3 tiene los rótulos «Análisis
+      sueltos» y «Observaciones» encimados y el `select multiple` desbordado. **Verificado que
+      ya ocurría con el tema oscuro** (captura comparativa), no es regresión. Requiere OK del
+      usuario por tocar una plantilla del flujo de carga manual
+
+---
+
+## Paso a datos reales: Alegra del cliente, cartera, FE y Mascolab (2026-08-27) — EN CURSO
+
+Plan aprobado: `~/.claude/plans/okey-mira-podriamos-adaptar-linear-tulip.md`. Cierre de la
+etapa de pruebas: credenciales reales de Alegra, limpieza de lo transaccional, cartera en
+portal y admin, factura electrónica vs Consumidor Final, PDF desde la ficha del cliente y
+convenio Mascolab.
+
+- [x] **Fase 0 — Respaldo y limpieza**: `tools/scripts/backup_transaccional.py` (81 filas a
+      `data/backups/transaccional-20260827-103300/`) y `limpiar_transaccional.py --confirmar`.
+      Borradas 8 tablas transaccionales + numeración reiniciada. **Intactos**: 992 clientes,
+      183+133 catálogo, 332 razas, 8 motorizados, 320 asignaciones, 44 perfiles, 27.102
+      Anarvet. Hallazgo: `requests.pedido_id` → `pedidos` obliga a borrar requests ANTES que
+      pedidos (el orden inicial fallaba por FK)
+- [x] **Fase 1 — Alegra real (solo borradores)**: `.env` → cuenta del cliente,
+      `ALEGRA_COUNTRY=colombia`, `ALEGRA_PRODUCTION=false`. Verificado en solo lectura:
+      empresa «A3 LABORATORIO CLINICO VETERINARIO SAS», NIT 900296338, Colombia, Responsable
+      de IVA; el catálogo y los contactos YA estaban cargados en su cuenta; 660 facturas
+      (126 open / 534 closed). Guardrail y CLAUDE.md reescritos: cuenta real, jamás DIAN
+- [x] **Fase 2 — Factura electrónica vs Consumidor Final**: migración 028
+      (`clients.electronic_invoice` + `invoice_note`); `import_factura_electronica.py` marcó
+      **39 clientes** desde el Excel (los 29 «NO» del Excel, varios con sedes que comparten
+      NIT). `billing.invoice_target` decide destino y nota; `alegra.create_invoice` acepta
+      `anotation`. **Hallazgo**: ya existía `clients_a3_knowledge.electronic_invoicing` con
+      UI y filtro pero **vacía en las 1427 fichas** — se reusó esa UI apuntándola a la
+      columna real de `clients` en vez de crear un campo duplicado. 5 tests nuevos
+- [x] **Fase 3 — Cartera**: migración 029 (`balance`, `total_paid` en `invoices_cache`);
+      `db.list_cartera/cartera_totales/cartera_por_cliente`; vista en Facturación (KPIs +
+      cartera por cliente con mora) y **nueva página del portal** `/portal/mis/cuenta`
+      (`app/portal/client_cartera.py`). Datos reales: **$103.9M facturado, $80.2M cobrado,
+      $20.9M por cobrar, 49 clientes con saldo**. Filtro `money` registrado en Jinja
+- [x] **Fase 4 — PDF desde la ficha del cliente**: `_resolve_client` acepta `client_id`
+      explícito (el NIT no sirve: hay sedes que lo comparten, ERR-157); enlace «Subir PDF»
+      en cada fila de Clientes y precarga del destino. Probado de punta a punta: se subió,
+      publicó, notificó y se limpió el rastro (incluido el bucket)
+- [x] **Fase 5 — Mascolab**: `build_mascolab_migration.py` cruza el Excel con los precios de
+      `docs/catalogo-mascolab-pendiente.md` → migración 030 con **122 entradas** (30 perfiles
+      + 92 análisis): código base = Punto Final, `-1` = Tiempo Real, con la técnica en el
+      nombre para poder cotizarlas por separado. El 2461 entró con la tarifa general
+      ($157.000/$224.000) por decisión del usuario. Catálogo: 275 análisis + 163 perfiles
+- [ ] **Pendiente de OK del usuario**: probar el camino de ESCRITURA en Alegra (crear un
+      borrador real de punta a punta). La regla dura exige avisar antes: cada borrador queda
+      en la cuenta del contador de A3
+- [x] **Auditoría del catálogo nuevo** (`A3 - Catalogo 2025 (3) (4).pdf`): script nuevo
+      `tools/scripts/audit_catalogo_pdf_vs_base.py` (lee el PDF y compara contra la BASE
+      viva, no contra los seeds como el `audit_catalogo_pdf.py` existente).
+      **Resultado: 311 códigos leídos, CERO precios distintos y CERO códigos del PDF que
+      falten en la base.** Los 5 que el parser no pudo leer (1601, 1606, 2063, 2216, 2217)
+      se verificaron a mano contra el PDF: también coinciden. **El catálogo nuevo no cambia
+      ningún precio.**
+      Aprendizajes del parseo, que costaron dos versiones del script: el PDF mezcla dos
+      formatos de precio (`85.000$` y `$ 85.000`); las tablas de análisis solo se leen bien
+      con `extraction_mode="layout"` y las de perfiles solo con la extracción normal (en
+      layout salen desarmadas); y emparejar código→precio «por cercanía» produce disparates
+      —la primera versión leyó el código 2301 como un precio de $2.301—, así que se lee
+      estrictamente por línea y lo que no se puede leer se reporta en vez de adivinarse
+
+---
+
+## Portal del cliente fuera del modo demostración (2026-08-27) — COMPLETADO
+
+Pedido: que el portal deje de ser demo y cada veterinaria entre con **nombre de la clínica +
+NIT** y vea solo lo suyo. **Hallazgo: ya estaba construido y probado** (login real en
+`app/portal/auth.py` desde el 2026-08-18, con 10 tests). El modo demo lo tapaba con un `if`.
+
+- [x] `PORTAL_DEMO_MODE=false`. El código de demo queda, apagado (decisión del usuario)
+- [x] Hueco que dejaba la demo: `session.portal_email` («demo@a3test.com») se borra en el
+      login real, así que el menú lateral y «Correo de acceso» del perfil quedaban **vacíos**.
+      Ahora la sesión guarda `portal_clinic_name`; el menú muestra la sede y el perfil, el
+      correo real de `clients` + cómo se accede
+- [x] `tools/scripts/export_clientes_sin_nit.py` → `data/clientes-sin-nit-20260827.csv` con
+      los **161 activos sin NIT** (19% de 842) que no pueden entrar. Es el mismo dato que
+      falta para facturarles
+- [x] Verificación e2e contra clientes reales: sin sesión redirige al login; login correcto;
+      nombre ajeno al NIT rechazado; NIT inexistente con el mismo mensaje; **NIT con dos sedes
+      ofrece elegir y re-valida**; logout corta el acceso. **Aislamiento comprobado contra la
+      base**: «Ama Tu Mascota» ve 6 facturas y 4 pendientes, «Zoomascotas Veraguas» 19 y 8
+- [x] Suite **1332 passed**; decisión 010 actualizada
+- Nota: durante las pruebas el **rate limit se disparó solo** (10 intentos/5 min por IP) y
+      bloqueó mi propia batería. Funcionó como debía; se reinició Flask para limpiarlo
+- [x] **PDF para A3** con las 161 (`tools/scripts/pdf_clientes_sin_nit.py` →
+      `data/veterinarias-sin-nit.pdf`, 6 páginas). Al armarlo apareció el porqué: **154 de las
+      161 entraron el 22/07 desde «Clientes y Doctores A3.xlsx»**, que solo traía nombre y
+      médico — de ahí que no tengan NIT, ni teléfono real (son de relleno, 5700000xxxxx) ni
+      dirección. El PDF cruza ese Excel para devolver el médico de cada una (157 de 161) y
+      ordena por prioridad: primero las 8 con actividad real (informes en Anarvet, motorizado
+      o dirección), que son las que hoy operan sin poder entrar al portal
+- [x] **Herramienta para futuras listas de A3** (pedido del usuario, 27/08):
+      `snapshot_clientes.py` (foto del padrón) + `conciliar_clientes.py` (compara una lista
+      nueva contra la base: nuevos / datos que completa / ausentes) +
+      `docs/runbooks/actualizar-padron-clientes.md`. Lee .xlsx y .csv y reconoce las columnas
+      por alias; cruza por NIT y, si no hay, por nombre con `client_name_matches` — el mismo
+      criterio del agente y del portal. **No escribe en la base**: deja 3 CSV para decidir.
+      Probada con dos listas reales: la de Alegra (cubre 32%) y la de Clientes y Doctores
+      (74%). Aviso incorporado: **si la lista cubre <60% del padrón, los «ausentes» NO son
+      bajas** — sin eso, la de Alegra sugería dar de baja a 570 clientes activos.
+      Hallazgo útil: la lista de Alegra aporta el NIT de «Club Animals» Marruecos y Venecia,
+      dos de los 161 que hoy no pueden entrar al portal
+
+---
+
+## Ficha de la veterinaria en la plataforma (2026-08-27) — COMPLETADO
+
+Pedido del usuario: poder **buscar y seleccionar la veterinaria** y ver su resumen —informes
+subidos, solicitudes y qué falta cobrar— en un solo lugar. Nace de los 5 problemas detectados
+en la pantalla de Resultados.
+
+- [x] **Buscador de veterinaria** en Resultados: escribe nombre o NIT y abre la ficha.
+      `db.search_clients_for_dashboard` (una consulta con `or_`, activos primero) +
+      `GET /clientes/buscar` (JSON) + autocompletar sin dependencias
+- [x] **Ficha del cliente** `GET /clientes/<id>` en **blueprint nuevo**
+      `app/dashboard_client.py` (patrón de dashboard_results/anarvet: no agranda dashboard.py).
+      Muestra KPIs, datos, subida con el destino ya resuelto, informes, solicitudes y estado
+      de cuenta. Reusa `portal_db.list_client_requests/list_lab_results` y el `db.list_cartera`
+      de hoy
+- [x] **Deshacer, que era el problema más caro**: `POST /resultados/<id>/dejar-de-compartir`
+      y `POST /resultados/<id>/eliminar`. Antes no había marcha atrás para un informe
+      compartido con la veterinaria equivocada
+- [x] **Compartir viene marcado** en la ficha: el caso normal deja de requerir acordarse
+- [x] Las acciones **vuelven a donde estaba el usuario** (helper `_volver`)
+- [x] 8 tests nuevos. Suite **1340 passed**
+
+**Dos bugs que aparecieron al verificar, no antes:**
+1. Al **dejar de compartir**, el aviso le quedaba al cliente apuntando a un informe que ya no
+   podía abrir. Ahora `unpublish_lab_result` borra también la notificación.
+2. `storage.delete_result_pdf` **nunca se había creado**: el `try/except` de `delete_result`
+   se tragaba el `AttributeError` y **el archivo quedaba huérfano en el bucket** mientras la
+   fila sí se borraba. Lo destapó un test, no la prueba manual — que había dado «OK».
+   Se limpiaron 3 archivos huérfanos.
+
+Pendiente menor de los 5 originales: **la carga sigue siendo de a un archivo**.
+
+---
+
+## Decisiones de alcance del 2026-08-28 (llamada con el usuario)
+
+Recorte y confirmación de alcance sobre el balance del 25/08. Detalle y motivo en
+`Auditoria Alcance/13-decisiones-alcance-2026-08-28.md`.
+
+- [x] **Mascolab (migración 030): ya está aplicada en Supabase** — verificado contra la base
+      viva, no contra el archivo: 30 perfiles + 92 análisis con categoría `Mascolab - Punto
+      Final` / `Mascolab - Tiempo Real`, los 122 códigos de la migración presentes, cero
+      faltantes. Catálogo total: 163 perfiles + 275 análisis. **El frente de catálogo y
+      precios queda cerrado.**
+- [x] **FUERA DE ALCANCE (decisión del usuario)**: adjuntos y fotos en el chat (el agente es
+      de texto y no se contrató otra cosa); inventario en Alegra (Alegra ya descuenta las
+      unidades al facturar, no hay nada que construir); pasarela de pago (cancelada, el pago
+      se deriva a una persona); unidades y valores de referencia por analito de Anarvet (el
+      documento lo carga el cliente, nosotros mostramos la información como llega hoy);
+      historial anterior a la conexión con Anarvet (el espejo arranca donde nos conectamos).
+- [x] **Roles: solo dos** — personal interno de A3 (todos con el usuario administrador) y
+      cliente final en el portal. **El motorizado no se loguea a nada.** Elimina la tabla de
+      usuarios y el rol de mensajero del pendiente.
+- [ ] **Consulta de resultados por chat — SÍ entra** (pedido explícito). El agente busca en
+      los resultados cargados en la plataforma los del paciente que le piden y le envía el PDF
+      por el chat. Toca el paso 3.4a del contrato (hoy mensaje fijo) → plan y OK antes de tocar
+- [x] **Validación del médico veterinario: FUERA DE ALCANCE** (decisión del usuario 28/08).
+      El agente sigue anotando el nombre que le den sin comprobar que esté registrado
+- [x] **Los 17 mapeos de Anarvet: en manos de A3** (decisión del usuario 28/08). No se escribe
+      nada en la base hasta que A3 conteste `docs/anarvet-consulta-clientes.html`. 88 informes
+      quedan sin mostrarse mientras tanto
+- [x] **Calendario de mensajeros: ENTRA COMPLETO** (decisión del usuario 28/08), con
+      reasignación y reprogramación de recogidas desde la plataforma
+- [x] **Resultados por chat: el agente manda el PDF por el chat** (decisión del usuario 28/08),
+      no un enlace al portal. Obliga a agregar envío de documentos en Telegram y Chatwoot
+- [ ] **Bloquear el cambio de cliente maestro**: se prueba antes de decidir, no se cierra hoy
