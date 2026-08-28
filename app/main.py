@@ -17,6 +17,8 @@ from app.dashboard import dashboard
 from app.dashboard_results import dashboard_results
 from app.dashboard_client import dashboard_client
 from app.dashboard_anarvet import dashboard_anarvet
+from app.dashboard_agenda import dashboard_agenda
+from app.dashboard_import import dashboard_import
 from app.portal import portal_bp
 from app.text import money
 
@@ -30,6 +32,8 @@ app.register_blueprint(dashboard)
 app.register_blueprint(dashboard_results)
 app.register_blueprint(dashboard_client)
 app.register_blueprint(dashboard_anarvet)
+app.register_blueprint(dashboard_agenda)
+app.register_blueprint(dashboard_import)
 app.register_blueprint(portal_bp)
 
 

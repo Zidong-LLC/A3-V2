@@ -1812,6 +1812,50 @@ def upsert_client_assignment(client_id: str, courier_id: str | None, assigned_by
         _client.table("client_courier_assignment").delete().eq("client_id", client_id).execute()
 
 
+def list_clients_basic(limit: int = 5000) -> list[dict]:
+    """Padrón liviano para cruzar contra una lista externa: solo los campos que la
+    carga masiva compara y completa. Pagina de a 1000 (tope por request)."""
+    PAGE = 1000
+    rows: list[dict] = []
+    while len(rows) < limit:
+        batch = (
+            _client.table("clients")
+            .select("id, clinic_name, tax_id, phone, address, city, email, is_active")
+            .order("clinic_name")
+            .range(len(rows), min(len(rows) + PAGE, limit) - 1)
+            .execute()
+            .data
+        ) or []
+        rows.extend(batch)
+        if len(batch) < PAGE:
+            break
+    return rows
+
+
+def create_client(payload: dict) -> dict | None:
+    """Alta directa de un cliente. La usa la carga masiva por CSV: es una carga
+    administrativa del personal con una lista de A3, no una solicitud del chat
+    (esa sigue pasando por `create_pending_client_review`)."""
+    payload = {k: v for k, v in (payload or {}).items() if v not in (None, "")}
+    if not payload.get("clinic_name"):
+        return None
+    payload.setdefault("is_active", True)
+    result = _client.table("clients").insert(payload).execute()
+    return (result.data or [None])[0]
+
+
+def create_catalog_item(tabla: str, payload: dict) -> dict | None:
+    """Alta de un análisis o perfil. `tabla` va contra lista blanca, igual que en
+    update_catalog_item: el nombre nunca se compone con datos de la request."""
+    if tabla not in ("catalog_tests", "catalog_profiles"):
+        raise ValueError(f"tabla de catálogo no permitida: {tabla!r}")
+    payload = {k: v for k, v in (payload or {}).items() if v not in (None, "")}
+    if not payload.get("code") or not payload.get("name"):
+        return None
+    result = _client.table(tabla).insert(payload).execute()
+    return (result.data or [None])[0]
+
+
 def update_client_profile(client_id: str, payload: dict) -> bool:
     result = _client.table("clients").update(payload).eq("id", client_id).execute()
     return bool(result.data)
@@ -1947,6 +1991,24 @@ def list_requests(limit: int = 500, status: str | None = None) -> list[dict]:
     if status:
         query = query.eq("status", status)
     result = query.execute()
+    return result.data or []
+
+
+def list_pickups_between(date_from: str, date_to: str, limit: int = 1000) -> list[dict]:
+    """Recogidas programadas entre dos fechas (inclusive), para la agenda de
+    motorizados. Excluye las canceladas: ocupan lugar en la semana y no se recogen."""
+    result = (
+        _client.table("requests")
+        .select("id, order_number, status, priority, pickup_address, patient_name, exam_type, "
+                "scheduled_pickup_date, assigned_courier_id, client_id, "
+                "clients(clinic_name, phone), couriers(name)")
+        .gte("scheduled_pickup_date", date_from)
+        .lte("scheduled_pickup_date", date_to)
+        .neq("status", "cancelled")
+        .order("scheduled_pickup_date")
+        .limit(limit)
+        .execute()
+    )
     return result.data or []
 
 

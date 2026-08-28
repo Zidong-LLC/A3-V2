@@ -4132,3 +4132,53 @@ ESTADO + dato exacto y quedan pre-LLM como los menús 18/19 (nota del baseline).
   coincidencia, y **otro cliente no lo ve**.
 - **Pendiente:** probar el envío del archivo con un chat real de Telegram (runbook de sesión
   local). El código de envío no se ejerció contra la API, solo con dobles en los tests.
+
+---
+
+## ERR-160 — Tres pendientes viejos: varios PDF, agenda de mensajeros y cargas por CSV
+
+- **Fecha:** 2026-08-28 · **Estado:** RESUELTO
+- **Pedido del usuario:** cerrar de una los tres frentes que quedaban de nuestro lado.
+  Decisiones tomadas antes de escribir código: una fila por archivo en la carga de informes,
+  agenda **semana por mensajero**, y las tres cargas por CSV (precios, clientes y portafolio).
+
+### 1 · Varios informes de una vez
+- `upload_result` acepta `getlist("pdf")` y procesa cada archivo con SU fila de datos
+  (`patient_name_0`, `order_number_0`…). **Que uno falle no cancela los demás**, y el aviso
+  dice cuál falló solo cuando hay varios (con uno solo sobra el prefijo, y los tests viejos
+  lo comprobaban).
+- `static/upload-multi.js`: al elegir 2+ archivos aparece una fila por archivo y se ocultan
+  los campos sueltos. Del nombre del archivo se precarga lo que se puede adivinar: un
+  `A3-00042` va al número de orden y el resto al paciente. Dos detalles que solo aparecieron
+  en pantalla: los inputs generados necesitaban `class="cell-input"` (salían negros) y el
+  `hidden` del label no servía porque el CSS le da `display:flex` — se usa `style.display`.
+
+### 2 · Agenda de recogidas (`/agenda`)
+- Blueprint nuevo `app/dashboard_agenda.py` (~100 líneas) + `db.list_pickups_between`.
+  Fila por motorizado, columna por día de lunes a sábado, hoy resaltado.
+- **Las escrituras no se duplicaron**: la vista llama a `/api/dashboard/request-operation`,
+  que ya existía y ya validaba, guardaba y dejaba el evento de auditoría. El módulo nuevo
+  solo arma la grilla.
+- Los motorizados sin recogidas **igual aparecen** (la grilla sirve para ver quién está
+  libre) y una recogida con un motorizado ya inactivo no se esconde: es la que hay que
+  reasignar.
+
+### 3 · Cargas por CSV (`/cargas`)
+- `app/imports.py` (lógica pura: leer, mapear alias, armar plan) + `app/dashboard_import.py`
+  (pantalla y escritura). **Siempre en dos pasos**: se muestra qué va a pasar y recién con la
+  confirmación se escribe. Una carga a ciegas puede pisar cientos de precios sin que nadie lo
+  note.
+- El plan viaja al paso de confirmación en un campo oculto pero **no se aplica tal cual**: al
+  confirmar se revalida contra la base (tabla en lista blanca, el código existe, el cliente
+  existe). Lo que llega del navegador no manda.
+- Precios: solo actualiza lo que cambia, no crea códigos nuevos (eso es portafolio) y reporta
+  el precio ilegible en vez de adivinarlo. Clientes: cruza por NIT y si no por nombre con la
+  MISMA regla del agente y del portal, **solo rellena vacíos** y deja para revisión lo que
+  coincide con más de un cliente. Cada cambio de catálogo queda en `catalog_audit`.
+
+- **Verificación:** 31 tests nuevos, suite **1387 passed**. Contra la base real, creando y
+  borrando el rastro: la agenda mostró 4 recogidas de prueba, se reasignó un motorizado y se
+  reprogramó una fecha (verificado en la base y en el evento de auditoría); la vista previa de
+  precios corrió con precios reales **sin escribir nada**; una carga de portafolio se aplicó de
+  verdad (ítem creado con auditoría) y se borró; y se subieron dos informes de una vez, con su
+  paciente y su orden correctos.

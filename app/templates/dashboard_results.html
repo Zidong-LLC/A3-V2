@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0b0c0e">
+  <meta name="theme-color" content="#7a0d20">
   <title>A3 CRM - Resultados</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='os-kit.css') }}?v=1">
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=8">
-  <link rel="stylesheet" href="{{ url_for('static', filename='portal.css') }}?v=2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='os-kit.css') }}?v=9">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=9">
+  <link rel="stylesheet" href="{{ url_for('static', filename='portal.css') }}?v=9">
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js" defer></script>
 </head>
 <body class="crm-theme" data-sidebar="expanded">
@@ -30,8 +30,9 @@
           <a href="{{ url_for('dashboard.clients_page') }}" class="menu-link"><i data-lucide="users"></i><span>Clientes</span></a>
           <a href="{{ url_for('dashboard.billing_page') }}" class="menu-link"><i data-lucide="receipt"></i><span>Facturacion</span></a>
           <a href="{{ url_for('dashboard.motorizados_page') }}" class="menu-link"><i data-lucide="bike"></i><span>Motorizados</span></a>
+          <a href="{{ url_for('dashboard_agenda.agenda_page') }}" class="menu-link"><i data-lucide="calendar-days"></i><span>Agenda</span></a>
           <a href="{{ url_for('dashboard.samples_page') }}" class="menu-link"><i data-lucide="test-tube-2"></i><span>Muestras</span></a>
-          <a href="{{ url_for('dashboard_results.results_page') }}" class="menu-link active"><i data-lucide="file-check-2"></i><span>Resultados</span></a>
+          <a href="{{ url_for('dashboard_results.results_page') }}" class="menu-link active"><i data-lucide="file-check-2"></i><span>Resultados</span></a><a href="{{ url_for('dashboard_import.cargas_page') }}" class="menu-link"><i data-lucide="upload-cloud"></i><span>Cargas</span></a>
         </nav>
       </div>
 
@@ -53,9 +54,22 @@
       {% endwith %}
 
       <section class="card">
+        <div class="card-head"><div><h3>Buscar veterinaria</h3><p>Abre su ficha: informes, solicitudes y estado de cuenta en un solo lugar</p></div></div>
+        <div class="client-finder">
+          <input class="cell-input" id="buscar-vet" type="search" autocomplete="off"
+                 placeholder="Escribí el nombre o el NIT de la veterinaria…" aria-label="Buscar veterinaria">
+          <ul class="client-finder-list" id="buscar-vet-lista" hidden></ul>
+        </div>
+      </section>
+
+      <section class="card">
         <div class="card-head"><h3>Subir informe de resultados</h3><p>PDF de máximo 10 MB. Identifique el destino por número de orden o por NIT; al compartir, el cliente lo ve en su portal y recibe aviso por Telegram si tiene chat vinculado.</p></div>
         <form method="post" action="{{ url_for('dashboard_results.upload_result') }}" enctype="multipart/form-data" class="portal-upload-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {% if preset_client %}
+          <input type="hidden" name="client_id" value="{{ preset_client.id }}">
+          <section class="approval-notice ok">Subiendo para <strong>{{ preset_client.clinic_name }}</strong>{% if preset_client.tax_id %} (NIT {{ preset_client.tax_id }}){% endif %} — no hace falta el número de orden ni el NIT. <a href="{{ url_for('dashboard_results.results_page') }}">Cambiar de cliente</a></section>
+          {% endif %}
           <div class="form-grid">
             <label>Número de orden (A3-XXXXX)
               <input name="order_number" type="text" placeholder="A3-00042">
@@ -72,8 +86,8 @@
             <label>Análisis / examen
               <input name="exam_name" type="text" placeholder="Hemograma, perfil renal…">
             </label>
-            <label>Informe en PDF
-              <input name="pdf" type="file" accept="application/pdf" required>
+            <label>Informes en PDF <span class="muted-text">uno o varios</span>
+              <input name="pdf" type="file" accept="application/pdf" multiple required>
             </label>
           </div>
           <div class="portal-upload-actions">
@@ -163,5 +177,51 @@
     })();
   </script>
   <script src="{{ url_for('static', filename='os-fx.js') }}?v=1" defer></script>
+  <script src="{{ url_for('static', filename='upload-multi.js') }}?v=2" defer></script>
+
+  <script>
+  // Buscador de veterinaria: escribe y elegí; la ficha resuelve el destino sin escribir NIT.
+  (function () {
+    var caja = document.getElementById('buscar-vet');
+    var lista = document.getElementById('buscar-vet-lista');
+    if (!caja || !lista) return;
+    var timer = null;
+
+    function pintar(filas) {
+      lista.innerHTML = '';
+      if (!filas.length) {
+        lista.hidden = true;
+        return;
+      }
+      filas.forEach(function (f) {
+        var li = document.createElement('li');
+        var a = document.createElement('a');
+        a.href = '/clientes/' + f.id;
+        a.innerHTML = '<strong>' + f.nombre + '</strong><span>' +
+          (f.nit ? 'NIT ' + f.nit : 'sin NIT') + (f.zona ? ' · ' + f.zona : '') +
+          (f.activo ? '' : ' · inactivo') + '</span>';
+        li.appendChild(a);
+        lista.appendChild(li);
+      });
+      lista.hidden = false;
+    }
+
+    caja.addEventListener('input', function () {
+      clearTimeout(timer);
+      var q = caja.value.trim();
+      if (q.length < 2) { lista.hidden = true; return; }
+      timer = setTimeout(function () {
+        fetch('/clientes/buscar?q=' + encodeURIComponent(q))
+          .then(function (r) { return r.json(); })
+          .then(function (d) { pintar(d.resultados || []); })
+          .catch(function () { lista.hidden = true; });
+      }, 220);
+    });
+
+    document.addEventListener('click', function (e) {
+      if (!lista.contains(e.target) && e.target !== caja) lista.hidden = true;
+    });
+  })();
+  </script>
 </body>
 </html>

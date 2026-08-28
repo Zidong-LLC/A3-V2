@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0b0c0e">
+  <meta name="theme-color" content="#7a0d20">
   <title>A3 CRM - Informe {{ paciente.mascota or paciente.codigo }}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{{ url_for('static', filename='os-kit.css') }}?v=1">
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=8">
-  <link rel="stylesheet" href="{{ url_for('static', filename='portal.css') }}?v=2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='os-kit.css') }}?v=9">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=9">
+  <link rel="stylesheet" href="{{ url_for('static', filename='portal.css') }}?v=9">
   <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js" defer></script>
 </head>
 <body class="crm-theme" data-sidebar="expanded">
@@ -30,8 +30,9 @@
           <a href="{{ url_for('dashboard.clients_page') }}" class="menu-link"><i data-lucide="users"></i><span>Clientes</span></a>
           <a href="{{ url_for('dashboard.billing_page') }}" class="menu-link"><i data-lucide="receipt"></i><span>Facturacion</span></a>
           <a href="{{ url_for('dashboard.motorizados_page') }}" class="menu-link"><i data-lucide="bike"></i><span>Motorizados</span></a>
+          <a href="{{ url_for('dashboard_agenda.agenda_page') }}" class="menu-link"><i data-lucide="calendar-days"></i><span>Agenda</span></a>
           <a href="{{ url_for('dashboard.samples_page') }}" class="menu-link"><i data-lucide="test-tube-2"></i><span>Muestras</span></a>
-          <a href="{{ url_for('dashboard_results.results_page') }}" class="menu-link active"><i data-lucide="file-check-2"></i><span>Resultados</span></a>
+          <a href="{{ url_for('dashboard_results.results_page') }}" class="menu-link active"><i data-lucide="file-check-2"></i><span>Resultados</span></a><a href="{{ url_for('dashboard_import.cargas_page') }}" class="menu-link"><i data-lucide="upload-cloud"></i><span>Cargas</span></a>
         </nav>
       </div>
 

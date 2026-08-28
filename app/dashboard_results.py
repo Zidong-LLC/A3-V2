@@ -8,11 +8,13 @@ cliente tiene chat vinculado (el fallo del aviso no revierte la publicación).
 """
 from functools import wraps
 
-from flask import Blueprint, abort, flash, redirect, render_template, request, session, url_for
+from flask import (
+    Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for,
+)
 
 from app.config import ANARVET_ENABLED
 from app.services import portal_db, storage, telegram
-from app.services.db import find_clients_by_tax_id
+from app.services.db import find_clients_by_tax_id, get_client_by_id
 
 dashboard_results = Blueprint("dashboard_results", __name__)
 
@@ -40,8 +42,14 @@ def _search_filters() -> dict:
     }
 
 
-def _resolve_client(order_number: str, tax_id: str) -> tuple[str | None, dict | None]:
-    """Resuelve el cliente destino por número de orden o por NIT."""
+def _resolve_client(order_number: str, tax_id: str, client_id: str = "") -> tuple[str | None, dict | None]:
+    """Resuelve el cliente destino: id explícito, número de orden o NIT.
+
+    El `client_id` llega cuando se sube desde la ficha del cliente: es unívoco, y evita
+    el problema del NIT compartido entre sedes (ERR-157), donde la búsqueda por NIT
+    devuelve varias y no resuelve."""
+    if client_id and get_client_by_id(client_id):
+        return client_id, None
     if order_number:
         req = portal_db.get_request_by_order_number(order_number)
         if req and req.get("client_id"):
@@ -53,14 +61,37 @@ def _resolve_client(order_number: str, tax_id: str) -> tuple[str | None, dict | 
     return None, None
 
 
-def _validated_pdf() -> bytes | None:
-    file = request.files.get("pdf")
+def _volver(default_endpoint: str = "dashboard_results.results_page"):
+    """Vuelve a la ficha del cliente si la acción se disparó desde ahí.
+
+    `volver_a` lo mandan las acciones sobre un informe ya subido; `client_id`, el
+    formulario de carga de la propia ficha.
+    """
+    client_id = (request.form.get("volver_a") or "").strip()
+    if not client_id and (request.form.get("volver_a_ficha") or "").strip():
+        client_id = (request.form.get("client_id") or "").strip()
+    if client_id:
+        return redirect(url_for("dashboard_client.ficha_cliente", client_id=client_id))
+    return redirect(url_for(default_endpoint))
+
+
+def _validated_pdf(file=None) -> bytes | None:
+    """Bytes del PDF si el archivo es válido. Sin argumento toma el campo `pdf`
+    del formulario (carga de a uno); con archivo, valida ese (carga múltiple)."""
+    if file is None:
+        file = request.files.get("pdf")
     if file is None or not (file.filename or "").lower().endswith(".pdf"):
         return None
     data = file.read(MAX_PDF_BYTES + 1)
     if len(data) > MAX_PDF_BYTES or not data.startswith(b"%PDF"):
         return None
     return data
+
+
+def _field(name: str, index: int) -> str:
+    """Dato de la fila `index` de la carga múltiple, con el campo suelto de
+    la carga de a uno como respaldo."""
+    return (request.form.get(f"{name}_{index}") or request.form.get(name) or "").strip()
 
 
 def _publish_and_notify(result: dict) -> None:
@@ -89,48 +120,78 @@ def _publish_and_notify(result: dict) -> None:
 def results_page():
     filters = _search_filters()
     results = portal_db.list_lab_results(filters)
+    # Cliente precargado al entrar desde su ficha (?client_id=...): el formulario queda
+    # apuntado a esa veterinaria y no hay que buscarla de nuevo.
+    preset = get_client_by_id(request.args.get("client_id", "").strip()) if request.args.get("client_id") else None
     return render_template(
         "dashboard_results.html", results=results, filters=filters,
         username=session.get("dashboard_username", ""),
         anarvet_enabled=ANARVET_ENABLED,
+        preset_client=preset,
     )
 
 
-@dashboard_results.post("/resultados/subir")
-@_dashboard_login_required
-def upload_result():
-    order_number = (request.form.get("order_number") or "").strip()
-    tax_id = (request.form.get("tax_id") or "").strip()
-    client_id, req = _resolve_client(order_number, tax_id)
+def _upload_one(file, index: int, tax_id: str, explicit_client: str) -> tuple[dict | None, str]:
+    """Sube un archivo con los datos de SU fila. Devuelve (resultado, error)."""
+    order_number = _field("order_number", index)
+    client_id, req = _resolve_client(order_number, tax_id, explicit_client)
     if not client_id:
-        flash("No se encontró el cliente: verifique el número de orden o el NIT", "error")
-        return redirect(url_for("dashboard_results.results_page"))
+        return None, "No se encontró el cliente: verifique el número de orden o el NIT"
 
-    data = _validated_pdf()
+    data = _validated_pdf(file)
     if data is None:
-        flash("Archivo inválido: debe ser un PDF de máximo 10 MB", "error")
-        return redirect(url_for("dashboard_results.results_page"))
+        return None, "Archivo inválido: debe ser un PDF de máximo 10 MB"
 
     pdf_path = storage.upload_result_pdf(client_id, order_number or None, data)
     result = portal_db.insert_lab_result({
         "client_id": client_id,
         "request_id": req["id"] if req else None,
         "order_number": order_number or None,
-        "patient_name": (request.form.get("patient_name") or "").strip()
-                        or (req.get("patient_name") if req else None),
-        "owner_name": (request.form.get("owner_name") or "").strip()
-                      or (req.get("owner_name") if req else None),
-        "exam_name": (request.form.get("exam_name") or "").strip()
-                     or (req.get("exam_type") if req else None),
+        "patient_name": _field("patient_name", index) or (req.get("patient_name") if req else None),
+        "owner_name": _field("owner_name", index) or (req.get("owner_name") if req else None),
+        "exam_name": _field("exam_name", index) or (req.get("exam_type") if req else None),
         "pdf_path": pdf_path,
         "uploaded_by": session.get("dashboard_username"),
     })
-    if result and request.form.get("publish_now"):
-        _publish_and_notify(result)
-        flash("Resultado subido y compartido con el cliente", "ok")
-    else:
-        flash("Resultado subido como borrador (sin compartir)", "ok")
-    return redirect(url_for("dashboard_results.results_page"))
+    if not result:
+        return None, f"{nombre}: no se pudo guardar"
+    return result, ""
+
+
+@dashboard_results.post("/resultados/subir")
+@_dashboard_login_required
+def upload_result():
+    """Sube uno o varios informes. Con varios archivos, cada uno trae su fila de
+    datos (`patient_name_0`, `order_number_0`, …) y se procesa por separado: que
+    uno falle no cancela los demás."""
+    files = [f for f in request.files.getlist("pdf") if (f.filename or "").strip()]
+    if not files:
+        flash("Archivo inválido: debe ser un PDF de máximo 10 MB", "error")
+        return _volver()
+
+    tax_id = (request.form.get("tax_id") or "").strip()
+    explicit_client = (request.form.get("client_id") or "").strip()
+    publicar = bool(request.form.get("publish_now"))
+    subidos, errores = [], []
+    for index, file in enumerate(files):
+        result, error = _upload_one(file, index, tax_id, explicit_client)
+        if error:
+            # Con varios archivos el error dice CUÁL falló; con uno solo sobra el prefijo.
+            errores.append(f"{file.filename}: {error}" if len(files) > 1 else error)
+            continue
+        subidos.append(result)
+        if publicar:
+            _publish_and_notify(result)
+
+    for error in errores:
+        flash(error, "error")
+    if len(subidos) == 1:
+        flash("Resultado subido y compartido con el cliente" if publicar
+              else "Resultado subido como borrador (sin compartir)", "ok")
+    elif subidos:
+        flash(f"{len(subidos)} resultados subidos" + (" y compartidos con el cliente" if publicar
+              else " como borrador (sin compartir)"), "ok")
+    return _volver()
 
 
 @dashboard_results.post("/resultados/<uuid:result_id>/publicar")
@@ -144,7 +205,7 @@ def publish_result(result_id):
     else:
         _publish_and_notify(result)
         flash("Resultado compartido con el cliente", "ok")
-    return redirect(url_for("dashboard_results.results_page"))
+    return _volver()
 
 
 @dashboard_results.get("/resultados/<uuid:result_id>/pdf")
@@ -157,3 +218,41 @@ def result_pdf(result_id):
     if not url:
         abort(502)
     return redirect(url)
+
+@dashboard_results.post("/resultados/<uuid:result_id>/dejar-de-compartir")
+@_dashboard_login_required
+def unpublish_result(result_id):
+    """Saca el informe del portal del cliente sin borrarlo.
+
+    Es la marcha atrás del caso más caro: se compartió con la veterinaria equivocada. El
+    archivo y la fila quedan, así que se puede revisar qué pasó y volver a compartirlo.
+    """
+    result = portal_db.get_lab_result(str(result_id))
+    if not result:
+        abort(404)
+    if not result.get("published"):
+        flash("Ese informe no estaba compartido", "ok")
+    else:
+        portal_db.unpublish_lab_result(str(result_id))
+        flash("El informe ya no se ve en el portal del cliente", "ok")
+    return _volver()
+
+
+@dashboard_results.post("/resultados/<uuid:result_id>/eliminar")
+@_dashboard_login_required
+def delete_result(result_id):
+    """Borra el informe, su archivo y el aviso que le llegó al cliente.
+
+    Sin vuelta atrás, a propósito: es para el PDF que nunca debió subirse. Si el archivo
+    ya no está en el bucket se sigue igual — lo que importa es que deje de estar publicado.
+    """
+    result = portal_db.get_lab_result(str(result_id))
+    if not result:
+        abort(404)
+    try:
+        storage.delete_result_pdf(result.get("pdf_path"))
+    except Exception as exc:  # noqa: BLE001 — el borrado del archivo no debe frenar el resto
+        current_app.logger.warning("No se pudo borrar el PDF %s: %s", result.get("pdf_path"), exc)
+    portal_db.delete_lab_result(str(result_id))
+    flash("Informe eliminado", "ok")
+    return _volver()

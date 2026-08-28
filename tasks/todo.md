@@ -1415,3 +1415,21 @@ Recorte y confirmación de alcance sobre el balance del 25/08. Detalle y motivo 
 - [x] **Resultados por chat: el agente manda el PDF por el chat** (decisión del usuario 28/08),
       no un enlace al portal. Obliga a agregar envío de documentos en Telegram y Chatwoot
 - [ ] **Bloquear el cambio de cliente maestro**: se prueba antes de decidir, no se cierra hoy
+
+---
+
+## Tres pendientes de plataforma (2026-08-28) — COMPLETADOS
+
+Detalle en `tasks/errores-soluciones.md` (ERR-160). Decisiones del usuario tomadas antes de
+escribir: una fila por archivo, agenda semana por mensajero, y las tres cargas por CSV.
+
+- [x] **Varios PDF de una vez** en la ficha del cliente y en Resultados: una fila por archivo
+      con paciente, orden y análisis, precargados desde el nombre del archivo. Que uno falle
+      no cancela los demás. 3 tests
+- [x] **Agenda de recogidas** `/agenda`: fila por motorizado, columna por día, reasignar y
+      reprogramar desde cada tarjeta. Reusa `/api/dashboard/request-operation` (validación y
+      auditoría ya existentes). 10 tests
+- [x] **Cargas por CSV** `/cargas`: precios, clientes y portafolio, siempre con vista previa
+      antes de escribir y revalidación contra la base al confirmar. 18 tests
+- [x] Suite **1387 passed**. Verificado en el navegador contra datos reales, con el rastro
+      borrado en cada prueba

@@ -139,3 +139,164 @@ def test_pdf_redirects_to_signed_url():
         response = client.get(f"/resultados/{RESULT_ID}/pdf")
     assert response.status_code == 302
     assert response.headers["Location"] == "https://signed.example/p.pdf"
+
+
+# ── Deshacer: despublicar y eliminar (ficha del cliente, 2026-08-27) ─────────────
+# El caso caro es el informe compartido con la veterinaria equivocada: hasta ahora no
+# había marcha atrás. Al despublicar se borra también el aviso, porque si no el cliente
+# ve una notificación que lleva a un informe que ya no puede abrir.
+
+def test_despublicar_saca_el_informe_del_portal_y_borra_el_aviso():
+    client = _get_test_client()
+    _login_dashboard(client)
+    llamadas = {}
+
+    def fake_unpublish(result_id):
+        llamadas["unpublish"] = result_id
+        return {"id": result_id, "published": False}
+
+    with patch("app.services.portal_db.get_lab_result",
+               return_value={"id": RESULT_ID, "published": True, "client_id": CLIENT_A}), \
+         patch("app.services.portal_db.unpublish_lab_result", side_effect=fake_unpublish):
+        response = client.post(f"/resultados/{RESULT_ID}/dejar-de-compartir",
+                               data={"volver_a": CLIENT_A})
+
+    assert llamadas["unpublish"] == RESULT_ID
+    assert response.status_code == 302
+    assert f"/clientes/{CLIENT_A}" in response.headers["Location"], "vuelve a la ficha del cliente"
+
+
+def test_despublicar_un_informe_que_no_estaba_compartido_no_hace_nada():
+    client = _get_test_client()
+    _login_dashboard(client)
+    with patch("app.services.portal_db.get_lab_result",
+               return_value={"id": RESULT_ID, "published": False}), \
+         patch("app.services.portal_db.unpublish_lab_result") as unpublish:
+        client.post(f"/resultados/{RESULT_ID}/dejar-de-compartir")
+    unpublish.assert_not_called()
+
+
+def test_eliminar_borra_el_archivo_y_la_fila():
+    client = _get_test_client()
+    _login_dashboard(client)
+    with patch("app.services.portal_db.get_lab_result",
+               return_value={"id": RESULT_ID, "pdf_path": "cli/orden/x.pdf"}), \
+         patch("app.services.storage.delete_result_pdf") as borrar_archivo, \
+         patch("app.services.portal_db.delete_lab_result") as borrar_fila:
+        client.post(f"/resultados/{RESULT_ID}/eliminar", data={"volver_a": CLIENT_A})
+    borrar_archivo.assert_called_once_with("cli/orden/x.pdf")
+    borrar_fila.assert_called_once_with(RESULT_ID)
+
+
+def test_si_el_archivo_ya_no_esta_igual_se_borra_el_informe():
+    """El bucket puede haber perdido el archivo; lo que importa es dejar de publicarlo."""
+    client = _get_test_client()
+    _login_dashboard(client)
+    with patch("app.services.portal_db.get_lab_result",
+               return_value={"id": RESULT_ID, "pdf_path": "cli/orden/x.pdf"}), \
+         patch("app.services.storage.delete_result_pdf", side_effect=RuntimeError("404")), \
+         patch("app.services.portal_db.delete_lab_result") as borrar_fila:
+        response = client.post(f"/resultados/{RESULT_ID}/eliminar")
+    borrar_fila.assert_called_once_with(RESULT_ID)
+    assert response.status_code == 302
+
+
+def test_deshacer_exige_sesion_del_dashboard():
+    client = _get_test_client()
+    for ruta in (f"/resultados/{RESULT_ID}/dejar-de-compartir", f"/resultados/{RESULT_ID}/eliminar"):
+        response = client.post(ruta)
+        assert response.status_code == 302
+        assert "/login" in response.headers["Location"]
+
+
+# ── Ficha del cliente y su buscador ──────────────────────────────────────────────
+
+def test_la_ficha_del_cliente_exige_sesion():
+    client = _get_test_client()
+    response = client.get(f"/clientes/{CLIENT_A}")
+    assert response.status_code == 302
+    assert "/login" in response.headers["Location"]
+
+
+def test_el_buscador_no_dispara_consulta_con_menos_de_dos_letras():
+    client = _get_test_client()
+    _login_dashboard(client)
+    with patch("app.services.db.search_clients_for_dashboard") as buscar:
+        response = client.get("/clientes/buscar?q=a")
+    assert response.get_json() == {"resultados": []}
+    buscar.assert_not_called()
+
+
+def test_el_buscador_devuelve_nombre_nit_y_zona():
+    client = _get_test_client()
+    _login_dashboard(client)
+    fila = {"id": CLIENT_A, "clinic_name": "Zoomascotas", "tax_id": "80733389",
+            "zone": "Sur", "is_active": True}
+    with patch("app.dashboard_client.db.search_clients_for_dashboard", return_value=[fila]):
+        datos = client.get("/clientes/buscar?q=zoomas").get_json()
+    assert datos["resultados"] == [
+        {"id": CLIENT_A, "nombre": "Zoomascotas", "nit": "80733389", "zona": "Sur", "activo": True}
+    ]
+
+
+# ── Carga de varios informes de una vez (2026-08-28) ─────────────────────────
+
+def _upload_many(client, archivos, **extra):
+    """archivos: lista de (bytes, nombre). Cada uno con su fila de datos."""
+    data = {"client_id": CLIENT_A, "pdf": [(io.BytesIO(b), n) for b, n in archivos]}
+    data.update(extra)
+    return client.post("/resultados/subir", data=data,
+                       content_type="multipart/form-data", follow_redirects=True)
+
+
+def test_upload_multiple_crea_un_resultado_por_archivo():
+    client = _get_test_client()
+    _login_dashboard(client)
+    with patch("app.dashboard_results.get_client_by_id", return_value={"id": CLIENT_A}), \
+         patch("app.dashboard_results.storage.upload_result_pdf", return_value="ruta.pdf"), \
+         patch("app.dashboard_results.portal_db.insert_lab_result",
+               side_effect=lambda f: {"id": RESULT_ID, **f}) as insert, \
+         patch("app.dashboard_results.portal_db.list_lab_results", return_value=[]):
+        response = _upload_many(
+            client,
+            [(b"%PDF-1.4 uno", "a.pdf"), (b"%PDF-1.4 dos", "b.pdf")],
+            patient_name_0="Firulais", order_number_0="A3-00042",
+            patient_name_1="Michi", order_number_1="A3-00043",
+        )
+    assert response.status_code == 200
+    assert insert.call_count == 2
+    pacientes = [c.args[0]["patient_name"] for c in insert.call_args_list]
+    ordenes = [c.args[0]["order_number"] for c in insert.call_args_list]
+    assert pacientes == ["Firulais", "Michi"]
+    assert ordenes == ["A3-00042", "A3-00043"]
+
+
+def test_upload_multiple_un_archivo_malo_no_cancela_los_otros():
+    client = _get_test_client()
+    _login_dashboard(client)
+    with patch("app.dashboard_results.get_client_by_id", return_value={"id": CLIENT_A}), \
+         patch("app.dashboard_results.storage.upload_result_pdf", return_value="ruta.pdf"), \
+         patch("app.dashboard_results.portal_db.insert_lab_result",
+               side_effect=lambda f: {"id": RESULT_ID, **f}) as insert, \
+         patch("app.dashboard_results.portal_db.list_lab_results", return_value=[]):
+        response = _upload_many(
+            client, [(b"esto no es un pdf", "malo.pdf"), (b"%PDF-1.4 bueno", "bueno.pdf")],
+            patient_name_0="Firulais", patient_name_1="Michi",
+        )
+    cuerpo = response.get_data(as_text=True)
+    assert insert.call_count == 1
+    assert insert.call_args.args[0]["patient_name"] == "Michi"
+    assert "malo.pdf" in cuerpo
+
+
+def test_upload_multiple_publica_todos_si_se_pide_compartir():
+    client = _get_test_client()
+    _login_dashboard(client)
+    with patch("app.dashboard_results.get_client_by_id", return_value={"id": CLIENT_A}), \
+         patch("app.dashboard_results.storage.upload_result_pdf", return_value="ruta.pdf"), \
+         patch("app.dashboard_results.portal_db.insert_lab_result",
+               side_effect=lambda f: {"id": RESULT_ID, **f}), \
+         patch("app.dashboard_results._publish_and_notify") as publish, \
+         patch("app.dashboard_results.portal_db.list_lab_results", return_value=[]):
+        _upload_many(client, [(b"%PDF-1.4 a", "a.pdf"), (b"%PDF-1.4 b", "b.pdf")], publish_now="1")
+    assert publish.call_count == 2
