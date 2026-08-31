@@ -20,4 +20,8 @@ COPY . .
 # --timeout 60: el default de gunicorn son 30 s y mataría al worker a mitad de un render,
 # dejando un Chromium huérfano comiéndose la memoria de la instancia.
 # Workers sync/gthread, nunca gevent: Playwright no convive con un event loop parcheado.
-CMD gunicorn app.main:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 60
+# UN solo worker, a propósito: el buffer anti-ráfagas del bot (MessageDebouncer) vive en
+# memoria del proceso — con 2 workers, dos mensajes seguidos del mismo chat caen en
+# procesos distintos y se procesan por separado (ERR-176). Los turnos del agente corren
+# en threads propios (no ocupan estos 8), así que 8 threads alcanzan para la web.
+CMD gunicorn app.main:app --bind 0.0.0.0:$PORT --workers 1 --threads 8 --timeout 60

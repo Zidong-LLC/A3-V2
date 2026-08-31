@@ -4602,3 +4602,30 @@ puede bajar al subir el tramo»).
   «¿es correcta?» y no atiende el pedido en la misma respuesta; se RECUPERA solo al turno
   siguiente. Arreglarlo implica tocar el prompt del flujo aprobado → queda anotado,
   pendiente de OK del usuario.
+
+---
+
+## ERR-176 — Bajo concurrencia, la conexion a Supabase se cortaba (la raiz de los «Server disconnected»)
+
+- **Fecha:** 2026-08-31 · **Estado:** RESUELTO
+- **Como se encontro:** prueba de saturacion pedida por el usuario. Con 8 chats hablando a la
+  vez, el polling reventaba con `httpx.RemoteProtocolError: Server disconnected` — el MISMO
+  error que ya habian visto TestSprite (2 veces), el estres web (12 y 10 errores con 15 y 30
+  usuarios) y el login del portal (ERR-174). No era Supabase ni la saturacion: era el cliente.
+- **Causa raiz:** el SDK de Supabase (postgrest sync) crea la sesion con `http2=True` fijo:
+  UNA conexion HTTP/2 multiplexada, y `_client` es global — compartida entre todos los threads
+  del bot y del dashboard. httpx sync sobre h2 no aguanta ese uso y corta a mitad de request.
+- **Solucion:** en `app/services/db.py`, tras crear el cliente se reemplaza la sesion del
+  postgrest por `httpx.Client(http2=False, limits=Limits(max_connections=30, keepalive=10))`
+  conservando base_url, headers y timeout del SDK: HTTP/1.1 con pool, una conexion por
+  request concurrente.
+- **Resultados medidos (antes → despues):**
+  - 8 chats simultaneos: se caia → 3 turnos c/u sin perder ninguno, p50 18,8 s/turno
+  - 15 chats simultaneos: — → p50 19,4 s/turno, igual que UN chat solo (20,8 s): el techo
+    es la latencia de OpenAI, no el servidor
+  - Web 15 usuarios: 12 errores → 0 · Web 30 usuarios: 10 errores → 0
+- **Dockerfile:** `--workers 2 --threads 4` → `--workers 1 --threads 8`. El buffer
+  anti-rafagas del bot vive en memoria del proceso: con 2 workers, dos mensajes seguidos del
+  mismo chat caen en procesos distintos y el debounce se rompe. Los turnos del agente corren
+  en threads propios, no ocupan los 8 de la web.
+- **Rastro del estres:** 192 mensajes y 24 sesiones de prueba borrados; 0 ordenes creadas.

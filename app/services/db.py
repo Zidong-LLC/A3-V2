@@ -17,6 +17,23 @@ from app import zone_routing
 
 _client: Client = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
+# El SDK crea UNA conexión HTTP/2 multiplexada y este cliente es global: compartida entre
+# los threads del bot y del dashboard, bajo concurrencia httpx sync la corta a mitad de
+# request ("Server disconnected" — lo vio TestSprite, el estrés de carga y el login del
+# portal, ERR-176). HTTP/1.1 con pool: una conexión por request concurrente, sin estado
+# compartido frágil. Se conservan base_url, headers (apikey) y timeout del SDK.
+import httpx as _httpx
+
+_vieja = _client.postgrest.session
+_client.postgrest.session = _httpx.Client(
+    base_url=_vieja.base_url,
+    headers=_vieja.headers,
+    timeout=_vieja.timeout,
+    follow_redirects=True,
+    http2=False,
+    limits=_httpx.Limits(max_connections=30, max_keepalive_connections=10),
+)
+
 logger = logging.getLogger(__name__)
 
 
