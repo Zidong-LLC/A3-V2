@@ -161,7 +161,45 @@ def _request_is_unassigned(row: dict) -> bool:
 
 
 def _empty_context(error: str | None = None) -> dict:
+    # Debe traer TODAS las claves que las plantillas tocan con punto (context.x.y):
+    # si falta una, la pantalla revienta con UndefinedError justo cuando la base no
+    # responde — que es exactamente cuando este contexto se usa (lo encontró el QA
+    # de TestSprite con Supabase saturado, ERR-172).
     return {
+        "exec_alerts": [],
+        "exec_alerts_count": 0,
+        "exec_processed_week": 0,
+        "exec_cancel_rate": 0,
+        "exec_courier_load": [],
+        "exec_top_clients_req": [],
+        "exec_activity": [],
+        "exec_billing": {"month_total_fmt": "$0", "today_count": 0},
+        "exec_billing_chart": None,
+        "alegra_enabled": False,
+        "billing_view": "facturas",
+        "invoices_actions_locked": True,
+        "cartera_clientes": [],
+        "cartera_clientes_total": 0,
+        "cartera_deudores": [],
+        "cartera_totales": {"cobrado": 0, "facturado": 0, "facturas": 0,
+                            "facturas_pendientes": 0, "facturas_vencidas": 0,
+                            "por_cobrar": 0, "vencido": 0},
+        "clients_all_total": 0,
+        "clients_filter_values": {},
+        "clients_filters": {},
+        "clients_page": 1,
+        "clients_pages": 1,
+        "clients_query": "",
+        "clients_total": 0,
+        "operation_center": {"kpis": {"active_routes": 0, "assigned_total": 0,
+                                      "critical_alerts": 0, "pending_approvals": 0,
+                                      "pending_samples": 0, "received_total": 0,
+                                      "results_emitted": 0, "total_orders": 0},
+                             "alerts": [], "courier_agenda": [],
+                             "service_order_rows": [], "unassigned_orders": []},
+        "pedidos": [],
+        "pedidos_abiertos": [],
+        "pedidos_sin_facturar": [],
         "summary": {
             "total_clients": 0,
             "clients_with_courier": 0,

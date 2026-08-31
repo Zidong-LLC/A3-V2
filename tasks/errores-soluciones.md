@@ -4522,3 +4522,30 @@ puede bajar al subir el tramo»).
   Mariana Getiva, Paula Andrea Bernal, Laura Daniela Moreno, Aqua Vet Patio Bonito) — ¿se
   reactivan? Y el telefono 3022640416 que la lista da a Latidos L&D pertenece a la dra Angie
   Lorena Galvis en la base.
+
+---
+
+## ERR-172 — Con la base caida, el Panel mostraba un traceback en vez del aviso
+
+- **Fecha:** 2026-08-31 · **Estado:** RESUELTO
+- **Como se encontro:** QA con TestSprite (15 casos sobre la plataforma tunelizada). La carga
+  concurrente saturo Supabase y dos tests vieron la pantalla rota: `jinja2 UndefinedError:
+  'dict object' has no attribute 'exec_alerts_count'` con el traceback del debugger a la vista.
+- **Causa raiz:** cuando la primera consulta a la base falla, `build_dashboard_context`
+  devuelve `_empty_context()` — el contexto de emergencia pensado justamente para degradarse
+  con un aviso. Pero ese contexto quedo desactualizado: no traia las claves `exec_*` del panel
+  rediseñado, ni `operation_center.kpis`, ni `cartera_totales`, asi que la plantilla reventaba
+  en el peor momento posible (base caida).
+- **Solucion:** `_empty_context` ahora trae TODAS las claves que las plantillas tocan con punto
+  (exec_*, operation_center con sus kpis, cartera_totales, clients_*, pedidos_*), con valores
+  neutros. Test nuevo: base caida simulada → las 8 pantallas responden 200 con el aviso.
+- **Resultado del QA (2026-08-31):** 10 de 15 casos en verde (login, rechazo de credenciales
+  malas, pestañas y filtros de facturacion, agenda semanal, alta y validacion de motorizados,
+  catalogo sin tildes, espejo Anarvet, vista previa de cargas, portal con eleccion de sede).
+  2 fallos por este bug (reparado). 1 falso positivo (el portal no tenia informes compartidos
+  porque el rastro de la prueba anterior se habia limpiado — comportamiento correcto).
+  2 bloqueados por el entorno de test: el renombrar perfil usa `window.prompt` (el runner lo
+  cierra solo) y una carga del catalogo perdio la conexion. Rastro del QA limpiado: el
+  motorizado «QA Prueba TestSprite» quedo dado de baja.
+- **Mejora anotada (sin hacer):** reemplazar `window.prompt` del renombrar por un campo en
+  linea — tambien lo cierran los bloqueadores de dialogos de algunos navegadores.

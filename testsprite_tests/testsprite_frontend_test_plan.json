@@ -1,0 +1,1746 @@
+[
+  {
+    "id": "TC001",
+    "title": "Log in and open the dashboard",
+    "description": "Staff can sign in with valid credentials and land on the main dashboard with operational data visible.",
+    "category": "Staff login",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the dashboard is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify operational data is visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC002",
+    "title": "Log in and reach the staff dashboard",
+    "description": "A staff user can sign in and land on the main dashboard with operational data visible.",
+    "category": "Results upload and share",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the dashboard is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify operational data is visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC003",
+    "title": "Log in and review the dashboard",
+    "description": "A staff user can sign in and land on the main dashboard with operational summary data visible.",
+    "category": "Staff login",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the dashboard is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify operational summary data is visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC004",
+    "title": "View shared PDF results in the portal",
+    "description": "A clinic client can open the shared results section and see available PDF results for their clinic.",
+    "category": "Client portal access",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /portal/login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the clinic name field with a valid clinic"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the clinic NIT field with a valid NIT"
+      },
+      {
+        "type": "action",
+        "description": "Submit the portal login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /portal/mis/resultados"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify shared PDF results are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the results section is accessible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC005",
+    "title": "Search a client and open billing details",
+    "description": "A staff user can find a client in the client directory and review their billing information.",
+    "category": "Results upload and share",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the client directory"
+      },
+      {
+        "type": "action",
+        "description": "Search for an existing client"
+      },
+      {
+        "type": "action",
+        "description": "Open the billing view for the selected client"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the selected client record is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify billing status information is visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC006",
+    "title": "Search a client and review billing information",
+    "description": "A staff user can find a client record and open billing information for review from the client and billing views.",
+    "category": "Client search and record review",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /clientes"
+      },
+      {
+        "type": "action",
+        "description": "Search for a client by name"
+      },
+      {
+        "type": "action",
+        "description": "Open the client record"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /facturacion"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify client billing information is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the client record remains accessible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC007",
+    "title": "Search a client and open its record review",
+    "description": "Staff can find a client from the registry using a name or NIT search and review the matching client record.",
+    "category": "Client search",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the link to the client registry"
+      },
+      {
+        "type": "action",
+        "description": "Type a client name into the search field"
+      },
+      {
+        "type": "action",
+        "description": "Select a matching suggestion or result"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify matching client results are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the selected client record is visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC008",
+    "title": "Upload and share a PDF result, then view it in the client portal",
+    "description": "Staff can upload a PDF result, share it to the portal, and confirm the shared file is available to the clinic client.",
+    "category": "results upload/share",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the results section"
+      },
+      {
+        "type": "action",
+        "description": "Open the upload results view"
+      },
+      {
+        "type": "action",
+        "description": "Select a PDF result to upload"
+      },
+      {
+        "type": "action",
+        "description": "Share the uploaded result to the portal"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /portal/login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the clinic name field with the target clinic"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the NIT field with the target clinic NIT"
+      },
+      {
+        "type": "action",
+        "description": "Submit the portal login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the shared results section"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the shared PDF result is available in the portal"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the clinic portal results list is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC009",
+    "title": "Reassign a pickup and reschedule it",
+    "description": "A staff user can open a pickup, change its courier and date, and see the agenda reflect the updated assignment.",
+    "category": "Weekly pickup agenda",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /agenda"
+      },
+      {
+        "type": "action",
+        "description": "Open a pickup record"
+      },
+      {
+        "type": "action",
+        "description": "Reassign the pickup to a different courier"
+      },
+      {
+        "type": "action",
+        "description": "Change the pickup date"
+      },
+      {
+        "type": "action",
+        "description": "Save the pickup changes"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the agenda updates to show the pickup under the new assignment"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC010",
+    "title": "Upload result PDFs and share them to the client portal",
+    "description": "A staff user can upload result PDFs, share them, and confirm the shared file is available in the portal.",
+    "category": "Results upload and share",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the results upload page"
+      },
+      {
+        "type": "action",
+        "description": "Upload one or more PDF result files"
+      },
+      {
+        "type": "action",
+        "description": "Share the uploaded results with the client portal"
+      },
+      {
+        "type": "action",
+        "description": "Open the client portal results page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the shared result is available in the portal"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a downloadable PDF result is visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC011",
+    "title": "Let a clinic review shared requests and results after portal login",
+    "description": "A clinic client can enter the portal, view their requests, and open shared PDF results for review.",
+    "category": "clinic portal access",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /portal/login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the clinic name field with the target clinic"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the NIT field with the target clinic NIT"
+      },
+      {
+        "type": "action",
+        "description": "Submit the portal login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the requests section"
+      },
+      {
+        "type": "action",
+        "description": "Open the results section"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the clinic's requests are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify shared PDF results are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC012",
+    "title": "Reject invalid staff credentials",
+    "description": "A staff user entering incorrect login credentials sees validation feedback and does not reach the dashboard.",
+    "category": "Staff login",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff username field with fake.invalid@example.com"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff password field with invalid-password"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a login validation error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the dashboard is not displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC013",
+    "title": "Open a shared PDF result from the client portal",
+    "description": "A clinic client can access the portal results area and open a shared PDF result.",
+    "category": "Client portal",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /portal/login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the clinic name field with a valid clinic name"
+      },
+      {
+        "type": "action",
+        "description": "Choose the matching clinic suggestion"
+      },
+      {
+        "type": "action",
+        "description": "Select the correct branch if prompted"
+      },
+      {
+        "type": "action",
+        "description": "Submit the portal login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the results page in the portal"
+      },
+      {
+        "type": "action",
+        "description": "Open a shared PDF result"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the shared PDF result is displayed or opened"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the result is available for download"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC014",
+    "title": "Open client portal access and view requests",
+    "description": "A clinic client can sign in to the portal, choose the correct branch if needed, and view their shared requests.",
+    "category": "Client portal access",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /portal/login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the clinic name field with a valid clinic"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the clinic NIT field with a valid NIT"
+      },
+      {
+        "type": "action",
+        "description": "Submit the portal login form"
+      },
+      {
+        "type": "action",
+        "description": "Select the correct branch if a branch chooser is shown"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /portal/mis/solicitudes"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the clinic’s requests are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the portal shows the signed-in clinic context"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC015",
+    "title": "Select a clinic branch and open portal requests",
+    "description": "A clinic client can log in to the portal, choose the correct branch when needed, and view their requests.",
+    "category": "Client portal",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /portal/login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the clinic name field with a valid clinic name"
+      },
+      {
+        "type": "action",
+        "description": "Choose the matching clinic suggestion"
+      },
+      {
+        "type": "action",
+        "description": "Select the correct branch"
+      },
+      {
+        "type": "action",
+        "description": "Submit the portal login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the requests page in the portal"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the portal requests list is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the selected branch context is reflected"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC016",
+    "title": "Browse weekly pickups across adjacent weeks",
+    "description": "A staff user can move the agenda between weeks and keep seeing the weekly pickup schedule update.",
+    "category": "Weekly pickup agenda",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /agenda"
+      },
+      {
+        "type": "action",
+        "description": "Move to the previous week"
+      },
+      {
+        "type": "action",
+        "description": "Move to the next week"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the weekly pickup schedule is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify pickups are shown for the selected week"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC017",
+    "title": "View the weekly pickup agenda and reassign a pickup",
+    "description": "Staff can open the weekly agenda, move to another week, reassign a pickup to a different courier, and see the schedule update.",
+    "category": "weekly pickup agenda",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the agenda section"
+      },
+      {
+        "type": "action",
+        "description": "Move to a different week"
+      },
+      {
+        "type": "action",
+        "description": "Select a pickup on the schedule"
+      },
+      {
+        "type": "action",
+        "description": "Reassign the pickup to a different motorizado"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the schedule updates with the reassigned pickup"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the weekly agenda grid is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC018",
+    "title": "View billing tabs and switch between billing views",
+    "description": "A billing staff user can open the billing section and switch between the available billing views.",
+    "category": "Billing tabs and filters",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /facturacion"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the alternative billing view"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify billing summary data is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the selected billing view is displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC019",
+    "title": "Move a pickup to another week and assign a motorizado",
+    "description": "A staff user can reschedule a pickup in the agenda and see the updated assignment reflected in the schedule.",
+    "category": "Results upload and share",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the weekly pickup agenda"
+      },
+      {
+        "type": "action",
+        "description": "Move to a different week"
+      },
+      {
+        "type": "action",
+        "description": "Reassign a pickup to a different motorizado"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the schedule updates to reflect the new assignment"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the pickup remains visible in the agenda"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC020",
+    "title": "View and edit a courier record",
+    "description": "A staff user can update a courier’s details and see the changes persist after reloading the courier list.",
+    "category": "Courier cards",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /motorizados"
+      },
+      {
+        "type": "action",
+        "description": "Open a courier record for editing"
+      },
+      {
+        "type": "action",
+        "description": "Change the courier name or phone number"
+      },
+      {
+        "type": "action",
+        "description": "Refresh the page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the updated courier information is still displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC021",
+    "title": "Filter billing records by search term",
+    "description": "A billing staff user can search within billing records and see only the matching results.",
+    "category": "Billing tabs and filters",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /facturacion"
+      },
+      {
+        "type": "action",
+        "description": "Fill in a client name or NIT in the billing search field"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify matching billing records are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC022",
+    "title": "Review billing data in both billing views with filters",
+    "description": "Staff can switch between billing views, filter by client identifier and amount, and see the results update.",
+    "category": "Billing tabs and filters",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the billing section"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Facturas view"
+      },
+      {
+        "type": "action",
+        "description": "Enter a client name or NIT in the billing search field"
+      },
+      {
+        "type": "action",
+        "description": "Set a minimum amount filter"
+      },
+      {
+        "type": "action",
+        "description": "Set a maximum amount filter"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify filtered billing results are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the active billing view is shown"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC023",
+    "title": "Search the sample catalog by name",
+    "description": "A staff user can search the catalog and see matching sample items for the typed term.",
+    "category": "Catalog and saved profiles",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /muestras"
+      },
+      {
+        "type": "action",
+        "description": "Type a sample name into the catalog search field"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify matching catalog items are displayed"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC024",
+    "title": "Create or update a courier profile and verify it persists",
+    "description": "A staff user can save courier details in the motorizados area and see the record after refreshing the page.",
+    "category": "Results upload and share",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the courier management page"
+      },
+      {
+        "type": "action",
+        "description": "Create a new courier or edit an existing courier record"
+      },
+      {
+        "type": "action",
+        "description": "Save the courier changes"
+      },
+      {
+        "type": "action",
+        "description": "Reload the page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the courier record is displayed after reload"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the saved courier details are visible"
+      }
+    ],
+    "priority": "High"
+  },
+  {
+    "id": "TC025",
+    "title": "Create a new courier record",
+    "description": "A staff user can create a new courier with basic details and see the new courier in the list.",
+    "category": "Courier cards",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /motorizados"
+      },
+      {
+        "type": "action",
+        "description": "Start creating a new courier"
+      },
+      {
+        "type": "action",
+        "description": "Fill in a unique courier name"
+      },
+      {
+        "type": "action",
+        "description": "Fill in a courier phone number"
+      },
+      {
+        "type": "action",
+        "description": "Submit the courier form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the new courier appears in the courier list"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC026",
+    "title": "Create or edit a courier and keep the record after reload",
+    "description": "Staff can update courier details or add a courier in the courier manager and still see the saved record after refreshing the page.",
+    "category": "courier cards edit/create",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the courier management section"
+      },
+      {
+        "type": "action",
+        "description": "Open a courier card for editing or start a new courier record"
+      },
+      {
+        "type": "action",
+        "description": "Update the courier details with unique valid values"
+      },
+      {
+        "type": "action",
+        "description": "Save the courier record"
+      },
+      {
+        "type": "action",
+        "description": "Reload the page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the courier record remains visible after reload"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the updated courier details are displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC027",
+    "title": "Review the Anarvet mirror and filter results",
+    "description": "A staff user can switch to the Anarvet mirror, filter results, and browse the mirrored list.",
+    "category": "Results upload and share",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the results page"
+      },
+      {
+        "type": "action",
+        "description": "Switch to the Anarvet mirror view"
+      },
+      {
+        "type": "action",
+        "description": "Filter the mirrored results by patient or clinic"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify mirrored results are displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the filtered list updates"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC028",
+    "title": "Rename a saved profile and restore its original name",
+    "description": "A staff user can rename a saved profile and then change it back, with the final saved name reflected in the profiles list.",
+    "category": "Catalog and saved profiles",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /muestras"
+      },
+      {
+        "type": "action",
+        "description": "Open the saved profiles section"
+      },
+      {
+        "type": "action",
+        "description": "Rename a saved profile"
+      },
+      {
+        "type": "action",
+        "description": "Rename the profile back to its original name"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the saved profile name is updated"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC029",
+    "title": "Preview a CSV import before applying it",
+    "description": "A staff user can choose a CSV import type, review the preview, and confirm the import is ready to apply.",
+    "category": "CSV imports preview",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the CSV imports page"
+      },
+      {
+        "type": "action",
+        "description": "Choose an import type"
+      },
+      {
+        "type": "action",
+        "description": "Attach a CSV file"
+      },
+      {
+        "type": "action",
+        "description": "Request the preview"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the import preview is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify preview counts or details are visible"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC030",
+    "title": "Find a client using accent-insensitive search and preserve the search across pagination",
+    "description": "Staff can search with an unaccented term, see matching results, and move through pages without losing the search context.",
+    "category": "Client search",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the link to the client registry"
+      },
+      {
+        "type": "action",
+        "description": "Type an unaccented client name into the search field"
+      },
+      {
+        "type": "action",
+        "description": "Apply the client search filter"
+      },
+      {
+        "type": "action",
+        "description": "Move to the next results page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the search results remain filtered"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify paginated client results are displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC031",
+    "title": "Open and close a catalog item review",
+    "description": "A staff user can open a catalog item to review its price and return to the catalog without changing the list.",
+    "category": "Catalog and saved profiles",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /muestras"
+      },
+      {
+        "type": "action",
+        "description": "Open a catalog item for price review"
+      },
+      {
+        "type": "action",
+        "description": "Close the item view"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the catalog list remains visible"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC032",
+    "title": "Update courier availability",
+    "description": "A staff user can change a courier’s availability state and see the updated status in the courier cards view.",
+    "category": "Courier cards",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /motorizados"
+      },
+      {
+        "type": "action",
+        "description": "Open a courier record for editing"
+      },
+      {
+        "type": "action",
+        "description": "Change the courier availability state"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the courier’s availability status is updated"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC033",
+    "title": "Search the catalog without accents",
+    "description": "A staff user can find the same catalog results when searching with or without accents.",
+    "category": "Catalog and saved profiles",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /muestras"
+      },
+      {
+        "type": "action",
+        "description": "Type a catalog term without accents into the search field"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify matching catalog items are displayed"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC034",
+    "title": "Select the correct branch before entering the clinic portal",
+    "description": "A clinic client can choose the appropriate branch when prompted and then access the portal content for that branch.",
+    "category": "clinic portal access",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /portal/login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the clinic name field with the target clinic"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the NIT field with the target clinic NIT"
+      },
+      {
+        "type": "action",
+        "description": "Select the correct branch"
+      },
+      {
+        "type": "action",
+        "description": "Submit the portal login form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the branch-specific portal content is displayed"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the clinic portal is accessible"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC035",
+    "title": "Keep a pickup unchanged after opening it",
+    "description": "A staff user can inspect a pickup in the agenda without altering its assignment or date.",
+    "category": "Weekly pickup agenda",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /agenda"
+      },
+      {
+        "type": "action",
+        "description": "Open a pickup record"
+      },
+      {
+        "type": "action",
+        "description": "Close the pickup details without saving changes"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the pickup remains shown on the same schedule"
+      }
+    ],
+    "priority": "Medium"
+  },
+  {
+    "id": "TC036",
+    "title": "Show an empty portal results state when nothing is shared",
+    "description": "A clinic client sees an empty state in the results section when no shared PDFs are available for the clinic.",
+    "category": "Client portal access",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /portal/login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the clinic name field with a valid clinic"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the clinic NIT field with a valid NIT"
+      },
+      {
+        "type": "action",
+        "description": "Submit the portal login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /portal/mis/resultados"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an empty state message is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no shared PDF results are shown"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC037",
+    "title": "Show an empty state for a client search with no match",
+    "description": "Staff sees an empty state when a client search returns no results.",
+    "category": "Client search",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Click the link to the client registry"
+      },
+      {
+        "type": "action",
+        "description": "Type a search term that matches no client"
+      },
+      {
+        "type": "action",
+        "description": "Apply the client search filter"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an empty state message is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no client results are displayed"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC038",
+    "title": "Handle a blank courier name when creating a courier",
+    "description": "A staff user who tries to create a courier without required identifying details sees validation instead of an added record.",
+    "category": "Courier cards",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /motorizados"
+      },
+      {
+        "type": "action",
+        "description": "Start creating a new courier"
+      },
+      {
+        "type": "action",
+        "description": "Leave the courier name empty"
+      },
+      {
+        "type": "action",
+        "description": "Submit the courier form"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify a validation error is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no new courier is added"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC039",
+    "title": "See validation when searching with no matching client",
+    "description": "A staff user can search the client directory with a non-matching query and see an empty state instead of results.",
+    "category": "Results upload and share",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Open the client directory"
+      },
+      {
+        "type": "action",
+        "description": "Search for a clearly non-matching client name"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an empty state message is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify client results are not displayed"
+      }
+    ],
+    "priority": "Low"
+  },
+  {
+    "id": "TC040",
+    "title": "Show no matches for an unknown client search",
+    "description": "A staff user searching for a nonexistent client sees an empty result state instead of unrelated records.",
+    "category": "Client search and record review",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to /login"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff username field with {{LOGIN_USER}}"
+      },
+      {
+        "type": "action",
+        "description": "Fill in the staff password field with {{LOGIN_PASSWORD}}"
+      },
+      {
+        "type": "action",
+        "description": "Submit the login form"
+      },
+      {
+        "type": "action",
+        "description": "Navigate to /clientes"
+      },
+      {
+        "type": "action",
+        "description": "Search for a nonexistent client name"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an empty state is visible"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify no client records are shown"
+      }
+    ],
+    "priority": "Low"
+  }
+]

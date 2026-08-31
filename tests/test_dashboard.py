@@ -1212,3 +1212,22 @@ def test_queries_page_past_the_supabase_cap(monkeypatch, fn, table, total):
 
     monkeypatch.setattr(db, "_client", type("C", (), {"table": lambda self, _n: _Chain()})())
     assert len(getattr(db, fn)()) == total, f"{fn} debe traer las {total} filas, no solo la primera tanda"
+
+
+def test_con_la_base_caida_el_panel_muestra_el_aviso_y_no_un_traceback():
+    """Si Supabase no responde, build_dashboard_context devuelve _empty_context().
+    A ese contexto le faltaban las claves exec_* del panel rediseñado y la pantalla
+    reventaba con UndefinedError justo cuando mas se necesitaba (lo encontro el QA
+    de TestSprite con la base saturada)."""
+    from unittest.mock import patch
+
+    client = _get_test_client()
+    with client.session_transaction() as sess:
+        sess["dashboard_authenticated"] = True
+        sess["dashboard_username"] = "admin"
+    with patch("app.dashboard.db.list_clients_with_assignment",
+               side_effect=RuntimeError("Server disconnected")):
+        for ruta in ("/dashboard", "/operacion", "/clientes", "/solicitudes", "/pedidos",
+                     "/facturacion", "/motorizados", "/muestras"):
+            respuesta = client.get(ruta, follow_redirects=True)
+            assert respuesta.status_code == 200, f"{ruta} -> {respuesta.status_code}"
