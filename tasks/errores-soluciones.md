@@ -4549,3 +4549,19 @@ puede bajar al subir el tramo»).
   motorizado «QA Prueba TestSprite» quedo dado de baja.
 - **Mejora anotada (sin hacer):** reemplazar `window.prompt` del renombrar por un campo en
   linea — tambien lo cierran los bloqueadores de dialogos de algunos navegadores.
+
+---
+
+## ERR-173 — Renombrar perfil usaba window.prompt
+
+- **Fecha:** 2026-08-31 · **Estado:** RESUELTO
+- **Sintoma:** el QA de TestSprite quedo bloqueado en «renombrar un perfil guardado»: el
+  entorno de test cierra los dialogos nativos solos. No es solo cosa del robot — los
+  bloqueadores de popups/dialogos de algunos navegadores hacen lo mismo, y el prompt nativo
+  ademas no se puede estilar ni validar en linea.
+- **Solucion:** edicion en linea en `custom-profiles.js`: el titulo se vuelve un campo de
+  texto precargado; Enter o perder el foco guardan, Escape cancela. Trampa encontrada al
+  probar: quitar el input dispara su `blur`, y el Escape terminaba guardando — se desarma el
+  listener antes de remover.
+- **Verificacion en el navegador contra datos reales:** renombrar, restaurar el nombre
+  original y cancelar con Escape; sin errores de consola; el perfil quedo con su nombre.

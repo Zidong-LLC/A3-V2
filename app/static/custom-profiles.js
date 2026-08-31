@@ -33,15 +33,51 @@
     buscador.dispatchEvent(new Event("input"));
   }
 
+  // Renombrar en linea: el titulo se vuelve un campo editable. Nada de window.prompt —
+  // los entornos de test y los bloqueadores de dialogos lo cierran solos (ERR-173).
   document.querySelectorAll("[data-rename-profile]").forEach(function (boton) {
     boton.addEventListener("click", function () {
       var card = boton.closest(".custom-profile-card");
       var titulo = card.querySelector("[data-profile-name]");
       var flag = card.querySelector("[data-profile-flag]");
-      var nuevo = window.prompt("Nuevo nombre del perfil", titulo.textContent.trim());
-      if (nuevo === null) return;
-      nuevo = nuevo.trim();
-      if (!nuevo) { flag.textContent = "El nombre no puede quedar vacio"; return; }
+      if (card.querySelector("[data-rename-input]")) return; // ya esta en edicion
+
+      var input = document.createElement("input");
+      input.type = "text";
+      input.value = titulo.textContent.trim();
+      input.className = "cell-input";
+      input.setAttribute("data-rename-input", "");
+      titulo.hidden = true;
+      titulo.after(input);
+      input.focus();
+      input.select();
+
+      function cerrar() {
+        // Quitar el input dispara su blur: se desarma antes para que
+        // cancelar (Escape) no termine guardando.
+        input.removeEventListener("blur", alPerderFoco);
+        input.remove();
+        titulo.hidden = false;
+      }
+      function guardar() {
+        var nuevo = input.value.trim();
+        if (!nuevo) { flag.textContent = "El nombre no puede quedar vacio"; return; }
+        cerrar();
+        if (nuevo === titulo.textContent.trim()) return;
+        enviar(nuevo);
+      }
+      function alPerderFoco() { guardar(); }
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); guardar(); }
+        if (e.key === "Escape") cerrar();
+      });
+      input.addEventListener("blur", alPerderFoco);
+    });
+
+    function enviar(nuevo) {
+      var card = boton.closest(".custom-profile-card");
+      var titulo = card.querySelector("[data-profile-name]");
+      var flag = card.querySelector("[data-profile-flag]");
       flag.textContent = "Guardando…";
       fetch("/api/dashboard/rename-custom-profile", {
         method: "POST",
@@ -57,6 +93,6 @@
           setTimeout(function () { flag.textContent = ""; }, 2000);
         })
         .catch(function (e) { flag.textContent = e.message; });
-    });
+    }
   });
 })();

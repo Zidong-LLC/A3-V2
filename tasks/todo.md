@@ -1487,3 +1487,21 @@ Pedido del usuario: ver cómo quedaban las pantallas con movimiento y, una vez r
 - **Queda a propósito**: `PORTAL_DEMO_MODE` en el portal del cliente, apagado desde el 27/08 por
   decisión del usuario («el código de demo queda, apagado»). No genera datos falsos: entra al
   portal con un cliente real sin pedir credenciales, y hoy está en `false`
+
+---
+
+## Decisiones del usuario (2026-08-31)
+
+- [x] **Unidades y valores de referencia de Anarvet: DESCARTADO para siempre.** Anarvet no va a
+      compartir esa métrica. Por eso los informes NO se generan en nuestra plataforma: el equipo
+      de A3 sube a mano el PDF que produce Anarvet (circuito de Resultados, ya funcionando).
+      Se retira el pendiente «pedir unidades/valores de referencia a Anarvet».
+- [x] **Mascolab doble precio: YA ESTABA RESUELTO** como el usuario lo pidió hoy (decisión
+      original del 27/08, migración 030 aplicada): cada prueba PCR está DOS veces en el
+      catálogo — «(Punto Final)» y «(Tiempo Real)» — cada una con su precio; el médico elige
+      la técnica al pedir. 30 perfiles + 92 análisis verificados en la base.
+- [x] **PDF de consulta para A3 generado**: `data/anarvet-consulta-20260831.pdf` — los 17
+      códigos de Anarvet sin emparejar (3.658 informes esperando dueño), cada uno con sus
+      candidatos para marcar con X. Antes se corrió el automatch: emparejó 22 solos.
+- [x] Bajas por lista v3: si un cliente desaparece entre una entrega y la siguiente, es baja
+      (criterio del usuario, aplicado a los 2 casos con cero movimiento verificado).

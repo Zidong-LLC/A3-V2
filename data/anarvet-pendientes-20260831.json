@@ -1,0 +1,260 @@
+[
+ {
+  "cod": "572",
+  "nombre": "Clinica Veterinaria Zoopecas",
+  "informes": 630,
+  "candidatos": [
+   {
+    "nombre": "Clinica Veterinaria Zoopecas",
+    "activo": true
+   },
+   {
+    "nombre": "Clinica Veterinaria Zoopecas SAS",
+    "activo": true
+   }
+  ]
+ },
+ {
+  "cod": "357",
+  "nombre": "Centro Medico Veterinario",
+  "informes": 576,
+  "candidatos": []
+ },
+ {
+  "cod": "585",
+  "nombre": "Grupo Zenva Vets SAS",
+  "informes": 431,
+  "candidatos": [
+   {
+    "nombre": "(Veterinaria Praga Tunjuelito) Grupo Zenva Vets's SAS",
+    "activo": true
+   },
+   {
+    "nombre": "Veterinaria Angel Vets",
+    "activo": true
+   },
+   {
+    "nombre": "The Vets Veterinaria",
+    "activo": true
+   }
+  ]
+ },
+ {
+  "cod": "711",
+  "nombre": "Clinica Veterinaria Latidos L&D",
+  "informes": 363,
+  "candidatos": [
+   {
+    "nombre": "Latidos Consultorio Veterinario",
+    "activo": true
+   },
+   {
+    "nombre": "(Clinica Veterinaria Latidos L&D) David Eduardo Fonseca Molina",
+    "activo": true
+   },
+   {
+    "nombre": "Agromedica Huellas Timiza",
+    "activo": true
+   }
+  ]
+ },
+ {
+  "cod": "306",
+  "nombre": "Veterinaria El Imperio",
+  "informes": 315,
+  "candidatos": [
+   {
+    "nombre": "Veterinaria El Imperio",
+    "activo": true
+   },
+   {
+    "nombre": "El imperio Veterinaria SAS",
+    "activo": true
+   }
+  ]
+ },
+ {
+  "cod": "159",
+  "nombre": "Veterinaria Piscis",
+  "informes": 252,
+  "candidatos": [
+   {
+    "nombre": "Piscis Veterinaria SAS",
+    "activo": true
+   },
+   {
+    "nombre": "Veterinaria Piscis",
+    "activo": true
+   }
+  ]
+ },
+ {
+  "cod": "450",
+  "nombre": "Clinica Diagnostico Veterinario",
+  "informes": 252,
+  "candidatos": [
+   {
+    "nombre": "Clinica De Diagnostico Veterinario SAS",
+    "activo": true
+   },
+   {
+    "nombre": "Centro De Diagnostico Veterinario Vetalcol SAS",
+    "activo": true
+   },
+   {
+    "nombre": "CENTRO DE DIAGNÓSTICO VETERINARIO VETALCOL S.A.S",
+    "activo": true
+   }
+  ]
+ },
+ {
+  "cod": "907",
+  "nombre": "Consultorio Veterinario Coral",
+  "informes": 197,
+  "candidatos": [
+   {
+    "nombre": "Clinica y Consultorio Coral",
+    "activo": true
+   }
+  ]
+ },
+ {
+  "cod": "726",
+  "nombre": "Praga Veterinaria",
+  "informes": 138,
+  "candidatos": [
+   {
+    "nombre": "Agroveterinaria Praga",
+    "activo": true
+   },
+   {
+    "nombre": "Hospital Veterinario Praga",
+    "activo": true
+   },
+   {
+    "nombre": "Praga Veterinaria",
+    "activo": true
+   }
+  ]
+ },
+ {
+  "cod": "892",
+  "nombre": "Monaph Vet",
+  "informes": 137,
+  "candidatos": [
+   {
+    "nombre": "(Monaph Vet) Yineth Yamile Gallego Garcia",
+    "activo": true
+   },
+   {
+    "nombre": "VET Consultorio y Salon Grooming",
+    "activo": true
+   },
+   {
+    "nombre": "Clinica Veterinaria Animedical",
+    "activo": true
+   }
+  ]
+ },
+ {
+  "cod": "741",
+  "nombre": "Clinica Veterinaria Dr. Patitas",
+  "informes": 103,
+  "candidatos": [
+   {
+    "nombre": "Clinica Veterinaria Dr. Patitas",
+    "activo": true
+   },
+   {
+    "nombre": "Maleykat Patitas Felices",
+    "activo": true
+   },
+   {
+    "nombre": "ClinVet Dr. Patitas",
+    "activo": true
+   }
+  ]
+ },
+ {
+  "cod": "901",
+  "nombre": "Petmi Centro Veterinario",
+  "informes": 66,
+  "candidatos": [
+   {
+    "nombre": "(Petmi Centro Veterinario) Yulli Carolina Scarpetta Romero",
+    "activo": true
+   }
+  ]
+ },
+ {
+  "cod": "897",
+  "nombre": "Mision Apolo",
+  "informes": 65,
+  "candidatos": [
+   {
+    "nombre": "(Misión Apolo) Jefferson Andres Vivas Quinto",
+    "activo": true
+   }
+  ]
+ },
+ {
+  "cod": "899",
+  "nombre": "Kannes S.A.S",
+  "informes": 35,
+  "candidatos": [
+   {
+    "nombre": "KANNES SAS",
+    "activo": true
+   }
+  ]
+ },
+ {
+  "cod": "842",
+  "nombre": "Angie Lorena Galvis Ramirez",
+  "informes": 35,
+  "candidatos": [
+   {
+    "nombre": "dra Angie Lorena Galvis Ramirez",
+    "activo": true
+   },
+   {
+    "nombre": "Dra. Martha Ramirez",
+    "activo": true
+   },
+   {
+    "nombre": "Dra. Angie Paola Rozo Vargas",
+    "activo": true
+   }
+  ]
+ },
+ {
+  "cod": "906",
+  "nombre": "Vetgo",
+  "informes": 32,
+  "candidatos": [
+   {
+    "nombre": "(Vetgo) Carol Andrea Barona Castiblanco",
+    "activo": true
+   }
+  ]
+ },
+ {
+  "cod": "851",
+  "nombre": "Hospital Veterinario Praga",
+  "informes": 31,
+  "candidatos": [
+   {
+    "nombre": "Agroveterinaria Praga",
+    "activo": true
+   },
+   {
+    "nombre": "Hospital Veterinario Praga",
+    "activo": true
+   },
+   {
+    "nombre": "Praga Veterinaria",
+    "activo": true
+   }
+  ]
+ }
+]
