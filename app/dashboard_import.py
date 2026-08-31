@@ -121,20 +121,41 @@ def _aplicar_portafolio(nuevos: list[dict], quien: str) -> tuple[int, list[str]]
 
 
 def _aplicar_clientes(plan: dict) -> tuple[int, int, list[str]]:
+    # Cada fila por separado: que una reviente (NIT o teléfono duplicado, restricción
+    # de la tabla) no cancela las demás. Con la lista real de terceros v3, un teléfono
+    # repetido a mitad de la carga dejó 17 altas hechas y todo lo demás sin aplicar.
     creados, actualizados, fallidos = 0, 0, []
     for nuevo in plan.get("crear") or []:
-        if db.create_client(nuevo):
-            creados += 1
+        try:
+            hecho = db.create_client(nuevo)
+        except Exception as exc:  # noqa: BLE001 — se informa por fila
+            hecho = None
+            fallidos.append(f"{nuevo.get('clinic_name')}: {_motivo(exc)}")
         else:
-            fallidos.append(f"{nuevo.get('clinic_name')}: no se pudo crear")
+            if not hecho:
+                fallidos.append(f"{nuevo.get('clinic_name')}: no se pudo crear")
+        creados += 1 if hecho else 0
     for cambio in plan.get("actualizar") or []:
         client_id = cambio.get("id")
         if not client_id or not db.get_client_by_id(client_id):
             fallidos.append(f"{cambio.get('clinic_name')}: el cliente ya no existe")
             continue
-        if db.update_client_profile(client_id, cambio.get("cambios") or {}):
-            actualizados += 1
+        try:
+            if db.update_client_profile(client_id, cambio.get("cambios") or {}):
+                actualizados += 1
+        except Exception as exc:  # noqa: BLE001
+            fallidos.append(f"{cambio.get('clinic_name')}: {_motivo(exc)}")
     return creados, actualizados, fallidos
+
+
+def _motivo(exc: Exception) -> str:
+    """El mensaje útil del error de la base, sin el JSON completo."""
+    texto = str(getattr(exc, "message", "") or exc)
+    if "clients_phone_key" in texto:
+        return "el teléfono ya pertenece a otro cliente"
+    if "duplicate key" in texto:
+        return "ya existía un registro con esa clave"
+    return texto[:120]
 
 
 @dashboard_import.post("/cargas/aplicar")

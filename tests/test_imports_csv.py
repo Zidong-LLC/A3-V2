@@ -113,12 +113,14 @@ def test_plan_clientes_crea_los_que_no_estan():
     assert plan["crear"] == [{"clinic_name": "Veterinaria Nueva", "tax_id": "901000000"}]
 
 
-def test_plan_clientes_deja_para_revision_lo_ambiguo():
+def test_plan_clientes_no_reparte_la_direccion_entre_sedes_del_mismo_nit():
+    """La dirección es de cada sede: con NIT compartido no se aplica a ninguna
+    (solo el correo se comparte, que es del NIT). Antes esto era revisión manual."""
     dos_sedes = CLIENTES + [{"id": "c-3", "clinic_name": "Veterinaria Piscis", "tax_id": "80871972"}]
     filas, _ = imports.leer_csv(_csv("nombre,nit,direccion\nVeterinaria Piscis,80871972,CR 88\n"))
     plan = imports.plan_clientes(filas, dos_sedes, _nombre_coincide)
     assert plan["crear"] == [] and plan["actualizar"] == []
-    assert "coincide con 2 clientes" in plan["errores"][0]
+    assert plan["errores"] == []
 
 
 # ── La pantalla ──────────────────────────────────────────────────────────────
@@ -193,3 +195,64 @@ def test_aplicar_no_pisa_un_codigo_de_portafolio_que_ya_existe():
         client.post("/cargas/aplicar", data={"plan": __import__("json").dumps(plan)},
                     follow_redirects=True)
     crea.assert_not_called()
+
+
+def test_create_client_pone_billing_type_porque_la_tabla_lo_exige():
+    """La columna es NOT NULL sin default: sin esto toda alta por CSV revienta con 23502.
+    Se descubrió aplicando la lista real de terceros v3 (ninguna alta funcionaba)."""
+    from unittest.mock import MagicMock, patch
+    from app.services import db as dbs
+
+    cliente = MagicMock()
+    with patch.object(dbs, "_client", cliente):
+        dbs.create_client({"clinic_name": "Vet Nueva", "tax_id": "900123456"})
+    enviado = cliente.table.return_value.insert.call_args.args[0]
+    assert enviado["billing_type"] == "cash"
+    assert enviado["is_active"] is True
+
+
+def test_una_alta_que_revienta_no_cancela_las_demas():
+    """Con la lista real de terceros, un teléfono duplicado a mitad de carga dejó
+    17 altas hechas y las actualizaciones sin aplicar. Cada fila va por separado."""
+    from unittest.mock import patch
+    from app.dashboard_import import _aplicar_clientes
+
+    plan = {"crear": [{"clinic_name": "Vet A"}, {"clinic_name": "Vet B"}, {"clinic_name": "Vet C"}],
+            "actualizar": [{"id": "c-1", "clinic_name": "Vet D", "cambios": {"email": "d@d.co"}}]}
+    def crear(payload):
+        if payload["clinic_name"] == "Vet B":
+            raise RuntimeError('duplicate key value violates unique constraint "clients_phone_key"')
+        return {"id": "nuevo"}
+    with patch("app.dashboard_import.db.create_client", side_effect=crear), \
+         patch("app.dashboard_import.db.get_client_by_id", return_value={"id": "c-1"}), \
+         patch("app.dashboard_import.db.update_client_profile", return_value=True):
+        creados, actualizados, fallidos = _aplicar_clientes(plan)
+    assert (creados, actualizados) == (2, 1)
+    assert fallidos == ["Vet B: el teléfono ya pertenece a otro cliente"]
+
+
+def test_el_correo_de_un_nit_compartido_completa_todas_las_sedes_vacias():
+    """El correo es del NIT (ahí llega la factura); el teléfono es de cada sede y no
+    se comparte. Con la lista real de terceros, 106 filas quedaban en revisión manual
+    solo porque el NIT apuntaba a dos sedes."""
+    from app.imports import plan_clientes
+
+    sedes = [{"id": "s-1", "clinic_name": "Club Marruecos", "tax_id": "1055126168", "email": ""},
+             {"id": "s-2", "clinic_name": "Club Venecia", "tax_id": "1055126168", "email": "ya@tiene.co"}]
+    fila = {"name": "Club Animals", "tax_id": "1055126168", "email": "nit@club.co", "phone": "3000000000"}
+    plan = plan_clientes([fila], sedes, lambda a, b: False)
+    assert plan["errores"] == []
+    assert plan["crear"] == []
+    assert plan["actualizar"] == [{"id": "s-1", "clinic_name": "Club Marruecos",
+                                   "cambios": {"email": "nit@club.co"}}]
+
+
+def test_dos_coincidencias_solo_por_nombre_siguen_siendo_revision_manual():
+    """Sin NIT no hay certeza de que sean sedes: la ambigüedad queda para una persona."""
+    from app.imports import plan_clientes
+
+    parecidos = [{"id": "c-1", "clinic_name": "Vet Andes Norte", "tax_id": "", "email": ""},
+                 {"id": "c-2", "clinic_name": "Vet Andes Sur", "tax_id": "", "email": ""}]
+    plan = plan_clientes([{"name": "Vet Andes", "email": "x@x.co"}], parecidos, lambda a, b: True)
+    assert plan["actualizar"] == []
+    assert len(plan["errores"]) == 1

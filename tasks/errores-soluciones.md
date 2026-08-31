@@ -4493,3 +4493,32 @@ puede bajar al subir el tramo»).
   ofrezca revertir y eliminar). Suite **1479 passed**.
 - **Trampa de entorno:** el Flask local corria sin recarga de plantillas, asi que los cambios en
   el HTML **no se veian** aunque el archivo estuviera bien. Se relanzo con `--reload`.
+
+---
+
+## ERR-171 — La lista real de terceros v3 destapo dos fallas de la carga de clientes
+
+- **Fecha:** 2026-08-31 · **Estado:** RESUELTO
+- **Contexto:** A3 entrego «Alegra - Terceros v3.xlsx» (311 contactos facturables). Al aplicarla
+  por `/cargas` — su circuito natural — fallaron cosas que los tests con mocks no podian ver:
+  1. **Ninguna alta funcionaba**: `clients.billing_type` es NOT NULL sin default y
+     `create_client` no lo mandaba (23502). Fix: `setdefault("billing_type", "cash")` — asi
+     opera el 99% del padron.
+  2. **Un fallo cortaba toda la carga**: el telefono es UNIQUE, una fila que choco (Latidos
+     L&D) dejo 17 altas hechas y las actualizaciones sin aplicar. Fix: cada fila por separado
+     en `_aplicar_clientes`, con el motivo legible por fila («el telefono ya pertenece a otro
+     cliente»).
+- **Mejora de criterio en `plan_clientes`:** 106 filas quedaban en «revision manual» solo
+  porque su NIT apunta a varias sedes (caso Club Animals / ERR-157). Regla nueva: el CORREO es
+  un dato del NIT (ahi llega la factura electronica) y completa todas las sedes que no tengan;
+  telefono y direccion son de cada sede y no se comparten. La ambiguedad por nombre sin NIT
+  sigue siendo revision manual. 4 tests nuevos/actualizados.
+- **Resultado en la base** (snapshot previo en `data/snapshots/clientes-20260831.csv`):
+  21 altas (Latidos L&D sin telefono: el suyo pertenece a otro cliente, a confirmar con A3),
+  ~140 datos completados (84 correos de sedes incluidos), `electronic_invoice=false` para los
+  2 marcados NO, y 2 bajas confirmadas por el usuario (desaparecieron entre v2 y v3, cero
+  movimiento en toda la base). Padron: 992 → 1013 (861 activos).
+- **Para A3:** 5 clientes de su lista estan INACTIVOS en nuestra base (Linda Catherine Vanegas,
+  Mariana Getiva, Paula Andrea Bernal, Laura Daniela Moreno, Aqua Vet Patio Bonito) — ¿se
+  reactivan? Y el telefono 3022640416 que la lista da a Latidos L&D pertenece a la dra Angie
+  Lorena Galvis en la base.

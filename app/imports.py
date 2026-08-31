@@ -177,6 +177,16 @@ def plan_clientes(filas: list[dict], clientes: list[dict], nombre_coincide) -> d
             continue
 
         candidatos = por_nit.get(nit) or []
+        if len(candidatos) > 1:
+            # Sedes que comparten NIT (caso Club Animals / ERR-157). El correo es un dato
+            # del NIT —ahí llega la factura electrónica—, así que completa TODAS las sedes
+            # que no lo tengan. Teléfono y dirección son de cada sede: esos no se comparten.
+            correo = (fila.get("email") or "").strip()
+            for sede in candidatos:
+                if correo and not (sede.get("email") or "").strip():
+                    completar.append({"id": sede["id"], "clinic_name": sede.get("clinic_name"),
+                                      "cambios": {"email": correo}})
+            continue
         if not candidatos and nombre:
             candidatos = [c for c in clientes if nombre_coincide(nombre, c.get("clinic_name"))]
         if len(candidatos) > 1:

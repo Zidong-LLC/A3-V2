@@ -1999,6 +1999,9 @@ def create_client(payload: dict) -> dict | None:
     if not payload.get("clinic_name"):
         return None
     payload.setdefault("is_active", True)
+    # billing_type es NOT NULL sin default en la tabla: sin esto, TODA alta por CSV
+    # reventaba con 23502. "cash" es como opera casi todo el padrón (991 de 992).
+    payload.setdefault("billing_type", "cash")
     result = _client.table("clients").insert(payload).execute()
     return (result.data or [None])[0]
 
