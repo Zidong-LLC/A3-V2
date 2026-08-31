@@ -1528,3 +1528,8 @@ ajustes → Anarvet → WhatsApp → lanzamiento → semana de testeo.
 - [x] **Estilo visual: CERRADO** (2026-08-31). Las capturas se le enviaron a Adriana y A3
       eligió el estilo actual de la plataforma: lo que está hoy ES la versión final visual.
       Se retira el pendiente de la llamada 9 y el «visto bueno de Fase 1» del retema.
+
+- [x] **Rotación de SUPABASE_SERVICE_ROLE_KEY: NO HACE FALTA** (decisión del usuario
+      2026-08-31). La clave solo circuló entre el dueño y el otro desarrollador del
+      proyecto, ambos autorizados: no hubo exposición a terceros. Se retira el pendiente
+      del runbook territorial-zones.

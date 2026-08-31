@@ -105,4 +105,4 @@ Estado esperado actual:
 
 ## Seguridad
 
-Si una `SUPABASE_SERVICE_ROLE_KEY` fue compartida en chat o por un canal no seguro, rotarla desde Supabase cuando termine la carga.
+Si una `SUPABASE_SERVICE_ROLE_KEY` fue compartida en chat o por un canal no seguro, rotarla desde Supabase cuando termine la carga — RESUELTO 2026-08-31: la clave solo circuló entre los dos desarrolladores autorizados; no se rota (decisión del dueño).
