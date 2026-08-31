@@ -70,7 +70,7 @@ Se actualizó `tests/test_alegra_billing.py::test_hook_no_rompe_si_alegra_falla`
 
 ---
 
-### ERR-099 — Cambiar de cliente en la confirmación cambia SOLO el nombre: la orden queda con el NIT, la dirección y el motorizado del cliente anterior (QA en vivo por Telegram, 2026-07-28) — ABIERTO, CRÍTICO
+### ERR-099 — Cambiar de cliente en la confirmación cambia SOLO el nombre: la orden queda con el NIT, la dirección y el motorizado del cliente anterior (QA en vivo por Telegram, 2026-07-28) — RESUELTO (etiqueta corregida 2026-08-31; bloqueo posterior en ERR-178)
 **Síntoma (reproducido en vivo, chat 4):** el resumen mostraba `Veterinaria: Pet Agro
 Colombia / Dirección de retiro: CL 78C SUR 18G 67`. El cliente pidió corregir y escribió
 `"El / Cliente / Soy Animal Pets"`. El bot re-mostró el resumen con
@@ -4663,3 +4663,33 @@ puede bajar al subir el tramo»).
 - **Lo que queda para encender WhatsApp** (no es codigo): la cuenta de WhatsApp Business de
   Meta + el numero de A3 conectados como inbox de Chatwoot, y probar la cadena completa
   ANTES de cancelar LiveConnect.
+
+---
+
+## ERR-178 — Bloqueo del cliente maestro (decision del usuario, cierre de ERR-099)
+
+- **Fecha:** 2026-08-31 · **Estado:** RESUELTO
+- **Contexto:** A3 pidio en la llamada 7 no permitir cambiar el cliente una vez elegido;
+  ERR-099 habia dejado el cambio permisivo (arrastrando bien la identidad desde julio —
+  su encabezado "ABIERTO, CRITICO" era una etiqueta vieja: el cuerpo dice RESUELTO).
+  El usuario decidio hoy: **BLOQUEAR**.
+- **Solucion:** en `_restart_identification_for_new_client` (app/agent.py), con una orden
+  en curso o un pedido abierto el cambio de veterinaria se rechaza con un mensaje claro y
+  NADA se toca (ni campos ni client_id): «cerramos primero este pedido y enseguida
+  registramos el de la otra veterinaria». Sin nada cargado, el cambio procede como siempre.
+  El cambio de SEDE (carril B-L) no se toca. 3 tests nuevos; los 17 de ERR-099 siguen verdes.
+
+## Cierres por evidencia del QA profundo (2026-08-31)
+
+- **ERR-117 y ERR-118 — RESUELTOS.** La vara del estres multi-orden quedo superada con el
+  modelo real: **masivo_5 = 5/5 ordenes y maraton_10 = 10/10, pedido cerrado y UNA factura
+  por pedido** (venian de 0/5 y 1/10 con doble factura). Los fixes acumulados (frontera de
+  ordenes, perfiles adicionales facturados ERR-162, catalogo Fase 1) cerraron la clase.
+- **ERR-095 — RESUELTO.** El guion T (preventa/metodologia sin NIT) paso contra el modelo
+  real en la corrida de hoy (34/35): no busca cliente antes del identificador, no crea
+  solicitud espuria y retoma la identificacion al pedir programar.
+- **ERR-113 — pasa a MONITOREO.** Probabilistico (~1/3 historico). Hoy P, QA8 y QA9 (varios
+  analisis juntos y pedido mixto) pasaron, y el estres registro 15/15 ordenes con sus
+  analisis. Sin reproduccion actual; vigilar en la semana de acompañamiento.
+- **ERR-099 — encabezado corregido:** decia ABIERTO CRITICO; el fix real es de julio y hoy
+  se le sumo el bloqueo (ERR-178).

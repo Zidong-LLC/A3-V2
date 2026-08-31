@@ -102,9 +102,10 @@ def test_c2_tokens_are_the_net_for_client_change():
     reply, persisted, _ = _run_turn("necesito cambiar de veterinaria", "unclear",
                                     captured=IN_PROGRESS)
     fields = persisted.get("captured_fields", {})
-    assert "cambiamos de cliente" in (reply or "").lower()
-    assert not fields.get("clinic_name")                 # identidad fuera
-    assert fields.get("patient_name") == "Lolo"          # la orden se conserva
+    # Decision 2026-08-31: con la orden en curso el cliente maestro se BLOQUEA.
+    assert "no puedo cambiar el cliente" in (reply or "")
+    assert fields.get("clinic_name")                     # identidad intacta
+    assert fields.get("patient_name") == "Lolo"          # la orden tambien
 
 
 def test_c2_signal_covers_unknown_phrasing():
@@ -114,8 +115,8 @@ def test_c2_signal_covers_unknown_phrasing():
     assert not agent._wants_to_change_client(msg)
     reply, persisted, _ = _run_turn(msg, "change_client", captured=IN_PROGRESS)
     fields = persisted.get("captured_fields", {})
-    assert "cambiamos de cliente" in (reply or "").lower()
-    assert not fields.get("clinic_name")
+    assert "no puedo cambiar el cliente" in (reply or "")
+    assert fields.get("clinic_name")
     assert fields.get("patient_name") == "Lolo"
 
 
@@ -312,7 +313,9 @@ def test_qa_change_client_starting_with_antes_is_not_el_de_siempre():
     reply, persisted, _ = _run_turn("Antes quiero cambiar el cliente", "change_client",
                                     captured=IN_PROGRESS)
     fields = persisted.get("captured_fields", {})
-    assert "cambiamos de cliente" in (reply or "").lower()
+    # Decision 2026-08-31: con la orden en curso el cambio se BLOQUEA — lo que este test
+    # protege sigue en pie: el turno NO cae en 'el de siempre' ni pregunta el analisis.
+    assert "no puedo cambiar el cliente" in (reply or "")
     assert "análisis o perfil desean" not in (reply or "").lower()
     assert fields.get("patient_name") == "Lolo"          # la orden se conserva
 

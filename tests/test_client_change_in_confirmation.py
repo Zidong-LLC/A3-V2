@@ -130,3 +130,55 @@ def test_no_queda_nombre_nuevo_con_direccion_vieja():
         "clinic_name y pickup_address quedaron juntos tras cambiar de cliente: "
         "es el cruce de identidad de ERR-099"
     )
+
+
+# ── Decisión 2026-08-31 (pedido de A3, llamada 7): el cliente maestro se BLOQUEA ─
+# Con una orden en curso o un pedido abierto, cambiar de veterinaria se rechaza con un
+# mensaje claro y NADA se toca (ni campos ni client_id). Solo procede sin nada cargado.
+from unittest.mock import patch
+
+from app.agent import _restart_identification_for_new_client
+
+
+def _sesion(client_id="cli-A", fase="fase_2_recogida_datos"):
+    return {"client_id": client_id, "phase_current": fase, "external_chat_id": "chat-1"}
+
+
+def test_con_orden_en_curso_el_cambio_de_cliente_se_bloquea():
+    fields = {"clinic_name": "Pet Agro Colombia", "tax_id": "1018431256",
+              "pickup_address": "CL 78C SUR 18G 67", "patient_name": "Rocky"}
+    session = _sesion()
+    with patch("app.agent.db.get_open_pedido", return_value=None), \
+         patch("app.agent.db.clear_client_from_session") as limpiar:
+        r = _restart_identification_for_new_client("chat-1", session, fields)
+    assert "no puedo cambiar el cliente" in r["reply"]
+    assert "Pet Agro Colombia" in r["reply"]
+    limpiar.assert_not_called()                      # la identidad no se toca
+    assert session["client_id"] == "cli-A"
+    assert fields["tax_id"] == "1018431256"          # nada se descarta
+    assert fields["pickup_address"] == "CL 78C SUR 18G 67"
+
+
+def test_con_pedido_abierto_tambien_se_bloquea_aunque_no_haya_orden_cargada():
+    """La orden anterior ya se registró en el pedido: cambiar de cliente ahora asociaría
+    la orden siguiente al pedido (y la factura) de la veterinaria equivocada."""
+    fields = {"clinic_name": "Pet Agro Colombia", "_order_registered": True}
+    session = _sesion(fase="fase_6_cierre")
+    with patch("app.agent.db.get_open_pedido", return_value={"id": "p-1", "status": "abierto"}), \
+         patch("app.agent.db.clear_client_from_session") as limpiar:
+        r = _restart_identification_for_new_client("chat-1", session, fields)
+    assert "no puedo cambiar el cliente" in r["reply"]
+    limpiar.assert_not_called()
+    assert session["client_id"] == "cli-A"
+
+
+def test_sin_nada_cargado_el_cambio_procede_como_siempre():
+    fields = {"clinic_name": "Pet Agro Colombia", "tax_id": "1018431256"}
+    session = _sesion()
+    with patch("app.agent.db.get_open_pedido", return_value=None), \
+         patch("app.agent.db.clear_client_from_session") as limpiar:
+        r = _restart_identification_for_new_client("chat-1", session, fields)
+    assert "verificar" in r["reply"].lower()
+    limpiar.assert_called_once()
+    assert session["client_id"] is None
+    assert not fields.get("tax_id")                  # la identidad vieja se descarta

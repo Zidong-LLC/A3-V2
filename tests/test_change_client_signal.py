@@ -19,17 +19,19 @@ ORDER_IN_PROGRESS = {
 }
 
 
-def test_change_client_signal_keeps_order_and_reasks_identity():
+def test_change_client_signal_blocks_with_order_in_progress():
+    """Decision 2026-08-31 (pedido de A3, llamada 7): con la orden en curso el cliente
+    maestro NO se cambia — se bloquea con un mensaje claro y nada se descarta."""
     session = {"chat_id": "c1", "client_id": "cli-A", "phase_current": "fase_2_recogida_datos"}
     fields = dict(ORDER_IN_PROGRESS)
-    with patch.object(agent.db, "clear_client_from_session"):
+    with patch.object(agent.db, "get_open_pedido", return_value=None),          patch.object(agent.db, "clear_client_from_session"):
         out = agent._restart_identification_for_new_client("c1", session, fields)
     f = out["captured_fields"]
-    assert "cambiamos de cliente" in out["reply"].lower()
-    assert not f.get("clinic_name") and not f.get("tax_id")            # identidad fuera
-    assert f.get("patient_name") == "Pepe"                              # la orden se conserva
+    assert "no puedo cambiar el cliente" in out["reply"]
+    assert f.get("clinic_name") and f.get("tax_id")                    # identidad intacta
+    assert f.get("patient_name") == "Pepe"                              # la orden tambien
     assert agent._as_text_items(f.get("selected_tests")) == ["1404"]
-    assert f.get("requesting_doctor") == "Dr. Araujo"
+    assert session["client_id"] == "cli-A"
 
 
 def test_signal_handler_requires_identified_client():

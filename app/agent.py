@@ -988,12 +988,24 @@ def _restart_identification_for_new_client(chat_id: str, session: dict, fields: 
         and any(fields.get(k) for k in ("patient_name", "requesting_doctor", "exam_type",
                                         "selected_tests", "_selected_profile_code"))
     )
-    if order_in_progress:
-        return _switch_client_keep_order(
-            chat_id, session, fields,
-            "Claro, cambiamos de cliente. ¿Me compartes el NIT o el nombre de la nueva "
-            "veterinaria para verificarla? Mantengo el resto de la orden (médico, paciente, "
-            "análisis y demás) y al final te la confirmo completa.",
+    # Decisión del usuario 2026-08-31 (pedido de A3 en la llamada 7): el cliente maestro NO
+    # se cambia con una orden en curso ni con un pedido abierto. El riesgo es identidad
+    # cruzada (ERR-099: motorizado a la puerta equivocada) y facturar el pedido a otra
+    # veterinaria. El cambio solo procede cuando no hay nada cargado todavía.
+    pedido_abierto = None
+    if session.get("client_id"):
+        try:
+            pedido_abierto = db.get_open_pedido(chat_id)
+        except Exception:  # noqa: BLE001 — si la consulta falla, rige el criterio de la orden
+            pedido_abierto = None
+    if order_in_progress or pedido_abierto:
+        clinic = fields.get("clinic_name") or "la veterinaria actual"
+        return _base_route_response(
+            f"Este pedido quedó a nombre de {clinic} y para no cruzar datos entre "
+            "veterinarias no puedo cambiar el cliente con órdenes en curso. Cerramos "
+            "primero este pedido y enseguida registramos el de la otra veterinaria. "
+            "¿Seguimos con la orden actual o cerramos el pedido?",
+            fields,
         )
     _reset_order_fields(fields)
     for key in _IDENTIFICATION_RETRY_RESET_FIELDS:

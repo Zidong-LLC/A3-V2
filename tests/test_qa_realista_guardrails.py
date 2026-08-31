@@ -429,9 +429,8 @@ def test_step_push_yields_to_correction_signal():
 
 
 def test_change_client_mid_order_keeps_the_order():
-    """LÓGICA DE CORRECCIÓN PUNTUAL: 'cambiar el cliente' con la orden EN CURSO conserva
-    médico, paciente, análisis y pago; solo re-verifica identidad + dirección. El cliente
-    nunca repite lo que ya dijo."""
+    """Decision 2026-08-31 (pedido de A3, llamada 7): con la orden EN CURSO el cliente
+    maestro se BLOQUEA — nada se descarta y el bot pide cerrar el pedido primero."""
     fields = {"clinic_name": "Danimal Planet", "tax_id": "9001", "pickup_address": "CL 59",
               "_client_found": True, "_address_confirmed": True,
               "requesting_doctor": "Sr Juan", "patient_name": "Messi", "species": "Caprino",
@@ -441,16 +440,16 @@ def test_change_client_mid_order_keeps_the_order():
               "selected_tests": ["1101", "1404", "1405"],
               "exam_type": "Perfil personalizado (3 análisis)"}
     session = {"chat_id": "c", "client_id": "cli-1", "phase_current": "fase_4_confirmacion"}
-    with patch("app.services.db.clear_client_from_session"):
+    with patch("app.services.db.get_open_pedido", return_value=None),          patch("app.services.db.clear_client_from_session"):
         out = agent._restart_identification_for_new_client("c", session, dict(fields))
     f = out["captured_fields"]
-    # Identificación y dirección: fuera (se re-verifican).
-    assert not f.get("clinic_name") and not f.get("pickup_address")
+    # Identidad y direccion: INTACTAS (el cambio se bloquea, no se re-verifica nada).
+    assert f.get("clinic_name") and f.get("pickup_address")
+    assert "no puedo cambiar el cliente" in out["reply"]
     # La orden: intacta.
     assert f.get("requesting_doctor") == "Sr Juan" and f.get("patient_name") == "Messi"
     assert agent._as_text_items(f.get("selected_tests")) == ["1101", "1404", "1405"]
     assert f.get("payment_method") == "pago_linea"
-    assert "mantengo" in out["reply"].lower()
 
 
 def test_change_client_after_registered_order_resets():
