@@ -1,0 +1,78 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><style>
+  @page { size: A4; margin: 18mm 16mm; }
+  body { font: 10.5pt/1.5 'Segoe UI', Arial, sans-serif; color: #1a1a1a; margin: 0; }
+  header { border-bottom: 3px solid #7a0d20; padding-bottom: 10px; margin-bottom: 16px; }
+  h1 { font-size: 16pt; margin: 0 0 2px; color: #7a0d20; }
+  h2 { font-size: 12.5pt; color: #7a0d20; margin: 18px 0 8px; border-bottom: 1px solid #e0cfd2; padding-bottom: 3px; page-break-after: avoid; }
+  .sub { color: #555; font-size: 10pt; }
+  ul { margin: 6px 0; padding-left: 20px; }
+  li { margin: 3px 0; }
+  table { width: 100%; border-collapse: collapse; margin: 8px 0; }
+  th { background: #7a0d20; color: #fff; text-align: left; padding: 5px 8px; font-size: 9.5pt; }
+  td { border-bottom: 1px solid #ddd; padding: 5px 8px; vertical-align: top; }
+  tr { page-break-inside: avoid; }
+  .destacado { background: #faf5f5; border: 1px solid #e8d5d8; border-radius: 6px; padding: 10px 14px; margin: 10px 0; }
+  .paso { font-weight: 700; color: #7a0d20; white-space: nowrap; }
+  footer { margin-top: 18px; color: #666; font-size: 9pt; border-top: 1px solid #ddd; padding-top: 8px; }
+</style></head><body>
+<header>
+  <h1>A3 Laboratorio Veterinario — Acta de estado y cierre del proyecto</h1>
+  <div class="sub">Fecha: 31 de agosto de 2026 · Plataforma A3: agente conversacional, plataforma operativa y portal de clientes</div>
+</header>
+
+<h2>1. Lo que está terminado y probado</h2>
+<ul>
+  <li><strong>El agente conversacional</strong>, con los cuatro servicios acordados: programar la recogida de muestras (con fecha de toma, varios pacientes y varias órdenes por pedido, una factura por pedido), consulta de resultados con envío del informe PDF por el chat, derivación de pagos a contabilidad y derivación de clientes nuevos a recepción. Validado con 36 escenarios de conversación y pruebas de estrés (pedidos de 5 y de 10 órdenes seguidas, sin errores).</li>
+  <li><strong>La plataforma operativa</strong>: panel con la facturación del mes, centro de operación, los 1.013 clientes (con la lista de terceros que ustedes entregaron ya aplicada), solicitudes con alerta de recogidas atrasadas, pedidos, facturación conectada a Alegra (1.200 facturas sincronizadas, con cartera), motorizados con su calendario semanal y reasignación, catálogo completo de 438 análisis y perfiles (incluido el convenio Mascolab con sus dos técnicas y precios), resultados, y cargas masivas por archivo.</li>
+  <li><strong>El portal de clientes</strong>: cada veterinaria entra con su nombre y NIT, ve sus solicitudes, sus resultados compartidos y su estado de cuenta.</li>
+  <li><strong>La conexión con Anarvet</strong> (solo lectura, como se acordó): 41.296 resultados espejados y consultables desde la plataforma.</li>
+  <li><strong>Los descuentos por volumen</strong>: el bot los aplica al cotizar y la factura los lleva; los porcentajes se editan desde la plataforma.</li>
+  <li><strong>Avisos automáticos</strong>: al motorizado cuando se le asigna o reasigna una recogida (por su chat), y al cliente cuando su resultado está disponible.</li>
+  <li><strong>El estilo visual</strong> quedó cerrado con la elección de Adriana: lo que está en la plataforma es la versión final.</li>
+</ul>
+
+<h2>2. Ajustes de alcance acordados o propuestos</h2>
+<table>
+  <thead><tr><th>Tema</th><th>Cómo queda</th></tr></thead>
+  <tbody>
+    <tr><td>Pago en línea (pasarela)</td><td>El chat ofrece «pago en línea» y deriva a contabilidad, que envía el enlace o gestiona el cobro. La pasarela automática (Wompi/Bancolombia) queda para una fase posterior si la necesitan.</td></tr>
+    <tr><td>Soportes de pago y documentos por el chat</td><td>Fuera de esta versión: los soportes se gestionan con contabilidad por el canal humano.</td></tr>
+    <tr><td>Inventario desde Alegra</td><td>Fuera de esta versión: Alegra descuenta el inventario al facturar, como hoy.</td></tr>
+    <tr><td>Usuarios y roles</td><td>Dos perfiles: el equipo de A3 (plataforma completa) y las veterinarias (portal). Los motorizados no ingresan a la plataforma: reciben sus avisos por el chat.</td></tr>
+    <tr><td>Validación del médico</td><td>El médico solicitante se registra en cada orden sin bloquear el flujo. La validación con tarjeta profesional queda para después, si la quieren.</td></tr>
+    <tr><td>Transcripción de la orden por foto</td><td>Retirada de común acuerdo (reunión de julio).</td></tr>
+    <tr><td>Unidades y valores de referencia de los resultados</td><td>El informe que ve el cliente es el PDF oficial que produce Anarvet, cargado por el equipo de A3 — así el documento siempre está completo y con su formato.</td></tr>
+  </tbody>
+</table>
+
+<h2>3. Lo que necesitamos de A3 para avanzar</h2>
+<table>
+  <thead><tr><th>#</th><th>Qué</th><th>Para qué</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><strong>La cuenta de WhatsApp Business de Meta</strong> con el número de la empresa</td><td>Es lo único que falta para conectar el canal: todo lo técnico de nuestro lado ya está listo.</td></tr>
+    <tr><td>2</td><td>El NIT de las ~161 veterinarias activas que no lo tienen</td><td>Sin NIT no pueden entrar al portal ni recibir factura.</td></tr>
+    <tr><td>3</td><td>Las respuestas del documento «Consulta de clientes de Anarvet» (17 códigos)</td><td>Hay 3.658 resultados esperando saber a qué veterinaria mostrarse.</td></tr>
+    <tr><td>4</td><td>Números de contabilidad y de PQR, y el enlace del formulario de PQR</td><td>Para que el bot derive a la persona correcta.</td></tr>
+    <tr><td>5</td><td>Confirmar 5 clientes que figuran inactivos y aparecen en su lista de facturación</td><td>Linda Catherine Vanegas, Mariana Getiva, Paula Andrea Bernal, Laura Daniela Moreno y Aqua Vet Patio Bonito: ¿se reactivan?</td></tr>
+    <tr><td>6</td><td>Aclarar el teléfono 3022640416</td><td>Figura a la vez para Latidos L&amp;D y para la Dra. Angie Lorena Galvis.</td></tr>
+    <tr><td>7</td><td>La tabla oficial de descuentos por cantidad</td><td>Mientras tanto rigen los tramos cargados, que ustedes pueden editar en la plataforma.</td></tr>
+    <tr><td>8</td><td>Desde qué fecha mostrar los resultados históricos en el portal</td><td>El espejo tiene el histórico completo; falta decidir cuánto se muestra.</td></tr>
+    <tr><td>9</td><td>Aclarar dos códigos repetidos del catálogo Mascolab (2407 y 2061)</td><td>Aparecen duplicados en el PDF del convenio.</td></tr>
+    <tr><td>10</td><td>Una sesión de prueba de facturación con su contador</td><td>Crear y revisar juntos un borrador en Alegra (sin emitir nada a la DIAN).</td></tr>
+    <tr><td>11</td><td><em>Para gestionar con Anarvet:</em> conexión cifrada (TLS) y autorizar las direcciones IP del servidor definitivo</td><td>Seguridad y continuidad de la sincronización de resultados.</td></tr>
+    <tr><td>12</td><td><em>Para gestionar con Anarvet:</em> la consulta del estado del análisis</td><td>Hoy vemos los resultados validados; con esto se podría mostrar «en proceso».</td></tr>
+  </tbody>
+</table>
+
+<h2>4. La secuencia de lanzamiento (acordada en la reunión del 21 de agosto)</h2>
+<div class="destacado">
+  <span class="paso">Paso 1.</span> A3 entrega la cuenta de WhatsApp Business (punto 1) →
+  <span class="paso">Paso 2.</span> Publicamos la plataforma en el servidor definitivo →
+  <span class="paso">Paso 3.</span> Conectamos el número y probamos el canal completo →
+  <span class="paso">Paso 4.</span> A3 cancela LiveConnect →
+  <span class="paso">Paso 5.</span> Lanzamiento con <strong>una semana de acompañamiento y seguimiento en vivo</strong>.
+</div>
+<p>Los puntos 2 a 10 de la sección 3 no frenan el lanzamiento: se pueden ir resolviendo durante la semana de acompañamiento.</p>
+
+<footer>Adjunto a esta acta: «Consulta de clientes de Anarvet» (los 17 códigos por confirmar, con opciones para marcar).</footer>
+</body></html>
