@@ -1887,7 +1887,22 @@ def update_courier_phone(courier_id: str, phone: str) -> bool:
 
 # Lo unico que la plataforma puede tocar de un motorizado. La request nunca compone
 # el payload libremente: el id, las fechas y cualquier columna nueva quedan afuera.
-CAMPOS_COURIER = ("name", "phone", "availability", "color", "is_active")
+def get_request_with_client(request_id: str) -> dict | None:
+    """La orden con su cliente, para armar el aviso al motorizado reasignado."""
+    result = (_client.table("requests")
+              .select("order_number, pickup_address, scheduled_pickup_date, clients(clinic_name)")
+              .eq("id", request_id).limit(1).execute())
+    return result.data[0] if result.data else None
+
+
+def get_courier(courier_id: str) -> dict | None:
+    result = _client.table("couriers").select("*").eq("id", courier_id).limit(1).execute()
+    return result.data[0] if result.data else None
+
+
+# chatwoot_conversation_id: el vinculo para avisarle al motorizado (migracion 032).
+CAMPOS_COURIER = ("name", "phone", "availability", "color", "is_active",
+                  "chatwoot_conversation_id")
 
 
 def update_courier(courier_id: str, payload: dict) -> bool:
@@ -2320,6 +2335,16 @@ def create_request(chat_id: str, session: dict, ai_response: dict,
     if pedido_id:
         touch_pedido(pedido_id)
     order_number = result.data[0].get("order_number")  # generado por la BB (None si falta la migración)
+
+    # Aviso al motorizado por Chatwoot (decision 2026-08-31; pedido de A3 en llamadas 1-4).
+    # Va DESPUES del insert para llevar el numero de orden real. Nunca frena la orden.
+    if request_data.get("assigned_courier_id"):
+        from app.courier_notify import notify_assignment
+        notify_assignment(request_data["assigned_courier_id"],
+                          order_number=order_number or "",
+                          clinic=fields.get("clinic_name") or "",
+                          address=request_data.get("pickup_address") or "",
+                          fecha=request_data.get("scheduled_pickup_date") or "")
     event_payload = {
         "source":   source_channel,
         "chat_id":  chat_id,

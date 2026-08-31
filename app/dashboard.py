@@ -23,6 +23,7 @@ from app.config import (
 from app import billing_charts, client_filters
 from app.services import db, alegra
 from app import anarvet_sync, dashboard_metrics, orders, pricing, territory, billing
+from app.courier_notify import notify_assignment
 
 dashboard = Blueprint("dashboard", __name__)
 
@@ -886,6 +887,7 @@ def _build_motorizados_context(clients: list[dict]) -> dict:
             "color": courier["color"],
             "color_guardado": courier.get("color_guardado", False),
             "is_active": courier.get("is_active", True),
+            "chatwoot_conversation_id": courier.get("chatwoot_conversation_id") or "",
             "zone_number": courier.get("zone_number"),
             "source": courier.get("source", "db"),
             "coverage_count": len(assigned_localities),
@@ -1991,6 +1993,13 @@ def _courier_payload(payload: dict) -> tuple[dict, str | None]:
         cambios["color"] = color
     if "is_active" in payload:
         cambios["is_active"] = bool(payload.get("is_active"))
+    if "chatwoot_conversation_id" in payload:
+        # El vinculo para avisarle: el numero de conversacion de Chatwoot del motorizado
+        # (Chatwoot lo entrega por el canal que esa conversacion tenga: WhatsApp, Telegram...).
+        vinculo = str(payload.get("chatwoot_conversation_id") or "").strip()
+        if vinculo and not vinculo.isdigit():
+            return {}, "El vinculo de Chatwoot es el numero de la conversacion"
+        cambios["chatwoot_conversation_id"] = vinculo
     return cambios, None
 
 
@@ -2233,6 +2242,17 @@ def update_request_operation():
             db.update_request(request_id, {"assigned_courier_id": courier_id})
             event_payload["assigned_courier_id"] = courier_id
             response_payload["assigned_courier_id"] = courier_id
+            # Aviso al motorizado por Chatwoot (decision 2026-08-31): reasignar desde la
+            # plataforma tambien avisa, con los datos de la orden. Nunca frena el update.
+            if courier_id:
+                fila = _safe_fetch(lambda: db.get_request_with_client(request_id), None)
+                cliente = (fila or {}).get("clients") or {}
+                notify_assignment(courier_id,
+                                  order_number=(fila or {}).get("order_number") or "",
+                                  clinic=cliente.get("clinic_name") or "",
+                                  address=(fila or {}).get("pickup_address") or "",
+                                  fecha=(fila or {}).get("scheduled_pickup_date") or "",
+                                  reasignada=True)
         if "scheduled_pickup_date" in payload:
             date_val = _sanitize_text(payload.get("scheduled_pickup_date"), 30)
             db.update_request(request_id, {"scheduled_pickup_date": date_val or None})

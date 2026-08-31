@@ -4693,3 +4693,25 @@ puede bajar al subir el tramo»).
   analisis. Sin reproduccion actual; vigilar en la semana de acompañamiento.
 - **ERR-099 — encabezado corregido:** decia ABIERTO CRITICO; el fix real es de julio y hoy
   se le sumo el bloqueo (ERR-178).
+
+---
+
+## ERR-179 — Aviso al motorizado al asignarle o reasignarle una recogida
+
+- **Fecha:** 2026-08-31 · **Estado:** RESUELTO
+- **Contexto:** pedido por A3 en las llamadas 1, 2 y 4 y nunca implementado (lo destapo la
+  auditoria total). Decision del usuario: el aviso va **por Chatwoot**, a la conversacion
+  vinculada del motorizado — Chatwoot la entrega por el canal que esa conversacion tenga
+  (WhatsApp cuando conecten el numero, Telegram, el que sea).
+- **Solucion:**
+  - Migracion 032 aplicada: `couriers.chatwoot_conversation_id` (vacio = sin avisos).
+  - `app/courier_notify.py` (nuevo, chico): arma el texto (orden, veterinaria, direccion,
+    fecha) y lo manda; el fallo JAMAS frena la asignacion (log y sigue).
+  - Avisa en los DOS puntos: al crear la orden por chat (`db.create_request`, despues del
+    insert para llevar el numero real) y al reasignar desde la plataforma
+    (`/api/dashboard/request-operation`, marca «reasignada»).
+  - La tarjeta del motorizado tiene el campo «Chat de avisos» (numero de conversacion de
+    Chatwoot), validado como numerico en `_courier_payload` y en la lista blanca
+    `CAMPOS_COURIER`.
+- **Verificacion:** 6 tests nuevos (aviso con vinculo, reasignacion, sin vinculo, fallo
+  tolerado, endpoint con validacion). Suite **1504 passed**.

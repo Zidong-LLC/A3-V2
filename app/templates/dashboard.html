@@ -476,6 +476,7 @@
                 {% if row.source == 'db' %}
                 <div class="courier-card-fields">
                   <label>Telefono<input class="cell-input" value="{{ row.phone }}" data-courier-field="phone" inputmode="tel" placeholder="Sin telefono"></label>
+                  <label>Chat de avisos (n° conversacion Chatwoot)<input class="cell-input" value="{{ row.chatwoot_conversation_id or '' }}" data-courier-field="chatwoot_conversation_id" inputmode="numeric" placeholder="Sin avisos"></label>
                   <label>Disponibilidad
                     <select class="cell-select" data-courier-field="availability">
                       <option value="available" {{ 'selected' if row.availability == 'available' else '' }}>Disponible</option>
