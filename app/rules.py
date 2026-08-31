@@ -67,6 +67,18 @@ def calculate_discount(num_tests: int, subtotal: int) -> int:
     return int(round(subtotal * pct))
 
 
+# Estados en los que la muestra AUN NO se recogio (on_route ya es "recogida y en camino").
+_PENDING_PICKUP_STATUSES = {"received", "assigned", "pending_pickup", "error_pending_assignment"}
+
+
+def pickup_is_overdue(row: dict, today_iso: str) -> bool:
+    """Recogida ATRASADA: la fecha programada ya paso y la muestra sigue sin recogerse.
+    Alerta por tiempo pedida por A3 en la llamada 4 (decision del usuario 2026-08-31)."""
+    fecha = str(row.get("scheduled_pickup_date") or "")[:10]
+    return bool(fecha and fecha < today_iso
+                and (row.get("status") or "") in _PENDING_PICKUP_STATUSES)
+
+
 def is_convenio_test(row: dict) -> bool:
     """Las pruebas de convenio (parte final del portafolio) no reciben descuento
     por volumen ni cuentan para el tramo. Se identifican por su categoría o nombre."""

@@ -101,3 +101,21 @@ class TestTerminalPhases:
         assert "fase_6_cierre" in TERMINAL_PHASES
         assert "fase_7_escalado" in TERMINAL_PHASES
         assert "fase_2_recogida_datos" not in TERMINAL_PHASES
+
+
+# ── Alerta por tiempo (llamada 4; decision del usuario 2026-08-31) ───────────
+
+def test_recogida_con_fecha_vencida_y_sin_recoger_esta_atrasada():
+    from app.rules import pickup_is_overdue
+
+    fila = {"scheduled_pickup_date": "2026-08-30", "status": "assigned"}
+    assert pickup_is_overdue(fila, "2026-08-31")
+
+
+def test_recogida_ya_recogida_o_al_dia_no_alerta():
+    from app.rules import pickup_is_overdue
+
+    assert not pickup_is_overdue({"scheduled_pickup_date": "2026-08-30", "status": "on_route"}, "2026-08-31")
+    assert not pickup_is_overdue({"scheduled_pickup_date": "2026-08-31", "status": "assigned"}, "2026-08-31")
+    assert not pickup_is_overdue({"scheduled_pickup_date": None, "status": "assigned"}, "2026-08-31")
+    assert not pickup_is_overdue({"scheduled_pickup_date": "2026-08-30", "status": "in_lab"}, "2026-08-31")

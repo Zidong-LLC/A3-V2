@@ -22,7 +22,7 @@ from app.config import (
 )
 from app import billing_charts, client_filters
 from app.services import db, alegra
-from app import anarvet_sync, dashboard_metrics, orders, pricing, territory, billing
+from app import anarvet_sync, dashboard_metrics, orders, pricing, rules, territory, billing
 from app.courier_notify import notify_assignment
 
 dashboard = Blueprint("dashboard", __name__)
@@ -1424,6 +1424,11 @@ def build_dashboard_context(billing_period: str = "auto") -> dict:
         sessions_rows = db.list_sessions(limit=500)
     except Exception as exc:
         return _empty_context(str(exc))
+
+    # Alerta por tiempo (llamada 4): marcar las recogidas con fecha vencida sin recoger.
+    hoy_iso = datetime.now(APP_TIMEZONE).date().isoformat()
+    for fila in requests_rows:
+        fila["overdue_pickup"] = rules.pickup_is_overdue(fila, hoy_iso)
 
     clients_with_courier = sum(
         1 for client in clients if (_assignment_from_client(client) or {}).get("courier_id")

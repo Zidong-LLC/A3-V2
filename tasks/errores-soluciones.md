@@ -4715,3 +4715,27 @@ puede bajar al subir el tramo»).
     `CAMPOS_COURIER`.
 - **Verificacion:** 6 tests nuevos (aviso con vinculo, reasignacion, sin vinculo, fallo
   tolerado, endpoint con validacion). Suite **1504 passed**.
+
+---
+
+## ERR-180 — Alertas por recogida atrasada + dos pendientes que resultaron fantasma
+
+- **Fecha:** 2026-08-31 · **Estado:** RESUELTO
+- **Alerta por tiempo** (pedida por A3 en la llamada 4; decision del usuario: ahora):
+  `rules.pickup_is_overdue` (pura) marca la recogida cuya fecha programada ya paso y sigue
+  sin recogerse (received/assigned/pending_pickup/error_pending_assignment — on_route ya es
+  "recogida y en camino"). La tabla de Solicitudes muestra el badge «⚠ Atrasada» junto a la
+  fecha. 2 tests.
+- **Descuentos por cantidad: YA FUNCIONABAN.** El ítem del todo («calculate_discount es
+  placeholder que retorna 0») era de abril y quedo obsoleto: la cotizacion del chat y la
+  factura usan `calculate_custom_profile_total`, que aplica los tramos EDITABLES de la
+  plataforma (verificado con datos reales: 3 analisis → 13% = $6.370 sobre $49.000, y las
+  pruebas de convenio quedan a precio pleno). Cuando A3 mande su tabla oficial, se ajustan
+  los porcentajes desde la pantalla — sin tocar codigo.
+- **Bug 1903 Citologia (llamada 9): YA RESUELTO** por el refactor del catalogo:
+  «citologia PAF» y «1903» resuelven exactos; «una citologia» despliega el menu con el 1903
+  entre las opciones.
+- **Tambien verificado:** el PDF de la orden ya imprime el valor por item y el total (el
+  reclamo de la llamada 8 quedo arreglado al agregar los items con precio); NO existe un
+  comando de reset/finalizar conversacion (pedido en llamadas 4 y 7 para pruebas — queda
+  anotado como decision pendiente, no parece necesario en produccion).
