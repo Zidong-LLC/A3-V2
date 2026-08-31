@@ -1505,3 +1505,22 @@ Pedido del usuario: ver cómo quedaban las pantallas con movimiento y, una vez r
       candidatos para marcar con X. Antes se corrió el automatch: emparejó 22 solos.
 - [x] Bajas por lista v3: si un cliente desaparece entre una entrega y la siguiente, es baja
       (criterio del usuario, aplicado a los 2 casos con cero movimiento verificado).
+
+---
+
+## Auditoría total pre-lanzamiento (2026-08-31) — plan aprobado
+
+Cruce de 10 llamadas + 13 docs de alcance + bitácora contra el código real.
+Plan completo en la conversación; secuencia acordada con A3 (llamada 9):
+ajustes → Anarvet → WhatsApp → lanzamiento → semana de testeo.
+
+- [ ] 1. Verificaciones dudosas: bug 1903 Citología, comando reset, PDF contraentrega, ERR-095
+- [ ] 2. Los 3 tapones de WhatsApp (entry_channel, aviso de resultados, firma del webhook)
+- [ ] 3. Seguridad: /setup-webhook, DASHBOARD_ADMIN_PASSWORD=admin123, PLATFORM_API_TOKEN
+      en Render, rotar SERVICE_ROLE_KEY, revisar SUPABASE_ANON_KEY
+- [ ] 4. ERR-099 (decisión del usuario) + estrés multi-orden ERR-117/118 + ERR-113
+- [ ] 5. Decisiones con el usuario: aviso al motorizado, alertas por tiempo, descuentos del
+      bot, números contabilidad/PQR, panel de cubos
+- [ ] 6. Acta a A3 (prometida 2 veces) + 3 capturas a Adriana + enviar PDF de mapeos
+- [ ] 7. Deploy Render + webhooks + cron + prueba Telegram real + semana de testeo
+- [ ] 8. Documentación al día (CLAUDE.md, README, contrato, bitácora, ADRs)
