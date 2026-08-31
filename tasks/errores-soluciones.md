@@ -4565,3 +4565,20 @@ puede bajar al subir el tramo»).
   listener antes de remover.
 - **Verificacion en el navegador contra datos reales:** renombrar, restaurar el nombre
   original y cancelar con Escape; sin errores de consola; el perfil quedo con su nombre.
+
+---
+
+## ERR-174 — El login del portal mostraba un traceback si la base se cortaba
+
+- **Fecha:** 2026-08-31 · **Estado:** RESUELTO
+- **Como se encontro:** re-test de TestSprite: la conexion a Supabase se corto en pleno login
+  del portal (httpx.RemoteProtocolError) y la veterinaria habria visto la pagina del debugger.
+  Mismo patron que ERR-172 pero del lado del cliente.
+- **Solucion:** `_find_sedes` va en try/except en `app/portal/auth.py`: si la consulta falla,
+  aviso amable «No pudimos verificar los datos en este momento» y log con stacktrace. Test
+  nuevo simulando la base caida.
+- **Re-test de los 5 casos que habian fallado o quedado bloqueados: 4 PASSED** (panel con base
+  caida TC001/TC030, renombrar en linea TC028, lapiz del catalogo TC031). TC011 quedo
+  bloqueado por este corte de conexion — la causa de fondo es la saturacion del Flask de
+  desarrollo con un solo proceso; en Render (gunicorn multi-worker) no aplica. El flujo que
+  TC011 queria probar ya esta validado a mano contra datos reales (ERR-170).

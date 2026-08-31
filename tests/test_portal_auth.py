@@ -138,3 +138,17 @@ def test_portal_session_does_not_open_dashboard():
     response = client.get("/dashboard")
     assert response.status_code == 302
     assert "/login" in response.headers["Location"]
+
+
+def test_si_la_base_falla_el_login_avisa_en_vez_de_reventar():
+    """El QA de TestSprite corto la conexion a Supabase en pleno login y el cliente
+    vio un traceback (httpx.RemoteProtocolError). Ahora ve un aviso amable (ERR-174)."""
+    from unittest.mock import patch
+
+    client = _get_test_client()
+    with patch("app.portal.auth._find_sedes", side_effect=RuntimeError("Server disconnected")):
+        respuesta = client.post("/portal/login", data={"clinic_name": "Vet Prueba", "nit": "900123456"})
+    assert respuesta.status_code == 200
+    cuerpo = respuesta.get_data(as_text=True)
+    assert "No pudimos verificar los datos" in cuerpo
+    assert "Traceback" not in cuerpo

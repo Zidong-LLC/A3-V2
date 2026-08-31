@@ -40,38 +40,55 @@ async def run_test():
         except Exception:
             pass
         
-        # -> Fill 'admin' into the Usuario field, fill 'admin123' into the Contrasena field, and click the 'Ingresar' button to sign in.
+        # -> Submit the staff login by clicking the 'Ingresar' button after filling the username and password fields.
         # username text field
         elem = page.get_by_label('Usuario', exact=True)
         await elem.wait_for(state="visible", timeout=10000)
         await elem.fill("admin")
         
-        # -> Fill 'admin' into the Usuario field, fill 'admin123' into the Contrasena field, and click the 'Ingresar' button to sign in.
+        # -> Submit the staff login by clicking the 'Ingresar' button after filling the username and password fields.
         # password password field
         elem = page.get_by_label('Contrasena', exact=True)
         await elem.wait_for(state="visible", timeout=10000)
         await elem.fill("admin123")
         
-        # -> Fill 'admin' into the Usuario field, fill 'admin123' into the Contrasena field, and click the 'Ingresar' button to sign in.
+        # -> Submit the staff login by clicking the 'Ingresar' button after filling the username and password fields.
         # Ingresar button
         elem = page.get_by_role('button', name='Ingresar', exact=True)
         await elem.click(timeout=10000)
         
-        # -> Click the 'Muestras' link in the left menu to open the samples catalog.
+        # -> Click the 'Muestras' menu item in the left navigation to open the catalog page.
         # Muestras link
         elem = page.get_by_role('link', name='Muestras', exact=True)
         await elem.click(timeout=10000)
         
+        # -> Click the 'Editar precio y especie' (edit price and species) button on the first catalog card to open the price editor.
+        # Editar precio y especie button
+        elem = page.get_by_text('Perfil1336', exact=True).locator("xpath=ancestor-or-self::*[.//button][1]").get_by_role('button', name='Editar precio y especie', exact=True)
+        await elem.click(timeout=10000)
+        
+        # -> Click the 'Editar precio y especie' (pencil) button again to close the price editor without saving and verify the catalog list remains visible.
+        # Editar precio y especie button
+        elem = page.get_by_text('Perfil1336', exact=True).locator("xpath=ancestor-or-self::*[.//button][1]").get_by_role('button', name='Editar precio y especie', exact=True)
+        await elem.click(timeout=10000)
+        
+        # -> Click the 'Editar precio y especie' (pencil) button on the first catalog card to open its price editor.
+        # Editar precio y especie button
+        elem = page.get_by_text('Perfil1336', exact=True).locator("xpath=ancestor-or-self::*[.//button][1]").get_by_role('button', name='Editar precio y especie', exact=True)
+        await elem.click(timeout=10000)
+        
+        # -> Click the 'Editar precio y especie' (pencil) button on the first catalog card to close the price editor without saving and confirm the catalog list returns.
+        # Editar precio y especie button
+        elem = page.get_by_text('Perfil1336', exact=True).locator("xpath=ancestor-or-self::*[.//button][1]").get_by_role('button', name='Editar precio y especie', exact=True)
+        await elem.click(timeout=10000)
+        
         # --> Assertions to verify final state
         
-        # --> The catalog did not load and no items are available due to a server disconnection.
-        # Assert-outcome: failed
-        # Assert: Expected the catalog summary to show available items (non-zero).
-        await expect(page.locator("xpath=/html/body/div[2]/main/section[2]/div[2]/div[2]/article/div[1]/span").nth(0)).to_have_text("0 de 0", timeout=15000), "Expected the catalog summary to show available items (non-zero)."
-        
-        # --> Test blocked by environment/access constraints during agent run
-        # Reason: TEST BLOCKED The test could not be run — the catalog page did not load items due to a server disconnection. Observations: - The page shows the banner 'No fue posible cargar todos los datos: Server disconnected'. - The catalog area displays 'No hay catalogo cargado.' and '0 de 0', indicating zero items available. - No catalog items are present to open for price review.
-        raise AssertionError("Test blocked during agent run: " + "TEST BLOCKED The test could not be run \u2014 the catalog page did not load items due to a server disconnection. Observations: - The page shows the banner 'No fue posible cargar todos los datos: Server disconnected'. - The catalog area displays 'No hay catalogo cargado.' and '0 de 0', indicating zero items available. - No catalog items are present to open for price review." + " — the exported script cannot reproduce a PASS in this environment.")
+        # --> The catalog list remains visible after opening and closing a profile's price editor.
+        await page.locator("xpath=/html/body/div[2]/main/section/div[2]/div[2]/article/div[2]/article[1]/footer/button").nth(0).scroll_into_view_if_needed()
+        # Assert-outcome: passed
+        # Assert: The catalog's 'Editar precio y especie' button is visible, indicating the list is shown.
+        await expect(page.locator("xpath=/html/body/div[2]/main/section/div[2]/div[2]/article/div[2]/article[1]/footer/button").nth(0)).to_be_visible(timeout=15000), "The catalog's 'Editar precio y especie' button is visible, indicating the list is shown."
         await asyncio.sleep(5)
 
     finally:

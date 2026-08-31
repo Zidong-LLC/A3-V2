@@ -40,38 +40,78 @@ async def run_test():
         except Exception:
             pass
         
-        # -> Fill 'admin' into the 'Usuario' field, fill 'admin123' into the 'Contrasena' field, then click the 'Ingresar' button to sign in.
+        # -> Fill 'admin' into the Usuario field and 'admin123' into the Contrasena field, then click the 'Ingresar' button to sign in.
         # username text field
         elem = page.get_by_label('Usuario', exact=True)
         await elem.wait_for(state="visible", timeout=10000)
         await elem.fill("admin")
         
-        # -> Fill 'admin' into the 'Usuario' field, fill 'admin123' into the 'Contrasena' field, then click the 'Ingresar' button to sign in.
+        # -> Fill 'admin' into the Usuario field and 'admin123' into the Contrasena field, then click the 'Ingresar' button to sign in.
         # password password field
         elem = page.get_by_label('Contrasena', exact=True)
         await elem.wait_for(state="visible", timeout=10000)
         await elem.fill("admin123")
         
-        # -> Fill 'admin' into the 'Usuario' field, fill 'admin123' into the 'Contrasena' field, then click the 'Ingresar' button to sign in.
+        # -> Fill 'admin' into the Usuario field and 'admin123' into the Contrasena field, then click the 'Ingresar' button to sign in.
         # Ingresar button
         elem = page.get_by_role('button', name='Ingresar', exact=True)
         await elem.click(timeout=10000)
         
+        # -> Click the 'Clientes' link in the left sidebar to open the client registry page.
+        # Clientes link
+        elem = page.get_by_role('link', name='Clientes', exact=True)
+        await elem.click(timeout=10000)
+        
+        # -> Type 'Mision Apolo' into the search field labeled 'Buscar clinica, NIT, telefono o correo…' and click the 'Buscar' button to apply the filter.
+        # Buscar cliente search field
+        elem = page.get_by_label('Buscar cliente', exact=True)
+        await elem.wait_for(state="visible", timeout=10000)
+        await elem.fill("Mision Apolo")
+        
+        # -> Type 'Mision Apolo' into the search field labeled 'Buscar clinica, NIT, telefono o correo…' and click the 'Buscar' button to apply the filter.
+        # Buscar button
+        elem = page.get_by_role('button', name='Buscar', exact=True)
+        await elem.click(timeout=10000)
+        
+        # -> Scroll the Clientes page to the bottom to reveal pagination controls (for example the '1 de 1013 clientes' text) and then search the page for that pagination text.
+        await page.mouse.wheel(0, 300)
+        
+        # -> Click the 'Limpiar' (Clear) link to remove the filter and display the full client list so pagination controls become visible.
+        # Limpiar link
+        elem = page.get_by_role('link', name='Limpiar', exact=True)
+        await elem.click(timeout=10000)
+        
+        # -> Type 'Clinica' into the 'Buscar clinica, NIT, telefono o correo…' field and click the 'Buscar' button to apply the unaccented search.
+        # Buscar cliente search field
+        elem = page.get_by_label('Buscar cliente', exact=True)
+        await elem.wait_for(state="visible", timeout=10000)
+        await elem.fill("Clinica")
+        
+        # -> Type 'Clinica' into the 'Buscar clinica, NIT, telefono o correo…' field and click the 'Buscar' button to apply the unaccented search.
+        # Buscar button
+        elem = page.get_by_role('button', name='Buscar', exact=True)
+        await elem.click(timeout=10000)
+        
+        # -> Click the 'Siguiente' link to go to the next page of filtered client results and verify the search context persists.
+        # Siguiente link
+        elem = page.get_by_role('link', name='Siguiente', exact=True)
+        await elem.click(timeout=10000)
+        
         # --> Assertions to verify final state
         
-        # --> Could not verify that the search results remain filtered because the dashboard failed to render after login.
-        # Assert-outcome: failed
-        # Assert: Expected to navigate to the client registry page (/clients) so the filtered search results could be verified.
-        await expect(page).to_have_url(re.compile("/clients"), timeout=15000), "Expected to navigate to the client registry page (/clients) so the filtered search results could be verified."
+        # --> Search query 'Clinica' remains applied after navigating to page 2.
+        # Assert-outcome: passed
+        # Assert: The search input value is 'Clinica'.
+        await expect(page.locator("xpath=/html/body/div[2]/main/section/form/div/input").nth(0)).to_have_value("Clinica", timeout=15000), "The search input value is 'Clinica'."
+        # Assert-outcome: passed
+        # Assert: URL contains the search query parameter 'q=Clinica'.
+        await expect(page).to_have_url(re.compile("q=Clinica"), timeout=15000), "URL contains the search query parameter 'q=Clinica'."
         
-        # --> Could not verify that paginated client results are displayed because the dashboard error blocked navigation to the client list and pagination.
-        # Assert-outcome: failed
-        # Assert: Expected the client results to be paginated (URL to include 'page=') so pagination could be verified.
-        await expect(page).to_have_url(re.compile("page="), timeout=15000), "Expected the client results to be paginated (URL to include 'page=') so pagination could be verified."
-        
-        # --> Test blocked by environment/access constraints during agent run
-        # Reason: TEST BLOCKED The dashboard failed to render after login, preventing continuation of the test flow to the client registry, search, and pagination steps. Observations: - The page shows a Jinja2 UndefinedError: 'dict object' has no attribute 'exec_alerts_count'. - The Flask/Werkzeug debugger traceback is displayed (server-side rendering error). - Navigation to the client registry and performing th...
-        raise AssertionError("Test blocked during agent run: " + "TEST BLOCKED The dashboard failed to render after login, preventing continuation of the test flow to the client registry, search, and pagination steps. Observations: - The page shows a Jinja2 UndefinedError: 'dict object' has no attribute 'exec_alerts_count'. - The Flask/Werkzeug debugger traceback is displayed (server-side rendering error). - Navigation to the client registry and performing th..." + " — the exported script cannot reproduce a PASS in this environment.")
+        # --> Paginated client results are displayed and page 2 is shown with pagination controls.
+        await page.locator("xpath=/html/body/div[2]/main/section/div[3]/a[2]").nth(0).scroll_into_view_if_needed()
+        # Assert-outcome: passed
+        # Assert: The 'Siguiente' pagination link is visible.
+        await expect(page.locator("xpath=/html/body/div[2]/main/section/div[3]/a[2]").nth(0)).to_be_visible(timeout=15000), "The 'Siguiente' pagination link is visible."
         await asyncio.sleep(5)
 
     finally:

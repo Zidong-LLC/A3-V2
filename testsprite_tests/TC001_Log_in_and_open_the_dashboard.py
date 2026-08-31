@@ -40,36 +40,35 @@ async def run_test():
         except Exception:
             pass
         
-        # -> Fill 'admin' into the 'Usuario' field and submit the form (use the 'Ingresar' button to sign in).
+        # -> Fill 'admin' into the Usuario field, fill 'admin123' into the Contrasena field, and click the 'Ingresar' button to submit the login form.
         # username text field
         elem = page.get_by_label('Usuario', exact=True)
         await elem.wait_for(state="visible", timeout=10000)
         await elem.fill("admin")
         
-        # -> Fill 'admin' into the 'Usuario' field and submit the form (use the 'Ingresar' button to sign in).
+        # -> Fill 'admin' into the Usuario field, fill 'admin123' into the Contrasena field, and click the 'Ingresar' button to submit the login form.
         # password password field
         elem = page.get_by_label('Contrasena', exact=True)
         await elem.wait_for(state="visible", timeout=10000)
         await elem.fill("admin123")
         
-        # -> Fill 'admin' into the 'Usuario' field and submit the form (use the 'Ingresar' button to sign in).
+        # -> Fill 'admin' into the Usuario field, fill 'admin123' into the Contrasena field, and click the 'Ingresar' button to submit the login form.
         # Ingresar button
         elem = page.get_by_role('button', name='Ingresar', exact=True)
         await elem.click(timeout=10000)
         
         # --> Assertions to verify final state
         
-        # --> Dashboard failed to render after sign-in due to a server-side template error.
-        await page.locator("xpath=/html/body/div[1]/div[1]").nth(0).scroll_into_view_if_needed()
-        # Assert-outcome: failed
-        # Assert: Expected the dashboard to be displayed.
-        await expect(page.locator("xpath=/html/body/div[1]/div[1]").nth(0)).to_be_visible(timeout=15000), "Expected the dashboard to be displayed."
+        # --> The browser navigated to the dashboard page (/dashboard).
+        # Assert-outcome: passed
+        # Assert: The current URL contains /dashboard.
+        await expect(page).to_have_url(re.compile("/dashboard"), timeout=15000), "The current URL contains /dashboard."
         
-        # --> Operational data is not visible because the page shows a Flask/Werkzeug traceback instead of the dashboard UI.
-        await page.locator("xpath=/html/body/div[1]/h2").nth(0).scroll_into_view_if_needed()
-        # Assert-outcome: failed
-        # Assert: Expected operational data to be visible on the dashboard.
-        await expect(page.locator("xpath=/html/body/div[1]/h2").nth(0)).to_be_visible(timeout=15000), "Expected operational data to be visible on the dashboard."
+        # --> Operational/billing data panel is visible on the dashboard.
+        await page.locator("xpath=/html/body/div[2]/main/div[1]/div[4]/article/div[1]/div/a[4]").nth(0).scroll_into_view_if_needed()
+        # Assert-outcome: passed
+        # Assert: The 'Ver facturacion' link in the billing panel is visible, indicating operational billing data is shown.
+        await expect(page.locator("xpath=/html/body/div[2]/main/div[1]/div[4]/article/div[1]/div/a[4]").nth(0)).to_be_visible(timeout=15000), "The 'Ver facturacion' link in the billing panel is visible, indicating operational billing data is shown."
         await asyncio.sleep(5)
 
     finally:

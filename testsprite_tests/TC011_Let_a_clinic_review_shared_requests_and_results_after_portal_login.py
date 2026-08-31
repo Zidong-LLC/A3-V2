@@ -40,41 +40,47 @@ async def run_test():
         except Exception:
             pass
         
-        # -> Open the client portal login page (/portal/login) and check for clinic name and NIT input fields or suggestions.
+        # -> Navigate to the client portal login page (open /portal/login) so the portal login form is shown.
         await page.goto("http://localhost:5000/portal/login")
         try:
             await page.wait_for_load_state("domcontentloaded", timeout=5000)
         except Exception:
             pass
         
-        # -> Type 'Agromedica Huellas Timiza' into the 'Nombre de la veterinaria' field and wait for the autocomplete suggestions to appear.
+        # -> Fill the 'Nombre de la veterinaria' field with 'Agromedica Huellas Timiza' and wait for autocomplete suggestions to appear.
         # clinic_name text field
         elem = page.get_by_label('Nombre de la veterinaria', exact=True)
         await elem.wait_for(state="visible", timeout=10000)
         await elem.fill("Agromedica Huellas Timiza")
         
-        # -> Fill the NIT field with '19420725-2' and click the 'Ingresar' button to submit the portal login form.
+        # -> Fill the 'NIT' field with '19420725-2' and click the 'Ingresar' button to submit the portal login form.
         # nit text field
         elem = page.get_by_label('NIT', exact=True)
         await elem.wait_for(state="visible", timeout=10000)
         await elem.fill("19420725-2")
         
-        # -> Fill the NIT field with '19420725-2' and click the 'Ingresar' button to submit the portal login form.
+        # -> Fill the 'NIT' field with '19420725-2' and click the 'Ingresar' button to submit the portal login form.
         # Ingresar button
         elem = page.get_by_role('button', name='Ingresar', exact=True)
         await elem.click(timeout=10000)
         
-        # -> Click the 'Resultados' menu item to open the Results section and check for shared PDF result files.
-        # Resultados link
-        elem = page.get_by_role('link', name='Resultados', exact=True)
-        await elem.click(timeout=10000)
-        
         # --> Assertions to verify final state
         
-        # --> No shared PDF results are displayed on the client's Results page.
+        # --> Clinic requests could not be accessed because the portal returned a server error.
+        await page.locator("xpath=/html/body/div[1]/div[1]").nth(0).scroll_into_view_if_needed()
         # Assert-outcome: failed
-        # Assert: Expected shared PDF results to be displayed on the Results page.
-        await expect(page.locator("xpath=/html/body/div[2]/main/section/div[2]/table/tbody/tr/td").nth(0)).to_have_text("A\u00fan no hay resultados compartidos con su cuenta.", timeout=15000), "Expected shared PDF results to be displayed on the Results page."
+        # Assert: Expected clinic requests to be displayed.
+        await expect(page.locator("xpath=/html/body/div[1]/div[1]").nth(0)).to_be_visible(timeout=15000), "Expected clinic requests to be displayed."
+        
+        # --> Shared PDF results could not be accessed because the portal returned a server error.
+        await page.locator("xpath=/html/body/div[1]/div[1]").nth(0).scroll_into_view_if_needed()
+        # Assert-outcome: failed
+        # Assert: Expected shared PDF results to be displayed.
+        await expect(page.locator("xpath=/html/body/div[1]/div[1]").nth(0)).to_be_visible(timeout=15000), "Expected shared PDF results to be displayed."
+        
+        # --> Test blocked by environment/access constraints during agent run
+        # Reason: TEST BLOCKED The test could not be run to completion because the server returned an error after submitting the client portal login, preventing access to the Requests and Results UI. Observations: - After clicking 'Ingresar' on the client portal login, a server error page was shown with header 'RemoteProtocolError' and message 'httpx.RemoteProtocolError: Server disconnected'. - A Python/Flask st...
+        raise AssertionError("Test blocked during agent run: " + "TEST BLOCKED The test could not be run to completion because the server returned an error after submitting the client portal login, preventing access to the Requests and Results UI. Observations: - After clicking 'Ingresar' on the client portal login, a server error page was shown with header 'RemoteProtocolError' and message 'httpx.RemoteProtocolError: Server disconnected'. - A Python/Flask st..." + " — the exported script cannot reproduce a PASS in this environment.")
         await asyncio.sleep(5)
 
     finally:

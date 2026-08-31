@@ -11,7 +11,7 @@ import time
 from collections import deque
 from functools import wraps
 
-from flask import abort, redirect, render_template, request, session, url_for
+from flask import current_app, abort, redirect, render_template, request, session, url_for
 
 from app.portal import portal_bp
 from app.services.db import client_name_matches, find_clients_by_tax_id, get_client_by_id
@@ -104,7 +104,13 @@ def login():
         return _render_login(error="Escribe el nombre de la veterinaria y el NIT.",
                              clinic_name=clinic_name, nit=nit)
 
-    sedes = _find_sedes(nit, clinic_name)
+    try:
+        sedes = _find_sedes(nit, clinic_name)
+    except Exception:  # noqa: BLE001 — base caida: aviso amable, nunca un traceback (ERR-174)
+        current_app.logger.exception("portal login: fallo la consulta de sedes")
+        return _render_login(error="No pudimos verificar los datos en este momento. "
+                                   "Intente de nuevo en unos minutos.",
+                             clinic_name=clinic_name, nit=nit)
     if not sedes:
         return _render_login(error=_GENERIC_ERROR, clinic_name=clinic_name, nit=nit)
 
