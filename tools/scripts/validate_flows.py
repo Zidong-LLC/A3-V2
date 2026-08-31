@@ -321,16 +321,16 @@ def main():
             out = []
             if len(_state["requests"]) != 1:
                 out.append(f"esperaba 1 orden creada, hay {len(_state['requests'])}")
-            # Decisión 011 (pedidos): la orden cierra en el turno del PAGO (replies[13],
+            # Decisión 011 (pedidos): la orden cierra en el turno del PAGO (replies[14],
             # "contraentrega"); el "sí, confirmo" siguiente responde a la oferta del pedido.
-            closing = replies[13] or ""
+            closing = replies[14] or ""
             if "A3-2026" not in closing:
                 out.append("el cierre no incluye el número de orden")
             if "Quedó registrado" not in closing:
                 out.append("el cierre no muestra el resumen")
             # El followup ya recarga los estables solo (médico incluido): la memoria se
             # valida en la SESIÓN, y la conversación debe seguir con la orden nueva.
-            second = replies[16] or ""
+            second = replies[17] or ""
             doctor = _state["session"]["captured_fields"].get("requesting_doctor") or ""
             if "Laura" not in doctor and "Méndez" not in doctor:
                 out.append(f"'el de siempre' no conservó el médico recordado: {doctor!r}")
@@ -342,7 +342,7 @@ def main():
             "A. Camino feliz completo + multi-orden", "val-a",
             ["Hola", "1", "Somos la Veterinaria San Roque", "sí, esa está bien",
              "Dra. Laura Méndez", "Firulais", "canino", "labrador", "macho",
-             "3 años", "Pedro Gómez", "sin observaciones", "hemograma",
+             "3 años", "Pedro Gómez", "hoy", "sin observaciones", "hemograma",
              "contraentrega", "sí, confirmo",
              "sí, quiero otra orden para otro paciente", "el de siempre"],
             checks_a,
@@ -439,7 +439,7 @@ def main():
             ["Hola", "1", "nit 900123456", "jaja y cómo va el día por allá?",
              "sí, esa dirección está bien",
              "la médica es la Dra. Sofía Ramírez y el paciente es Michi, un gatito",
-             "siamés", "hembra", "5", "meses", "Lucía Torres", "ninguna",
+             "siamés", "hembra", "5", "meses", "Lucía Torres", "hoy", "ninguna",
              "hemograma", "pago en línea", "sí, confirmo"],
             checks_f,
         ))
@@ -551,7 +551,7 @@ def main():
             "M. Corrección editable en confirmación", "val-m",
             ["Hola", "1", "Somos la Veterinaria San Roque", "sí, esa está bien",
              "Dra. Laura Méndez", "Firulais", "canino", "labrador", "macho",
-             "3 años", "Pedro Gómez", "sin observaciones", "hemograma",
+             "3 años", "Pedro Gómez", "hoy", "sin observaciones", "hemograma",
              "contraentrega", "espera, corrige el paciente: ahora se llama Rocky",
              "sí, confirmo"],
             checks_m,
@@ -586,7 +586,7 @@ def main():
             "P. Estrés racimo 1 — varios análisis en un mensaje", "val-p",
             ["Hola", "1", "Somos la Veterinaria San Roque", "sí, esa está bien",
              "Dra. Laura Méndez", "Firulais", "canino", "labrador", "macho",
-             "3 años", "Pedro Gómez", "sin observaciones",
+             "3 años", "Pedro Gómez", "hoy", "sin observaciones",
              "necesito hemograma, creatinina y glucosa"],
             lambda replies: [],
         ))
@@ -621,7 +621,7 @@ def main():
             f = _state["requests"][-1].get("captured_fields") or {}
             if "rocky" not in _norm(f.get("patient_name")):
                 out.append(f"la corrección no quedó en el cierre: patient_name={f.get('patient_name')!r}")
-            after_value = replies[15] or ""
+            after_value = replies[16] or ""
             if "Rocky" not in after_value or ("¿Confirmas" not in after_value and "resumo" not in after_value.lower()):
                 out.append(f"no re-mostró el resumen tras dar el dato corregido: '{after_value[:90]}'")
             return out
@@ -630,7 +630,7 @@ def main():
             "M2. Corrección sin valor → re-muestra resumen", "val-m2",
             ["Hola", "1", "Somos la Veterinaria San Roque", "sí, esa está bien",
              "Dra. Laura Méndez", "Firulais", "canino", "labrador", "macho",
-             "3 años", "Pedro Gómez", "sin observaciones", "hemograma",
+             "3 años", "Pedro Gómez", "hoy", "sin observaciones", "hemograma",
              "contraentrega", "corrige el nombre del paciente", "Rocky",
              "sí, confirmo"],
             checks_m2,
@@ -655,7 +655,7 @@ def main():
             "S. Dato fuera de orden (sexo al pedir especie)", "val-s",
             ["Hola", "1", "Somos la Veterinaria San Roque", "sí, esa está bien",
              "Dra. Laura Méndez", "Firulais", "es hembra", "canino", "labrador",
-             "3 años", "Pedro Gómez", "sin observaciones", "hemograma",
+             "3 años", "Pedro Gómez", "hoy", "sin observaciones", "hemograma",
              "contraentrega", "sí, confirmo"],
             checks_s,
         ))
@@ -693,7 +693,7 @@ def main():
         #     orden cierra con el perfil elegido, su código y su precio real.
         def checks_u(replies):
             out = []
-            menu = (replies[12] or "")
+            menu = (replies[13] or "")
             menu_norm = _norm(menu)
             # _norm elimina caracteres acentuados ('prequirúrgico' -> 'prequirrgico').
             if "701" not in menu or "prequir" not in menu_norm:
@@ -714,7 +714,7 @@ def main():
             "U. Perfil por categoría (prequirúrgico) → perfiles armados", "val-u",
             ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
              "Dra. Laura Méndez", "Anahí", "canino", "pitbull", "hembra",
-             "2 años", "Luciano", "sin observaciones",
+             "2 años", "Luciano", "hoy", "sin observaciones",
              "cuál me recomiendas pre quirúrgico? qué perfil tienen?",
              "el 1", "no, seguimos con el pago", "contraentrega", "sí, confirmo"],
             checks_u,
@@ -751,7 +751,7 @@ def main():
         #     genérico por especie ni ser pisada por la plantilla del dato faltante.
         def checks_w(replies):
             out = []
-            menu = replies[12] or ""
+            menu = replies[13] or ""
             if "701" not in menu or "prequir" not in _norm(menu):
                 out.append(f"no ofreció los perfiles prequirúrgicos: '{menu[:90]}'")
             if "lo anoto" in menu.lower():
@@ -768,7 +768,7 @@ def main():
             "W. 'Tienes perfiles pre quirúrgico?' → perfiles armados", "val-w",
             ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
              "Dra. Laura Méndez", "Pepe", "canino", "pitbull", "macho",
-             "2 años", "Gaston", "sin observaciones",
+             "2 años", "Gaston", "hoy", "sin observaciones",
              "Tienes perfiles pre quirúrgico?",
              "el 1", "no, seguimos con el pago", "contraentrega", "sí, confirmo"],
             checks_w,
@@ -780,7 +780,7 @@ def main():
         #     ajustado ($24.000 + $52.000 = $76.000), no solo el perfil base.
         def checks_x(replies):
             out = []
-            ask_which = replies[14] or ""
+            ask_which = replies[15] or ""
             if "recomendar" in ask_which.lower() or "401" in ask_which or "402" in ask_which:
                 out.append(f"'agregarle un análisis más' ofreció perfiles nuevos: '{ask_which[:90]}'")
             if "agregar" not in ask_which.lower():
@@ -792,13 +792,13 @@ def main():
             # Formato del repo: $40.000 (punto de miles, sin COP)
             total = "$" + f"{base + agregado:,}".replace(",", ".")
             clave = _norm(esperado["name"].split("(")[0])
-            area_menu = replies[15] or ""
+            area_menu = replies[16] or ""
             if esperado["code"] not in area_menu and clave not in _norm(area_menu):
                 out.append(f"'un análisis de orina' no desplegó el menú del área: '{area_menu[:90]}'")
-            added = replies[16] or ""
+            added = replies[17] or ""
             if esperado["code"] not in added and clave not in _norm(added):
                 out.append(f"la selección del menú no agregó {esperado['name']}: '{added[:90]}'")
-            summary = replies[17] or ""
+            summary = replies[18] or ""
             if total not in summary:
                 out.append(f"el resumen no trae el total ajustado ({total}): '{summary[:120]}'")
             if clave not in _norm(summary):
@@ -820,7 +820,7 @@ def main():
             "X. Perfil elegido + agregar análisis (ERR-050)", "val-x",
             ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
              "Dra. Laura Méndez", "Anahi", "canino", "pitbull", "hembra",
-             "7 años", "Gaston", "sin observaciones",
+             "7 años", "Gaston", "hoy", "sin observaciones",
              "Tienes perfiles pre quirúrgico?",
              "el 1",
              "quiero agregarle un analisis mas a este perfil",
@@ -853,7 +853,7 @@ def main():
             "Y. Raza inequívoca infiere la especie", "val-y",
             ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
              "Dra. Laura Méndez", "Rocky", "pastor aleman", "macho",
-             "4 años", "Pedro Gómez", "sin observaciones", "hemograma",
+             "4 años", "Pedro Gómez", "hoy", "sin observaciones", "hemograma",
              "contraentrega", "sí, confirmo", "sí, confirmo"],
             checks_y,
         ))
@@ -875,7 +875,7 @@ def main():
             "Z. Raza ambigua sigue preguntando la especie", "val-z",
             ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
              "Dra. Laura Méndez", "Luna", "mestizo", "felino", "hembra",
-             "2 años", "Ana Ruiz", "sin observaciones", "hemograma",
+             "2 años", "Ana Ruiz", "hoy", "sin observaciones", "hemograma",
              "contraentrega", "sí, confirmo", "sí, confirmo"],
             checks_z,
         ))
@@ -906,7 +906,7 @@ def main():
             ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
              "Dra. Laura Méndez", "Toro", "mestizo", "no perdón, es criollo",
              "me equivoqué, es un Holstein", "macho", "5 años", "Pedro Gómez",
-             "sin observaciones", "hemograma", "contraentrega", "sí, confirmo", "sí, confirmo"],
+             "hoy", "sin observaciones", "hemograma", "contraentrega", "sí, confirmo", "sí, confirmo"],
             checks_qa1,
         ))
 
@@ -928,7 +928,7 @@ def main():
             "QA2. Palabra de especie como respuesta a la raza", "qa-2",
             ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
              "Dra. Laura Méndez", "Pelusa", "conejo", "holland lop", "hembra",
-             "1 año", "Ana Ruiz", "sin observaciones", "hemograma",
+             "1 año", "Ana Ruiz", "hoy", "sin observaciones", "hemograma",
              "contraentrega", "sí, confirmo", "sí, confirmo"],
             checks_qa2,
         ))
@@ -951,7 +951,7 @@ def main():
             "QA3. Especie exótica nueva (axolote)", "qa-3",
             ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
              "Dra. Laura Méndez", "Nemo", "es un axolote", "no sé la raza", "macho",
-             "2 años", "Ana Ruiz", "sin observaciones", "hemograma",
+             "2 años", "Ana Ruiz", "hoy", "sin observaciones", "hemograma",
              "contraentrega", "sí, confirmo", "sí, confirmo"],
             checks_qa3,
         ))
@@ -972,7 +972,7 @@ def main():
             "QA4. Especie declarada + raza de otra especie", "qa-4",
             ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
              "Dra. Laura Méndez", "Michi", "felino", "holstein", "hembra",
-             "3 años", "Ana Ruiz", "sin observaciones", "hemograma",
+             "3 años", "Ana Ruiz", "hoy", "sin observaciones", "hemograma",
              "contraentrega", "sí, confirmo", "sí, confirmo"],
             checks_qa4,
         ))
@@ -995,7 +995,7 @@ def main():
             "QA5. Typos severos en la raza", "qa-5",
             ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
              "Dra. Laura Méndez", "Rocky", "es un doverman", "macho",
-             "4 años", "Pedro Gómez", "sin observaciones", "hemograma",
+             "4 años", "Pedro Gómez", "hoy", "sin observaciones", "hemograma",
              "contraentrega", "sí, confirmo", "sí, confirmo"],
             checks_qa5,
         ))
@@ -1019,7 +1019,7 @@ def main():
             ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
              "Dra. Laura Méndez",
              "el paciente es Rocky, un pastor alemán macho de 4 años, del señor Pedro Gómez",
-             "sin observaciones", "hemograma", "contraentrega", "sí, confirmo", "sí, confirmo"],
+             "hoy", "sin observaciones", "hemograma", "contraentrega", "sí, confirmo", "sí, confirmo"],
             checks_qa6,
         ))
 
@@ -1043,7 +1043,7 @@ def main():
             "QA7. Especie normalizada se confirma con el nombre canónico", "qa-7",
             ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
              "Dra. Laura Méndez", "Pepe", "es una cabra", "ni tiene raza",
-             "3 años", "Ana Ruiz", "sin observaciones", "hemograma",
+             "3 años", "Ana Ruiz", "hoy", "sin observaciones", "hemograma",
              "contraentrega", "sí, confirmo", "sí, confirmo"],
             checks_qa7,
         ))
@@ -1092,6 +1092,7 @@ def main():
              "No tiene razón o desconozco, la encontré en la calle papi",
              "Creo que tiene tres años",
              "Sí, quiero dejar una observación que es medio urgente es para caridad",
+             "hoy",
              "Sí, mira, necesitamos un pre quirúrgico, un análisis de sodio y uno de potasio",
              "el 1",  # elige el perfil que el bot ofrece: sin esto la orden NO debe cerrar
              "contraentrega", "sí, confirmo", "sí, confirmo"],
@@ -1127,7 +1128,7 @@ def main():
             "QA9. Pedido mixto aislado: perfil con opciones + análisis sueltos", "qa-9",
             ["Hola", "1", "nit 900123456", "sí, esa dirección está bien",
              "Dra. Laura Méndez", "Luisa", "canino", "criollo", "hembra",
-             "3 años", "Pepito", "sin observaciones",
+             "3 años", "Pepito", "hoy", "sin observaciones",
              "necesitamos un pre quirúrgico, un análisis de sodio y uno de potasio",
              "el 1",
              "contraentrega", "sí, confirmo", "sí, confirmo"],

@@ -4582,3 +4582,23 @@ puede bajar al subir el tramo»).
   bloqueado por este corte de conexion — la causa de fondo es la saturacion del Flask de
   desarrollo con un solo proceso; en Render (gunicorn multi-worker) no aplica. El flujo que
   TC011 queria probar ya esta validado a mano contra datos reales (ERR-170).
+
+---
+
+## ERR-175 — Los guiones de validate_flows quedaron sin la fecha de toma
+
+- **Fecha:** 2026-08-31 · **Estado:** RESUELTO
+- **Sintoma:** al correr el QA profundo pedido por el usuario, validate_flows dio 14/35: los
+  guiones nunca respondian «¿Que dia tomaron la muestra?» (paso agregado al flujo con la
+  fecha de toma) y el bot insistia — correctamente — en el dato faltante. El harness estaba
+  viejo, no el agente: el E2E REAL por webhook (OpenAI y base reales, cliente verdadero)
+  creo la orden A3-2026-006 completa, con el motorizado exacto de la tabla determinista y
+  la recogida al dia habil siguiente. Rastro borrado (orden, pedido, eventos, sesion, 45
+  mensajes).
+- **Solucion:** «hoy» insertado tras el propietario en los 19 guiones que arman ordenes, y
+  9 checks con indice fijo corridos +1.
+- **Resultado: 34/35 flujos OK contra el modelo real.** El unico con problemas es V
+  (direccion pendiente + respuesta esquiva): re-pregunta «¿cual es la direccion?» en vez de
+  «¿es correcta?» y no atiende el pedido en la misma respuesta; se RECUPERA solo al turno
+  siguiente. Arreglarlo implica tocar el prompt del flujo aprobado → queda anotado,
+  pendiente de OK del usuario.
