@@ -1524,3 +1524,7 @@ ajustes → Anarvet → WhatsApp → lanzamiento → semana de testeo.
 - [ ] 6. Acta a A3 (prometida 2 veces) + 3 capturas a Adriana + enviar PDF de mapeos
 - [ ] 7. Deploy Render + webhooks + cron + prueba Telegram real + semana de testeo
 - [ ] 8. Documentación al día (CLAUDE.md, README, contrato, bitácora, ADRs)
+
+- [x] **Estilo visual: CERRADO** (2026-08-31). Las capturas se le enviaron a Adriana y A3
+      eligió el estilo actual de la plataforma: lo que está hoy ES la versión final visual.
+      Se retira el pendiente de la llamada 9 y el «visto bueno de Fase 1» del retema.
