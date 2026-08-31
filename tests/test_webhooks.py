@@ -8,7 +8,8 @@ def _client():
     return app.test_client()
 
 
-def test_chatwoot_webhook_ignores_empty_non_text_payloads():
+def test_chatwoot_webhook_ignores_empty_non_text_payloads(monkeypatch):
+    monkeypatch.setattr("app.main.CHATWOOT_WEBHOOK_SECRET", "")
     with patch("app.main.process_turn") as mock_process:
         response = _client().post(
             "/chatwoot/webhook",
@@ -25,7 +26,8 @@ def test_chatwoot_webhook_ignores_empty_non_text_payloads():
     mock_process.assert_not_called()
 
 
-def test_chatwoot_webhook_replies_and_assigns_handoff_team():
+def test_chatwoot_webhook_replies_and_assigns_handoff_team(monkeypatch):
+    monkeypatch.setattr("app.main.CHATWOOT_WEBHOOK_SECRET", "")
     session = {"requires_handoff": True, "handoff_area": "contabilidad"}
 
     with patch("app.main.process_turn", return_value="Te comunico con contabilidad") as mock_process, \
@@ -52,7 +54,8 @@ def test_chatwoot_webhook_replies_and_assigns_handoff_team():
     mock_assign.assert_called_once_with("456", "contabilidad")
 
 
-def test_chatwoot_webhook_ignores_private_notes():
+def test_chatwoot_webhook_ignores_private_notes(monkeypatch):
+    monkeypatch.setattr("app.main.CHATWOOT_WEBHOOK_SECRET", "")
     with patch("app.main.process_turn") as mock_process:
         response = _client().post(
             "/chatwoot/webhook",

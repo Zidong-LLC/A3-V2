@@ -50,6 +50,10 @@ CHATWOOT_URL = os.environ.get("CHATWOOT_URL", "").rstrip("/")
 CHATWOOT_ACCOUNT_ID = os.environ.get("CHATWOOT_ACCOUNT_ID", "")
 CHATWOOT_API_TOKEN = os.environ.get("CHATWOOT_API_TOKEN", "")
 CHATWOOT_AGENT_BOT_TOKEN = os.environ.get("CHATWOOT_AGENT_BOT_TOKEN", "")
+# Secreto del webhook de Chatwoot (tapón #3 de WhatsApp): Chatwoot no firma los webhooks
+# de agent bot, así que el secreto viaja en la URL (?token=...). Con la variable seteada
+# el endpoint rechaza todo lo que no lo traiga; vacía = modo abierto SOLO para desarrollo.
+CHATWOOT_WEBHOOK_SECRET = os.environ.get("CHATWOOT_WEBHOOK_SECRET", "")
 CHATWOOT_INBOX_ID = os.environ.get("CHATWOOT_INBOX_ID", "")
 CHATWOOT_TEAM_CONTABILIDAD = os.environ.get("CHATWOOT_TEAM_CONTABILIDAD", "")
 CHATWOOT_TEAM_OPERACIONES = os.environ.get("CHATWOOT_TEAM_OPERACIONES", "")

@@ -15,7 +15,7 @@ from flask import (
 from datetime import datetime, timedelta
 
 from app.config import ANARVET_ENABLED, APP_TIMEZONE
-from app.services import db, portal_db, storage, telegram
+from app.services import chatwoot, db, portal_db, storage, telegram
 from app.services.db import find_clients_by_tax_id, get_client_by_id
 
 dashboard_results = Blueprint("dashboard_results", __name__)
@@ -106,13 +106,17 @@ def _publish_and_notify(result: dict) -> None:
         result["client_id"], "result_published", title, body, result_id=result["id"]
     )
     try:
-        chat_id = portal_db.telegram_chat_for_client(result["client_id"])
-        if chat_id:
-            telegram.send_message(
-                chat_id,
-                f"A3 Laboratorio: el resultado de {result.get('patient_name') or 'su paciente'}"
-                f" (orden {result.get('order_number') or 's/n'}) ya está disponible en el portal.",
-            )
+        vinculo = portal_db.chat_for_client(result["client_id"])
+        if vinculo:
+            chat_id, canal = vinculo
+            aviso = (f"A3 Laboratorio: el resultado de {result.get('patient_name') or 'su paciente'}"
+                     f" (orden {result.get('order_number') or 's/n'}) ya está disponible en el portal.")
+            # El transporte según el canal de la sesión: whatsapp y chatwoot-web viajan
+            # ambos por Chatwoot (tapón #2 de WhatsApp — antes solo avisaba a Telegram).
+            if canal == "telegram":
+                telegram.send_message(chat_id, aviso)
+            else:
+                chatwoot.send_message(chat_id, aviso)
     except Exception:
         pass
 

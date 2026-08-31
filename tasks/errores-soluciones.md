@@ -4629,3 +4629,37 @@ puede bajar al subir el tramo»).
   mismo chat caen en procesos distintos y el debounce se rompe. Los turnos del agente corren
   en threads propios, no ocupan los 8 de la web.
 - **Rastro del estres:** 192 mensajes y 24 sesiones de prueba borrados; 0 ordenes creadas.
+
+---
+
+## ERR-177 — Los 3 tapones de WhatsApp, destapados (auditoria total pre-lanzamiento)
+
+- **Fecha:** 2026-08-31 · **Estado:** RESUELTO
+- **Contexto:** la secuencia de cierre acordada con A3 (llamada 9) termina conectando el
+  numero de WhatsApp de la empresa via Chatwoot — y al conectarlo A3 cancela LiveConnect.
+  La auditoria del canal encontro 3 tapones nuestros que lo impedian:
+  1. **El CHECK de `requests.entry_channel` solo admitia "telegram"** y el codigo reetiquetaba
+     cualquier canal. Migracion 031 aplicada (telegram|chatwoot|whatsapp|manual|portal) y
+     `_ALLOWED_ENTRY_CHANNELS` ampliado: la columna deja de mentir.
+  2. **El aviso de "resultado disponible" solo salia por Telegram** (`telegram_chat_for_client`
+     filtraba channel=telegram): un cliente de WhatsApp no recibia NADA. Ahora
+     `portal_db.chat_for_client` devuelve (chat, canal) de la sesion mas reciente y el aviso
+     viaja por Telegram o Chatwoot segun corresponda.
+  3. **El webhook de Chatwoot no validaba nada** (cualquier POST anonimo entraba al agente).
+     Chatwoot no firma los webhooks de agent bot, asi que el secreto viaja en la URL:
+     `CHATWOOT_WEBHOOK_SECRET` (nueva env var, en .env y .env.example) y el endpoint
+     rechaza con 403 lo que no lo traiga. De paso, `POST /setup-webhook` (que permitia a
+     cualquiera re-apuntar el bot) ahora exige el secreto de Telegram.
+- **Deteccion del canal:** el payload de Chatwoot trae el tipo de inbox
+  (`conversation.channel`, p. ej. "Channel::Whatsapp"): la sesion y la orden quedan
+  marcadas `whatsapp`, y el transporte (respuestas y PDFs) sigue siendo Chatwoot.
+  `session["channel"]` solo etiqueta — verificado que nada lo usa para elegir transporte.
+- **Verificacion:** 10 tests nuevos (`tests/test_canales_whatsapp.py`) + 6 actualizados al
+  comportamiento nuevo; smoke real: webhook sin token 403, con token 200, setup-webhook 403.
+  Suite **1495 passed**.
+- **Dudas de la decision 010 cerradas de paso:** `SUPABASE_ANON_KEY` no la usa nadie (el
+  portal entra con nombre+NIT) — no hace falta en Render; `PORTAL_RESULTS_BUCKET` tiene
+  default sano ("lab-results") en codigo.
+- **Lo que queda para encender WhatsApp** (no es codigo): la cuenta de WhatsApp Business de
+  Meta + el numero de A3 conectados como inbox de Chatwoot, y probar la cadena completa
+  ANTES de cancelar LiveConnect.

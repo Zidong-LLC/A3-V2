@@ -103,8 +103,8 @@ def test_publish_notifies_and_sends_telegram():
          patch("app.dashboard_results.portal_db.publish_lab_result",
                return_value={**result_row, "published": True}), \
          patch("app.dashboard_results.portal_db.insert_notification") as mock_notif, \
-         patch("app.dashboard_results.portal_db.telegram_chat_for_client",
-               return_value="12345"), \
+         patch("app.dashboard_results.portal_db.chat_for_client",
+               return_value=("12345", "telegram")), \
          patch("app.dashboard_results.telegram.send_message") as mock_tg:
         response = client.post(f"/resultados/{RESULT_ID}/publicar")
     assert response.status_code == 302
@@ -123,7 +123,7 @@ def test_publish_survives_telegram_failure():
          patch("app.dashboard_results.portal_db.publish_lab_result",
                return_value={**result_row, "published": True}), \
          patch("app.dashboard_results.portal_db.insert_notification"), \
-         patch("app.dashboard_results.portal_db.telegram_chat_for_client",
+         patch("app.dashboard_results.portal_db.chat_for_client",
                side_effect=RuntimeError("red caída")):
         response = client.post(f"/resultados/{RESULT_ID}/publicar")
     assert response.status_code == 302

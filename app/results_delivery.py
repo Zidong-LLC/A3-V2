@@ -13,7 +13,8 @@ logger = logging.getLogger(__name__)
 
 
 def _send(channel: str, chat_id: str, filename: str, content: bytes, caption: str) -> None:
-    if channel == "chatwoot":
+    # WhatsApp entra y sale por Chatwoot: mismo transporte, distinto canal de origen.
+    if channel in ("chatwoot", "whatsapp"):
         chatwoot.send_document(chat_id, filename, content, caption)
     else:
         telegram.send_document(chat_id, filename, content, caption)

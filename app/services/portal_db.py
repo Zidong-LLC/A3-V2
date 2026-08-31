@@ -209,17 +209,24 @@ def get_request_by_order_number(order_number: str) -> dict | None:
     return result.data[0] if result.data else None
 
 
-def telegram_chat_for_client(client_id: str) -> str | None:
-    """Chat de Telegram vinculado al cliente (para avisos de resultados)."""
+def chat_for_client(client_id: str) -> tuple[str, str] | None:
+    """(chat_id, canal) de la sesión más reciente del cliente, para avisos de resultados.
+
+    Antes filtraba `channel = "telegram"`: un cliente que escribe por Chatwoot (web o
+    WhatsApp) no recibía NINGÚN aviso — era el tapón #2 de WhatsApp. El canal devuelto
+    decide el transporte del aviso; whatsapp viaja por Chatwoot."""
     result = (
         _client.table("telegram_sessions")
-        .select("external_chat_id")
+        .select("external_chat_id, channel")
         .eq("client_id", client_id)
-        .eq("channel", "telegram")
+        .order("updated_at", desc=True)
         .limit(1)
         .execute()
     )
-    return result.data[0]["external_chat_id"] if result.data else None
+    if not result.data:
+        return None
+    row = result.data[0]
+    return row["external_chat_id"], (row.get("channel") or "telegram")
 
 @_safe(lambda: None)
 def unpublish_lab_result(result_id: str) -> dict | None:

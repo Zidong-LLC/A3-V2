@@ -284,9 +284,9 @@ def test_create_request_persists_adjusted_profile_payload(monkeypatch):
     )
 
     assert result["request_id"] == "req-profile-1"
-    # La columna entry_channel usa un valor admitido por el check constraint de la BD
-    # (hoy solo "telegram"); el canal real del agente (Chatwoot) se conserva en el evento.
-    assert inserted_requests[0]["entry_channel"] == "telegram"
+    # Desde la migración 031 el CHECK admite chatwoot y whatsapp: la columna conserva
+    # el canal real (tapon #1 de WhatsApp) en vez de reetiquetar a "telegram".
+    assert inserted_requests[0]["entry_channel"] == "chatwoot"
     event_payload = inserted_events[0]["event_payload"]
     assert event_payload["source"] == "chatwoot"
     profile = event_payload["profile"]

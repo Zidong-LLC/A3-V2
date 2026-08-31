@@ -2258,9 +2258,10 @@ def update_request_status(
 # que hoy solo admite "telegram". El cliente entra por Telegram aunque el agente opere vía
 # Chatwoot, así que el valor en la columna se mantiene dentro de lo permitido y el canal real
 # del agente se preserva en el event_payload (source). Sin esto, cerrar una orden por Chatwoot
-# lanzaba APIError 23514 y el turno final no respondía. Para distinguir Chatwoot también en la
-# columna, migrar el constraint (db/migrations) y agregar "chatwoot" aquí.
-_ALLOWED_ENTRY_CHANNELS = {"telegram"}
+# lanzaba APIError 23514 y el turno final no respondía. La migración 031 amplió el CHECK:
+# la columna ya distingue chatwoot y whatsapp (tapón #1 para conectar el número de A3).
+# Un canal desconocido sigue cayendo a "telegram" para no romper el insert.
+_ALLOWED_ENTRY_CHANNELS = {"telegram", "chatwoot", "whatsapp"}
 
 
 def create_request(chat_id: str, session: dict, ai_response: dict,

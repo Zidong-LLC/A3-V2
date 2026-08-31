@@ -2,7 +2,7 @@ import secrets
 import time
 from flask import Flask, request, jsonify, abort, session
 from app.config import (
-    TELEGRAM_WEBHOOK_SECRET, FLASK_SECRET_KEY, APP_ENV,
+    TELEGRAM_WEBHOOK_SECRET, CHATWOOT_WEBHOOK_SECRET, FLASK_SECRET_KEY, APP_ENV,
     MESSAGE_DEBOUNCE_SECONDS, MESSAGE_DEBOUNCE_MAX_WAIT,
 )
 from app.agent import process_turn
@@ -138,6 +138,10 @@ def _process_telegram(chat_id: str, user_text: str) -> None:
 
 @app.route("/chatwoot/webhook", methods=["POST"])
 def chatwoot_webhook():
+    # Chatwoot no firma los webhooks de agent bot: el secreto viaja en la URL
+    # (?token=...) y se configura en el webhook del bot. Tapón #3 de WhatsApp.
+    if CHATWOOT_WEBHOOK_SECRET and request.args.get("token", "") != CHATWOOT_WEBHOOK_SECRET:
+        abort(403)
     data = request.get_json(force=True, silent=True) or {}
 
     if data.get("event") != "message_created":
@@ -153,15 +157,21 @@ def chatwoot_webhook():
     if not content or not conversation_id:
         return jsonify({"ok": True})
 
-    app.logger.info("chatwoot_webhook: conv=%s content=%r", conversation_id, content[:80])
+    # El transporte siempre es Chatwoot; el canal de ORIGEN distingue WhatsApp del chat
+    # web para que requests.entry_channel no mienta (migración 031). El payload trae el
+    # tipo del inbox en conversation.channel (p. ej. "Channel::Whatsapp").
+    canal_inbox = str((data.get("conversation") or {}).get("channel") or "").lower()
+    canal = "whatsapp" if "whatsapp" in canal_inbox else "chatwoot"
+
+    app.logger.info("chatwoot_webhook: conv=%s canal=%s content=%r", conversation_id, canal, content[:80])
     _debouncer.submit(f"chatwoot:{conversation_id}", content,
-                      lambda combined: _process_chatwoot(conversation_id, combined))
+                      lambda combined: _process_chatwoot(conversation_id, combined, canal))
     return jsonify({"ok": True})
 
 
-def _process_chatwoot(conversation_id: str, content: str) -> None:
+def _process_chatwoot(conversation_id: str, content: str, canal: str = "chatwoot") -> None:
     try:
-        reply = process_turn(conversation_id, content, on_progress=_make_progress_callback(chatwoot, conversation_id), channel="chatwoot")
+        reply = process_turn(conversation_id, content, on_progress=_make_progress_callback(chatwoot, conversation_id), channel=canal)
     except Exception as e:
         app.logger.error("Error en process_turn chatwoot %s: %s", conversation_id, e, exc_info=True)
         return
@@ -175,22 +185,28 @@ def _process_chatwoot(conversation_id: str, content: str) -> None:
     try:
         chatwoot.send_message(conversation_id, reply)
         app.logger.info("chatwoot_webhook: mensaje enviado OK conv=%s", conversation_id)
-        session = get_or_create_session(conversation_id, channel="chatwoot")
+        session = get_or_create_session(conversation_id, channel=canal)
         if session.get("requires_handoff") and session.get("handoff_area"):
             chatwoot.assign_team(conversation_id, session["handoff_area"])
     except Exception as e:
         app.logger.error("Error enviando a chatwoot %s: %s", conversation_id, e, exc_info=True)
 
-    # Resultados pedidos por chat: el PDF va después del texto (paso 3.4a).
+    # Resultados pedidos por chat: el PDF va después del texto (paso 3.4a). Se pasa el
+    # canal DETECTADO (whatsapp|chatwoot) para no pisar el de la sesión; el transporte
+    # es Chatwoot en ambos casos.
     try:
-        deliver_pending(conversation_id, channel="chatwoot")
+        deliver_pending(conversation_id, channel=canal)
     except Exception as e:
         app.logger.error("Error entregando resultados a chatwoot %s: %s", conversation_id, e)
 
 
 @app.route("/setup-webhook", methods=["POST"])
 def setup_webhook():
-    from app.config import TELEGRAM_WEBHOOK_URL, TELEGRAM_WEBHOOK_SECRET
+    # Reconfigura el webhook de Telegram: exige el MISMO secreto del webhook como
+    # autorización — antes cualquiera podía re-apuntar el bot (hueco de la auditoría).
+    if request.headers.get("X-Telegram-Bot-Api-Secret-Token", "") != TELEGRAM_WEBHOOK_SECRET:
+        abort(403)
+    from app.config import TELEGRAM_WEBHOOK_URL
     result = telegram.set_webhook(TELEGRAM_WEBHOOK_URL, TELEGRAM_WEBHOOK_SECRET)
     return jsonify(result)
 
