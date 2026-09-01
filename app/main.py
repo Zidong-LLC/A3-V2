@@ -6,6 +6,7 @@ from app.config import (
     MESSAGE_DEBOUNCE_SECONDS, MESSAGE_DEBOUNCE_MAX_WAIT,
 )
 from app.agent import process_turn
+from app.alerts import notify_error
 from app.results_delivery import deliver_pending
 from app.health import check_all
 from app.services import telegram, chatwoot
@@ -36,6 +37,19 @@ app.register_blueprint(dashboard_anarvet)
 app.register_blueprint(dashboard_agenda)
 app.register_blueprint(dashboard_import)
 app.register_blueprint(portal_bp)
+
+
+@app.errorhandler(Exception)
+def _avisar_error_no_manejado(exc):
+    """Cualquier error no manejado de la web (dashboard, portal, API) avisa y sigue
+    su curso normal: Flask devuelve el 500 como siempre, pero no pasa inadvertido.
+    Las respuestas HTTP normales (404, 403, redirects) NO son errores: se dejan pasar."""
+    from werkzeug.exceptions import HTTPException
+
+    if isinstance(exc, HTTPException):
+        return exc
+    notify_error("web", exc, f"{request.method} {request.path}")
+    raise exc
 
 
 @app.before_request
@@ -118,6 +132,8 @@ def _process_telegram(chat_id: str, user_text: str) -> None:
         reply = process_turn(chat_id, user_text, on_progress=_make_progress_callback(telegram, chat_id), channel="telegram")
     except Exception as e:
         app.logger.error("Error processing turn for %s: %s", chat_id, e, exc_info=True)
+        # El cliente se quedó sin respuesta: es el fallo que hay que ver enseguida.
+        notify_error("turno de Telegram", e, f"chat {chat_id}")
         return
 
     # reply None: sesión bloqueada (cliente final). No se responde.
@@ -174,6 +190,7 @@ def _process_chatwoot(conversation_id: str, content: str, canal: str = "chatwoot
         reply = process_turn(conversation_id, content, on_progress=_make_progress_callback(chatwoot, conversation_id), channel=canal)
     except Exception as e:
         app.logger.error("Error en process_turn chatwoot %s: %s", conversation_id, e, exc_info=True)
+        notify_error(f"turno de {canal}", e, f"conversación {conversation_id}")
         return
 
     app.logger.info("chatwoot_webhook: conv=%s reply=%r", conversation_id, (reply or "")[:120])

@@ -122,3 +122,16 @@ queda marcada `whatsapp` en `entry_channel`.
 | El check `anarvet` da error | IP de Render no autorizada por Anarvet |
 | El PDF falla | El tag de la imagen no coincide con la versión de playwright |
 | Build en verde pero revienta al usar el PDF | Runtime nativo en vez de Docker |
+
+## Avisos de error a Telegram
+
+Con `ADMIN_TELEGRAM_CHAT_ID` configurado, un error que deja a un cliente sin respuesta
+—o un 500 en el dashboard/portal— llega como mensaje al chat del responsable técnico,
+con el tipo de error y dónde ocurrió. Nunca viaja contenido de la conversación.
+
+Anti-spam: cada tipo de error avisa una vez cada 15 minutos y el siguiente mensaje
+informa cuántas veces se repitió mientras tanto. Sin esto, una caída de la base
+mandaría cientos de mensajes y Telegram cortaría el bot.
+
+**Para obtener el chat_id**: escribirle una vez al bot desde el Telegram personal y
+buscar el `external_chat_id` de esa sesión en `telegram_sessions`.

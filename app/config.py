@@ -35,6 +35,9 @@ CONVENIO_LABELS: tuple[str, ...] = (
 
 FLASK_SECRET_KEY = os.environ["FLASK_SECRET_KEY"]
 APP_ENV = os.environ.get("APP_ENV", "production")
+# Chat de Telegram del responsable técnico: ahí llegan los avisos de error en producción
+# (app/alerts.py). Vacío = sin avisos, que es lo correcto en local.
+ADMIN_TELEGRAM_CHAT_ID = os.environ.get("ADMIN_TELEGRAM_CHAT_ID", "")
 
 # Ráfagas de mensajes (ERR-065): segundos que se espera a que el cliente termine de
 # escribir antes de procesar TODOS sus mensajes juntos como uno solo. 0 = apagado
