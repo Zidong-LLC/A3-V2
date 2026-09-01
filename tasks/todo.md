@@ -1533,3 +1533,20 @@ ajustes → Anarvet → WhatsApp → lanzamiento → semana de testeo.
       2026-08-31). La clave solo circuló entre el dueño y el otro desarrollador del
       proyecto, ambos autorizados: no hubo exposición a terceros. Se retira el pendiente
       del runbook territorial-zones.
+
+---
+
+## Revisión de terceros de Anarvet aplicada (2026-08-31, "Revision Terceros Laberit.xlsx")
+
+- [x] **15 mapeos aplicados** con la respuesta de A3 (match manual con auditoría) + 2 que el
+      automatch ya tenía. De 3.658 informes sin dueño quedan **232**.
+- [x] **3 bajas instruidas por A3**: los 2 Zoopecas con NIT 1094246715 (queda la SAS) y
+      Veterinaria El Imperio NIT 1012403303 (queda la SAS).
+- [x] **Piscis**: mapeado a la persona jurídica (Piscis Veterinaria SAS). A3 preguntó cómo
+      manejar el paso de natural a jurídica → respuesta propuesta: el histórico queda en la
+      natural, lo nuevo entra a la SAS; si quieren, la natural se desactiva.
+- [ ] **Quedan 2 códigos sin respuesta de A3**: 907 Consultorio Veterinario Coral y
+      842 Angie Lorena Galvis Ramirez (232 informes). Reclamarlos con el acta.
+- [ ] **Anotación para el futuro**: cuando el espejo traiga el código "Centro Medico
+      Veterinario Los Andes", corresponde al cliente "CMV Los Andes" (aclarado por A3;
+      el automatch no lo va a emparejar solo porque la sigla no matchea).
