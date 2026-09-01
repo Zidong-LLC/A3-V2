@@ -4,14 +4,19 @@
 
 ---
 
-## ⛔ Entorno de pruebas y datos (NO NEGOCIABLE)
+## ⛔ Cuenta real de Alegra y datos (NO NEGOCIABLE)
 
 > Leer `docs/guardrails-entorno-y-datos.md` antes de tocar facturación o datos.
-> - **TODO es prueba: NUNCA emitir facturas reales a la DIAN ni facturar a un cliente real
->   con datos de prueba.** En Alegra solo se crean BORRADORES en la cuenta de pruebas; no
->   crear facturas (ni borrador) sin avisar antes. Verificar en solo lectura.
-> - **La base ya existe y está completa** (Supabase, ~800 clientes con NIT, catálogo con
->   precios reales). Verificar antes de asumir que falta un dato. Credenciales solo en `.env`.
+> - **Alegra apunta a la CUENTA REAL del cliente** (desde 2026-08-27). **NUNCA emitir a la
+>   DIAN**: la plataforma solo crea BORRADORES y A3 los revisa y emite desde Alegra.
+>   `ALEGRA_PRODUCTION=false`. No crear facturas ni contactos sin avisar antes; verificar en
+>   solo lectura. No borrar ni modificar lo que ya existe en la cuenta.
+> - **A nombre de quién factura** lo decide `clients.electronic_invoice`: si es `false`, va a
+>   Consumidor Final con el nombre en las notas (`app/billing.py::invoice_target`).
+> - **La base ya existe y está completa** (Supabase, 1.013 clientes, catálogo con precios
+>   reales, 41.296 informes de Anarvet en el espejo). Verificar antes de asumir que falta un dato. Los
+>   datos transaccionales de prueba se limpiaron el 2026-08-27 (respaldo en `data/backups/`).
+>   Credenciales solo en `.env`.
 
 ---
 
@@ -112,7 +117,7 @@ El agente hace exactamente 4 cosas:
 ### Stack (no cambiar)
 - Python 3.12+ + Flask
 - Supabase (PostgreSQL) — modelo de datos existente, no modificar
-- OpenAI API (gpt-5.5)
+- OpenAI API (gpt-5.4-mini)
 - Telegram Bot API + Chatwoot Agent Bot
 - Render
 
@@ -134,10 +139,15 @@ app/services/        — ai.py, db.py, telegram.py, chatwoot.py
 4. Contabilidad: siempre escala
 5. Identificar al cliente antes de registrar cualquier solicitud
 
-### Fuera de alcance V1
-Envío PDFs, workflow contabilidad, dashboard, WhatsApp, audio/voz.
-Anarvet: la Fase 1 (espejo de lectura, decisión 013) ya está en curso; la consulta
-de resultados por chat sigue fuera de alcance hasta su propia fase.
+### Alcance vigente (actualizado 2026-08-31)
+Dentro y FUNCIONANDO: dashboard operativo completo (11 secciones), portal de clientes,
+espejo de Anarvet (decisión 013), consulta de resultados por chat CON envío del PDF,
+avisos automáticos (motorizado por Chatwoot, cliente por su canal) y facturación en
+borradores por pedido. WhatsApp: el código está listo (migración 031, ERR-177); solo
+falta la cuenta Business de A3 y conectar el número a Chatwoot.
+Fuera de alcance: workflow de contabilidad automatizado (emisión DIAN), pasarela de
+pago, adjuntos en el chat, audio/voz, roles adicionales (decisiones del 27-28/08,
+comunicadas en el acta data/acta-cierre-a3-20260831.pdf).
 
 ---
 

@@ -6,24 +6,28 @@
 
 ---
 
-## 1. TODO ES UN ENTORNO DE PRUEBAS — nunca emitir facturas reales
+## 1. CUENTA REAL DE ALEGRA — solo BORRADORES, nunca emitir a la DIAN
 
-**Estamos desarrollando y probando.** Por lo tanto:
+**Desde el 2026-08-27 el `.env` apunta a la cuenta REAL del cliente**
+(`laboratorioveterinarioa3@gmail.com` — empresa «A3 LABORATORIO CLINICO VETERINARIO SAS»,
+NIT 900296338, Colombia, Responsable de IVA). Todo lo que se cree ahí lo ve el contador de
+A3 y convive con sus 660+ facturas reales. Por eso:
 
-- **NUNCA emitir una factura electrónica real a la DIAN** con los ejemplos o pruebas que
-  hacemos. La emisión electrónica DIAN (Fase 3, ver `docs/decisions/009`) **no está
-  conectada y no debe activarse** durante las pruebas.
-- **NUNCA generar una factura real a un cliente** con datos de prueba/falsos.
-- Las facturas que se crean en estas pruebas son **solo BORRADOR** en la **cuenta de
-  pruebas** de Alegra. Protección técnica: `app/services/alegra.py::create_invoice` se
-  llama **sin `status`**, así Alegra la deja en borrador y no la emite. No agregar `status`
-  de emisión en pruebas.
-- **No crear facturas (ni borrador) "porque sí".** Para verificar, usar **solo lectura**
-  (consultar lo que ya existe). Si hace falta probar el camino de escritura, **avisar antes**
-  y siempre contra la cuenta de pruebas.
-- La cuenta de pruebas Alegra hoy: empresa **"Ejemplo"**, versión **colombia**, token del
-  `.env` (`ALEGRA_EMAIL` / `ALEGRA_API_TOKEN`). Migrar a la cuenta real del cliente se hace
-  cambiando solo esas variables en `.env`, y recién ahí se evalúa habilitar emisión real.
+- **NUNCA emitir una factura electrónica a la DIAN desde la plataforma.** `ALEGRA_PRODUCTION`
+  queda en `false`. Protección técnica: `app/services/alegra.py::create_invoice` se llama
+  **sin `status`**, así Alegra la deja en BORRADOR. **No agregar un `status` de emisión.**
+  Quien emite es A3, revisando el borrador desde Alegra.
+- **No crear facturas ni contactos «porque sí».** Para verificar, usar **solo lectura**
+  (`ping`, `/company`, listar contactos/ítems/facturas). Si hace falta probar el camino de
+  escritura, **avisar antes y esperar el OK** — cada borrador queda en la cuenta del cliente.
+- **No borrar ni modificar nada que ya exista en Alegra** (contactos, ítems, facturas):
+  el catálogo y los contactos del cliente ya están cargados ahí desde antes.
+- **A nombre de quién sale la factura** lo decide `clients.electronic_invoice`
+  (migración 028): `true` → al NIT y razón social del cliente; `false` → al contacto
+  genérico **Consumidor Final** (id=1, identificación 222222222222) con el nombre de la
+  veterinaria o el médico en las **notas** (`anotation`). La regla vive en
+  `app/billing.py::invoice_target`. **No facturar todo a Consumidor Final**: era el problema
+  que A3 pidió corregir.
 
 ---
 

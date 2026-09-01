@@ -23,7 +23,7 @@ El bot hace exactamente 4 cosas:
 ```
 Backend:       Python 3.12+ + Flask
 Base de datos: Supabase (PostgreSQL) — modelo existente, no modificar esquema
-IA:            OpenAI API — gpt-5.5
+IA:            OpenAI API — gpt-5.4-mini
 Mensajería:    Telegram Bot API + Chatwoot Agent Bot (webhooks)
 Infra:         Render
 ```
@@ -145,15 +145,19 @@ Error: `error_pending_assignment` (cliente sin motorizado)
 
 ---
 
-## Fuera de alcance V1
+## Alcance vigente (actualizado 2026-08-31)
 
-- Integración Anarvet — la Fase 1 (espejo de lectura, decisión 013) ya está en curso;
-  la consulta de resultados por chat sigue fuera de alcance hasta su propia fase
-- Envío automático de PDFs
-- Workflow contabilidad automatizado
-- Dashboard operativo
-- WhatsApp
+Dentro y FUNCIONANDO: dashboard operativo completo, portal de clientes, espejo de
+Anarvet (decisión 013), consulta de resultados por chat con envío del PDF, avisos
+automáticos y facturación en borradores por pedido. WhatsApp: código listo
+(migración 031, ERR-177); falta solo la cuenta Business de A3.
+
+Fuera de alcance (decisiones del 27-28/08, comunicadas en el acta):
+- Workflow contabilidad automatizado (emisión DIAN)
+- Pasarela de pago en línea
+- Adjuntos/soportes por el chat
 - Audio/voz
+- Roles adicionales (los motorizados no ingresan: reciben avisos por su chat)
 
 ---
 

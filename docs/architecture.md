@@ -143,7 +143,7 @@ any → cancelled
 
 ### Consulta de resultados
 1. Usuario elige la opción 2 o pide resultados/estado de muestra.
-2. V1 responde un mensaje fijo indicando que la consulta todavía no está disponible por este medio.
+2. la consulta de resultados busca el informe publicado del cliente y ENVÍA el PDF por el chat (app/results_lookup.py + app/results_delivery.py); si la búsqueda falla, cae al mensaje fijo por este medio.
 3. No pide NIT, dirección ni datos del paciente para este flujo hasta que exista integración de resultados.
 
 ### Escalado (pagos / cliente nuevo)

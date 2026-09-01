@@ -8,7 +8,7 @@
 > **Regla de oro:** un paso aprobado no se rediseña como efecto colateral de arreglar otro.
 > Si arreglar un bug obliga a tocar un paso aprobado, PARAR y avisar primero.
 
-**Última actualización:** 2026-06-22
+**Última actualización:** 2026-08-31
 **Rama:** `fix/agente-robustez-multiorden`
 
 ---
@@ -253,8 +253,9 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
   `telegram.send_document`, `chatwoot.send_document`.
 - **Regla dura:** el `client_id` sale SIEMPRE de la sesión, nunca del mensaje. Se verifica dos
   veces, al buscar y antes de enviar: el cliente solo recibe lo suyo, y solo lo publicado.
-- **Estado:** ⏳ POR CONFIRMAR — reescrito el 2026-08-28 con OK explícito del usuario. Antes
-  era un mensaje fijo de "no disponible por este medio".
+- **Estado:** ⏳ POR CONFIRMAR (aprobación del usuario) — reescrito el 2026-08-28 con OK
+  explícito. Validado E2E el 2026-08-31 contra datos reales: el cliente pidió su resultado,
+  el bot lo encontró y el PDF salió por el chat (ERR-170); falta la prueba por Telegram real.
 
 ### B16 · Opción 3 · Pagos → Contabilidad
 - **Qué hace:** deriva siempre a Contabilidad.
@@ -363,3 +364,14 @@ quedar junto a `pickup_address` tras un cambio de cliente, y el orden de las pal
 
 **Verificado:** 551 tests en verde; 32/35 con modelo real, el mismo puntaje que las dos
 corridas previas al fix. **Pendiente:** validación en vivo por Telegram.
+
+
+---
+
+## Cambio aprobado 2026-08-31 — Bloqueo del cliente maestro (ERR-178)
+
+Decisión del usuario (pedido de A3 en la llamada 7): con una orden en curso o un pedido
+abierto, cambiar de veterinaria se BLOQUEA con un mensaje claro («cerramos primero este
+pedido…») y nada se descarta. Sin nada cargado, el cambio re-identifica como siempre.
+El cambio de SEDE (B-L) no se tocó. Toca B2/B12; implementado en
+`_restart_identification_for_new_client` con 3 tests nuevos y 6 actualizados.

@@ -22,7 +22,7 @@
 
 ## 2. Para qué sirve el agente
 
-El agente atiende a los clientes de A3 por **Telegram** (y en futuro WhatsApp conectado a chatwoot). No reemplaza al equipo; filtra y gestiona lo que puede resolver solo, y escala lo que no puede.
+El agente atiende a los clientes de A3 por **Telegram y Chatwoot** (WhatsApp: código listo desde la migración 031; falta conectar la cuenta Business de A3). No reemplaza al equipo; filtra y gestiona lo que puede resolver solo, y escala lo que no puede.
 
 ### Cuatro cosas que el agente hace (y solo cuatro)
 
@@ -360,11 +360,14 @@ Antes de considerar el agente listo, estos deben pasar:
 
 ---
 
-## 14. Lo que NO incluir en V1 del nuevo agente
+## 14. Alcance — actualizado 2026-08-31
 
-- Integración con Anarvet (fuera de alcance)
-- Envío automático de PDFs de resultados (fuera de alcance)
-- Workflow de contabilidad automatizado (fuera de alcance)
-- Dashboard operativo (separar en otro proyecto o agregar después)
-- WhatsApp (primero estabilizar Telegram)
-- Soporte de audio/voz (agregar después si se necesita)
+Lo que la sección original excluía de V1 y HOY ya está dentro y funcionando:
+- Integración con Anarvet (espejo de lectura, decisión 013; 41.296 informes)
+- Envío del PDF de resultados por el chat (results_lookup + results_delivery)
+- Dashboard operativo completo (11 secciones) y portal de clientes
+- WhatsApp: el código está listo (migración 031); falta la cuenta Business de A3
+
+Sigue fuera de alcance (decisiones del 27-28/08, comunicadas en el acta):
+- Workflow de contabilidad automatizado (emisión DIAN; hoy solo borradores)
+- Pasarela de pago en línea, adjuntos por el chat, audio/voz, roles adicionales

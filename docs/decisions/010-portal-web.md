@@ -1,7 +1,7 @@
 # 010 — Portal Web de clientes + módulo Resultados en el dashboard
 
 **Fecha:** 2026-07-06 (revisada el mismo día: el portal queda SOLO para clientes)
-**Estado:** Implementado (pendiente de aplicar migración 015 y configurar SUPABASE_ANON_KEY)
+**Estado:** Implementado y en uso. (Nota 2026-08-31: `SUPABASE_ANON_KEY` quedó obsoleta — el login del portal es por nombre de clínica + NIT, sin GoTrue; `PORTAL_RESULTS_BUCKET` tiene default sano en código.)
 
 ## Contexto
 
@@ -50,3 +50,32 @@ no se toca.
 - Tests: `tests/test_portal_auth.py`, `tests/test_portal_client.py`,
   `tests/test_dashboard_results.py` (aislamiento por client_id, sesiones separadas
   portal/dashboard, validación de PDF, publicación resistente a fallos de Telegram).
+
+## Actualización 2026-08-27 — el portal sale del modo demostración
+
+`PORTAL_DEMO_MODE` pasa a `false`: cada veterinaria entra con **el nombre de su clínica y su
+NIT** y ve solo lo suyo. El código de la demo se conserva (apagado) para poder mostrar el
+portal en una reunión; en producción va siempre en `false`.
+
+Qué se ajustó al destaparlo:
+
+- La sesión guarda `portal_clinic_name`. Con la demo, el menú lateral y el perfil mostraban
+  `portal_email` (`demo@a3test.com`), que con login real se borra a propósito y dejaba esos
+  dos lugares vacíos. Ahora el menú muestra la sede y el perfil, el correo real de `clients`.
+- El perfil dice explícitamente cómo se accede («Nombre de la veterinaria + NIT»), en vez de
+  hablar de un «correo de acceso» que ya no existe.
+
+**Quiénes quedan fuera:** los **161 clientes activos sin NIT** (19% de 842) no pueden entrar,
+porque el NIT es la llave. Se exportan con `tools/scripts/export_clientes_sin_nit.py` para que
+A3 complete el dato — el mismo que hace falta para facturarles. Mientras tanto siguen pidiendo
+por Telegram, que no cambió.
+
+**Sobre el NIT como contraseña:** no es un secreto (está en las facturas y en el RUT). Es la
+decisión de acceso de A3, y el portal la protege con lo razonable: 10 intentos por IP cada 5
+minutos y un error único que no revela si un NIT existe. Si más adelante quieren cerrarlo, el
+camino natural es una clave que el laboratorio entregue al dar de alta la clínica.
+
+Verificado de punta a punta el 27/08 contra clientes reales: login correcto, nombre que no
+corresponde al NIT, NIT inexistente, NIT con dos sedes (aparece el selector y re-valida), y
+aislamiento comprobado contra la base — «Ama Tu Mascota» ve sus 6 facturas y «Zoomascotas
+Veraguas» sus 19, ninguna de la otra.

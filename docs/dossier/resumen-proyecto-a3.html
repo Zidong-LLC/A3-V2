@@ -1,0 +1,644 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>A3 Laboratorio Veterinario — Dossier de producto</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { box-sizing: border-box; }
+  :root{
+    --ink:#12211f;
+    --teal:#0d5b57;
+    --teal-2:#12817a;
+    --teal-soft:#e8f1ef;
+    --amber:#b0722a;
+    --amber-soft:#f6ecdf;
+    --paper:#ffffff;
+    --bone:#f8f6f2;
+    --line:#e2ded6;
+    --line-2:#cfc9be;
+    --muted:#6d726f;
+  }
+  html,body{ margin:0; padding:0; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+  body{
+    font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;
+    color:var(--ink); background:var(--paper);
+    font-size:9.9pt; line-height:1.46;
+  }
+  .page{
+    position:relative; width:210mm; height:297mm; padding:17mm 18mm 15mm;
+    page-break-after:always; overflow:hidden; background:var(--paper);
+  }
+  .page:last-child{ page-break-after:auto; }
+
+  /* ---------- portada ---------- */
+  .cover{ background:var(--ink); color:#f2efe9; padding:0; }
+  .cover-inner{ position:absolute; inset:0; padding:26mm 20mm; display:flex; flex-direction:column; }
+  .cover .rule{ width:52mm; height:3px; background:var(--teal-2); margin-bottom:12mm; }
+  .cover .kicker{ font-size:9pt; letter-spacing:.32em; text-transform:uppercase; color:#8fb3ae; margin-bottom:6mm; }
+  .cover h1{ font-family:Georgia,"Times New Roman",serif; font-size:40pt; line-height:1.06; margin:0 0 6mm; font-weight:400; letter-spacing:-.01em; }
+  .cover h1 em{ font-style:normal; color:#6fd0c4; }
+  .cover .lede{ font-size:12.5pt; line-height:1.55; color:#c9d6d3; max-width:130mm; }
+  .cover .spacer{ flex:1; }
+  .cover-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:6mm; border-top:1px solid #2c3f3c; padding-top:7mm; margin-bottom:9mm; }
+  .cover-grid .n{ font-family:Georgia,serif; font-size:20pt; color:#6fd0c4; display:block; line-height:1.1; }
+  .cover-grid .l{ font-size:8.2pt; color:#93a5a2; letter-spacing:.06em; text-transform:uppercase; }
+  .cover-foot{ font-size:8.6pt; color:#7d908d; border-top:1px solid #2c3f3c; padding-top:5mm; display:flex; justify-content:space-between; }
+
+  /* ---------- estructura de página ---------- */
+  .head{ display:flex; justify-content:space-between; align-items:baseline; border-bottom:1px solid var(--line); padding-bottom:2.6mm; margin-bottom:6.5mm; }
+  .head .sec{ font-size:8.4pt; letter-spacing:.22em; text-transform:uppercase; color:var(--teal); font-weight:600; }
+  .head .brand{ font-size:8.4pt; letter-spacing:.14em; text-transform:uppercase; color:var(--muted); }
+  .foot{ position:absolute; left:18mm; right:18mm; bottom:9mm; display:flex; justify-content:space-between; font-size:8pt; color:var(--muted); border-top:1px solid var(--line); padding-top:3mm; }
+
+  h2{ font-family:Georgia,serif; font-weight:400; font-size:22pt; line-height:1.14; margin:0 0 3.5mm; letter-spacing:-.01em; }
+  h3{ font-family:Georgia,serif; font-weight:400; font-size:13pt; margin:6.5mm 0 2.6mm; color:var(--teal); }
+  h4{ font-size:9.4pt; text-transform:uppercase; letter-spacing:.12em; margin:0 0 2mm; color:var(--muted); font-weight:600; }
+  p{ margin:0 0 3mm; }
+  .lead{ font-size:11pt; line-height:1.5; color:#2c3a38; margin-bottom:5mm; }
+  .muted{ color:var(--muted); }
+  strong{ font-weight:600; }
+  em.hl{ font-style:normal; background:var(--amber-soft); padding:0 .2em; }
+
+  /* ---------- componentes ---------- */
+  .cards{ display:grid; gap:4mm; }
+  .c2{ grid-template-columns:1fr 1fr; }
+  .c3{ grid-template-columns:repeat(3,1fr); }
+  .c4{ grid-template-columns:repeat(4,1fr); }
+  .card{ border:1px solid var(--line); border-radius:2mm; padding:4.4mm; background:var(--bone); }
+  .card .t{ font-family:Georgia,serif; font-size:11.5pt; color:var(--ink); margin-bottom:2mm; }
+  .card p{ font-size:9.3pt; margin:0; color:#43514e; }
+  .card .tag{ font-size:7.6pt; letter-spacing:.14em; text-transform:uppercase; color:var(--teal); font-weight:600; display:block; margin-bottom:2mm; }
+
+  .kpi{ border:1px solid var(--line); border-top:3px solid var(--teal); border-radius:1mm; padding:4mm; background:#fff; }
+  .kpi .n{ font-family:Georgia,serif; font-size:19pt; line-height:1.05; color:var(--ink); display:block; }
+  .kpi .l{ font-size:8pt; color:var(--muted); letter-spacing:.05em; margin-top:1.5mm; display:block; }
+
+  table{ width:100%; border-collapse:collapse; font-size:9.2pt; }
+  th{ text-align:left; font-size:7.8pt; letter-spacing:.13em; text-transform:uppercase; color:var(--muted); font-weight:600; border-bottom:1px solid var(--line-2); padding:0 2mm 2mm 0; }
+  td{ padding:2.1mm 2mm 2.1mm 0; border-bottom:1px solid var(--line); vertical-align:top; }
+  td.num{ font-family:Georgia,serif; color:var(--teal); white-space:nowrap; }
+  tr:last-child td{ border-bottom:none; }
+
+  ul.clean{ list-style:none; margin:0 0 4mm; padding:0; }
+  ul.clean li{ position:relative; padding-left:6mm; margin-bottom:2.2mm; font-size:9.4pt; }
+  ul.clean li:before{ content:""; position:absolute; left:0; top:2.1mm; width:2.4mm; height:2.4mm; background:var(--teal-2); border-radius:50%; }
+
+  .quote{ border-left:2px solid var(--teal-2); padding:1mm 0 1mm 5mm; font-family:Georgia,serif; font-size:12pt; line-height:1.45; color:#2c3a38; margin:6mm 0; }
+
+  .steps{ counter-reset:s; }
+  .step{ position:relative; padding-left:12mm; margin-bottom:3.4mm; }
+  .step:before{ counter-increment:s; content:counter(s,decimal-leading-zero); position:absolute; left:0; top:0; font-family:Georgia,serif; font-size:12pt; color:var(--teal-2); }
+  .step .t{ font-weight:600; font-size:9.8pt; }
+  .step p{ font-size:9.3pt; margin:.6mm 0 0; color:#4a5654; }
+
+  .tl{ position:relative; margin-top:4mm; }
+  .tl:before{ content:""; position:absolute; left:2.6mm; top:2mm; bottom:2mm; width:1px; background:var(--line-2); }
+  .tl-item{ position:relative; padding-left:12mm; margin-bottom:4.2mm; }
+  .tl-item:before{ content:""; position:absolute; left:.9mm; top:1.6mm; width:3.4mm; height:3.4mm; border-radius:50%; background:#fff; border:2px solid var(--teal-2); }
+  .tl-item .when{ font-size:7.8pt; letter-spacing:.14em; text-transform:uppercase; color:var(--amber); font-weight:600; }
+  .tl-item .what{ font-family:Georgia,serif; font-size:12pt; margin:.4mm 0 1mm; }
+  .tl-item p{ font-size:9.2pt; margin:0; color:#4a5654; }
+
+  .note{ background:var(--teal-soft); border-radius:2mm; padding:4.4mm; font-size:9.1pt; }
+  .note .t{ font-weight:600; margin-bottom:1.5mm; }
+  .split{ display:grid; grid-template-columns:1fr 1fr; gap:8mm; }
+</style>
+</head>
+<body>
+
+<!-- ============ PORTADA ============ -->
+<section class="page cover">
+  <div class="cover-inner">
+    <div class="rule"></div>
+    <div class="kicker">Dossier de producto · 2026</div>
+    <h1>La operación completa<br>de un laboratorio<br>veterinario, <em>conversada</em>.</h1>
+    <p class="lede">Una plataforma que recibe el pedido en lenguaje natural por chat, arma la orden de servicio, cotiza sobre el catálogo real, asigna el motorizado, factura y entrega los resultados. Construida sobre la operación viva de A3 Laboratorio Veterinario, en Bogotá.</p>
+    <div class="spacer"></div>
+    <div class="cover-grid">
+      <div><span class="n">992</span><span class="l">Clínicas atendidas</span></div>
+      <div><span class="n">316</span><span class="l">Análisis con precio</span></div>
+      <div><span class="n">11</span><span class="l">Campos por orden</span></div>
+      <div><span class="n">24/7</span><span class="l">Sin intervención humana</span></div>
+    </div>
+    <div class="cover-foot">
+      <span>A3 Laboratorio Veterinario · Bogotá, Colombia</span>
+      <span>Qué hace, cómo funciona y qué tan complejo es</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 1. RESUMEN ============ -->
+<section class="page">
+  <div class="head"><span class="sec">01 · Qué es</span><span class="brand">A3 · Dossier de producto</span></div>
+  <h2>Un laboratorio entero,<br>operado desde una conversación</h2>
+  <p class="lead">A3 es un laboratorio de análisis clínico veterinario en Bogotá. Sus clientes no son dueños de mascotas: son <strong>clínicas y veterinarias</strong> que envían muestras para analizar. Cerca de mil de ellas coordinan cada recogida por teléfono y por chat, y alguien tiene que transcribir a mano la orden de servicio.</p>
+  <p>Esta plataforma reemplaza ese circuito completo. Tiene tres superficies que comparten una sola base de datos y un solo motor de reglas: un <strong>agente conversacional</strong> que atiende a las veterinarias por chat, una <strong>plataforma interna</strong> donde el laboratorio ve y mueve su operación, y un <strong>portal para el cliente</strong> donde consulta resultados y pide recogidas sin escribirle a nadie.</p>
+  <p>No es un chatbot de preguntas y respuestas. El agente <em class="hl">construye documentos con consecuencias</em>: una orden de servicio de once campos, un precio calculado sobre el catálogo real con descuentos por volumen, la asignación de un mensajero, una factura electrónica en borrador. Por eso el modelo de lenguaje interpreta, pero no decide: cada dato que toca dinero, identidad del cliente o compromiso operativo pasa por reglas determinísticas escritas en código y cubiertas por pruebas.</p>
+
+  <h3>Las tres superficies</h3>
+  <div class="cards c3">
+    <div class="card">
+      <span class="tag">Canal</span>
+      <div class="t">Agente conversacional</div>
+      <p>Identifica la veterinaria, arma la orden hablando, cotiza, confirma y registra. Deriva a una persona cuando el tema no le corresponde.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Operación</span>
+      <div class="t">Plataforma interna</div>
+      <p>Ocho módulos: panel ejecutivo, operación del día, clientes, pedidos, facturación, motorizados, muestras y resultados.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Autoservicio</span>
+      <div class="t">Portal del cliente</div>
+      <p>La veterinaria entra con su nombre y NIT, pide recogidas del catálogo, sigue el avance de cada orden y descarga sus resultados.</p>
+    </div>
+  </div>
+
+  <h3>Las cuatro cosas que resuelve</h3>
+  <div class="cards c4">
+    <div class="kpi" style="border-top-color:var(--teal-2)"><span class="n" style="font-size:12pt">Recoge</span><span class="l">Programa la recogida de muestras con orden y precio</span></div>
+    <div class="kpi"><span class="n" style="font-size:12pt">Cotiza</span><span class="l">Resuelve el catálogo y aplica los descuentos que corresponden</span></div>
+    <div class="kpi"><span class="n" style="font-size:12pt">Entrega</span><span class="l">Publica los resultados al cliente sin que nadie los reenvíe</span></div>
+    <div class="kpi"><span class="n" style="font-size:12pt">Cobra</span><span class="l">Prepara la factura electrónica lista para emitir</span></div>
+  </div>
+
+  <div class="note" style="margin-top:6mm">
+    <div class="t">En una frase</div>
+    El pedido entra como llega —hablado, desordenado, a las nueve de la noche— y sale convertido en una ruta asignada, una orden numerada, un resultado publicado y una factura preparada. <strong>Sin que nadie digite nada por el camino.</strong>
+  </div>
+
+  <div class="foot"><span>A3 Laboratorio Veterinario</span><span>1</span></div>
+</section>
+
+<!-- ============ 2. PROBLEMA ============ -->
+<section class="page">
+  <div class="head"><span class="sec">02 · Qué resuelve</span><span class="brand">A3 · Dossier de producto</span></div>
+  <h2>Los seis puntos donde<br>se rompe el circuito</h2>
+  <p class="lead">Cada recogida nace como un mensaje suelto de una veterinaria y termina como una muestra procesada, un resultado entregado y una factura emitida. Entre esos dos extremos hay seis puntos que dependen de que una persona recuerde, transcriba o calcule bien — y seis respuestas del sistema.</p>
+
+  <table style="margin-top:5mm">
+    <thead><tr><th style="width:33%">El punto de fricción</th><th>Qué hace la plataforma</th></tr></thead>
+    <tbody>
+      <tr><td><strong>El pedido entra en lenguaje libre</strong><br><span class="muted">«manden por unas muestras a la sede de la 80»</span></td><td>El agente lo interpreta, reconoce de qué clínica y de qué sede se trata, y arma la estructura por dentro. Nadie transcribe.</td></tr>
+      <tr><td><strong>La orden de servicio es un papel</strong><br><span class="muted">once campos que se llenan a mano</span></td><td>Los once campos se capturan conversando, un dato por turno, y quedan guardados con consecutivo propio y versión imprimible.</td></tr>
+      <tr><td><strong>El mensajero se asigna de memoria</strong><br><span class="muted">quién cubre cada zona vive en una cabeza</span></td><td>La asignación es automática: por el motorizado fijo del cliente o por la zona de la dirección, sobre las 8 zonas y 1.649 barrios de Bogotá.</td></tr>
+      <tr><td><strong>El precio se calcula a mano</strong><br><span class="muted">316 ítems, descuentos y convenios</span></td><td>La cotización sale del catálogo real, con los descuentos por volumen aplicados y los convenios excluidos, en el mismo momento del pedido.</td></tr>
+      <tr><td><strong>Los resultados viven en otro sistema</strong><br><span class="muted">el cliente llama y alguien busca</span></td><td>Los resultados quedan publicados en el portal de cada veterinaria, con aviso, buscador y descarga individual o masiva.</td></tr>
+      <tr><td><strong>La factura se arma después, una por una</strong><br><span class="muted">tres pacientes, tres facturas</span></td><td>La factura electrónica se prepara sola desde la orden, con cada línea desglosada, lista para que una persona la revise y la emita.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="quote">Ninguno de estos problemas es de software. Son problemas de transcripción, memoria y cálculo manual — exactamente lo que un sistema hace sin cansarse, siempre que primero entienda lo que le están diciendo.</div>
+
+  <h3>Por qué no lo resuelve un portal más</h3>
+  <p>Existe software de gestión para laboratorios. Lo que no existe es software que <strong>acepte el pedido como llega</strong>. Obligar a mil veterinarias a entrar a un portal, recordar una contraseña y llenar un formulario de once campos por paciente es mover el problema de lugar: el pedido vuelve al chat, porque el chat es donde el cliente ya está. Aquí la apuesta es la inversa — el sistema se acomoda al canal del cliente y arma la estructura por dentro.</p>
+
+  <div class="foot"><span>A3 Laboratorio Veterinario</span><span>2</span></div>
+</section>
+
+<!-- ============ 3. ARQUITECTURA ============ -->
+<section class="page">
+  <div class="head"><span class="sec">03 · Cómo funciona</span><span class="brand">A3 · Dossier de producto</span></div>
+  <h2>Una sola pieza de software,<br>cuatro puertas de entrada</h2>
+  <p class="lead">Todo —el chat, la plataforma del laboratorio y el portal del cliente— corre sobre la misma aplicación y la misma base de datos. No hay sincronización entre sistemas porque no hay sistemas separados: lo que el agente registra en el chat aparece en el tablero de operación en el mismo instante.</p>
+
+  <svg viewBox="0 0 700 392" width="100%" style="margin:2mm 0 4mm">
+    <defs>
+      <marker id="ar" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto">
+        <path d="M0,0 L7,3.5 L0,7 z" fill="#9aa39f"/>
+      </marker>
+      <style>
+        .bx{fill:#f8f6f2;stroke:#d8d3ca;stroke-width:1;rx:6}
+        .bxn{fill:#12211f;stroke:#12211f;rx:6}
+        .lbl{font-family:"Segoe UI",sans-serif;font-size:12px;fill:#12211f}
+        .lbls{font-family:"Segoe UI",sans-serif;font-size:10px;fill:#6d726f}
+        .lblw{font-family:"Segoe UI",sans-serif;font-size:12px;fill:#e9efed}
+        .cap{font-family:"Segoe UI",sans-serif;font-size:9px;letter-spacing:1.6px;fill:#0d5b57;font-weight:600}
+        .ln{stroke:#9aa39f;stroke-width:1.2;fill:none}
+      </style>
+    </defs>
+
+    <text class="cap" x="0" y="12">CANALES DEL CLIENTE Y DEL EQUIPO</text>
+    <rect class="bx" x="0" y="24" width="168" height="40"/>
+    <text class="lbl" x="14" y="42">Chat directo</text><text class="lbls" x="14" y="56">la veterinaria escribe al bot</text>
+    <rect class="bx" x="0" y="72" width="168" height="40"/>
+    <text class="lbl" x="14" y="90">Chat con agente humano</text><text class="lbls" x="14" y="104">la persona toma la conversación</text>
+    <rect class="bx" x="0" y="120" width="168" height="40"/>
+    <text class="lbl" x="14" y="138">Portal del cliente</text><text class="lbls" x="14" y="152">pedidos y resultados 24/7</text>
+    <rect class="bx" x="0" y="168" width="168" height="40"/>
+    <text class="lbl" x="14" y="186">Plataforma interna</text><text class="lbls" x="14" y="200">el equipo del laboratorio</text>
+
+    <path class="ln" d="M168 44 H230" marker-end="url(#ar)"/>
+    <path class="ln" d="M168 92 H230" marker-end="url(#ar)"/>
+    <path class="ln" d="M168 140 H230" marker-end="url(#ar)"/>
+    <path class="ln" d="M168 188 H230" marker-end="url(#ar)"/>
+
+    <text class="cap" x="232" y="12">NÚCLEO DE APLICACIÓN</text>
+    <rect class="bxn" x="232" y="24" width="232" height="184"/>
+    <text class="lblw" x="248" y="48" style="font-size:13px">Turno de conversación</text>
+    <text class="lbls" x="248" y="64" style="fill:#8fa39f">identifica · captura · valida · responde</text>
+    <line x1="248" y1="76" x2="448" y2="76" stroke="#2c3f3c"/>
+    <text class="lblw" x="248" y="96">Reglas de negocio</text>
+    <text class="lbls" x="248" y="110" style="fill:#8fa39f">corte 17:30 · zona · derivaciones</text>
+    <text class="lblw" x="248" y="132">Catálogo y precios</text>
+    <text class="lbls" x="248" y="146" style="fill:#8fa39f">perfiles · análisis · descuentos</text>
+    <text class="lblw" x="248" y="168">Órdenes y facturación</text>
+    <text class="lbls" x="248" y="182" style="fill:#8fa39f">consecutivo · PDF · borrador fiscal</text>
+
+    <path class="ln" d="M464 60 H524" marker-end="url(#ar)"/>
+    <path class="ln" d="M464 116 H524" marker-end="url(#ar)"/>
+    <path class="ln" d="M464 172 H524" marker-end="url(#ar)"/>
+
+    <text class="cap" x="526" y="12">LO QUE CONSULTA AFUERA</text>
+    <rect class="bx" x="526" y="40" width="174" height="40"/>
+    <text class="lbl" x="540" y="58">Modelo de lenguaje</text><text class="lbls" x="540" y="72">interpreta, no decide</text>
+    <rect class="bx" x="526" y="96" width="174" height="40"/>
+    <text class="lbl" x="540" y="114">Facturación electrónica</text><text class="lbls" x="540" y="128">borradores para revisión</text>
+    <rect class="bx" x="526" y="152" width="174" height="40"/>
+    <text class="lbl" x="540" y="170">Sistema del laboratorio</text><text class="lbls" x="540" y="184">resultados en solo lectura</text>
+
+    <path class="ln" d="M348 208 V246" marker-end="url(#ar)"/>
+    <rect class="bx" x="0" y="252" width="700" height="76" style="fill:#e8f1ef;stroke:#a9c9c4"/>
+    <text class="cap" x="18" y="274">BASE DE DATOS ÚNICA</text>
+    <text class="lbls" x="18" y="296" style="font-size:11px;fill:#2c3a38">clientes · sedes · motorizados · zonas y barrios · sesiones de chat · solicitudes · órdenes de servicio</text>
+    <text class="lbls" x="18" y="314" style="font-size:11px;fill:#2c3a38">catálogo con precios · perfiles · razas y especies · facturas · resultados · eventos de auditoría</text>
+
+    <rect class="bx" x="0" y="344" width="700" height="44" style="fill:#fff;stroke:#e2ded6"/>
+    <text class="lbls" x="18" y="362" style="font-size:11px">Cada cambio de estado deja un evento inmutable: quién lo pidió, cuándo, por qué canal y qué se registró.</text>
+    <text class="lbls" x="18" y="378" style="font-size:11px">Eso hace la operación auditable hacia atrás — y es la base para cobrar, reclamar y medir.</text>
+  </svg>
+
+  <div class="note" style="margin-top:5mm">
+    <div class="t">La regla que ordena todo lo demás</div>
+    El agente hace cuatro cosas y solo cuatro: coordinar recogidas, informar sobre resultados, y derivar los temas de pagos y de clientes nuevos. Lo que no está en esa lista —dar de alta una clínica, resolver una discusión de cartera, dar una recomendación clínica— <strong>pasa a una persona en un solo mensaje</strong>, sin pedir datos de más. Un asistente que sabe dónde termina su alcance es lo que hace que el equipo confíe en él.
+  </div>
+
+  <div class="foot"><span>A3 Laboratorio Veterinario</span><span>3</span></div>
+</section>
+
+<!-- ============ 4. LAS FASES DEL CICLO ============ -->
+<section class="page">
+  <div class="head"><span class="sec">04 · Las fases del ciclo</span><span class="brand">A3 · Dossier de producto</span></div>
+  <h2>Cuatro fases,<br>de la muestra al cobro</h2>
+  <p class="lead">La plataforma cubre el ciclo completo de una muestra. Cada fase tiene su propia mecánica, sus propias reglas y su propio rastro auditable.</p>
+
+  <div class="tl">
+    <div class="tl-item">
+      <span class="when">Fase 1 · Captación</span>
+      <div class="what">El pedido entra y se convierte en documento</div>
+      <p>La veterinaria escribe por chat o entra al portal. El sistema la identifica contra la base, arma la orden de servicio con sus once campos, resuelve qué análisis pidió contra el catálogo real y le muestra el precio con los descuentos aplicados. Cierra con un resumen que el cliente confirma o corrige.</p>
+    </div>
+    <div class="tl-item">
+      <span class="when">Fase 2 · Logística</span>
+      <div class="what">La recogida se programa y se asigna sola</div>
+      <p>La solicitud queda registrada con su consecutivo anual y un motorizado asignado: el fijo del cliente, o el que cubre la zona de la dirección. La hora manda — después del corte de las 17:30 la recogida pasa al siguiente día hábil. El equipo lo ve en el tablero del día, con sus alertas y excepciones.</p>
+    </div>
+    <div class="tl-item">
+      <span class="when">Fase 3 · Laboratorio</span>
+      <div class="what">La muestra avanza por etapas visibles</div>
+      <p>Por recoger, recogida, recibida en laboratorio, en análisis, resultados listos, enviada. Cada movimiento queda registrado con su hora, de modo que los tiempos de respuesta se miden en lugar de estimarse. Los resultados se publican al portal de la veterinaria que los pidió.</p>
+    </div>
+    <div class="tl-item">
+      <span class="when">Fase 4 · Cobro</span>
+      <div class="what">La factura se prepara desde la orden</div>
+      <p>Perfil base, análisis agregados y descuento por volumen como línea propia, con el manejo correcto del NIT y su dígito de verificación, y a nombre de quien corresponda según el cliente. La plataforma deja el borrador; <strong>emitir es siempre decisión de una persona</strong>. El cliente ve su cartera en el portal.</p>
+    </div>
+  </div>
+
+  <div class="note">
+    <div class="t">Lo que atraviesa las cuatro fases</div>
+    Un mismo registro de cliente, un mismo catálogo, un mismo número de orden y una misma historia de eventos: responder «qué pasó con esta muestra» toma un segundo, tres semanas después.
+  </div>
+
+  <h3>La misma información, tres miradas</h3>
+  <div class="cards c3">
+    <div class="card">
+      <span class="tag">El cliente</span>
+      <div class="t">Una conversación</div>
+      <p>Ve su pedido confirmado, la fecha de recogida, el precio y sus resultados. Nunca ve códigos internos ni fases del sistema.</p>
+    </div>
+    <div class="card">
+      <span class="tag">El equipo</span>
+      <div class="t">Un tablero</div>
+      <p>Ve qué recoger hoy, quién lo tiene asignado, en qué etapa está cada muestra y qué se va a facturar — sin digitar nada.</p>
+    </div>
+    <div class="card">
+      <span class="tag">El negocio</span>
+      <div class="t">Una historia</div>
+      <p>Cada pedido queda fechado y atribuido: tiempos reales, carga por motorizado y demanda por zona.</p>
+    </div>
+  </div>
+
+  <div class="foot"><span>A3 Laboratorio Veterinario</span><span>4</span></div>
+</section>
+
+<!-- ============ 5. RECORRIDO ============ -->
+<section class="page">
+  <div class="head"><span class="sec">05 · El recorrido</span><span class="brand">A3 · Dossier de producto</span></div>
+  <h2>De «necesito una recogida»<br>a la factura, paso por paso</h2>
+  <p class="lead">Este es el camino completo de un pedido, tal como ocurre hoy en una conversación real.</p>
+
+  <div class="steps" style="margin-top:5mm">
+    <div class="step"><span class="t">La veterinaria escribe por chat</span>
+      <p>En sus palabras, a cualquier hora. El agente saluda y clasifica la intención entre las cuatro que atiende: recogida, resultados, pagos o cliente nuevo.</p></div>
+    <div class="step"><span class="t">Identifica la clínica antes de tocar nada</span>
+      <p>Por NIT —con o sin dígito de verificación— o por nombre, tolerando tipeos y tildes. Si hay varias coincidencias o varias sedes, muestra la lista y espera que elijan: nunca supone.</p></div>
+    <div class="step"><span class="t">Arma la orden de servicio conversando</span>
+      <p>Un dato por turno, en el orden que pidió el laboratorio: dirección, médico solicitante, paciente, especie, raza, sexo, edad, propietario, fecha de toma, análisis y observaciones. No repite lo que ya le dijeron.</p></div>
+    <div class="step"><span class="t">Cotiza contra el catálogo real</span>
+      <p>Resuelve lo que el cliente pide —«un hemograma», un código, un perfil, una palabra suelta— contra los 316 ítems con precio. Si es ambiguo, ofrece opciones; si el código no existe, lo dice. Aplica el descuento por volumen que corresponda.</p></div>
+    <div class="step"><span class="t">Muestra el resumen y acepta correcciones</span>
+      <p>Aquí el cliente cambia de opinión: «ese sácalo», «cámbiame la dirección», «agrégale un parcial de orina», «mejor para mañana». El agente edita sobre lo ya capturado en lugar de empezar de nuevo, y puede anexar otra orden para otro paciente.</p></div>
+    <div class="step"><span class="t">Registra, asigna y numera</span>
+      <p>Crea la solicitud con su consecutivo anual, asigna el motorizado del cliente o el de la zona, y deja el evento de auditoría. Si son después de las 17:30, la recogida queda para el siguiente día hábil.</p></div>
+    <div class="step"><span class="t">El laboratorio la ve en el tablero</span>
+      <p>Aparece en Operación con todo lo capturado, y avanza por el tablero de muestras: por recoger, recogida, recibida, en análisis, resultados listos, enviada.</p></div>
+    <div class="step"><span class="t">La factura se prepara sola</span>
+      <p>Se genera el borrador con el perfil base, los análisis agregados y el descuento como línea propia. <strong>Una persona revisa y emite</strong> — el sistema nunca emite a la autoridad tributaria por su cuenta.</p></div>
+    <div class="step"><span class="t">El resultado vuelve al cliente</span>
+      <p>Los resultados del sistema del laboratorio quedan publicados en el portal de la veterinaria, con aviso y descarga individual o masiva.</p></div>
+  </div>
+
+  <p class="muted" style="font-size:9pt;margin-top:4mm">Todo lo anterior ocurre sin que nadie del laboratorio intervenga, salvo los dos puntos donde una persona debe decidir: la emisión de la factura y el alta de un cliente que no existe en la base.</p>
+
+  <div class="foot"><span>A3 Laboratorio Veterinario</span><span>5</span></div>
+</section>
+
+<!-- ============ 6. QUE HACE EL AGENTE ============ -->
+<section class="page">
+  <div class="head"><span class="sec">06 · El agente</span><span class="brand">A3 · Dossier de producto</span></div>
+  <h2>Cuatro intenciones,<br>y todo lo que hay detrás</h2>
+  <p class="lead">El agente atiende cuatro cosas. Dos las resuelve completas y dos las entrega a una persona — a propósito, porque son las que exigen criterio humano.</p>
+
+  <div class="cards c2" style="margin-top:5mm">
+    <div class="card">
+      <span class="tag">Resuelve completo</span>
+      <div class="t">Programar una recogida</div>
+      <p>Identifica al cliente, levanta la orden completa, cotiza, confirma, registra, asigna motorizado y da la fecha. Puede encadenar varias órdenes seguidas para pacientes distintos en la misma conversación.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Resuelve completo</span>
+      <div class="t">Informar sobre resultados</div>
+      <p>Orienta al cliente sobre el estado de sus muestras y lo lleva a donde están sus informes publicados, sin que nadie del laboratorio tenga que buscar y reenviar archivos.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Deriva siempre</span>
+      <div class="t">Pagos y facturación</div>
+      <p>Cartera, saldos, notas crédito: pasa a contabilidad en un solo mensaje claro. El bot no discute plata, y eso es una decisión de diseño, no una limitación.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Deriva siempre</span>
+      <div class="t">Clientes nuevos</div>
+      <p>Una clínica que no está en la base pasa a recepción. El alta la hace una persona con la documentación en la mano; el bot nunca crea clientes.</p>
+    </div>
+  </div>
+
+  <h3>Lo que entiende sin que se lo deletreen</h3>
+  <table>
+    <tbody>
+      <tr><td style="width:38%"><strong>El NIT como lo tenga a mano</strong></td><td>Con o sin dígito de verificación, con puntos o sin ellos</td></tr>
+      <tr><td><strong>El nombre mal escrito</strong></td><td>Sin tildes, con tipeos, o solo una palabra: «Venecia» encuentra al Consultorio Veterinario Venecia</td></tr>
+      <tr><td><strong>Varias sedes de la misma clínica</strong></td><td>Muestra la lista y confirma cuál, en lugar de elegir la primera</td></tr>
+      <tr><td><strong>El análisis dicho de cualquier forma</strong></td><td>Por nombre, por código, por perfil o por una palabra suelta — y si es ambiguo, ofrece las opciones</td></tr>
+      <tr><td><strong>Especie contra raza</strong></td><td>«Toro» es bovino macho; «San Bernardo» es raza y no especie. 332 razas cargadas</td></tr>
+      <tr><td><strong>Las correcciones a mitad de camino</strong></td><td>«No, ese sácalo», «cámbiame la dirección», «mejor para mañana» — edita sin perder lo demás</td></tr>
+      <tr><td><strong>Las preguntas laterales</strong></td><td>«¿Cuánto vale el hemograma?» en medio de la orden: responde y retoma donde estaba</td></tr>
+      <tr><td><strong>La conversación de ayer</strong></td><td>Se retoma sin saludar de nuevo ni volver a pedir lo que ya está guardado</td></tr>
+    </tbody>
+  </table>
+
+  <p class="muted" style="font-size:9pt;margin-top:3mm">El tono es deliberado: español colombiano, cercano, una sola pregunta por turno. El cliente nunca ve fases, códigos internos ni identificadores — solo una conversación que avanza.</p>
+
+  <div class="foot"><span>A3 Laboratorio Veterinario</span><span>6</span></div>
+</section>
+
+<!-- ============ 7. COMPLEJIDAD ============ -->
+<section class="page">
+  <div class="head"><span class="sec">07 · La parte difícil</span><span class="brand">A3 · Dossier de producto</span></div>
+  <h2>Por qué esto no se resuelve<br>conectando un modelo de lenguaje</h2>
+  <p class="lead">Un chatbot que responde preguntas se arma en una tarde. Un agente que <strong>compromete recursos del laboratorio y calcula lo que se va a cobrar</strong> es otro problema: cada respuesta suya se convierte en una ruta que alguien tiene que manejar y en una factura que alguien tiene que pagar. Ahí una alucinación no es un chiste, es plata.</p>
+
+  <h3>El modelo interpreta; el código decide</h3>
+  <p>La arquitectura separa las dos cosas de forma estricta. El modelo aporta lo que sabe hacer bien —entender una frase con tipeos, sin tildes, con doble intención— y devuelve una señal de intención. A partir de ahí, quien manda es el código: una cascada de <strong>detectores</strong> que extraen datos concretos y de <strong>reglas de cumplimiento</strong> que verifican, corrigen o directamente reemplazan la respuesta antes de que salga.</p>
+
+  <div class="cards c2" style="margin-top:4mm">
+    <div class="card">
+      <span class="tag">Sin esto, se rompe</span>
+      <div class="t">El dinero no se negocia</div>
+      <p>Todo lo que el cliente pide se resuelve en un único punto contra el catálogo real: coincidencia exacta agrega, ambigüedad ofrece opciones, sin coincidencia pregunta. Antes de registrar nada se verifica que los códigos existan, que ningún precio salga inventado y que el total sea reproducible sumando ítem por ítem.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Sin esto, se pierde</span>
+      <div class="t">La identidad del cliente</div>
+      <p>Ninguna orden avanza sin una clínica identificada contra la base. Un teléfono suelto no cambia el cliente; un nombre parecido no elige por su cuenta; una sede distinta se confirma. Cuando el cliente no existe, el agente lo pasa a recepción — y esa derivación se revierte si el cliente se corrige en el turno siguiente.</p>
+    </div>
+  </div>
+
+  <h3>Las reglas de negocio que el sistema hace cumplir siempre</h3>
+  <ul class="clean">
+    <li><strong>Corte de las 17:30.</strong> Lo que entra después se programa para el siguiente día hábil, sin excepción y sin discusión en el chat.</li>
+    <li><strong>Asignación determinista del motorizado.</strong> Nunca al azar: el fijo del cliente o el de la zona. Si una dirección queda sin cobertura, se marca y se escala en vez de fallar en silencio.</li>
+    <li><strong>Ninguna orden sin cliente identificado.</strong> Es la puerta que protege el dinero y la trazabilidad.</li>
+    <li><strong>Nada se emite a la autoridad tributaria sin revisión humana.</strong> La plataforma prepara; una persona decide.</li>
+    <li><strong>Cada movimiento deja rastro.</strong> Quién, cuándo, por qué canal y qué se registró — inmutable.</li>
+  </ul>
+
+  <div class="note">
+    <div class="t">Cómo se sabe que funciona</div>
+    <strong>827 pruebas automáticas</strong> corren sobre cada cambio, y buena parte no verifica funciones sueltas sino conversaciones completas contra el catálogo real. Cada falla detectada en pruebas con clientes queda registrada con síntoma, causa raíz, solución y prueba de regresión: <strong>163 registradas y cerradas</strong>. Ninguna se da por resuelta sin la prueba que impide que vuelva.
+  </div>
+
+  <div class="foot"><span>A3 Laboratorio Veterinario</span><span>7</span></div>
+</section>
+
+<!-- ============ 8. PLATAFORMA ============ -->
+<section class="page">
+  <div class="head"><span class="sec">08 · La plataforma</span><span class="brand">A3 · Dossier de producto</span></div>
+  <h2>Lo que ve el laboratorio<br>y lo que ve su cliente</h2>
+  <p class="lead">El chat es la puerta de entrada; la plataforma es donde el negocio se administra. Ocho módulos para el equipo del laboratorio, cuatro secciones para la veterinaria.</p>
+
+  <h3>Plataforma interna · ocho módulos</h3>
+  <table>
+    <tbody>
+      <tr><td style="width:32%"><strong>Panel ejecutivo</strong></td><td>Indicadores de operación y de negocio, pipeline por estado, carga por motorizado, tiempos de respuesta y tendencias, actividad reciente. Cada usuario decide qué bloques ve.</td></tr>
+      <tr><td><strong>Operación</strong></td><td>El día a día: indicadores de hoy, alertas y excepciones, buscador de órdenes y panel de detalle con todo lo que capturó el agente.</td></tr>
+      <tr><td><strong>Clientes</strong></td><td>Las 992 clínicas, editables en línea, con filtros por tipo, estado, motorizado y facturación electrónica. Alta de cliente nuevo en cuatro pasos con revisión documental.</td></tr>
+      <tr><td><strong>Pedidos</strong></td><td>Las órdenes de servicio como documento, con su consecutivo anual y versión imprimible.</td></tr>
+      <tr><td><strong>Facturación</strong></td><td>Indicadores, filtros por estado, fecha, NIT y monto, exportación a CSV y Excel, y detalle de cada factura.</td></tr>
+      <tr><td><strong>Motorizados</strong></td><td>Equipo, disponibilidad y cobertura por localidad, con mapa. Ocho zonas y 1.649 barrios de Bogotá cargados, con los barrios repetidos resueltos.</td></tr>
+      <tr><td><strong>Muestras</strong></td><td>Tablero por etapas del proceso, catálogo de pruebas y constructor de perfiles con el total en dinero a la vista.</td></tr>
+      <tr><td><strong>Resultados</strong></td><td>Carga del informe identificando el destino por número de orden o por NIT, y publicación al portal del cliente.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Portal del cliente · lo que la veterinaria hace sola</h3>
+  <div class="cards c4">
+    <div class="card"><div class="t" style="font-size:10.5pt">Pedir recogida</div><p>Con el catálogo completo y el precio, igual que por chat.</p></div>
+    <div class="card"><div class="t" style="font-size:10.5pt">Seguir la orden</div><p>Avance por etapas e historial de cada solicitud.</p></div>
+    <div class="card"><div class="t" style="font-size:10.5pt">Resultados 24/7</div><p>Búsqueda, visor y descarga individual o masiva.</p></div>
+    <div class="card"><div class="t" style="font-size:10.5pt">Cartera y avisos</div><p>Bandeja de notificaciones y estado de sus facturas.</p></div>
+  </div>
+  <p class="muted" style="font-size:9pt;margin-top:3mm">El acceso es por nombre de veterinaria y NIT: sin contraseñas que administrar, sin correos que nadie revisa. Es la credencial que el cliente ya conoce de memoria.</p>
+
+  <div class="foot"><span>A3 Laboratorio Veterinario</span><span>8</span></div>
+</section>
+
+<!-- ============ 9. ESCALA DEL TRABAJO ============ -->
+<section class="page">
+  <div class="head"><span class="sec">09 · La escala</span><span class="brand">A3 · Dossier de producto</span></div>
+  <h2>El tamaño real del trabajo</h2>
+  <p class="lead">Cifras contadas sobre el sistema, no estimadas. Sirven para dimensionar qué tan lejos está esto de una demostración.</p>
+
+  <div class="cards c4" style="margin:5mm 0">
+    <div class="kpi"><span class="n">20.590</span><span class="l">Líneas de aplicación</span></div>
+    <div class="kpi"><span class="n">827</span><span class="l">Pruebas automáticas</span></div>
+    <div class="kpi"><span class="n">80</span><span class="l">Rutas web y de API</span></div>
+    <div class="kpi"><span class="n">163</span><span class="l">Fallas cerradas con prueba</span></div>
+  </div>
+
+  <h3>El activo que no se ve: los datos cargados</h3>
+  <table>
+    <thead><tr><th style="width:26%">Conjunto</th><th style="width:14%">Volumen</th><th>Para qué sirve</th></tr></thead>
+    <tbody>
+      <tr><td>Clínicas y sedes</td><td class="num">992</td><td>Identificación instantánea del cliente en el chat y en el portal</td></tr>
+      <tr><td>Catálogo con precios</td><td class="num">316</td><td>Cotización correcta de perfiles y análisis sueltos, auditada contra el tarifario</td></tr>
+      <tr><td>Razas por especie</td><td class="num">332</td><td>Distinguir especie de raza en la orden sin preguntar de más</td></tr>
+      <tr><td>Zonas y barrios de Bogotá</td><td class="num">1.649</td><td>Asignar el motorizado por la dirección de recogida</td></tr>
+      <tr><td>Resultados de laboratorio</td><td class="num">27.102</td><td>Base del módulo de resultados y de la entrega al cliente</td></tr>
+    </tbody>
+  </table>
+  <p class="muted" style="font-size:9pt;margin-top:2mm">Cargar y depurar esta información fue una parte sustancial del trabajo, y es lo que hace que el producto funcione desde el primer día en lugar de arrancar vacío.</p>
+
+  <h3>Cómo se sostiene en el tiempo</h3>
+  <div class="cards c3">
+    <div class="card"><div class="t" style="font-size:11pt">Contrato de flujo</div><p>Un documento marca qué pasos de la conversación están aprobados. Tocar uno exige avisar antes. Es lo que evita que arreglar algo rompa lo que ya funcionaba.</p></div>
+    <div class="card"><div class="t" style="font-size:11pt">Bitácora viva</div><p>Ninguna falla se cierra sin registrarla y sin la prueba de regresión. Si un problema reaparece, se ve de inmediato qué lo causó la vez anterior.</p></div>
+    <div class="card"><div class="t" style="font-size:11pt">Esquema versionado</div><p>La base de datos evoluciona con migraciones ordenadas y reproducibles, nunca a mano sobre la operación en vivo.</p></div>
+  </div>
+
+  <div class="quote" style="margin-top:7mm">La diferencia entre una demostración y un sistema que aguanta la operación no está en lo que se ve en pantalla: está en lo que pasa cuando el cliente escribe algo que nadie previó. Eso solo se construye probando contra la realidad, una y otra vez.</div>
+
+  <div class="foot"><span>A3 Laboratorio Veterinario</span><span>9</span></div>
+</section>
+
+<!-- ============ 10. CONFIGURABLE Y CONECTABLE ============ -->
+<section class="page">
+  <div class="head"><span class="sec">10 · Qué se ajusta y con qué se conecta</span><span class="brand">A3 · Dossier de producto</span></div>
+  <h2>Un motor configurable,<br>no un traje a medida</h2>
+  <p class="lead">Nada de lo específico de A3 está escrito en el código: el catálogo, los precios, los descuentos, las zonas, los motorizados y las reglas de cobertura viven en la base de datos y se editan desde la plataforma. Adaptarlo a otro negocio es, en la mayor parte, cargar otros datos.</p>
+
+  <h3>Los tres niveles de cambio</h3>
+  <table>
+    <tbody>
+      <tr><td style="width:30%"><strong>Se edita desde la plataforma</strong><br><span class="muted">minutos, sin desarrollo</span></td><td>Catálogo, precios y perfiles · tramos de descuento · clientes y sedes · motorizados, zonas y cobertura · asignaciones · usuarios.</td></tr>
+      <tr><td><strong>Se ajusta por configuración</strong><br><span class="muted">horas, sin tocar la lógica</span></td><td>Hora de corte y días hábiles · zona horaria · canal de mensajería · credenciales de facturación · umbrales de alerta · textos y tono del asistente.</td></tr>
+      <tr><td><strong>Requiere desarrollo</strong><br><span class="muted">acotado y aislado</span></td><td>Una intención nueva en la conversación · un módulo nuevo en la plataforma · un documento con otra estructura · una integración con un sistema no previsto.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Con qué se conecta</h3>
+  <p>La aplicación habla con el exterior por servicios independientes: cada integración vive aislada, con su propia credencial y su propio interruptor. Añadir una no toca las demás — el patrón ya está probado con dos sistemas distintos, uno por API y otro por consulta directa a base de datos.</p>
+  <table>
+    <tbody>
+      <tr><td style="width:30%"><strong>Mensajería</strong></td><td>Telegram y WhatsApp Business, y cualquier canal que exponga webhooks. Bandeja de agentes tipo Chatwoot para el traspaso limpio a una persona.</td></tr>
+      <tr><td><strong>Facturación electrónica</strong></td><td>Plataformas de facturación con API —Alegra, Siigo, World Office y equivalentes—: el sistema arma el documento y deja la emisión a una persona.</td></tr>
+      <tr><td><strong>Pagos</strong></td><td>Pasarelas locales (Wompi, PayU, Bancolombia) o internacionales, enganchadas al cierre del pedido.</td></tr>
+      <tr><td><strong>Sistemas propios del negocio</strong></td><td>ERP, sistema de laboratorio o software sectorial, por API o por consulta de solo lectura a su base de datos.</td></tr>
+      <tr><td><strong>Documentos y archivos</strong></td><td>Almacenamiento en la nube para soportes, RUT e informes, con la validación humana donde haga falta.</td></tr>
+      <tr><td><strong>Otros sistemas internos</strong></td><td>API propia cerrada por token para que un tablero, un CRM o una herramienta de BI lea la operación en tiempo real, más exportación a CSV y Excel.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="foot"><span>A3 Laboratorio Veterinario</span><span>10</span></div>
+</section>
+
+<!-- ============ 11. OTROS NEGOCIOS ============ -->
+<section class="page">
+  <div class="head"><span class="sec">11 · A qué más se aplica</span><span class="brand">A3 · Dossier de producto</span></div>
+  <h2>El mismo motor,<br>otros negocios</h2>
+  <p class="lead">Debajo del laboratorio veterinario hay una forma de problema que se repite en muchos sectores: <strong>un cliente que pide por chat, un catálogo con precios, una visita que hay que agendar y asignar, un documento que hay que emitir y un cobro que hay que hacer</strong>. Donde esa forma se repite, el producto se adapta cambiando datos y reglas, no arquitectura.</p>
+
+  <table style="margin-top:5mm">
+    <thead><tr><th style="width:32%">Sector</th><th>Cómo se traduce</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Laboratorio clínico humano</strong><br><span class="muted">toma de muestras a domicilio</span></td><td>El mismo circuito: pedido por chat, orden con datos del paciente, ruta del flebotomista, resultado al portal y cobro. Cambian el catálogo y las reglas de confidencialidad.</td></tr>
+      <tr><td><strong>Distribución B2B con reparto</strong><br><span class="muted">insumos, farmacia, alimentos</span></td><td>El pedido entra por chat contra un catálogo con precios y descuentos por volumen, sale una orden de despacho con repartidor por zona y una factura.</td></tr>
+      <tr><td><strong>Servicios técnicos a domicilio</strong><br><span class="muted">mantenimiento, equipos, fumigación</span></td><td>La orden de servicio es el mismo documento: cliente, sede, equipo, técnico asignado por zona, agenda con corte horario y cobro al cierre.</td></tr>
+      <tr><td><strong>Laboratorios industriales</strong><br><span class="muted">alimentos, aguas, suelos</span></td><td>Recogida de muestras en planta, ensayos elegidos de un catálogo tarifado, seguimiento por etapas e informe al cliente.</td></tr>
+      <tr><td><strong>Logística especializada</strong><br><span class="muted">courier, residuos, lavandería industrial</span></td><td>Retiro programado por zona con corte horario, asignación determinista y trazabilidad completa de cada recolección.</td></tr>
+      <tr><td><strong>Servicios con agenda</strong><br><span class="muted">clínicas, talleres, estética</span></td><td>Turnos en lugar de recogidas: el agente identifica al cliente, propone horario, confirma y deja el registro con su cobro asociado.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="split" style="margin-top:6mm">
+    <div>
+      <h4>Lo que cambia</h4>
+      <ul class="clean" style="margin-bottom:0">
+        <li>El catálogo y sus precios</li>
+        <li>Los campos del documento</li>
+        <li>El mapa de zonas y el equipo en calle</li>
+        <li>Las reglas propias del sector</li>
+      </ul>
+    </div>
+    <div>
+      <h4>Lo que no cambia</h4>
+      <ul class="clean" style="margin-bottom:0">
+        <li>El motor conversacional y sus barreras</li>
+        <li>La resolución de catálogo y el cálculo del precio</li>
+        <li>El ciclo de estados y la auditoría</li>
+        <li>La plataforma, el portal y la facturación</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note" style="margin-top:6mm">
+    <div class="t">La forma corta de decirlo</div>
+    Si un negocio hoy recibe pedidos por WhatsApp y alguien los pasa a mano a una planilla, a una orden y a una factura, este producto ya resuelve ese circuito. Lo único verdaderamente específico de cada sector son los datos — y esos se cargan.
+  </div>
+
+  <div class="foot"><span>A3 Laboratorio Veterinario</span><span>11</span></div>
+</section>
+
+<!-- ============ 12. CIERRE ============ -->
+<section class="page">
+  <div class="head"><span class="sec">12 · En resumen</span><span class="brand">A3 · Dossier de producto</span></div>
+  <h2>Qué se lleva<br>quien lo pone a operar</h2>
+
+  <div class="cards c2" style="margin-top:5mm">
+    <div class="card">
+      <span class="tag">Menos trabajo manual</span>
+      <div class="t">Nadie transcribe pedidos</div>
+      <p>El pedido llega hablado y se convierte solo en un documento estructurado, con su número, su fecha y su responsable. El equipo pasa de digitar a decidir.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Ingresos protegidos</span>
+      <div class="t">El precio no se calcula a ojo</div>
+      <p>Toda cotización sale del catálogo real con los descuentos que correspondan, y ninguna orden se registra sin que sus ítems y su total sean verificables.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Trazabilidad</span>
+      <div class="t">Cada movimiento deja rastro</div>
+      <p>Quién pidió qué, cuándo, por qué canal y en qué estado está. Los tiempos de respuesta se miden en lugar de estimarse, y los reclamos se responden con datos.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Cliente autónomo</span>
+      <div class="t">Atención sin horario</div>
+      <p>La veterinaria pide, consulta y descarga sola, a cualquier hora, sin ocupar a nadie del equipo — y sin dejar de tener una persona detrás cuando hace falta.</p>
+    </div>
+  </div>
+
+  <h3>Por qué es difícil de copiar</h3>
+  <ul class="clean">
+    <li><strong>El conocimiento del negocio está adentro.</strong> Meses de trabajo con el laboratorio convertidos en reglas verificables: el corte horario, la cobertura por barrio, quién puede facturar a nombre propio, cuándo el asistente debe callarse y llamar a una persona.</li>
+    <li><strong>Los datos ya están cargados y depurados.</strong> Mil clientes, un catálogo auditado contra el tarifario impreso, las razas, los barrios de la ciudad. Eso no se improvisa en una demostración.</li>
+    <li><strong>Las barreras se ganaron con casos reales.</strong> Las 163 correcciones registradas son el mapa de todo lo que un agente conversacional hace mal cuando maneja dinero. Ese mapa es la ventaja, y solo se consigue operando.</li>
+  </ul>
+
+  <div class="quote" style="margin-top:6mm">Un laboratorio que atiende mil clínicas no necesita otro sistema donde alguien digite. Necesita que el pedido entre como llega —hablado, desordenado, a las nueve de la noche— y salga convertido en una ruta, una orden y una factura. Eso es lo que está construido.</div>
+
+  <div class="foot"><span>A3 Laboratorio Veterinario</span><span>12</span></div>
+</section>
+
+</body>
+</html>

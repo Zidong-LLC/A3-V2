@@ -1,14 +1,16 @@
 # A3 Laboratorio Veterinario — Agente Conversacional
 
-Bot conversacional de Telegram/Chatwoot para A3 Laboratorio Veterinario (Bogotá, Colombia).
-Gestiona recogidas de muestras, responde consultas de resultados con mensaje fijo V1,
-y deriva a equipo humano cuando corresponde.
+Plataforma completa de A3 Laboratorio Veterinario (Bogotá, Colombia): agente
+conversacional por Telegram/Chatwoot (WhatsApp listo para conectar), dashboard operativo
+de 11 secciones, y portal web para las veterinarias. El agente gestiona recogidas de
+muestras (multi-orden con una factura por pedido), consulta resultados y ENVÍA el informe
+PDF por el chat, y deriva a equipo humano cuando corresponde.
 
 ## Stack
 
 - Python 3.12+ + Flask
 - Supabase (PostgreSQL) — modelo de datos existente, no modificar
-- OpenAI API (gpt-5.5)
+- OpenAI API (gpt-5.4-mini)
 - Telegram Bot API y Chatwoot Agent Bot (webhooks)
 - Render (hosting)
 
@@ -68,12 +70,12 @@ TELEGRAM_WEBHOOK_SECRET
 SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
 OPENAI_API_KEY
-OPENAI_MODEL=gpt-5.5
+OPENAI_MODEL=gpt-5.4-mini
 APP_TIMEZONE=America/Bogota
 CUTOFF_HOUR=17
 CUTOFF_MINUTE=30
 FLASK_SECRET_KEY
-PLATFORM_API_TOKEN=opcional-token-interno
+PLATFORM_API_TOKEN=obligatorio-en-produccion  # sin el, /api/platform/* queda abierta
 DASHBOARD_ADMIN_USER=admin
 DASHBOARD_ADMIN_PASSWORD=definir-en-produccion
 ```
@@ -114,5 +116,5 @@ Endpoints:
 
 Autenticación:
 
-- Si `PLATFORM_API_TOKEN` está configurado, todas las rutas `/api/platform/*` exigen header `X-Platform-Token`.
+- `PLATFORM_API_TOKEN` es OBLIGATORIO en producción: con él, todas las rutas `/api/platform/*` exigen el header `X-Platform-Token`; sin él quedan abiertas (solo aceptable en desarrollo local).
 - Si no está configurado, las rutas quedan disponibles para desarrollo interno.

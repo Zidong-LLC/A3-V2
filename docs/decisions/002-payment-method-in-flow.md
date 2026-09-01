@@ -1,5 +1,9 @@
 # Decision 002 - Forma de pago en el flujo conversacional
 
+> **REEMPLAZADA por la decisión 011 (jerarquía pedido → órdenes):** desde el
+> 2026-08 la forma de pago se pregunta UNA vez al cerrar el pedido, no por orden
+> (pedido de A3 del 20/05, confirmado en la llamada 8).
+
 ## Fecha
 2026-05-01
 
