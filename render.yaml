@@ -1,0 +1,106 @@
+# Blueprint de Render para la plataforma A3.
+#
+# Con este archivo, Render crea el servicio con la configuración correcta en vez de
+# depender de que alguien recuerde los flags. Las variables marcadas `sync: false` NO
+# viajan en el repo: Render las pide al crear el servicio (son las credenciales).
+#
+# Uso: en Render → New → Blueprint → conectar el repo → elegir la rama → completar
+# las variables que pida. El runbook completo está en docs/runbooks/deploy.md
+services:
+  - type: web
+    name: a3-plataforma
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: oregon
+    plan: standard          # 2 GB de RAM: Chromium usa 150-300 MB al render de un PDF
+    healthCheckPath: /health
+    autoDeploy: false       # el deploy se dispara a mano; producción no se toca sola
+    envVars:
+      # ── Ajustes fijos (no son secretos, van versionados a propósito) ──
+      - key: APP_ENV
+        value: production
+      - key: APP_TIMEZONE
+        value: America/Bogota
+      - key: CUTOFF_TIME
+        value: "17:30"
+      - key: OPENAI_MODEL
+        value: gpt-5.4-mini
+      - key: MESSAGE_DEBOUNCE_SECONDS
+        value: "5"
+      - key: MESSAGE_DEBOUNCE_MAX_WAIT
+        value: "20"
+      - key: FSM_ENFORCE
+        value: "false"
+
+      # ── Guardrails de seguridad: se despliegan APAGADOS, a propósito ──
+      # ALEGRA_PRODUCTION=false ⇒ solo borradores, NUNCA emisión a la DIAN.
+      - key: ALEGRA_PRODUCTION
+        value: "false"
+      # PORTAL_DEMO_MODE=false ⇒ el portal exige nombre + NIT reales.
+      - key: PORTAL_DEMO_MODE
+        value: "false"
+      # Se encienden DESPUÉS del primer deploy verde, uno por uno (ver runbook).
+      - key: PDF_ENABLED
+        value: "false"
+      - key: ANARVET_ENABLED
+        value: "false"
+      - key: ALEGRA_ENABLED
+        value: "false"
+
+      # ── Credenciales: Render las pide al crear el servicio ──
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: FLASK_SECRET_KEY
+        generateValue: true     # Render genera un secreto nuevo y fuerte
+      - key: DASHBOARD_ADMIN_USER
+        sync: false
+      - key: DASHBOARD_ADMIN_PASSWORD
+        sync: false
+      - key: PLATFORM_API_TOKEN
+        generateValue: true     # sin él, /api/platform/* queda abierta a internet
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_WEBHOOK_SECRET
+        sync: false
+      - key: TELEGRAM_WEBHOOK_URL
+        sync: false
+      - key: CHATWOOT_URL
+        sync: false
+      - key: CHATWOOT_ACCOUNT_ID
+        sync: false
+      - key: CHATWOOT_API_TOKEN
+        sync: false
+      - key: CHATWOOT_AGENT_BOT_TOKEN
+        sync: false
+      - key: CHATWOOT_INBOX_ID
+        sync: false
+      - key: CHATWOOT_TEAM_CONTABILIDAD
+        sync: false
+      - key: CHATWOOT_TEAM_OPERACIONES
+        sync: false
+      - key: CHATWOOT_WEBHOOK_SECRET
+        sync: false             # el mismo que va en la URL del Agent Bot (?token=...)
+      - key: ALEGRA_EMAIL
+        sync: false
+      - key: ALEGRA_API_TOKEN
+        sync: false
+      - key: ALEGRA_BASE_URL
+        sync: false
+      - key: ALEGRA_COUNTRY
+        sync: false
+      - key: ANARVET_DB_HOST
+        sync: false
+      - key: ANARVET_DB_PORT
+        sync: false
+      - key: ANARVET_DB_NAME
+        sync: false
+      - key: ANARVET_DB_USER
+        sync: false
+      - key: ANARVET_DB_PASSWORD
+        sync: false
+      - key: ANARVET_SSLMODE
+        sync: false

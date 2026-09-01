@@ -1,100 +1,124 @@
 # Runbook — Deploy a Render
 
-## Pre-deploy checklist
+> Actualizado 2026-08-31. La configuración del servicio vive en `render.yaml`
+> (blueprint): no hay que recordar flags, Render los lee de ahí.
 
-- [ ] Todos los tests pasan: `python -m pytest`
-- [ ] No hay secretos hardcodeados en el código
-- [ ] Variables de entorno actualizadas en el dashboard de Render
-- [ ] El webhook de Telegram apunta al dominio correcto
-
-## Runtime: Docker (desde 2026-08-25)
-
-El servicio corre con el `Dockerfile` de la raíz, **no** con el runtime nativo de Python.
-
-El motivo es el PDF del informe de Anarvet: publicarlo al portal necesita Chromium, y en el
-runtime nativo no se es root, así que no hay `apt-get`. Ahí `playwright install chromium`
-deja el build **en verde** y el proceso revienta en el **primer request real** por una
-librería del sistema faltante (`libnss3.so`). La imagen de Playwright ya trae Chromium con
-todas sus dependencias.
-
-Al cambiar el servicio en el panel de Render:
-
-1. Runtime → **Docker** (Render toma el `Dockerfile` de la raíz).
-2. El start command sale del `CMD`: gunicorn con **`--timeout 60`**. No bajarlo: el default
-   de 30 s mata al worker a mitad de un render de PDF y deja Chromium huérfano.
-3. El tag de la imagen y `playwright==` en `requirements.txt` **tienen que coincidir**.
-4. Primer deploy con `PDF_ENABLED=false`. Verificar `GET /health` (el check `pdf` debe decir
-   `disabled`), encenderlo, y volver a mirar que diga `ok`.
-
-Memoria: Chromium usa 150-300 MB mientras renderiza y el plan Starter tiene 512. El servicio
-genera **un informe a la vez por proceso** justamente por eso; dos en paralelo no tumban el
-PDF sino la instancia entera, con el bot adentro.
-
-## Variables de entorno requeridas en Render
+## Arquitectura del cableado (importante)
 
 ```
-TELEGRAM_BOT_TOKEN          token del bot de Telegram
-TELEGRAM_WEBHOOK_SECRET     string aleatorio para validar el webhook
-SUPABASE_URL                URL del proyecto Supabase
-SUPABASE_SERVICE_ROLE_KEY   service role key (no la anon key)
-OPENAI_API_KEY              API key de OpenAI
-OPENAI_MODEL                gpt-5.5
-APP_TIMEZONE                America/Bogota
-CUTOFF_HOUR                 17
-CUTOFF_MINUTE               30
-FLASK_SECRET_KEY            string aleatorio
+Telegram → Chatwoot (webhook fijo, no cambia nunca)
+         → NUESTRO servicio /chatwoot/webhook?token=SECRETO   ← esto es lo único que se recablea
+         → Chatwoot API → el cliente
 ```
 
-### Opcionales por integración (lista completa en `.env.example`)
+Chatwoot administra el webhook de Telegram. **NO correr `set_webhook.py`**: apunta
+Telegram directo a Flask y Chatwoot deja de ver las conversaciones.
+
+Lo único que cambia al desplegar es la **URL saliente del Agent Bot** en Chatwoot:
+pasa de la de ngrok a la de Render. Y desde ERR-177 esa URL **debe llevar el token**:
 
 ```
-ALEGRA_ENABLED / ALEGRA_EMAIL / ALEGRA_API_TOKEN / ALEGRA_BASE_URL / ALEGRA_PRODUCTION
-ANARVET_ENABLED / ANARVET_DB_HOST / ANARVET_DB_PORT / ANARVET_DB_NAME /
-ANARVET_DB_USER / ANARVET_DB_PASSWORD / ANARVET_SSLMODE
+https://<servicio>.onrender.com/chatwoot/webhook?token=<CHATWOOT_WEBHOOK_SECRET>
 ```
 
-⚠️ Anarvet (decisión 013): desplegar primero con `ANARVET_ENABLED=false`. Al
-encenderlo, verificar `/health` (check `anarvet`) y correr un sync corto DESDE
-Render: si el servidor de Anarvet filtra por IP, pedirles whitelistar las IPs de
-egreso de Render.
+Sin el `?token=`, el webhook responde 403 y el bot queda mudo.
 
-## Proceso de deploy
+## Antes de desplegar
 
-Render hace deploy automático al hacer push a `main`. Para forzar un deploy manual:
+- [ ] `python -m pytest` en verde
+- [ ] La rama a desplegar está publicada en GitHub
+- [ ] El tag de la imagen del Dockerfile coincide con `playwright==` de requirements.txt
+      (hoy: `v1.55.0-noble` ↔ `playwright==1.55.0`)
 
-1. Ir al dashboard de Render → servicio A3
-2. "Manual Deploy" → "Deploy latest commit"
-3. Verificar logs: no debe haber errores de importación ni variables faltantes
+## 1. Crear el servicio
 
-## Configurar webhook de Telegram (primera vez o tras cambio de dominio)
+Render → **New → Blueprint** → conectar el repo `Zidong-LLC/A3-V2` → elegir la rama.
+Render lee `render.yaml` y arma el servicio: Docker, plan Standard (2 GB), health check
+en `/health`, y **auto-deploy apagado** (producción no se actualiza sola).
+
+Va a pedir las 27 credenciales marcadas `sync: false`. Salen del `.env` local, tal cual.
+Dos las genera Render solo (`FLASK_SECRET_KEY`, `PLATFORM_API_TOKEN`) — mejor así.
+
+### Por qué el plan Standard y no el Starter
+Chromium usa 150-300 MB mientras arma un informe; el Starter tiene 512 MB en total. Un
+pico no rompe el PDF: tumba la instancia entera, con el bot adentro.
+
+### Por qué UN worker
+El buffer anti-ráfagas del bot vive en memoria del proceso. Con 2 workers, dos mensajes
+seguidos del mismo cliente caen en procesos distintos y se procesan por separado — el
+debounce se parte (ERR-176). Los turnos del agente corren en threads propios, así que
+los 8 threads quedan libres para la web.
+
+## 2. Primer arranque (todo apagado)
+
+El blueprint despliega con `PDF_ENABLED`, `ANARVET_ENABLED` y `ALEGRA_ENABLED` en
+`false` a propósito: si algo falla, falla de a una integración por vez.
 
 ```bash
-python tools/scripts/set_webhook.py
+curl https://<servicio>.onrender.com/health
 ```
 
-O manualmente:
+Esperado: `supabase: ok`, `openai: ok`, el resto `disabled`.
+
+## 3. Encender las integraciones, de a una
+
+Cada vez: cambiar la variable en Render → esperar el redeploy → mirar `/health`.
+
+1. **`ALEGRA_ENABLED=true`** → el check `alegra` pasa a `ok`.
+   `ALEGRA_PRODUCTION` se queda en `false` para siempre: solo borradores, nunca DIAN.
+2. **`ANARVET_ENABLED=true`** → el check `anarvet` pasa a `ok`.
+   ⚠ Si Anarvet filtra por IP, va a fallar: hay que pedirles autorizar las IPs de
+   egreso de Render (Render → Settings → Outbound IPs).
+3. **`PDF_ENABLED=true`** → el check `pdf` pasa de `disabled` a `ok`.
+
+## 4. Recablear Chatwoot
+
+`https://n3-chatwoot.1hqzy5.easypanel.host/app/accounts/2/settings/integrations`
+→ Agent Bots → A3 Bot → editar la URL saliente:
+
 ```
-GET https://api.telegram.org/bot{TOKEN}/setWebhook?url=https://{RENDER_DOMAIN}/webhook&secret_token={SECRET}
+https://<servicio>.onrender.com/chatwoot/webhook?token=<CHATWOOT_WEBHOOK_SECRET>
 ```
 
-## Verificar que el bot funciona
+Verificar con `python tools/scripts/verify_chatwoot_telegram_agent.py` (comprueba
+`/health`, la `outgoing_url`, la asociación del bot al inbox y que el webhook de
+Telegram siga apuntando a Chatwoot).
 
+## 5. Programar el sync de Anarvet
+
+Render → **New → Cron Job**, mismo repo y entorno:
+
+```bash
+curl -fsS -X POST https://<servicio>.onrender.com/api/platform/anarvet/sync \
+     -H "X-Platform-Token: $PLATFORM_API_TOKEN"
 ```
-GET https://{RENDER_DOMAIN}/health
-```
 
-Respuesta esperada: `{"status": "ok"}`
+Sugerido: cada hora en horario laboral (`0 7-19 * * 1-6`, hora de Bogotá).
 
-## Rollback
+## 6. Prueba en vivo (la puerta final)
 
-Render mantiene historial de deploys. En caso de problema:
-1. Dashboard → Deployments → seleccionar deploy anterior → "Rollback to this deploy"
+- [ ] Mandar un mensaje por Telegram y que el bot conteste
+- [ ] Crear una orden completa de punta a punta y **borrarla después**
+- [ ] Pedir un resultado por el chat y que llegue el PDF
+- [ ] Entrar al dashboard y al portal desde la URL pública
+- [ ] Confirmar que la orden de prueba aparece en Solicitudes y en la Agenda
 
-## Troubleshooting común
+## Cuando A3 entregue la cuenta de WhatsApp Business
 
-| Síntoma | Causa probable | Solución |
-|---|---|---|
-| 403 en webhook | `TELEGRAM_WEBHOOK_SECRET` no coincide | Verificar variable en Render |
-| Error de Supabase | `SUPABASE_SERVICE_ROLE_KEY` vencida | Rotar en dashboard de Supabase |
-| Bot no responde | Webhook no configurado | Correr `set_webhook.py` |
-| Timeout en OpenAI | Modelo saturado | Reintentar, gpt-5.5 tiene alta disponibilidad |
+El código ya está listo (migración 031, ERR-177). Falta solo:
+1. Conectar el número como inbox de WhatsApp en Chatwoot
+2. Asociar el A3 Bot a ese inbox nuevo
+3. Probar la cadena completa **antes** de que A3 cancele LiveConnect
+
+El canal se detecta solo: el payload de Chatwoot trae `Channel::Whatsapp` y la orden
+queda marcada `whatsapp` en `entry_channel`.
+
+## Si algo sale mal
+
+| Síntoma | Causa probable |
+|---|---|
+| El bot no contesta | La URL del Agent Bot no lleva `?token=` → 403 |
+| `/health` da 503 | Supabase no responde: revisar `SUPABASE_URL` y la service role key |
+| El check `anarvet` da error | IP de Render no autorizada por Anarvet |
+| El PDF falla | El tag de la imagen no coincide con la versión de playwright |
+| Build en verde pero revienta al usar el PDF | Runtime nativo en vez de Docker |
