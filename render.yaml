@@ -64,7 +64,9 @@ services:
         generateValue: true     # sin él, /api/platform/* queda abierta a internet
       - key: TELEGRAM_BOT_TOKEN
         sync: false
-      # Chat de Telegram del responsable técnico: ahí llegan los avisos de error.
+      # Avisos de error al responsable técnico, por un bot PROPIO (no el de clientes).
+      - key: ALERT_TELEGRAM_BOT_TOKEN
+        sync: false
       - key: ADMIN_TELEGRAM_CHAT_ID
         sync: false
       - key: TELEGRAM_WEBHOOK_SECRET

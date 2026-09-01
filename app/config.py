@@ -35,9 +35,11 @@ CONVENIO_LABELS: tuple[str, ...] = (
 
 FLASK_SECRET_KEY = os.environ["FLASK_SECRET_KEY"]
 APP_ENV = os.environ.get("APP_ENV", "production")
-# Chat de Telegram del responsable técnico: ahí llegan los avisos de error en producción
-# (app/alerts.py). Vacío = sin avisos, que es lo correcto en local.
+# Avisos de error al responsable técnico (app/alerts.py). Van por un bot PROPIO, no por
+# el de los clientes: así los mensajes del admin nunca se mezclan con las conversaciones
+# de las veterinarias en Chatwoot. Ambas vacías = sin avisos (lo correcto en local).
 ADMIN_TELEGRAM_CHAT_ID = os.environ.get("ADMIN_TELEGRAM_CHAT_ID", "")
+ALERT_TELEGRAM_BOT_TOKEN = os.environ.get("ALERT_TELEGRAM_BOT_TOKEN", "")
 
 # Ráfagas de mensajes (ERR-065): segundos que se espera a que el cliente termine de
 # escribir antes de procesar TODOS sus mensajes juntos como uno solo. 0 = apagado

@@ -48,11 +48,29 @@ def _registrar(firma: str) -> int | None:
         return repetidos
 
 
+def _enviar(chat_id: str, token: str, texto: str) -> None:
+    """Manda el aviso por el bot de AVISOS (@A3newsbot). No usa services/telegram a
+    proposito: ese habla con el bot de los CLIENTES, y un aviso de error no tiene nada
+    que ver con las conversaciones de las veterinarias."""
+    import json
+    import urllib.request
+
+    datos = json.dumps({"chat_id": chat_id, "text": texto}, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        f"https://api.telegram.org/bot{token}/sendMessage",
+        data=datos,
+        headers={"Content-Type": "application/json; charset=utf-8"},
+        method="POST",
+    )
+    with urllib.request.urlopen(req, timeout=15) as r:
+        r.read()
+
+
 def notify_error(contexto: str, exc: BaseException, detalle: str = "") -> bool:
     """Avisa de un error. Devuelve si el mensaje salió."""
-    from app.config import ADMIN_TELEGRAM_CHAT_ID, APP_ENV
+    from app.config import ADMIN_TELEGRAM_CHAT_ID, ALERT_TELEGRAM_BOT_TOKEN, APP_ENV
 
-    if not ADMIN_TELEGRAM_CHAT_ID:
+    if not (ADMIN_TELEGRAM_CHAT_ID and ALERT_TELEGRAM_BOT_TOKEN):
         return False
 
     firma = f"{contexto}:{type(exc).__name__}:{str(exc)[:80]}"
@@ -71,9 +89,7 @@ def notify_error(contexto: str, exc: BaseException, detalle: str = "") -> bool:
         lineas.append(f"(se repitió {repetidos} vez/veces más desde el último aviso)")
 
     try:
-        from app.services import telegram
-
-        telegram.send_message(ADMIN_TELEGRAM_CHAT_ID, "\n".join(lineas))
+        _enviar(ADMIN_TELEGRAM_CHAT_ID, ALERT_TELEGRAM_BOT_TOKEN, chr(10).join(lineas))
         return True
     except Exception:  # noqa: BLE001 — el avisador jamás rompe lo que estaba pasando
         logger.exception("No se pudo avisar del error por Telegram")
