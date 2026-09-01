@@ -135,3 +135,18 @@ mandaría cientos de mensajes y Telegram cortaría el bot.
 
 **Para obtener el chat_id**: escribirle una vez al bot desde el Telegram personal y
 buscar el `external_chat_id` de esa sesión en `telegram_sessions`.
+
+## Dos clases de variables en el blueprint (no confundirlas)
+
+**Guardrails con valor fijo en `render.yaml`** — `ALEGRA_PRODUCTION=false`,
+`PORTAL_DEMO_MODE=false`. Van escritas a fuego a propósito: si alguien las cambia por
+error en el panel, el próximo deploy las devuelve a lo seguro. Es la conducta deseada
+para algo que nunca debe cambiar.
+
+**Interruptores con `sync: false`** — `ALEGRA_ENABLED`, `ANARVET_ENABLED`, `PDF_ENABLED`.
+Render los pregunta una vez y después respeta el panel. Si llevaran un valor acá, cada
+deploy pisaría la configuración del operador: una integración apagada a mano para
+contener un incidente volvería a encenderse sola en el deploy siguiente.
+
+> Esto se descubrió en el despliegue del 01/09: un Manual Deploy devolvió las tres
+> integraciones a `disabled` porque el blueprint las traía en `false`.

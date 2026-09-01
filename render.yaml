@@ -39,13 +39,17 @@ services:
       # PORTAL_DEMO_MODE=false ⇒ el portal exige nombre + NIT reales.
       - key: PORTAL_DEMO_MODE
         value: "false"
-      # Se encienden DESPUÉS del primer deploy verde, uno por uno (ver runbook).
+      # Interruptores de las integraciones: `sync: false` a propósito. Si llevaran un
+      # valor acá, CADA deploy pisaría lo que el operador configuró en el panel — y una
+      # integración que se apagó a mano para contener un incidente volvería a encenderse
+      # sola. Render las pregunta una vez y después respeta el panel.
+      # En el PRIMER deploy van en "false" y se encienden de a una (ver runbook).
       - key: PDF_ENABLED
-        value: "false"
+        sync: false
       - key: ANARVET_ENABLED
-        value: "false"
+        sync: false
       - key: ALEGRA_ENABLED
-        value: "false"
+        sync: false
 
       # ── Credenciales: Render las pide al crear el servicio ──
       - key: SUPABASE_URL
