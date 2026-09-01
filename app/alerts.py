@@ -66,6 +66,54 @@ def _enviar(chat_id: str, token: str, texto: str) -> None:
         r.read()
 
 
+def _rastro(exc: BaseException, maximo: int = 4) -> list[str]:
+    """Las lineas de NUESTRO codigo donde paso el error, de la mas profunda hacia atras.
+
+    Se filtran los frames de librerias: cuando algo revienta dentro de httpx u openai,
+    esos frames no dicen nada util — lo que hace falta es en que linea nuestra empezo.
+    Si no hay ningun frame propio (raro), se muestran los ultimos tal cual."""
+    import os
+    import traceback
+
+    frames = traceback.extract_tb(exc.__traceback__)
+    if not frames:
+        return []
+    propios = [f for f in frames
+               if f"{os.sep}app{os.sep}" in f.filename or f"{os.sep}tools{os.sep}" in f.filename]
+    elegidos = (propios or frames)[-maximo:]
+
+    salida = []
+    for f in elegidos:
+        # Ruta corta: desde app/ o tools/ en adelante, que es lo que se busca en el repo.
+        partes = f.filename.replace(os.sep, "/").split("/")
+        corta = "/".join(partes[-3:]) if len(partes) > 3 else f.filename
+        linea = f"  {corta}:{f.lineno} en {f.name}"
+        if f.line:
+            linea += chr(10) + "      " + f.line.strip()[:90]
+        salida.append(linea)
+    return salida
+
+
+def _version() -> str:
+    """Que codigo esta corriendo. En Render sale gratis de sus variables; en local, del
+    git de la maquina. Sin esto, un aviso no dice CONTRA QUE codigo mirar."""
+    import os
+    import subprocess
+
+    commit = os.environ.get("RENDER_GIT_COMMIT", "")
+    rama = os.environ.get("RENDER_GIT_BRANCH", "")
+    if not commit:
+        try:
+            commit = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True,
+                                    text=True, timeout=3).stdout.strip()
+            rama = subprocess.run(["git", "branch", "--show-current"], capture_output=True,
+                                  text=True, timeout=3).stdout.strip()
+        except Exception:  # noqa: BLE001
+            return "version desconocida"
+    etiqueta = commit[:7] if commit else "?"
+    return f"{etiqueta} ({rama})" if rama else etiqueta
+
+
 def notify_error(contexto: str, exc: BaseException, detalle: str = "") -> bool:
     """Avisa de un error. Devuelve si el mensaje salió."""
     from app.config import ADMIN_TELEGRAM_CHAT_ID, ALERT_TELEGRAM_BOT_TOKEN, APP_ENV
@@ -78,15 +126,34 @@ def notify_error(contexto: str, exc: BaseException, detalle: str = "") -> bool:
     if repetidos is None:
         return False
 
+    from datetime import datetime
+
+    from app.config import APP_TIMEZONE
+
     lineas = [
-        f"🔴 Error en la plataforma A3 ({APP_ENV})",
-        f"Dónde: {contexto}",
-        f"Qué: {type(exc).__name__}: {str(exc)[:300]}",
+        f"🔴 A3 · {contexto}",
+        f"{type(exc).__name__}: {str(exc)[:250]}",
     ]
+
+    # La causa raíz: cuando un error envuelve a otro ("falló X" porque abajo falló Y),
+    # el de abajo es el que dice qué arreglar.
+    causa = exc.__cause__ or exc.__context__
+    if causa is not None and type(causa) is not type(exc):
+        lineas.append(f"  causado por {type(causa).__name__}: {str(causa)[:120]}")
+
+    rastro = _rastro(exc)
+    if rastro:
+        lineas.append("")
+        lineas.append("Dónde falló:")
+        lineas.extend(rastro)
+
+    lineas.append("")
     if detalle:
-        lineas.append(f"Detalle: {detalle[:200]}")
+        lineas.append(f"Contexto: {detalle[:200]}")
+    lineas.append(f"Versión: {_version()} · {APP_ENV}")
+    lineas.append(datetime.now(APP_TIMEZONE).strftime("%d/%m %H:%M:%S"))
     if repetidos:
-        lineas.append(f"(se repitió {repetidos} vez/veces más desde el último aviso)")
+        lineas.append(f"⚠ se repitió {repetidos} vez/veces más desde el último aviso")
 
     try:
         _enviar(ADMIN_TELEGRAM_CHAT_ID, ALERT_TELEGRAM_BOT_TOKEN, chr(10).join(lineas))
