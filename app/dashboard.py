@@ -24,6 +24,7 @@ from app import billing_charts, client_filters
 from app.services import db, alegra
 from app import anarvet_sync, dashboard_metrics, orders, pricing, rules, territory, billing
 from app.courier_notify import notify_assignment
+from app.alerts import notify_error
 
 dashboard = Blueprint("dashboard", __name__)
 
@@ -2033,6 +2034,26 @@ def update_courier_endpoint():
     if not ok:
         return jsonify({"error": "Courier not found"}), 404
     return jsonify({"ok": True, "courier_id": courier_id, **cambios})
+
+
+@dashboard.post("/api/dashboard/probar-aviso")
+@_login_required
+def probar_aviso():
+    """Manda un aviso de prueba al Telegram del responsable técnico.
+
+    Un sistema de alertas que nadie probó no es un sistema de alertas: sirve para
+    confirmar —después de cambiar el token, o cada tanto— que los avisos siguen
+    llegando, sin tener que romper algo de verdad para averiguarlo."""
+    try:
+        raise RuntimeError("aviso de prueba pedido desde el dashboard")
+    except RuntimeError as exc:
+        salio = notify_error("prueba manual", exc,
+                             f"pedido por {session.get('dashboard_username') or 'alguien'}")
+    if salio:
+        return jsonify({"ok": True, "mensaje": "Aviso enviado al Telegram del responsable"})
+    return jsonify({"ok": False, "mensaje": "No se envió: falta configurar el bot de avisos "
+                                            "(ALERT_TELEGRAM_BOT_TOKEN y ADMIN_TELEGRAM_CHAT_ID), "
+                                            "o el mismo aviso ya salió hace menos de 15 minutos"}), 200
 
 
 @dashboard.post("/api/dashboard/courier-create")

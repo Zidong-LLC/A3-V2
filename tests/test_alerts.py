@@ -106,3 +106,39 @@ def test_el_dict_de_firmas_no_crece_para_siempre():
             alerts.notify_error("turno", RuntimeError(f"falla {i}"))
         assert len(alerts._estado) <= alerts._MAX_FIRMAS + 1
     _correr(caso)
+
+
+# ── El botón de prueba del dashboard ─────────────────────────────────────────
+
+def _cliente_logueado():
+    from app.main import app
+
+    app.config["TESTING"] = True
+    c = app.test_client()
+    with c.session_transaction() as sess:
+        sess["dashboard_authenticated"] = True
+        sess["dashboard_username"] = "admin"
+    return c
+
+
+def test_el_boton_de_prueba_manda_el_aviso():
+    with patch("app.dashboard.notify_error", return_value=True) as avisar:
+        r = _cliente_logueado().post("/api/dashboard/probar-aviso")
+    assert r.status_code == 200 and r.get_json()["ok"] is True
+    contexto, exc = avisar.call_args.args[:2]
+    assert contexto == "prueba manual"
+    assert isinstance(exc, RuntimeError)
+
+
+def test_el_boton_de_prueba_avisa_si_no_esta_configurado():
+    with patch("app.dashboard.notify_error", return_value=False):
+        r = _cliente_logueado().post("/api/dashboard/probar-aviso")
+    assert r.status_code == 200 and r.get_json()["ok"] is False
+    assert "configurar" in r.get_json()["mensaje"]
+
+
+def test_el_boton_de_prueba_exige_sesion():
+    from app.main import app
+
+    app.config["TESTING"] = True
+    assert app.test_client().post("/api/dashboard/probar-aviso").status_code == 302
