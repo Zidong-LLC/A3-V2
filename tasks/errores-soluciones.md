@@ -4787,3 +4787,19 @@ punto y con guion bajo (`hub.mode` y `hub_mode`).
 - **Verificacion:** conversacion real por WhatsApp al +57 316 109 2742 — el agente respondio,
   mantuvo el hilo (eligio opcion 1, siguio pidiendo el NIT) y la sesion quedo con
   `channel = whatsapp`. Rastro de pruebas borrado.
+
+### Nota operativa (2026-09-04) — Por que la bandeja "parece vacia"
+
+Tres cosas se suman y hacen creer que el sistema no funciona:
+1. **Los filtros quedan guardados en la sesion del navegador.** Si alguien deja uno puesto,
+   la bandeja aparece vacia en la siguiente visita. Fue lo que paso en la verificacion.
+2. **Las conversaciones que atiende el bot quedan en `pending`**, y la vista por defecto
+   muestra solo `Abiertas`. Las pestañas Mias/Sin asignar/Todos filtran por ASIGNACION, no
+   por estado — por eso tocar "Todos" no alcanza.
+3. **Sin ser miembro de la bandeja no se ve nada** (ERR-181, causa 3).
+
+Se creo la vista guardada **"TODAS (incluye las del bot)"** (custom_filter id 1) que muestra
+todos los estados de una: es el atajo para no depender de acordarse de los filtros.
+
+**Decirselo a A3 al entregar los accesos**, o van a reportar "no me llegan las
+conversaciones" teniendolas todas delante.
