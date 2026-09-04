@@ -4739,3 +4739,51 @@ puede bajar al subir el tramo»).
   reclamo de la llamada 8 quedo arreglado al agregar los items con precio); NO existe un
   comando de reset/finalizar conversacion (pedido en llamadas 4 y 7 para pruebas — queda
   anotado como decision pendiente, no parece necesario en produccion).
+
+---
+
+## ERR-181 — WhatsApp conectado: tres causas encadenadas que se disfrazaban entre si
+
+- **Fecha:** 2026-09-04 · **Estado:** RESUELTO — el canal quedo FUNCIONANDO
+- **Sintoma:** Meta no validaba la URL del webhook; despues validaba pero no entregaba
+  mensajes; despues entregaba pero Chatwoot los descartaba; y al final llegaban pero no se
+  veian en la interfaz. Cada arreglo destapaba el siguiente problema.
+
+### Causa 1 — Faltaba suscribir el campo `messages` en Meta
+Meta valida la URL y *despues*, por separado, hay que suscribirse a los campos. Sin
+`messages` marcado, Meta valida correctamente pero **nunca envia nada**. Es el paso que mas
+se pasa por alto porque la pantalla no lo pide: aparece recien despues de validar.
+
+### Causa 2 — Chatwoot NECESITA el `+` en el numero
+La ruta `/webhooks/whatsapp/:phone` busca el inbox por esa cadena exacta. Con el numero
+guardado como `+573161092742`, la URL debe llevar `%2B573161092742`. **Mi hipotesis inicial
+estaba al reves**: cuando saque el `+` buscando una URL "limpia", Chatwoot siguio
+respondiendo **200** pero descarto los mensajes en silencio — el peor modo de fallo posible,
+porque parece que funciona. Verificado con el payload real de Meta: sin `+` no crea nada,
+con `+` crea la conversacion y el agente responde.
+
+### Causa 3 — Los inboxes creados por API no tienen miembros
+Chatwoot solo muestra las conversaciones de las bandejas donde el usuario es **miembro**.
+Creando el inbox por API **no se agrega a nadie** (creandolo por la interfaz si). Resultado:
+las conversaciones existian, la API las devolvia, y el panel mostraba todo en cero. Se
+agrego al usuario a los dos inboxes (`POST /inbox_members`).
+**Para el lanzamiento:** cada persona de A3 necesita cuenta de agente Y ser miembro de las
+bandejas. Sin lo segundo ven todo vacio y parece que el sistema no anda.
+
+### Ademas: el filtro de estado de la lista
+Las conversaciones que atiende el bot quedan en `pending`, y la vista por defecto muestra
+solo `Abiertas`. Las pestañas Mias/Sin asignar/Todos filtran por asignacion, no por estado
+— por eso "Todos" seguia mostrando cero. Es el comportamiento correcto: el equipo no ve las
+conversaciones hasta que el bot escala.
+
+### Como se diagnostico (lo que sirvio de verdad)
+Endpoint espia temporal en produccion (`/diag/meta`) que registraba la peticion cruda. Con
+eso se capturo el POST real de Meta (IP 173.252.107.115, UA `facebookexternalua`) con el
+mensaje completo — y quedo probado que Meta entregaba bien y que el problema estaba despues.
+Antes de eso todo eran hipotesis. El endpoint se retiro al terminar.
+**Dato no documentado hallado:** Meta manda los parametros del handshake DUPLICADOS, con
+punto y con guion bajo (`hub.mode` y `hub_mode`).
+
+- **Verificacion:** conversacion real por WhatsApp al +57 316 109 2742 — el agente respondio,
+  mantuvo el hilo (eligio opcion 1, siguio pidiendo el NIT) y la sesion quedo con
+  `channel = whatsapp`. Rastro de pruebas borrado.

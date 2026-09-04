@@ -153,47 +153,6 @@ def _process_telegram(chat_id: str, user_text: str) -> None:
         app.logger.error("Error entregando resultados a %s: %s", chat_id, e)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# DIAGNÓSTICO TEMPORAL (2026-09-04) — Meta dice que entrega los mensajes de
-# WhatsApp pero a Chatwoot no llega nada. Esto registra EXACTAMENTE qué manda
-# Meta (ruta cruda, query sin decodificar, cabeceras, IP) para dejar de suponer.
-# SE RETIRA cuando el canal quede andando.
-_DIAG = []
-
-
-@app.route("/diag/meta", methods=["GET", "POST"])
-def diag_meta():
-    from datetime import datetime
-
-    registro = {
-        "cuando": datetime.now(APP_TIMEZONE).strftime("%d/%m %H:%M:%S"),
-        "metodo": request.method,
-        "ruta_cruda": request.environ.get("RAW_URI") or request.full_path,
-        "query_cruda": request.environ.get("QUERY_STRING", ""),
-        "ip": request.headers.get("X-Forwarded-For", request.remote_addr),
-        "user_agent": request.headers.get("User-Agent", "")[:120],
-        "cuerpo": (request.get_data(as_text=True) or "")[:3000],
-    }
-    _DIAG.append(registro)
-    del _DIAG[:-25]
-    app.logger.info("DIAG META: %s", registro)
-
-    # Handshake de verificación de Meta
-    if request.args.get("hub.mode") == "subscribe":
-        esperado = os.environ.get("DIAG_VERIFY_TOKEN", "diag-a3-2026")
-        if request.args.get("hub.verify_token") == esperado:
-            return request.args.get("hub.challenge", ""), 200
-        return "token invalido", 403
-    return jsonify({"ok": True})
-
-
-@app.get("/diag/meta/ultimos")
-def diag_meta_ultimos():
-    if request.args.get("token") != os.environ.get("CHATWOOT_WEBHOOK_SECRET", ""):
-        abort(403)
-    return jsonify({"cantidad": len(_DIAG), "registros": _DIAG})
-
-
 @app.route("/chatwoot/webhook", methods=["POST"])
 def chatwoot_webhook():
     # Chatwoot no firma los webhooks de agent bot: el secreto viaja en la URL
