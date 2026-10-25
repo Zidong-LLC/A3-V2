@@ -1,6 +1,6 @@
 # 011 — Jerarquía pedido → órdenes → análisis
 
-- **Estado:** PROPUESTO (2026-08-12) — pendiente de OK del usuario y de definición de A3
+- **Estado:** ACEPTADO E IMPLEMENTADO — aprobado por A3 el 2026-08-21
 - **Reemplaza:** nada. Extiende la 005 (orden de servicio) y la 009 (Alegra por fases)
 - **Origen:** reunión 8 (28/07) + llamada 5 (20/05, forma de pago al final del pedido)
 

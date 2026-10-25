@@ -1,0 +1,442 @@
+CLIENTE: Hola, soy Animal Pets. Quisiera cargar una orden para M1, perro criollo macho de 2 años, dueño D1: perfil 152.
+
+BOT: Hola! Buen día, me alegra que nos visites.
+Bienvenido a A3 laboratorio clínico veterinario 🧪 🧫
+Atendemos clínicas y profesionales veterinarios registrados.
+
+¿Con qué te ayudamos hoy? Respóndeme con el número:
+1. Programar análisis y recogida de muestra
+2. Consultar resultados
+3. Pagos
+4. Otro
+
+CLIENTE: 1
+
+BOT: El Perfil Prequirúrgico I incluye estos análisis:
+- Cuadro Hemático
+- ALT
+- Creatinina
+Valor base: $24.000.
+¿Lo dejamos así o quieres personalizarlo para agregar o quitar algún análisis?
+
+CLIENTE: Así está perfecto, dejémoslo así.
+
+BOT: Perfecto. Queda confirmado el Perfil Prequirúrgico I para M1.
+
+Me falta un dato para dejar la orden completa: ¿cuál es el médico solicitante?
+
+CLIENTE: Dr. Ruiz
+
+BOT: Perfecto, lo anoto. ¿Qué día tomaron la muestra?
+
+CLIENTE: Hoy.
+
+BOT: Perfecto, registro que la muestra fue tomada hoy. Me falta un dato para dejar la orden completa: ¿quieres dejar alguna observación para la orden o la registramos sin observaciones?
+
+CLIENTE: Sin observaciones, gracias.
+
+BOT: Antes de registrar, te resumo la orden:
+- Veterinaria: Animal Pets
+- Dirección de retiro: DG 51A SUR 61B-03
+- Médico solicitante: Dr. Ruiz
+- Paciente: M1 (Canino, Criollo, Macho, 2 años)
+- Propietario: D1
+- Fecha de toma de muestra: hoy
+- Análisis: 152 Perfil Prequirúrgico I — $24.000
+- Observaciones: sin observaciones
+- Valor estimado: $24.000
+Si quieres cambiar algún dato o agregar otro análisis, decímelo.
+¿Confirmas estos datos?
+
+CLIENTE: Sí, confirmo los datos.
+
+BOT: Quedó registrado:
+- Veterinaria: Animal Pets
+- Dirección de retiro: DG 51A SUR 61B-03
+- Médico solicitante: Dr. Ruiz
+- Paciente: M1 (Canino, Criollo, Macho, 2 años)
+- Propietario: D1
+- Fecha de toma de muestra: hoy
+- Análisis: 152 Perfil Prequirúrgico I — $24.000
+- Observaciones: sin observaciones
+- Valor estimado: $24.000
+Nuestro motorizado pasará a recoger la muestra.
+
+Número de orden: A3-2026-901
+
+Motorizado asignado: Jeeferson.
+
+¿Necesitas cargar otra orden para otro paciente? Escríbeme: otra orden. Si eso es todo, seguimos con la forma de pago y cerramos el pedido.
+
+CLIENTE: otra orden
+
+BOT: Perfecto, creamos otra orden de servicio. Mantengo estos datos de la orden anterior:
+- Veterinaria: Animal Pets
+- Dirección de retiro: DG 51A SUR 61B-03
+- Médico solicitante: Dr. Ruiz
+¿Confirmas o quieres cambiar alguno (dirección, médico o análisis)?
+
+CLIENTE: Confirmo la dirección DG 51A SUR 61B-03 y el médico Dr. Ruiz.
+
+BOT: ¿Cuál es el nombre del paciente?
+
+CLIENTE: M2, gata criolla hembra de 3 años, dueña D2.
+
+BOT: Perfecto, lo anoto. ¿Qué día tomaron la muestra?
+
+CLIENTE: Hoy.
+
+BOT: ¿Qué día tomaron la muestra?
+
+CLIENTE: Hoy.
+
+BOT: Perfecto, lo anoto. ¿Qué análisis o perfil desean?
+
+CLIENTE: 1101.
+
+BOT: Listo, registro 1101-Cuadro Hemático Completo $14.000. Valor estimado: $14.000. ¿Agregamos otro análisis a esta orden, o la dejamos así?
+
+CLIENTE: otra orden
+
+BOT: (cierre por frontera)
+
+Número de orden: A3-2026-902
+
+Motorizado asignado: Jeeferson.
+
+Vamos con la siguiente orden. ¿Cuál es el nombre del paciente?
+
+CLIENTE: M3, perro boxer macho de 4 años, dueño D3.
+
+BOT: Perfecto, lo anoto. ¿Qué análisis o perfil desean?
+
+CLIENTE: 1101 y 1701.
+
+BOT: Listo, registro 1101-Cuadro Hemático Completo $14.000, 1701-Coprológico $12.000. Subtotal $26.000, descuento por volumen -$3.120 → valor estimado $22.880. ¿Agregamos otro análisis a esta orden, o la dejamos así?
+
+CLIENTE: otra orden
+
+BOT: (cierre por frontera)
+
+Número de orden: A3-2026-903
+
+Motorizado asignado: Jeeferson.
+
+Vamos con la siguiente orden. ¿Cuál es el nombre del paciente?
+
+CLIENTE: M4, perra poodle hembra de 5 años, dueña D4.
+
+BOT: Perfecto, lo anoto. ¿Qué día tomaron la muestra?
+
+CLIENTE: Hoy.
+
+BOT: Perfecto, lo anoto. ¿Qué análisis o perfil desean?
+
+CLIENTE: 653.
+
+BOT: Listo, corrijo fecha de toma de la muestra: Hoy. ¿Agregamos otro análisis a esta orden, o la dejamos así?
+
+CLIENTE: otra orden
+
+BOT: Quedó registrado:
+- Veterinaria: Animal Pets
+- Dirección de retiro: DG 51A SUR 61B-03
+- Médico solicitante: Dr. Ruiz
+- Paciente: M4 (Canino, Poodle, Hembra, 5 años)
+- Propietario: D4
+- Fecha de toma de muestra: Hoy
+- Análisis: 653 Perfil Senior Canino III — $58.000
+- Observaciones: sin observaciones
+- Valor estimado: $58.000
+Nuestro motorizado pasará a recoger la muestra.
+
+Número de orden: A3-2026-904
+
+Motorizado asignado: Jeeferson.
+
+Vamos con la siguiente orden. ¿Cuál es el nombre del paciente?
+
+CLIENTE: M5, gato persa macho de 1 año, dueño D5.
+
+BOT: Perfecto, anoto M5 como paciente, Felino como especie, Persa como raza, Macho como sexo, 1 año como edad y D5 como propietario. ¿Qué análisis o perfil desean?
+
+CLIENTE: 152 con sodio (1405).
+
+BOT: Antes de registrar, te resumo la orden:
+- Veterinaria: Animal Pets
+- Dirección de retiro: DG 51A SUR 61B-03
+- Médico solicitante: Dr. Ruiz
+- Paciente: M5 (Felino, Persa, Macho, 1 año)
+- Propietario: D5
+- Fecha de toma de muestra: Hoy
+- Análisis: 152 Perfil Prequirúrgico I — $24.000
+- Observaciones: sin observaciones
+- Agregados: 1405-Sodio $12.000
+- Valor estimado: $36.000
+Si quieres cambiar algún dato o agregar otro análisis, decímelo.
+¿Confirmas estos datos?
+
+CLIENTE: Sí, confirmo.
+
+BOT: Quedó registrado:
+- Veterinaria: Animal Pets
+- Dirección de retiro: DG 51A SUR 61B-03
+- Médico solicitante: Dr. Ruiz
+- Paciente: M5 (Felino, Persa, Macho, 1 año)
+- Propietario: D5
+- Fecha de toma de muestra: Hoy
+- Análisis: 152 Perfil Prequirúrgico I — $24.000
+- Observaciones: sin observaciones
+- Agregados: 1405-Sodio $12.000
+- Valor estimado: $36.000
+Nuestro motorizado pasará a recoger la muestra.
+
+Número de orden: A3-2026-905
+
+Motorizado asignado: Jeeferson.
+
+¿Necesitas cargar otra orden para otro paciente? Escríbeme: otra orden. Si eso es todo, seguimos con la forma de pago y cerramos el pedido.
+
+CLIENTE: otra orden
+
+BOT: Perfecto, creamos otra orden de servicio. Mantengo estos datos de la orden anterior:
+- Veterinaria: Animal Pets
+- Dirección de retiro: DG 51A SUR 61B-03
+- Médico solicitante: Dr. Ruiz
+¿Confirmas o quieres cambiar alguno (dirección, médico o análisis)?
+
+CLIENTE: Confirmo la dirección DG 51A SUR 61B-03 y el médico Dr. Ruiz.
+
+BOT: ¿Cuál es el nombre del paciente?
+
+CLIENTE: M6, perro beagle macho de 6 años, dueño D6.
+
+BOT: Perfecto, lo anoto. ¿Qué día tomaron la muestra?
+
+CLIENTE: Hoy.
+
+BOT: Perfecto, lo anoto. ¿Qué análisis o perfil desean?
+
+CLIENTE: 1517.
+
+BOT: Listo, queda 1517. ¿Agregamos otro análisis a esta orden, o la dejamos así?
+
+CLIENTE: otra orden
+
+BOT: Quedó registrado:
+- Veterinaria: Animal Pets
+- Dirección de retiro: DG 51A SUR 61B-03
+- Médico solicitante: Dr. Ruiz
+- Paciente: M6 (Canino, Beagle, Macho, 6 años)
+- Propietario: D6
+- Fecha de toma de muestra: Hoy
+- Análisis: 1517
+- Observaciones: sin observaciones
+- Análisis incluidos: 1517-TSH Canina Vcheck $64.000
+- Valor estimado: $64.000
+Nuestro motorizado pasará a recoger la muestra.
+
+Número de orden: A3-2026-906
+
+Motorizado asignado: Jeeferson.
+
+Vamos con la siguiente orden. ¿Cuál es el nombre del paciente?
+
+CLIENTE: M7, perra criolla hembra de 7 años, dueña D7.
+
+BOT: Perfecto, lo anoto. ¿Qué análisis o perfil desean?
+
+CLIENTE: 152.
+
+BOT: Listo, registro 152 Perfil Prequirúrgico I ($24.000). ¿Agregamos otro análisis a esta orden, o la dejamos así?
+
+CLIENTE: otra orden
+
+BOT: Quedó registrado:
+- Veterinaria: Animal Pets
+- Dirección de retiro: DG 51A SUR 61B-03
+- Médico solicitante: Dr. Ruiz
+- Paciente: M7 (Canino, Criolla, Hembra, 7 años)
+- Propietario: D7
+- Fecha de toma de muestra: Hoy
+- Análisis: 152 Perfil Prequirúrgico I — $24.000
+- Observaciones: sin observaciones
+- Valor estimado: $24.000
+Nuestro motorizado pasará a recoger la muestra.
+
+Número de orden: A3-2026-907
+
+Motorizado asignado: Jeeferson.
+
+Vamos con la siguiente orden. ¿Cuál es el nombre del paciente?
+
+CLIENTE: M8, gato siames macho de 2 años, dueño D8.
+
+BOT: Perfecto, lo anoto. ¿Qué día tomaron la muestra?
+
+CLIENTE: Hoy.
+
+BOT: Perfecto, entonces registro la muestra como tomada hoy. Para dejar la orden completa, ¿qué análisis o perfil desean para M8?
+
+CLIENTE: 1101.
+
+BOT: Listo, queda 1101-Cuadro Hemático Completo. ¿Agregamos otro análisis a esta orden, o la dejamos así?
+
+CLIENTE: otra orden
+
+BOT: Quedó registrado:
+- Veterinaria: Animal Pets
+- Dirección de retiro: DG 51A SUR 61B-03
+- Médico solicitante: Dr. Ruiz
+- Paciente: M8 (Felino, Siamés, Macho, 2 años)
+- Propietario: D8
+- Fecha de toma de muestra: Hoy
+- Análisis: 1101 Cuadro Hemático Completo
+- Observaciones: sin observaciones
+- Análisis incluidos: 1101-Cuadro Hemático Completo $14.000
+- Valor estimado: $14.000
+Nuestro motorizado pasará a recoger la muestra.
+
+Número de orden: A3-2026-908
+
+Motorizado asignado: Jeeferson.
+
+Vamos con la siguiente orden. ¿Cuál es el nombre del paciente?
+
+CLIENTE: M9, perro pastor macho de 3 años, dueño D9.
+
+BOT: Perfecto, lo anoto. ¿Qué día tomaron la muestra?
+
+CLIENTE: Hoy.
+
+BOT: Perfecto, lo anoto. ¿Qué análisis o perfil desean?
+
+CLIENTE: 653 con potasio (1404).
+
+BOT: Listo, registro 653 Perfil Senior Canino III $58.000 y 1404-Potasio $12.000. ¿Agregamos otro análisis a esta orden, o la dejamos así?
+
+CLIENTE: otra orden
+
+BOT: Quedó registrado:
+- Veterinaria: Animal Pets
+- Dirección de retiro: DG 51A SUR 61B-03
+- Médico solicitante: Dr. Ruiz
+- Paciente: M9 (Canino, Pastor, Macho, 3 años)
+- Propietario: D9
+- Fecha de toma de muestra: Hoy
+- Análisis: 653 Perfil Senior Canino III — $58.000
+- Observaciones: sin observaciones
+- Agregados: 1404-Potasio $12.000
+- Valor estimado: $70.000
+Nuestro motorizado pasará a recoger la muestra.
+
+Número de orden: A3-2026-909
+
+Motorizado asignado: Jeeferson.
+
+Vamos con la siguiente orden. ¿Cuál es el nombre del paciente?
+
+CLIENTE: M10, perra labrador hembra de 4 años, dueña D10.
+
+BOT: Perfecto, anoto M10 como paciente, Canino como especie, Labrador como raza, Hembra como sexo, 4 años como edad y D10 como propietaria. ¿Cuál es el análisis o perfil desean?
+
+CLIENTE: 1701.
+
+BOT: Listo, registro 1701-Coprológico $12.000. Valor estimado: $12.000. ¿Agregamos otro análisis a esta orden, o la dejamos así?
+
+CLIENTE: Ya está, dejémosla así.
+
+BOT: Antes de registrar, te resumo la orden:
+- Veterinaria: Animal Pets
+- Dirección de retiro: DG 51A SUR 61B-03
+- Médico solicitante: Dr. Ruiz
+- Paciente: M10 (Canino, Labrador, Hembra, 4 años)
+- Propietario: D10
+- Fecha de toma de muestra: Hoy
+- Análisis: Perfil personalizado (1 análisis)
+- Observaciones: sin observaciones
+- Análisis incluidos: 1701-Coprológico $12.000
+- Valor estimado: $12.000
+Si quieres cambiar algún dato o agregar otro análisis, decímelo.
+¿Confirmas estos datos?
+
+CLIENTE: Sí, confirmo los datos.
+
+BOT: Quedó registrado:
+- Veterinaria: Animal Pets
+- Dirección de retiro: DG 51A SUR 61B-03
+- Médico solicitante: Dr. Ruiz
+- Paciente: M10 (Canino, Labrador, Hembra, 4 años)
+- Propietario: D10
+- Fecha de toma de muestra: Hoy
+- Análisis: Perfil personalizado (1 análisis)
+- Observaciones: sin observaciones
+- Análisis incluidos: 1701-Coprológico $12.000
+- Valor estimado: $12.000
+Nuestro motorizado pasará a recoger la muestra.
+
+Número de orden: A3-2026-9010
+
+Motorizado asignado: Jeeferson.
+
+¿Necesitas cargar otra orden para otro paciente? Escríbeme: otra orden. Si eso es todo, seguimos con la forma de pago y cerramos el pedido.
+
+CLIENTE: contraentrega
+
+BOT: Listo, cerramos el pedido con 10 órdenes:
+
+A3-2026-901 · M1 (Canino)
+  Médico: Dr. Ruiz
+  Análisis: Perfil Prequirúrgico I
+  Subtotal: $24.000
+
+A3-2026-902 · M2 (Felino)
+  Médico: Dr. Ruiz
+  Análisis: sin especificar
+  Subtotal: $14.000
+
+A3-2026-903 · M3 (Canino)
+  Médico: Dr. Ruiz
+  Análisis: sin especificar
+  Subtotal: $22.880
+
+A3-2026-904 · M4 (Canino)
+  Médico: Dr. Ruiz
+  Análisis: Perfil Senior Canino III
+  Subtotal: $58.000
+
+A3-2026-905 · M5 (Felino)
+  Médico: Dr. Ruiz
+  Análisis: Perfil Prequirúrgico I
+  Subtotal: $36.000
+
+A3-2026-906 · M6 (Canino)
+  Médico: Dr. Ruiz
+  Análisis: 1517
+  Subtotal: $64.000
+
+A3-2026-907 · M7 (Canino)
+  Médico: Dr. Ruiz
+  Análisis: Perfil Prequirúrgico I
+  Subtotal: $24.000
+
+A3-2026-908 · M8 (Felino)
+  Médico: Dr. Ruiz
+  Análisis: 1101 Cuadro Hemático Completo
+  Subtotal: $14.000
+
+A3-2026-909 · M9 (Canino)
+  Médico: Dr. Ruiz
+  Análisis: Perfil Senior Canino III
+  Subtotal: $70.000
+
+A3-2026-9010 · M10 (Canino)
+  Médico: Dr. Ruiz
+  Análisis: Perfil personalizado (1 análisis)
+  Subtotal: $12.000
+
+Forma de pago: contraentrega
+TOTAL DEL PEDIDO: $338.880
+
+Quedamos atentos. 🙂
+

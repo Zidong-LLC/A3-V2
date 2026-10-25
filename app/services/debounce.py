@@ -50,7 +50,10 @@ class MessageDebouncer:
                 timer.daemon = True
                 timer.start()
         if combined is not None:
-            self._safe_flush(flush_fn, combined)
+            # En un hilo aparte, igual que el camino del timer: si corriera acá, la respuesta
+            # HTTP al webhook esperaría el turno entero (10-30 s) y Chatwoot la daría por caída.
+            hilo = threading.Thread(target=self._safe_flush, args=(flush_fn, combined), daemon=True)
+            hilo.start()
 
     def _on_timer(self, key: str, generation: int) -> None:
         with self._lock:

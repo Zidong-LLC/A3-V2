@@ -13,7 +13,10 @@ def _get_test_client():
     from app.main import app
 
     app.config["TESTING"] = True
-    return app.test_client()
+    cliente = app.test_client()
+    with cliente.session_transaction() as sesion:  # el detalle exige sesión o token
+        sesion["dashboard_authenticated"] = True
+    return cliente
 
 
 def test_health_ok_when_supabase_responds():

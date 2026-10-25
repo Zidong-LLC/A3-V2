@@ -24,13 +24,21 @@ ALIAS = {
     "species": ("especie", "especies"),
     "sample": ("muestra", "tipo de muestra"),
     "tax_id": ("nit", "identificacion", "cedula", "documento", "nit/cc", "rut"),
-    "phone": ("telefono", "celular", "movil", "telefono 1"),
+    "phone": ("telefono", "celular", "movil", "telefono 1", "tel", "cel", "whatsapp"),
     "address": ("direccion", "domicilio"),
     "city": ("ciudad", "municipio"),
     "email": ("correo", "email", "e-mail", "correo electronico"),
+    "courier": ("motorizado", "mensajero", "domiciliario", "courier"),
 }
 
 CAMPOS_CLIENTE = ("tax_id", "phone", "address", "city", "email")
+PRECIO_MAXIMO = 20_000_000  # el análisis más caro del catálogo vale 1,2 millones
+# Especie como la guarda el catálogo: el agente ofrece a cada mascota lo de su especie y
+# lo de «ambos». Un «Perro» guardado tal cual dejaba el análisis invisible para todos.
+_ESPECIES = {"canino": ("canino", "canina", "caninos", "perro", "perros"),
+             "felino": ("felino", "felina", "felinos", "gato", "gatos"),
+             "ambos": ("ambos", "ambas", "todos", "todas", "canino y felino", "caninos y felinos",
+                       "perro y gato", "perros y gatos")}
 
 
 def norm(texto) -> str:
@@ -55,6 +63,20 @@ def precio(valor) -> int | None:
     limpio = re.sub(r"[.,]\d{1,2}$", "", limpio)
     limpio = re.sub(r"[^0-9]", "", limpio)
     return int(limpio) if limpio else None
+
+
+def precio_valido(valor) -> int | None:
+    """Precio legible y razonable: un cero de más no puede llegar al catálogo."""
+    numero = precio(valor)
+    return numero if numero is not None and 0 < numero <= PRECIO_MAXIMO else None
+
+
+def especie(valor) -> str | None:
+    """canino, felino o ambos (vacía = ambos). None si no se reconoce."""
+    limpio = norm(valor)
+    if not limpio:
+        return "ambos"
+    return next((clave for clave, alias in _ESPECIES.items() if limpio in alias), None)
 
 
 def leer_csv(data: bytes) -> tuple[list[dict], list[str]]:
@@ -103,7 +125,7 @@ def plan_precios(filas: list[dict], tests: list[dict], profiles: list[dict]) -> 
     cambios, iguales, errores = [], 0, []
     for numero, fila in enumerate(filas, start=2):
         code = (fila.get("code") or "").strip()
-        nuevo = precio(fila.get("price"))
+        nuevo = precio_valido(fila.get("price"))
         if not code:
             errores.append(f"Fila {numero}: sin código")
             continue
@@ -112,7 +134,7 @@ def plan_precios(filas: list[dict], tests: list[dict], profiles: list[dict]) -> 
             errores.append(f"Fila {numero}: el código {code} no existe en el catálogo")
             continue
         if nuevo is None:
-            errores.append(f"Fila {numero}: precio ilegible para {code}")
+            errores.append(f"Fila {numero}: precio ilegible o fuera de rango para {code}")
             continue
         if int(item.get("price") or 0) == nuevo:
             iguales += 1
@@ -131,7 +153,7 @@ def plan_portafolio(filas: list[dict], tests: list[dict], profiles: list[dict]) 
     for numero, fila in enumerate(filas, start=2):
         code = (fila.get("code") or "").strip()
         nombre = (fila.get("name") or "").strip()
-        valor = precio(fila.get("price"))
+        valor = precio_valido(fila.get("price"))
         if not code or not nombre:
             errores.append(f"Fila {numero}: hacen falta código y nombre")
             continue
@@ -142,50 +164,67 @@ def plan_portafolio(filas: list[dict], tests: list[dict], profiles: list[dict]) 
             errores.append(f"Fila {numero}: el código {code} viene repetido en el archivo")
             continue
         if valor is None:
-            errores.append(f"Fila {numero}: precio ilegible para {code}")
+            errores.append(f"Fila {numero}: precio ilegible o fuera de rango para {code}")
+            continue
+        categoria, sp = (fila.get("category") or "").strip(), especie(fila.get("species"))
+        if not categoria:  # la tabla la exige: sin esto la carga se cortaba a mitad
+            errores.append(f"Fila {numero}: falta la categoría de {code}")
+            continue
+        if sp is None:
+            errores.append(f"Fila {numero}: especie «{fila.get('species')}» no reconocida "
+                           "(canino, felino o ambos)")
             continue
         vistos.add(code)
         es_perfil = norm(fila.get("kind")).startswith("perfil")
         nuevos.append({
             "tabla": "catalog_profiles" if es_perfil else "catalog_tests",
             "code": code, "name": nombre, "price": valor,
-            "category": (fila.get("category") or "").strip() or None,
-            "species": (fila.get("species") or "").strip() or None,
+            "category": categoria, "species": sp,
             "sample": (fila.get("sample") or "").strip() or None,
         })
     return {"tipo": "portafolio", "crear": nuevos, "actualizar": [], "iguales": existentes,
             "errores": errores}
 
 
-def plan_clientes(filas: list[dict], clientes: list[dict], nombre_coincide) -> dict:
+def plan_clientes(filas: list[dict], clientes: list[dict], nombre_coincide, actualizar: bool = False,
+                  motorizados: dict | None = None, asignaciones: dict | None = None) -> dict:
     """Clientes a crear y datos que la lista completa en los que ya existen.
 
-    Nunca pisa un dato que la base ya tiene: solo rellena los vacíos. Cruza por
-    NIT y, si no hay, por nombre con la MISMA regla del agente y del portal."""
+    Por defecto no pisa un dato que la base ya tiene: solo rellena los vacíos. Con
+    `actualizar` (casilla en la pantalla, cierre v1) también cambia los que difieren y
+    muestra el antes/después. La columna Motorizado asigna por nombre (`motorizados`:
+    nombre normalizado → id). Cruza por NIT y, si no hay, por nombre con la MISMA regla
+    del agente y del portal."""
+    motorizados, asignaciones = motorizados or {}, asignaciones or {}
     por_nit = {}
     for cliente in clientes:
         clave = solo_digitos(cliente.get("tax_id"))
         if clave:
             por_nit.setdefault(clave, []).append(cliente)
 
-    nuevos, completar, errores = [], [], []
+    nuevos, completar, errores, avisos, vistos, iguales = [], [], [], [], set(), 0
     for numero, fila in enumerate(filas, start=2):
         nombre = (fila.get("name") or "").strip()
         nit = solo_digitos(fila.get("tax_id"))
         if not nombre and not nit:
             errores.append(f"Fila {numero}: sin nombre ni NIT")
             continue
+        if (nit or norm(nombre)) in vistos:  # dos veces en la lista = dos altas del mismo
+            errores.append(f"Fila {numero}: «{nombre or nit}» viene repetido en el archivo")
+            continue
+        vistos.add(nit or norm(nombre))
 
         candidatos = por_nit.get(nit) or []
         if len(candidatos) > 1:
             # Sedes que comparten NIT (caso Club Animals / ERR-157). El correo es un dato
             # del NIT —ahí llega la factura electrónica—, así que completa TODAS las sedes
             # que no lo tengan. Teléfono y dirección son de cada sede: esos no se comparten.
-            correo = (fila.get("email") or "").strip()
+            correo, antes = (fila.get("email") or "").strip(), len(completar)
             for sede in candidatos:
                 if correo and not (sede.get("email") or "").strip():
                     completar.append({"id": sede["id"], "clinic_name": sede.get("clinic_name"),
                                       "cambios": {"email": correo}})
+            iguales += len(completar) == antes
             continue
         if not candidatos and nombre:
             candidatos = [c for c in clientes if nombre_coincide(nombre, c.get("clinic_name"))]
@@ -194,18 +233,33 @@ def plan_clientes(filas: list[dict], clientes: list[dict], nombre_coincide) -> d
                            "clientes, se deja para revisión manual")
             continue
 
+        courier_id = None
+        if (fila.get("courier") or "").strip():
+            courier_id = motorizados.get(norm(fila["courier"]))
+            if not courier_id:
+                avisos.append(f"Fila {numero}: el motorizado «{fila['courier']}» no existe; no se asigna")
+
         if not candidatos:
-            nuevos.append({"clinic_name": nombre or f"Sin nombre ({nit})",
-                           **{c: (fila.get(c) or "").strip() for c in CAMPOS_CLIENTE if fila.get(c)}})
+            nuevo = {"clinic_name": nombre or f"Sin nombre ({nit})",
+                     **{c: (fila.get(c) or "").strip() for c in CAMPOS_CLIENTE if fila.get(c)}}
+            if courier_id:
+                nuevo["courier_id"] = courier_id
+            nuevos.append(nuevo)
             continue
 
         actual = candidatos[0]
         faltantes = {campo: (fila.get(campo) or "").strip()
                      for campo in CAMPOS_CLIENTE
-                     if (fila.get(campo) or "").strip() and not (actual.get(campo) or "").strip()}
+                     if (fila.get(campo) or "").strip() and (
+                         (fila.get(campo) or "").strip() != (actual.get(campo) or "").strip() if actualizar
+                         else not (actual.get(campo) or "").strip())}
+        if courier_id and asignaciones.get(actual["id"]) != courier_id:
+            faltantes["courier_id"] = courier_id
         if faltantes:
             completar.append({"id": actual["id"], "clinic_name": actual.get("clinic_name"),
-                              "cambios": faltantes})
-    return {"tipo": "clientes", "crear": nuevos, "actualizar": completar,
-            "iguales": len(filas) - len(nuevos) - len(completar) - len(errores),
-            "errores": errores}
+                              "cambios": faltantes,
+                              "antes": {c: actual.get(c) for c in faltantes if c != "courier_id"}})
+        else:
+            iguales += 1
+    return {"tipo": "clientes", "crear": nuevos, "actualizar": completar, "iguales": iguales,
+            "errores": errores + avisos}

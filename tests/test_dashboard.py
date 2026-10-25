@@ -400,7 +400,7 @@ def test_dashboard_context_groups_samples_by_process_status(monkeypatch):
         },
     }]
 
-    def fake_fetch_rows(table, _select="*", _limit=500):
+    def fake_fetch_rows(table, _select="*", _limit=500, order=None):
         if table == "lab_samples":
             return sample_rows
         if table == "lab_sample_events":
@@ -833,7 +833,9 @@ def test_client_delete_endpoint_deletes_client_completely(monkeypatch):
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_USER", "admin")
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_PASSWORD", "secret")
 
-    with patch("app.dashboard.db.delete_client_completely", return_value=True, create=True) as delete_client:
+    # Sin solicitudes, pedidos, muestras, resultados ni facturas: se elimina (cierre v1).
+    sin_historia = {"solicitudes": 0, "pedidos": 0, "muestras": 0, "resultados": 0, "facturas": 0}
+    with patch("app.dashboard.db.delete_client_completely", return_value=True, create=True) as delete_client,             patch("app.dashboard.maestros_db.get_client_any", return_value={"id": "client-1", "clinic_name": "Norte"}),             patch("app.dashboard.maestros_db.historia_cliente", return_value=sin_historia),             patch("app.dashboard.audit_db.registrar"):
         client = _get_test_client()
         client.post("/login", data={"username": "admin", "password": "secret"})
         response = client.post(
@@ -842,15 +844,30 @@ def test_client_delete_endpoint_deletes_client_completely(monkeypatch):
         )
 
     assert response.status_code == 200
-    assert response.get_json() == {"ok": True, "client_id": "client-1"}
+    assert response.get_json() == {"ok": True, "client_id": "client-1", "deleted": True}
     delete_client.assert_called_once_with(client_id="client-1", clinic_key="clinica_norte")
+
+
+def test_client_delete_con_historia_desactiva_y_no_borra(monkeypatch):
+    monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_USER", "admin")
+    monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_PASSWORD", "secret")
+    con_historia = {"solicitudes": 3, "pedidos": 1, "muestras": 0, "resultados": 0, "facturas": 2}
+    with patch("app.dashboard.db.delete_client_completely", create=True) as delete_client,             patch("app.dashboard.maestros_db.get_client_any", return_value={"id": "client-1", "clinic_name": "Norte"}),             patch("app.dashboard.maestros_db.historia_cliente", return_value=con_historia),             patch("app.dashboard.maestros_db.actualizar_cliente", return_value=True) as actualizar,             patch("app.dashboard.audit_db.registrar"):
+        client = _get_test_client()
+        client.post("/login", data={"username": "admin", "password": "secret"})
+        response = client.post("/api/dashboard/client-delete", json={"client_id": "client-1"})
+
+    assert response.status_code == 200
+    assert response.get_json()["deactivated"] is True
+    actualizar.assert_called_once_with("client-1", {"is_active": False})
+    delete_client.assert_not_called()
 
 
 def test_client_delete_endpoint_returns_not_found_when_client_missing(monkeypatch):
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_USER", "admin")
     monkeypatch.setattr("app.dashboard.DASHBOARD_ADMIN_PASSWORD", "secret")
 
-    with patch("app.dashboard.db.delete_client_completely", return_value=False, create=True):
+    with patch("app.dashboard.db.delete_client_completely", return_value=False, create=True),             patch("app.dashboard.maestros_db.get_client_any", return_value=None):
         client = _get_test_client()
         client.post("/login", data={"username": "admin", "password": "secret"})
         response = client.post("/api/dashboard/client-delete", json={"client_id": "missing"})

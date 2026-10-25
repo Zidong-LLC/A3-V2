@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Estimado de costos — Plataforma A3 Laboratorio Veterinario</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --brand: #7a0d20;
+    --brand-dark: #4c0814;
+    --brand-tint: #f7ebee;
+    --ink: #171717;
+    --ink-2: #3f3f46;
+    --muted: #5c5c64;
+    --line: #d3d4d9;
+    --head: #f5f5f7;
+    --ok: #15803d;
+    --ok-tint: #e8f5ec;
+    --wait: #b45309;
+    --wait-tint: #fdf1e3;
+    --paper: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Public Sans", system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    font-size: 10.4pt;
+    line-height: 1.45;
+  }
+  .cover {
+    page-break-after: always;
+    min-height: 250mm;
+    padding: 28mm 18mm 18mm;
+    background: linear-gradient(165deg, var(--brand-dark) 0%, var(--brand) 55%, #9a2038 100%);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .cover .kicker {
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    font-size: 9pt;
+    font-weight: 600;
+    opacity: .78;
+  }
+  .cover h1 {
+    font-size: 28pt;
+    font-weight: 800;
+    line-height: 1.12;
+    margin: 18px 0 12px;
+    max-width: 150mm;
+  }
+  .cover .lead {
+    font-size: 12.5pt;
+    max-width: 155mm;
+    opacity: .92;
+    font-weight: 400;
+  }
+  .cover-meta {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 12px;
+    border-top: 1px solid rgba(255,255,255,.28);
+    padding-top: 16px;
+    font-size: 9pt;
+  }
+  .cover-meta strong { display: block; font-size: 10.5pt; margin-top: 3px; font-weight: 700; }
+  .page { padding: 0 2mm; }
+  h2 {
+    color: var(--brand);
+    font-size: 15pt;
+    font-weight: 800;
+    margin: 0 0 8px;
+    padding-bottom: 5px;
+    border-bottom: 2px solid var(--brand);
+  }
+  h3 {
+    font-size: 11.5pt;
+    font-weight: 700;
+    margin: 16px 0 6px;
+    color: var(--brand-dark);
+  }
+  p { margin: 0 0 8px; }
+  .note {
+    background: var(--brand-tint);
+    border-left: 4px solid var(--brand);
+    padding: 9px 12px;
+    margin: 10px 0 14px;
+    font-size: 9.6pt;
+  }
+  .okbox {
+    background: var(--ok-tint);
+    border-left: 4px solid var(--ok);
+    padding: 9px 12px;
+    margin: 10px 0 14px;
+    font-size: 9.6pt;
+  }
+  .warn {
+    background: var(--wait-tint);
+    border-left: 4px solid var(--wait);
+    padding: 9px 12px;
+    margin: 10px 0 14px;
+    font-size: 9.6pt;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8.6pt;
+    margin: 8px 0 14px;
+  }
+  th {
+    background: var(--brand);
+    color: #fff;
+    text-align: left;
+    font-weight: 650;
+    padding: 6px 7px;
+  }
+  td {
+    border-bottom: 1px solid var(--line);
+    padding: 5.5px 7px;
+    vertical-align: top;
+  }
+  tr:nth-child(even) td { background: var(--head); }
+  .num { white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .muted { color: var(--muted); }
+  .ficha {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    margin: 0 0 12px;
+    page-break-inside: avoid;
+    overflow: hidden;
+  }
+  .ficha header {
+    background: var(--head);
+    padding: 8px 11px 7px;
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    align-items: baseline;
+    border-bottom: 1px solid var(--line);
+  }
+  .ficha header h3 { margin: 0; font-size: 11pt; }
+  .ficha header .tag {
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--brand);
+  }
+  .ficha .body { padding: 9px 11px 10px; }
+  .grid2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 16px;
+    font-size: 9.2pt;
+  }
+  .grid2 dt { color: var(--muted); font-size: 8pt; font-weight: 650; text-transform: uppercase; letter-spacing: .04em; margin-top: 4px; }
+  .grid2 dd { margin: 0 0 4px; }
+  .flow {
+    font-family: ui-monospace, Consolas, monospace;
+    font-size: 8.2pt;
+    background: var(--head);
+    border: 1px solid var(--line);
+    padding: 10px 12px;
+    white-space: pre;
+    line-height: 1.45;
+    margin: 8px 0 14px;
+  }
+  .totales {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin: 10px 0 14px;
+  }
+  .kpi {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 12px;
+    page-break-inside: avoid;
+  }
+  .kpi .label { font-size: 8pt; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; }
+  .kpi .val { font-size: 16pt; font-weight: 800; color: var(--brand); margin: 4px 0 2px; }
+  .kpi .sub { font-size: 8.4pt; color: var(--muted); }
+  ul { margin: 4px 0 10px; padding-left: 18px; }
+  li { margin-bottom: 3px; }
+  .section { page-break-before: always; }
+  .section.first { page-break-before: auto; }
+  .pie {
+    margin-top: 18px;
+    font-size: 8pt;
+    color: var(--muted);
+    border-top: 1px solid var(--line);
+    padding-top: 8px;
+  }
+  .small { font-size: 8.6pt; color: var(--ink-2); }
+  ol.pasos { padding-left: 18px; }
+  ol.pasos li { margin-bottom: 6px; }
+</style>
+</head>
+<body>
+
+<section class="cover">
+  <div>
+    <div class="kicker">A3 Laboratorio Clínico Veterinario · Documento operativo</div>
+    <h1>Estimado de costos para levantar y mantener la plataforma</h1>
+    <p class="lead">Inventario de servicios a contratar a nombre de A3, modelo o tecnología de cada capa, y rango de gasto mensual de mantenimiento. A3 paga cada factura; N3 configura y opera.</p>
+  </div>
+  <div class="cover-meta">
+    <div>Fecha<br><strong>14 de septiembre de 2026</strong></div>
+    <div>Moneda de las facturas<br><strong>USD (la mayoría) y COP (Alegra)</strong></div>
+    <div>Audiencia<br><strong>Dirección A3 · caja y contratación</strong></div>
+  </div>
+</section>
+
+<div class="page">
+
+<section class="section first">
+  <h2>1. El acuerdo de caja</h2>
+  <p>La plataforma no es un solo software: es un conjunto de cuentas. Cada una emite su propia factura. Para no mezclar caja ni depender de que N3 adelante pagos:</p>
+  <div class="okbox">
+    <b>Regla:</b> A3 abre cada cuenta con correo corporativo y tarjeta de A3, paga la factura y entrega a N3 acceso de colaborador (no de titular de facturación). N3 no intermedia cobros de infraestructura.
+  </div>
+  <p>Este documento usa precios públicos vigentes a septiembre de 2026. El tipo de cambio COP/USD varía; la conversión a pesos es <b>orientativa a COP 4.000 por USD</b>. El valor real lo define el extracto de la tarjeta o el banco.</p>
+  <p class="small">Alcance cubierto: bot (Telegram y, cuando exista, WhatsApp), bandeja Chatwoot, dashboard operativo, portal de clientes, espejo de resultados Anarvet con PDF, y borradores de factura en Alegra. Fuera de este presupuesto: emisión DIAN automatizada, pasarela de pago, y la licencia de Anarvet (ya es de A3).</p>
+</section>
+
+<section>
+  <h2>2. Mapa de la plataforma</h2>
+  <p>Así se conectan las piezas en producción. Lo único que el cliente de la veterinaria ve es Telegram o WhatsApp, el portal, y los avisos. El resto es interno.</p>
+  <pre class="flow">Veterinaria (Telegram o WhatsApp)
+        │
+        ▼
+Chatwoot  ──────── bandeja humana (operaciones / contabilidad)
+        │
+        ▼
+Render  (Flask: bot + dashboard + portal + API)
+   ├── OpenAI gpt-5.4-mini     → entiende el turno y arma la respuesta
+   ├── Supabase PostgreSQL     → clientes, órdenes, sesiones, catálogo
+   ├── Alegra API              → crea BORRADORES (A3 emite en Alegra)
+   └── Anarvet (solo lectura)  → informes y PDF de resultados
+
+Telegram Bot API               → canal de clientes (gratis)
+Meta Cloud API                 → WhatsApp, cuando A3 entregue el número</pre>
+  <p>En desarrollo local se usa ngrok para exponer el Flask del computador. <b>En producción ngrok no se usa ni se paga:</b> Render es la URL pública.</p>
+</section>
+
+<section>
+  <h2>3. Qué “modelo” usa cada parte</h2>
+  <p>Hay un solo modelo de inteligencia artificial. El resto son plataformas, APIs y código determinístico (reglas fijas, no IA).</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Capa / parte</th>
+        <th>Plataforma</th>
+        <th>Motor / modelo</th>
+        <th>Qué hace</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Agente conversacional</td>
+        <td>OpenAI API</td>
+        <td><b>gpt-5.4-mini</b></td>
+        <td>Lee el mensaje, clasifica intención y propone el texto. Guardrails en Python corrigen y cierran la orden.</td>
+      </tr>
+      <tr>
+        <td>Formato de respuesta</td>
+        <td>OpenAI Structured Outputs</td>
+        <td>JSON schema fijo (<code>app/schema.py</code>)</td>
+        <td>Obliga al modelo a devolver campos (intent, fase, análisis), no prosa suelta.</td>
+      </tr>
+      <tr>
+        <td>Reglas de negocio</td>
+        <td>Código propio (Python)</td>
+        <td>Sin IA — determinístico</td>
+        <td>Corte 17:30, motorizado, catálogo y precios, handoff a contabilidad/recepción.</td>
+      </tr>
+      <tr>
+        <td>Hosting de la app</td>
+        <td>Render</td>
+        <td>Docker · 1 CPU · 2 GB RAM · plan Standard</td>
+        <td>Sirve bot, dashboard, portal y genera PDF con Chromium.</td>
+      </tr>
+      <tr>
+        <td>Base de datos</td>
+        <td>Supabase</td>
+        <td>PostgreSQL (compute Micro de entrada)</td>
+        <td>~1.000 clientes, catálogo, pedidos, 40.000+ informes en espejo.</td>
+      </tr>
+      <tr>
+        <td>Bandeja y handoff</td>
+        <td>Chatwoot self-hosted</td>
+        <td>Chatwoot Community (sin IA propia)</td>
+        <td>Inbox Telegram/WhatsApp, equipos Operaciones y Contabilidad.</td>
+      </tr>
+      <tr>
+        <td>Canal Telegram</td>
+        <td>Telegram Bot API</td>
+        <td>Bot de A3 (BotFather)</td>
+        <td>Transporte de mensajes. Sin costo por mensaje.</td>
+      </tr>
+      <tr>
+        <td>Canal WhatsApp</td>
+        <td>Meta Cloud API + Chatwoot</td>
+        <td>WhatsApp Business Platform</td>
+        <td>Código listo; falta cuenta Business de A3 y el número.</td>
+      </tr>
+      <tr>
+        <td>Facturación</td>
+        <td>Alegra</td>
+        <td>API REST v1 (cuenta real de A3)</td>
+        <td>Solo borradores. Emisión DIAN la hace A3 en Alegra. <code>ALEGRA_PRODUCTION=false</code>.</td>
+      </tr>
+      <tr>
+        <td>Resultados de lab</td>
+        <td>Anarvet</td>
+        <td>PostgreSQL de Anarvet, función de consulta</td>
+        <td>Espejo de informes. PDF del informe: Chromium (Playwright), no un modelo de IA.</td>
+      </tr>
+      <tr>
+        <td>Dashboard y portal</td>
+        <td>Misma app en Render</td>
+        <td>Flask + HTML/JS · sin LLM</td>
+        <td>Operación interna y consulta de clientes con nombre + NIT.</td>
+      </tr>
+      <tr>
+        <td>Avisos técnicos</td>
+        <td>Telegram (bot aparte)</td>
+        <td>Bot de alertas, no el de clientes</td>
+        <td>Avisa si el bot no pudo responder o si hay un 500. Gratis.</td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="warn">
+    <b>Por qué gpt-5.4-mini y no gpt-5.4 “grande”.</b> El bot habla turnos cortos, con catálogo y reglas ya resueltos en código. El modelo grande cuesta varias veces más (aprox. USD 2,50 / millón de tokens de entrada vs USD 0,75 del mini) sin mejora observable para este caso. El identificador en producción es <code>OPENAI_MODEL=gpt-5.4-mini</code>.
+  </div>
+</section>
+
+<section class="section">
+  <h2>4. Fichas de cada servicio a contratar</h2>
+  <p>Abajo: qué contratar, plan, costo de mantenimiento y por qué ese plan. Los tres primeros (Render, Supabase, OpenAI) son indispensables el día 1 de producción.</p>
+
+  <article class="ficha">
+    <header>
+      <h3>4.1 Render — servidor de la plataforma</h3>
+      <span class="tag">Contratar · factura USD</span>
+    </header>
+    <div class="body">
+      <dl class="grid2">
+        <dt>URL de alta</dt><dd>https://render.com</dd>
+        <dt>Plan de cómputo</dt><dd>Web Service <b>Standard</b> · 1 CPU · 2 GB RAM</dd>
+        <dt>Costo fijo</dt><dd class="num">USD 25 / mes</dd>
+        <dt>Workspace</dt><dd>Hobby USD 0 (alcanza). Pro USD 25 solo si A3 quiere más asientos/ancho de banda.</dd>
+        <dt>Cron Anarvet</dt><dd>Job que llama al sync cada hora laboral. Se cobra por segundo de ejecución: <b>centavos al mes</b>.</dd>
+        <dt>Ancho de banda</dt><dd>Hobby incluye ~5 GB; Pro ~25 GB. El tráfico de un laboratorio B2B suele caber. Extra: USD 0,15 / GB.</dd>
+      </dl>
+      <p class="small">El plan Starter (USD 7, 512 MB) <b>no sirve</b>: Chromium usa 150–300 MB al armar un PDF y tumba toda la instancia, incluido el bot. Un solo worker (un proceso): el anti-ráfagas del chat vive en memoria.</p>
+      <p class="small">Región prevista: Oregon (como el blueprint). Dominio: <code>algo.onrender.com</code> o el dominio propio de A3 apuntado por DNS.</p>
+    </div>
+  </article>
+
+  <article class="ficha">
+    <header>
+      <h3>4.2 Supabase — base de datos</h3>
+      <span class="tag">Contratar · factura USD</span>
+    </header>
+    <div class="body">
+      <dl class="grid2">
+        <dt>URL de alta</dt><dd>https://supabase.com</dd>
+        <dt>Plan</dt><dd><b>Pro</b> · organización de A3 · un proyecto</dd>
+        <dt>Costo fijo</dt><dd class="num">USD 25 / mes</dd>
+        <dt>Compute</dt><dd>Micro (~1 GB RAM) cubierto por USD 10 de crédito del Pro. Subir a Small (~USD 10 extra) solo si hay saturación.</dd>
+        <dt>Incluye</dt><dd>8 GB disco, 250 GB egreso, backups diarios 7 días, el proyecto no se pausa.</dd>
+        <dt>Storage de PDFs</dt><dd>Bucket privado <code>lab-results</code>. 100 GB incluidos en Pro; de más, ~USD 0,021 / GB.</dd>
+      </dl>
+      <p class="small">El plan Free pausa el proyecto a la semana de inactividad, limita disco a 500 MB y no tiene backups serios. No es opción de producción. Los ~41.000 informes en espejo ocupan poco frente a 8 GB.</p>
+    </div>
+  </article>
+
+  <article class="ficha">
+    <header>
+      <h3>4.3 OpenAI — modelo del bot</h3>
+      <span class="tag">Contratar · variable USD</span>
+    </header>
+    <div class="body">
+      <dl class="grid2">
+        <dt>URL de alta</dt><dd>https://platform.openai.com</dd>
+        <dt>Modelo en producción</dt><dd><b>gpt-5.4-mini</b> (no el modelo grande, no GPT-4o)</dd>
+        <dt>Tarifa pública</dt><dd>USD 0,75 / millón tokens entrada · USD 4,50 / millón salida · caché de entrada USD 0,075 / millón</dd>
+        <dt>Costo estimado</dt><dd class="num">USD 40–120 / mes típico</dd>
+        <dt>Tope recomendado</dt><dd>Spend limit <b>USD 150</b> el primer mes; ajustar con la factura real.</dd>
+        <dt>Uso</dt><dd>Solo el chat. Dashboard, portal, Alegra y Anarvet no llaman a OpenAI.</dd>
+      </dl>
+      <p class="small">Cada turno del bot envía el system prompt, un tramo de historial y el schema JSON, y recibe una respuesta corta. Orden de magnitud: <b>1 a 3 centavos de dólar por turno</b>. Un laboratorio B2B (decenas de conversaciones al día, 10–20 turnos por pedido) cae en USD 40–80. Hilos muy largos o pruebas intensivas suben a USD 100–150.</p>
+      <p class="small">Facturación: pay-as-you-go con tarjeta. Sin cuota fija. El spend limit evita sorpresas.</p>
+    </div>
+  </article>
+
+  <article class="ficha">
+    <header>
+      <h3>4.4 Chatwoot — bandeja de conversaciones</h3>
+      <span class="tag">Contratar VPS · factura USD/EUR</span>
+    </header>
+    <div class="body">
+      <dl class="grid2">
+        <dt>Software</dt><dd>Chatwoot Community, self-hosted (sin cobro por agente)</dd>
+        <dt>Hoy</dt><dd>Instancia N3: <code>n3-chatwoot.1hqzy5.easypanel.host</code></dd>
+        <dt>Para que pague A3</dt><dd>VPS a nombre de A3 (Hetzner, DigitalOcean, o EasyPanel equivalente) y migrar la instancia, <i>o</i> dejar el servidor de N3 y refacturar el VPS a costo.</dd>
+        <dt>Tamaño</dt><dd>4 GB RAM o más (Chatwoot + Postgres + Redis)</dd>
+        <dt>Costo</dt><dd class="num">USD 15–40 / mes</dd>
+      </dl>
+      <p class="small">Chatwoot Cloud (SaaS por asiento) sale más caro con varios usuarios de operaciones y contabilidad. Self-hosted es el camino actual y el más barato a este volumen. No usa un modelo de IA propio: el “Agent Bot” llama a nuestra app en Render.</p>
+    </div>
+  </article>
+
+  <article class="ficha">
+    <header>
+      <h3>4.5 Telegram — canal de clientes</h3>
+      <span class="tag">Sin factura</span>
+    </header>
+    <div class="body">
+      <dl class="grid2">
+        <dt>Alta</dt><dd>@BotFather, a nombre de A3</dd>
+        <dt>Costo</dt><dd class="num">USD 0</dd>
+        <dt>Límite práctico</dt><dd>Sin cobro por mensaje para este uso</dd>
+      </dl>
+      <p class="small">Hay un segundo bot solo para avisos técnicos al responsable (caídas, 500). También gratis. No debe ser el mismo bot de clientes, para no mezclar alertas con conversaciones en Chatwoot.</p>
+    </div>
+  </article>
+
+  <article class="ficha">
+    <header>
+      <h3>4.6 WhatsApp Business (cuando A3 entregue el número)</h3>
+      <span class="tag">Meta · variable USD</span>
+    </header>
+    <div class="body">
+      <dl class="grid2">
+        <dt>Qué falta</dt><dd>Cuenta Meta Business de A3 + WhatsApp Business + número conectado a Chatwoot. El código ya está (migración 031).</dd>
+        <dt>Modelo de cobro</dt><dd>Por mensaje entregado, según categoría y país del destinatario (Colombia es de los más baratos).</dd>
+        <dt>Servicio / utilidad CO</dt><dd>Orden de ~USD 0,0008 por mensaje de utilidad; el bot casi solo responde ventanas iniciadas por el cliente.</dd>
+        <dt>Marketing</dt><dd>~USD 0,0125 por mensaje de plantilla de marketing. No hace falta para el bot de recogidas.</dd>
+        <dt>Estimado</dt><dd class="num">USD 5–40 / mes</dd>
+      </dl>
+      <p class="small">Desde octubre de 2026 Meta cobra también mensajes de “servicio” tras un cupo gratuito (~1.000/mes por número). Aun así, el volumen de un laboratorio B2B en Colombia suele quedar bajo. No contratar un BSP extra si Chatwoot habla directo con Cloud API.</p>
+    </div>
+  </article>
+
+  <article class="ficha">
+    <header>
+      <h3>4.7 Alegra — facturación (ya de A3)</h3>
+      <span class="tag">Ya lo pagan · COP</span>
+    </header>
+    <div class="body">
+      <dl class="grid2">
+        <dt>Cuenta</dt><dd>A3 LABORATORIO CLINICO VETERINARIO SAS · NIT 900296338</dd>
+        <dt>API</dt><dd>Incluida en el plan de Alegra. No hay factura extra “por conectar la plataforma”.</dd>
+        <dt>Qué hace la plataforma</dt><dd>Crea <b>borradores</b>. Nunca emite a la DIAN.</dd>
+        <dt>Planes públicos Alegra CO</dt><dd>Solo facturación desde ~COP 17.900/mes (Emprendedor) hasta ~COP 179.900 (Plus), según ingresos y usuarios. A3 ya tiene el suyo.</dd>
+      </dl>
+      <p class="small">No abrir una segunda cuenta de Alegra para la plataforma. Se usa la cuenta real, con <code>ALEGRA_PRODUCTION=false</code> para bloquear emisión desde el software.</p>
+    </div>
+  </article>
+
+  <article class="ficha">
+    <header>
+      <h3>4.8 Anarvet — resultados de laboratorio (ya de A3)</h3>
+      <span class="tag">Ya lo pagan</span>
+    </header>
+    <div class="body">
+      <dl class="grid2">
+        <dt>Costo extra plataforma</dt><dd class="num">USD 0</dd>
+        <dt>Qué se necesita</dt><dd>Autorizar las IPs de salida de Render en el servidor de Anarvet (whitelist).</dd>
+        <dt>Uso</dt><dd>Consulta de informes (solo lectura) y publicación de PDF al portal.</dd>
+      </dl>
+    </div>
+  </article>
+
+  <article class="ficha">
+    <header>
+      <h3>4.9 Dominio y DNS</h3>
+      <span class="tag">Opcional pero recomendable</span>
+    </header>
+    <div class="body">
+      <dl class="grid2">
+        <dt>Para qué</dt><dd>URL estable del dashboard y del portal (<code>plataforma.a3….co</code>)</dd>
+        <dt>Costo</dt><dd class="num">USD 10–35 / año</dd>
+        <dt>SSL</dt><dd>Lo emite Render, sin costo extra.</dd>
+      </dl>
+      <p class="small">Mientras tanto se puede operar con <code>*.onrender.com</code>. El dominio es imagen y permanencia, no un requisito técnico del bot.</p>
+    </div>
+  </article>
+
+  <article class="ficha">
+    <header>
+      <h3>4.10 GitHub — código</h3>
+      <span class="tag">USD 0 o bajo</span>
+    </header>
+    <div class="body">
+      <p class="small">El repo puede seguir donde está. GitHub Free cubre privado. Si A3 quiere organización propia con varios asientos de administración: GitHub Team ~USD 4 / usuario / mes. No es costo de “tener la plataforma levantada”.</p>
+    </div>
+  </article>
+</section>
+
+<section class="section">
+  <h2>5. Detalle del modelo de IA</h2>
+  <table>
+    <thead>
+      <tr><th>Parámetro</th><th>Valor</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Proveedor</td><td>OpenAI (platform.openai.com), organización a nombre de A3</td></tr>
+      <tr><td>Modelo</td><td><code>gpt-5.4-mini</code></td></tr>
+      <tr><td>Entrada</td><td>USD 0,75 por 1.000.000 de tokens</td></tr>
+      <tr><td>Entrada en caché</td><td>USD 0,075 por 1.000.000 (el prompt de sistema se repite y puede abaratar)</td></tr>
+      <tr><td>Salida</td><td>USD 4,50 por 1.000.000 de tokens</td></tr>
+      <tr><td>Modo</td><td>Chat Completions + Structured Outputs (JSON schema)</td></tr>
+      <tr><td>Qué no usa</td><td>Assistants API, fine-tuning, GPT Store, voz, visión, batch (el chat tiene que ser en vivo)</td></tr>
+      <tr><td>Otras IAs</td><td>Ninguna. No hay Claude, Gemini ni modelo local en producción.</td></tr>
+    </tbody>
+  </table>
+  <h3>Ejemplo de caja de OpenAI (órdenes de magnitud)</h3>
+  <table>
+    <thead>
+      <tr><th>Volumen mensual</th><th>Turnos aprox.</th><th>Costo OpenAI</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Uso bajo (arranque / pocas clínicas activas en chat)</td><td>1.500–3.000</td><td>USD 20–50</td></tr>
+      <tr><td>Uso esperado (operación B2B diaria)</td><td>4.000–8.000</td><td>USD 50–100</td></tr>
+      <tr><td>Pico (campaña, WhatsApp + Telegram, pruebas)</td><td>10.000+</td><td>USD 120–180</td></tr>
+    </tbody>
+  </table>
+  <p class="small">Un “turno” es un mensaje del cliente que el bot procesa. Un pedido completo de recogida suele ser entre 8 y 20 turnos.</p>
+</section>
+
+<section>
+  <h2>6. Tabla consolidada de mantenimiento mensual</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Servicio</th>
+        <th>¿A3 lo contrata?</th>
+        <th>Tipo</th>
+        <th>Bajo</th>
+        <th>Esperado</th>
+        <th>Techo 1.er mes</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Render Standard</td><td>Sí</td><td>Fijo</td><td class="num">25</td><td class="num">25</td><td class="num">25</td></tr>
+      <tr><td>Render workspace Pro (opcional)</td><td>Solo si quieren equipo/ancho extra</td><td>Fijo</td><td class="num">0</td><td class="num">0</td><td class="num">25</td></tr>
+      <tr><td>Supabase Pro</td><td>Sí</td><td>Fijo</td><td class="num">25</td><td class="num">25</td><td class="num">25</td></tr>
+      <tr><td>OpenAI gpt-5.4-mini</td><td>Sí</td><td>Variable</td><td class="num">40</td><td class="num">80</td><td class="num">150</td></tr>
+      <tr><td>Chatwoot en VPS</td><td>Sí (o refactura N3)</td><td>Fijo</td><td class="num">15</td><td class="num">25</td><td class="num">40</td></tr>
+      <tr><td>Dominio (prorrateo)</td><td>Recomendado</td><td>Fijo bajo</td><td class="num">1</td><td class="num">2</td><td class="num">3</td></tr>
+      <tr><td>WhatsApp Cloud API</td><td>Cuando exista el número</td><td>Variable</td><td class="num">0</td><td class="num">15</td><td class="num">40</td></tr>
+      <tr><td>Telegram</td><td>Alta, sin pago</td><td>—</td><td class="num">0</td><td class="num">0</td><td class="num">0</td></tr>
+      <tr><td>Alegra</td><td>Ya lo tienen</td><td>Ya en COP</td><td colspan="3">No suma a este presupuesto USD</td></tr>
+      <tr><td>Anarvet</td><td>Ya lo tienen</td><td>—</td><td class="num">0</td><td class="num">0</td><td class="num">0</td></tr>
+      <tr><td>ngrok</td><td>No en producción</td><td>—</td><td class="num">0</td><td class="num">0</td><td class="num">0</td></tr>
+      <tr>
+        <td><b>Total USD / mes</b> (sin WhatsApp)</td>
+        <td></td><td></td>
+        <td class="num"><b>106</b></td>
+        <td class="num"><b>157</b></td>
+        <td class="num"><b>268</b></td>
+      </tr>
+      <tr>
+        <td><b>Total USD / mes</b> (con WhatsApp)</td>
+        <td></td><td></td>
+        <td class="num"><b>106</b></td>
+        <td class="num"><b>172</b></td>
+        <td class="num"><b>308</b></td>
+      </tr>
+    </tbody>
+  </table>
+  <p class="small">Cifras en USD. Equivalente orientativo a COP 4.000/USD:</p>
+  <div class="totales">
+    <div class="kpi">
+      <div class="label">Piso (sin WhatsApp)</div>
+      <div class="val">~USD 110</div>
+      <div class="sub">~COP 440.000 / mes</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Caja esperada</div>
+      <div class="val">~USD 160</div>
+      <div class="sub">~COP 640.000 / mes</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Reservar el 1.er mes</div>
+      <div class="val">USD 250–300</div>
+      <div class="sub">~COP 1.000.000 · luego ajustar</div>
+    </div>
+  </div>
+  <div class="note">
+    <b>Cómo leer el “esperado”.</b> Es el escenario de operación real: Render + Supabase + VPS de Chatwoot + un uso normal del bot. No incluye el plan Alegra (ya sale por otro centro de costo) ni Anarvet.
+  </div>
+</section>
+
+<section class="section">
+  <h2>7. Qué no hay que contratar</h2>
+  <ul>
+    <li>Render Scale / Enterprise, ni instancia Pro de 4 GB, salvo que el PDF y el tráfico lo pidan después.</li>
+    <li>Supabase Team (USD 599) o Enterprise.</li>
+    <li>OpenAI gpt-5.4 (modelo grande), fine-tuning, ni un segundo proveedor de IA.</li>
+    <li>Chatwoot Cloud por asiento, si ya self-hostean.</li>
+    <li>ngrok de pago (solo desarrollo; producción es Render).</li>
+    <li>Postgres adicional en Render: la base ya está en Supabase.</li>
+    <li>BSP de WhatsApp (360dialog, Twilio, etc.) si Meta Cloud API + Chatwoot alcanza.</li>
+    <li>Nueva cuenta de Alegra o de Anarvet.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>8. Checklist de altas (titular A3)</h2>
+  <ol class="pasos">
+    <li><b>Correo y tarjeta.</b> Un correo tipo <code>plataforma@…</code> o el de administración, y una tarjeta corporativa. Mismo titular en todas las cuentas.</li>
+    <li><b>Render.</b> Crear workspace → invitar a N3 como colaborador → N3 despliega el blueprint (Docker Standard, auto-deploy apagado).</li>
+    <li><b>Supabase.</b> Org Pro → un proyecto → invitar a N3. No usar el proyecto Free de desarrollo como producción si se puede evitar.</li>
+    <li><b>OpenAI.</b> Organización A3 → API key solo para producción → spend limit USD 150 → N3 carga la key en Render. Nunca una key personal.</li>
+    <li><b>Chatwoot / VPS.</b> Decidir: VPS nuevo a nombre de A3 (migración) o dejar EasyPanel de N3 y que A3 pague ese servidor.</li>
+    <li><b>Telegram.</b> Bot de clientes + bot de alertas, ambos de A3.</li>
+    <li><b>Alegra y Anarvet.</b> No alta nueva: entregar token API (Alegra) y pedir whitelist de IPs de Render (Anarvet).</li>
+    <li><b>Dominio.</b> Comprar y apuntar CNAME a Render cuando tengan el nombre.</li>
+    <li><b>WhatsApp.</b> Cuando A3 tenga Business: conectar el número al inbox de Chatwoot. No cancelar LiveConnect hasta probar la cadena.</li>
+  </ol>
+</section>
+
+<section>
+  <h2>9. Costos que este PDF no cubre</h2>
+  <ul>
+    <li>Honorarios de desarrollo, soporte o mejoras de N3 (es otro contrato).</li>
+    <li>Horas de personal de A3 (recepción, motorizados, contabilidad).</li>
+    <li>Internet, PCs, celulares, impresoras.</li>
+    <li>Plan Alegra y contrato Anarvet (ya existen).</li>
+    <li>Campañas de marketing por WhatsApp (plantillas de marketing).</li>
+    <li>Impuestos y spread de la tarjeta al pagar en USD.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>10. Supuestos y vigencia</h2>
+  <ul>
+    <li>Precios de Render, Supabase, OpenAI y Meta consultados en septiembre de 2026. Los proveedores los cambian sin aviso a este documento.</li>
+    <li>COP 4.000 / USD es una regla de bolsillo, no TRM oficial.</li>
+    <li>Volumen de chat: laboratorio B2B en Bogotá, no un bot masivo de consumidor final.</li>
+    <li>Un servicio web en Render, un proyecto Supabase, una instancia Chatwoot, un modelo OpenAI.</li>
+    <li>WhatsApp no entra al costo “día 1” hasta que A3 entregue número y cuenta Business.</li>
+  </ul>
+  <div class="note">
+    <b>Revisión sugerida:</b> a los 30 días de producción, bajar las tres facturas (Render, Supabase, OpenAI) y ajustar el techo de OpenAI. Ahí el “esperado” deja de ser estimado y pasa a ser histórico.
+  </div>
+  <p class="pie">
+    A3 Laboratorio Clínico Veterinario SAS · Documento de estimado de infraestructura · 14 de septiembre de 2026.
+    No es una cotización de desarrollo. Es la lista de servicios de terceros para operar la plataforma
+    con facturación a nombre de A3.
+  </p>
+</section>
+
+</div>
+</body>
+</html>

@@ -2,13 +2,13 @@
 
 ## Visión general
 
-Bot conversacional de Telegram/Chatwoot para A3 Laboratorio Veterinario. Procesa mensajes entrantes,
+Agente conversacional de Telegram, WhatsApp y Chatwoot para A3 Laboratorio Veterinario. Procesa mensajes entrantes,
 mantiene estado de conversación en Supabase, llama a OpenAI con un JSON schema fijo,
 y registra solicitudes operativas en la base de datos.
 
 ```
 Telegram directo → Flask /webhooks/telegram → process_turn(channel="telegram") → Supabase/OpenAI → Telegram
-Telegram vía Chatwoot → Flask /chatwoot/webhook → process_turn(channel="chatwoot") → Supabase/OpenAI → Chatwoot
+Telegram/WhatsApp → Chatwoot → Flask /chatwoot/webhook → process_turn(channel) → Supabase/OpenAI → Chatwoot
 ```
 
 ---
@@ -23,7 +23,7 @@ Telegram vía Chatwoot → Flask /chatwoot/webhook → process_turn(channel="cha
 ### API de plataforma (`app/platform_api.py`)
 - Responsabilidad: exponer datos operativos para dashboard/plataforma interna
 - Endpoints: overview de operación, clientes, solicitudes, eventos y actualización de estado
-- Seguridad opcional por header `X-Platform-Token` cuando `PLATFORM_API_TOKEN` está configurado
+- Seguridad fail-closed por header `X-Platform-Token`; sin `PLATFORM_API_TOKEN` la API responde 503
 
 ### Agente (`app/agent.py`)
 - Responsabilidad: orquestar un turno de conversación completo
@@ -97,7 +97,7 @@ client_id uuid UNIQUE → clients | courier_id uuid → couriers | assigned_by t
 
 **`requests`** — solicitudes operativas
 ```
-id uuid PK | client_id → clients | entry_channel (telegram|chatwoot|liveconnect|manual)
+id uuid PK | client_id → clients | entry_channel (telegram|chatwoot|whatsapp|manual|portal)
 service_area (route_scheduling|accounting|results|new_client|unknown)
 priority text DEFAULT 'normal' | status text | exam_type text | patient_name text
 pickup_address text | scheduled_pickup_date date | assigned_courier_id → couriers
@@ -136,15 +136,15 @@ any → cancelled
 3. Identifica veterinaria por `clinic_name` o `tax_id`
 4. Confirma `pickup_address`
 5. Genera la orden de servicio conversacional, un dato por turno
-6. Pregunta forma de pago
-7. Fase `fase_4_confirmacion`: muestra resumen editable y espera confirmación
-8. Fase `fase_6_cierre`: crea registro en `requests`, registra `service_order` en `request_events` y asigna motorizado de `client_courier_assignment`
-9. Muestra resumen final y confirma disponibilidad del bot para nuevas consultas
+6. Muestra el resumen editable y registra una orden por paciente dentro del pedido
+7. Permite agregar más órdenes; al terminar pide una sola forma de pago para el pedido
+8. Cierra el pedido, crea una factura borrador agrupada y asigna motorizado a cada recogida
+9. Muestra el resumen final y confirma disponibilidad del bot para nuevas consultas
 
 ### Consulta de resultados
 1. Usuario elige la opción 2 o pide resultados/estado de muestra.
-2. la consulta de resultados busca el informe publicado del cliente y ENVÍA el PDF por el chat (app/results_lookup.py + app/results_delivery.py); si la búsqueda falla, cae al mensaje fijo por este medio.
-3. No pide NIT, dirección ni datos del paciente para este flujo hasta que exista integración de resultados.
+2. La consulta busca el informe publicado del cliente y ENVÍA el PDF por el chat (`app/results_lookup.py` + `app/results_delivery.py`).
+3. Si hay varias coincidencias, pide una precisión concreta; nunca solicita datos propios de una recogida.
 
 ### Escalado (pagos / cliente nuevo)
 1. Agent detecta intención → fase `fase_7_escalado` inmediatamente

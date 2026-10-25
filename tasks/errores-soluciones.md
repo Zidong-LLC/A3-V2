@@ -4828,3 +4828,77 @@ conversaciones" teniendolas todas delante.
     mirar a mano o desde un monitor externo.
 - **Verificacion:** 3 tests nuevos, incluido uno que afirma que el liviano NO toca Alegra,
   Anarvet ni el PDF — que son justamente los lentos.
+
+## ERR-183 — El bot contestaba el saludo y el menú, pero se callaba al primer turno con IA (solo en local)
+
+- **Fecha:** 2026-10-19 · **Estado:** RESUELTO (entorno local) · **Abierto aparte:** respuesta de contingencia
+- **Sintoma:** prueba real por WhatsApp contra localhost (ngrok). «Hola» → bienvenida y «1» →
+  pedido de NIT funcionaron; «Adriana Rodríguez» quedó sin respuesta. En el log de Flask:
+  `Error en process_turn chatwoot 22: Connection error` → `CERTIFICATE_VERIFY_FAILED:
+  self-signed certificate in certificate chain`.
+- **Causa raiz medida:** el antivirus **Kaspersky** del equipo de desarrollo intercepta HTTPS
+  hacia `api.openai.com` y re-firma con «Kaspersky Anti-Virus Personal Root Certificate»
+  (`openssl s_client`). Windows confía en esa raíz (curl daba 200/401), Python usa certifi y
+  no. Supabase, Chatwoot y Telegram no pasan por la intercepción: por eso todo lo demás andaba.
+  El saludo y el menú son determinísticos (sin modelo); el primer turno con IA falla.
+- **Solucion:** `tools/scripts/ca_bundle_local.py` arma `.certs/ca-bundle-local.pem` (certifi +
+  raíces de Windows) y el `.env` local apunta `SSL_CERT_FILE` ahí (httpx lo respeta). `.certs/`
+  en .gitignore; runbook `sesion-local.md` paso 0b. Sin cambios de código: en Render no aplica.
+- **Verificacion:** OpenAI responde desde un proceso nuevo que solo carga el .env; Flask
+  levantado con el comando del runbook responde por ngrok; suite 1586 passed.
+- **Pendiente (requiere OK, toca el flujo):** cuando `process_turn` falla, `app/main.py` solo
+  avisa al admin (`notify_error`) y el cliente queda sin respuesta. Si OpenAI se cae en
+  producción pasa lo mismo. Propuesta: mensaje corto de contingencia o derivación a humano.
+
+## ERR-184 — Avisos de error en el Telegram de reportes + bot de producción apuntando a un ngrok apagado
+
+- **Fecha:** 2026-10-19 · **Estado:** RESUELTO
+- **Sintoma:** el usuario recibe muchos avisos en el Telegram de reportes (@A3newsbot).
+- **Causas encontradas (tres):**
+  1. `tests/conftest.py` no apagaba el bot de avisos y el `.env` real lo trae configurado:
+     un test que fallaba por red (`getaddrinfo failed`) pasaba por `_avisar_error_no_manejado`
+     y mandaba el aviso REAL («· test» al pie). Una corrida sana no manda ninguno (medido con
+     un espía de `_enviar`: 0 avisos en 1614 tests).
+  2. `tools/scripts/video_demo_seguro.py` (capturas y video) anulaba escrituras y avisos a
+     clientes pero no el bot de avisos: cualquier error de la demo salía como «· development».
+  3. Al terminar la prueba real por WhatsApp/Telegram (ERR-183) el Agent Bot de Chatwoot quedó
+     apuntando al ngrok local, ya apagado: los mensajes reales de clientes no llegaban a Render.
+- **Solucion:** conftest fuerza `ADMIN_TELEGRAM_CHAT_ID`/`ALERT_TELEGRAM_BOT_TOKEN` vacíos
+  (test_alerts los configura a mano); la demo anula `app.alerts._enviar`; `outgoing_url` del
+  bot restaurado a `https://a3-plataforma.onrender.com/chatwoot/webhook?token=…` (verificado
+  con GET a la API de Chatwoot).
+- **Nota:** `https://a3-plataforma.onrender.com` responde 503 «Service Suspended» porque el
+  usuario lo apagó A PROPÓSITO mientras se hacen los cambios; se vuelve a subir con el próximo
+  deploy. Que Chatwoot no contestara era por eso, no un error.
+- **Verificacion:** suite 1614 passed; `notify_error` con la config de tests devuelve False.
+
+## ERR-185 — Auditoría de salida a producción (2026-10-25): lo que se arregló y lo que queda con OK pendiente
+
+- **Fecha:** 2026-10-25 · **Estado:** RESUELTO lo de infraestructura · **PENDIENTE DE OK:** 5 puntos del flujo
+- **Contexto:** lanzamiento a producción el 2026-10-26. Revisión completa: suite, imagen Docker
+  real (build + arranque + /health + /health/detalle), 33 tablas y columnas contra Supabase,
+  webhooks (Telegram → Chatwoot, bot → Render, bot asociado a inbox 1 y 3), portal con login
+  real, 5 perfiles × 17 pantallas, más dos revisiones de código en paralelo (bot/webhooks y
+  portal/PDF/Alegra).
+- **Arreglado (sin tocar pasos del flujo):**
+  - Alegra: `create_invoice` manda `status="draft"` explícito cuando `ALEGRA_PRODUCTION=false`.
+    En la cuenta real NO existe todavía ninguna factura creada por la plataforma: que saliera
+    como borrador dependía de un default de Alegra nunca probado en una cuenta con FE.
+  - Timeouts: OpenAI 60 s (antes 600 s × 3), Telegram/Chatwoot 20 s, Alegra 30 s (antes sin tope).
+  - Mensajes > 4096 caracteres se parten (Telegram y WhatsApp los rechazaban con 400).
+  - Tope duro del debounce en un hilo aparte: no bloqueaba la respuesta HTTP del webhook.
+  - Fallos de envío y de entrega de PDF avisan por `notify_error` (antes solo log).
+  - `logging.basicConfig`: los `app.logger.info` ahora salen en los logs de Render.
+  - `_fetch_all_active_clients` pagina con `order("id")`; `entry_channel="portal"` ya no se
+    guarda como telegram (el CHECK de la 031 lo admite); `platform_api` compara el token en
+    bytes; `dashboard_results` NameError `nombre`; `storage.result_signed_url` no tira 500 si
+    el PDF ya no está en el bucket.
+  - `.dockerignore` nuevo (sin él `COPY . .` metía el `.env` local con `SSL_CERT_FILE` de
+    Windows en la imagen), `tools/scripts/verificar_produccion.py` (solo lectura) y runbook
+    de deploy al día (`/health/detalle` exige token; FSM_ENFORCE/debounce fijos en render.yaml).
+- **Verificación:** suite 1622 passed con el `.env` local Y con los valores de producción
+  (`FSM_ENFORCE=false`); imagen Docker local arranca y responde; 7 tests nuevos.
+- **Queda con OK pendiente (tocan el flujo conversacional o son decisiones):** ver tasks/todo.md
+  «Pendientes con OK» — mensaje de contingencia si falla la IA, candado por chat, adjuntos sin
+  texto, limpieza de `_pedido_*` tras el barrido (una factura podría arrastrar perfiles del
+  pedido viejo), valor de `FSM_ENFORCE` en producción, handoff en Chatwoot (status pending).

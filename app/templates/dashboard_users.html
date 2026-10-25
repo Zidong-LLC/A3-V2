@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#7a0d20">
+  <title>A3 CRM - Usuarios y perfiles</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='os-kit.css') }}?v=9">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=23">
+  <link rel="stylesheet" href="{{ url_for('static', filename='portal.css') }}?v=10">
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js" defer></script>
+  <style>
+    .users-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 14px; padding: 12px; align-items: end; }
+    .users-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 600; }
+    .perm-gestionar { color: #166534; font-weight: 700; }
+    .perm-consultar { color: #1e40af; }
+    td .cell-input, td .cell-select { width: 100%; }
+  </style>
+</head>
+<body class="crm-theme" data-sidebar="expanded">
+  <div class="crm-app">
+    {% set seccion = 'usuarios' %}{% include '_sidebar.html' %}
+
+    <main class="crm-main os-scene">
+      <header class="top-header">
+        <div>
+          <p class="hello-label">Administración · Usuarios y perfiles</p>
+          <h1>Usuarios de la plataforma</h1>
+        </div>
+      </header>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+          <section class="approval-notice os-spring-in {{ 'error' if category == 'error' else 'ok' }}">{{ message }}</section>
+        {% endfor %}
+      {% endwith %}
+      {% if error %}<section class="approval-notice error">{{ error }}</section>{% endif %}
+
+      <section class="card">
+        <div class="card-head"><div>
+          <h3>Nuevo usuario</h3>
+          <p>Cada persona entra con su propio usuario. El perfil define qué secciones ve y qué puede modificar.</p>
+        </div></div>
+        <form method="post" action="{{ url_for('dashboard_users.crear_usuario') }}" class="users-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <label>Usuario<input class="cell-input" name="username" required placeholder="ej. recepcion.ana" autocomplete="off"></label>
+          <label>Nombre completo<input class="cell-input" name="full_name" required></label>
+          <label>Correo<input class="cell-input" name="email" type="email"></label>
+          <label>Perfil<select class="cell-select" name="role" required>
+            {% for clave, nombre in perfiles.items() %}<option value="{{ clave }}">{{ nombre }}</option>{% endfor %}
+          </select></label>
+          <label>Contraseña (mín. {{ min_clave }})<input class="cell-input" name="password" type="password" required minlength="{{ min_clave }}" autocomplete="new-password"></label>
+          <div><button type="submit" class="primary-btn"><i data-lucide="user-plus"></i>Crear usuario</button></div>
+        </form>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><div>
+          <h3>Usuarios</h3>
+          <p>Para cambiar la contraseña, escribe una nueva; si se deja vacía, no cambia. Un usuario bloqueado no puede entrar.</p>
+        </div></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Usuario</th><th>Nombre</th><th>Correo</th><th>Perfil</th><th>Activo</th><th>Nueva contraseña</th><th>Último ingreso</th><th></th></tr></thead>
+          <tbody>
+          {% for u in usuarios %}
+            {% set fid = 'u-' ~ u.id %}
+            <tr>
+              <td><strong>{{ u.username }}</strong></td>
+              <td><input class="cell-input" form="{{ fid }}" name="full_name" value="{{ u.full_name }}" required></td>
+              <td><input class="cell-input" form="{{ fid }}" name="email" value="{{ u.email or '' }}"></td>
+              <td><select class="cell-select" form="{{ fid }}" name="role">
+                {% for clave, nombre in perfiles.items() %}<option value="{{ clave }}" {{ 'selected' if u.role == clave else '' }}>{{ nombre }}</option>{% endfor %}
+              </select></td>
+              <td><input type="checkbox" form="{{ fid }}" name="is_active" {{ 'checked' if u.is_active else '' }}></td>
+              <td><input class="cell-input" form="{{ fid }}" name="password" type="password" minlength="{{ min_clave }}" autocomplete="new-password"></td>
+              <td>{{ (u.last_login_at or '')[:16] | replace('T', ' ') or '—' }}</td>
+              <td><form id="{{ fid }}" method="post" action="{{ url_for('dashboard_users.editar_usuario', user_id=u.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit" class="ghost-btn small">Guardar</button>
+              </form></td>
+            </tr>
+          {% else %}
+            <tr><td colspan="8" class="muted-text">Todavía no hay usuarios. Crea el primero arriba.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><div>
+          <h3>Qué puede hacer cada perfil</h3>
+          <p>Según el documento «Perfiles Plataforma» de A3. Se valida en el servidor en cada acción.</p>
+        </div></div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Módulo</th>{% for nombre in perfiles.values() %}<th>{{ nombre }}</th>{% endfor %}</tr></thead>
+          <tbody>
+          {% for fila in matriz %}
+            <tr><td><strong>{{ fila.modulo }}</strong></td>
+              {% for n in fila.niveles %}<td class="{{ 'perm-gestionar' if n == 'Gestionar' else ('perm-consultar' if n == 'Consultar' else '') }}">{{ n }}</td>{% endfor %}
+            </tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+      </section>
+    </main>
+  </div>
+  <script src="{{ url_for('static', filename='os-fx.js') }}?v=9" defer></script>
+</body>
+</html>

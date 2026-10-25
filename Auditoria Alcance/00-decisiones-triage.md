@@ -137,3 +137,19 @@ en vez de rutear por Chatwoot). No es honesto presentarlo como bloqueo puro del 
 contradicen: en este triage el alcance *creció* (entraron observabilidad, gateway, inventarios,
 tendencias, descarga masiva, detalle de orden, filtros, WhatsApp y consulta de resultados), así
 que el denominador es más grande. El trabajo construido es el mismo.
+
+---
+
+## Decisiones de alcance del usuario — 27 de agosto de 2026
+
+Tomadas al revisar la lista de cierre, con las actas de reunión a la vista.
+
+| # | Tema | Origen | Decisión |
+|---|---|---|---|
+| D1 | **Rol de mensajero / cuentas por rol** | Llamada 2 (22/04). El problema real que se planteó era que **recepción perdía visibilidad** cuando la conversación se derivaba al mensajero en Chatwoot, no un sistema de permisos | **FUERA DEL ALCANCE.** Quedan los dos accesos actuales: portal del cliente (veterinaria + NIT) y plataforma administrativa (usuario + contraseña). No se construye tabla de usuarios ni roles |
+| D2 | **Calendario de mensajeros** | Llamada 1 (16/04): «calendario mensual/semanal de mensajeros», compensatorios y días libres | **VERSIÓN MÍNIMA.** Solo marcar que un motorizado no está disponible un día, para que la asignación automática no le mande retiros. El resto (turnos, compensatorios) se sigue manejando fuera de la plataforma |
+| D3 | **Adjuntar soporte de pago por chat** | Llamada 2 (22/04): «el bot debe permitir adjuntar soporte de pago (PDF, imagen u otro archivo)» | **FUERA DEL ALCANCE.** Los pagos se aclaran por otro canal. El bot sigue procesando solo texto |
+
+> Estas tres salieron de reuniones reales, no de una lista inventada: se documenta el origen
+> para que quede claro qué se descartó y con qué fundamento. Si A3 las reclama, la referencia
+> está acá.

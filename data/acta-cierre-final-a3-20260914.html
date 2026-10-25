@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Acta final de cierre y entrega - A3</title>
+<style>
+@page{size:A4;margin:16mm 15mm}@media print{.page{break-before:page}.no-break{break-inside:avoid}}
+*{box-sizing:border-box}body{margin:0;color:#202124;font:10pt/1.42 "Segoe UI",Arial,sans-serif}header{border-bottom:4px solid #7a0d20;padding:0 0 12px;margin-bottom:14px}h1{margin:0;color:#7a0d20;font-size:19pt;line-height:1.15}h2{margin:17px 0 7px;padding-bottom:3px;border-bottom:1px solid #decbd0;color:#7a0d20;font-size:12.5pt}h3{margin:12px 0 5px;font-size:10.5pt}.sub{margin-top:4px;color:#5f6368}.status{margin:12px 0;padding:8px 11px;border-left:4px solid #7a0d20;background:#f8eff1;font-weight:700}p{margin:5px 0}ul{margin:5px 0;padding-left:19px}li{margin:3px 0}table{width:100%;border-collapse:collapse;margin:7px 0 10px;font-size:9.2pt}th{padding:6px 7px;background:#7a0d20;color:#fff;text-align:left}td{padding:6px 7px;border-bottom:1px solid #ddd;vertical-align:top}.meta td:first-child{width:29%;font-weight:700;color:#4a4a4a}.ok{color:#176b3a;font-weight:700}.pending{color:#8a4b08;font-weight:700}.small{font-size:8.6pt;color:#5f6368}.box{margin:8px 0;padding:9px 11px;border:1px solid #decbd0;background:#fcf8f9}.check{font-size:10.5pt;line-height:1.75}.signatures{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:26px}.signature{padding-top:35px;border-top:1px solid #333}.footer{margin-top:15px;padding-top:7px;border-top:1px solid #ddd;color:#6b6b6b;font-size:8.5pt}code{font-family:Consolas,monospace;font-size:8.7pt}
+</style>
+</head>
+<body>
+<header>
+<h1>A3 Laboratorio Veterinario</h1>
+<div class="sub"><strong>Acta consolidada de cierre, aceptación y entrega documental</strong><br>Fecha de elaboración: 14 de septiembre de 2026</div>
+</header>
+<div class="status">Documento para revisión y firma. No constituye aceptación del cliente hasta que ambas partes lo suscriban.</div>
+
+<h2>1. Identificación</h2>
+<table class="meta">
+<tr><td>Proyecto</td><td>Agente conversacional, plataforma operativa y portal de clientes de A3 Laboratorio Veterinario</td></tr>
+<tr><td>Cliente</td><td>A3 Laboratorio Veterinario</td></tr>
+<tr><td>Proveedor</td><td>Laberit / equipo de desarrollo</td></tr>
+<tr><td>Plan de referencia</td><td>“Plan de Trabajo Diario (Roadmap de Desarrollo)”, con cierre originalmente previsto para el 2 de junio de 2026</td></tr>
+<tr><td>Repositorio entregado</td><td><code>https://github.com/Zidong-LLC/A3-V2</code> · rama <code>master</code></td></tr>
+<tr><td>Versión candidata de cierre</td><td><code>bcaa1873c85df8588a8bf9a358beaeafb3b6675e</code> · 8 de septiembre de 2026</td></tr>
+</table>
+<p>El desarrollo continuó después de la fecha inicial mediante validaciones, cambios de criterio y ampliaciones acordadas. Esta acta consolida la aceptación de las fases y el traspaso final, evitando crear actas retroactivas de reuniones que no fueron formalizadas en su momento.</p>
+
+<h2>2. Objeto del acta</h2>
+<p>Dejar constancia de la entrega del producto construido, el alcance final, las sustituciones y exclusiones acordadas, la evidencia de validación, la documentación suministrada y las condiciones del traspaso a operación.</p>
+
+<h2>3. Alcance final entregado</h2>
+<table>
+<tr><th>Componente</th><th>Entrega consolidada</th></tr>
+<tr><td><strong>Agente conversacional</strong></td><td>Atención por WhatsApp/Chatwoot y Telegram; programación de recogidas; pedidos con varias órdenes y una factura borrador por pedido; consulta de resultados con envío de PDF; escalamiento de contabilidad y clientes nuevos.</td></tr>
+<tr><td><strong>Plataforma operativa</strong></td><td>Panel ejecutivo, operación, clientes, solicitudes, pedidos, muestras, catálogo y perfiles, resultados, facturación/cartera, motorizados, agenda, reasignación, alertas y cargas operativas.</td></tr>
+<tr><td><strong>Portal de clientes</strong></td><td>Ingreso por veterinaria y NIT, solicitudes de recogida, selección de análisis, consulta de solicitudes, resultados, notificaciones y estado de cuenta.</td></tr>
+<tr><td><strong>Integraciones</strong></td><td>Supabase, OpenAI, Chatwoot/Meta WhatsApp, Alegra en borradores y consulta de cartera, y Anarvet mediante espejo de solo lectura.</td></tr>
+<tr><td><strong>Operación y seguridad</strong></td><td>Despliegue en Render, controles de acceso, CSRF, API interna autenticada, health checks, alertas técnicas, auditoría de eventos y runbooks.</td></tr>
+<tr><td><strong>Documentación</strong></td><td>Arquitectura, decisiones, contrato conversacional, QA, bitácora de errores, runbooks y manual final de entrega y operación.</td></tr>
+</table>
+
+<h2>4. Cambios frente al roadmap original</h2>
+<table>
+<tr><th>Previsto inicialmente</th><th>Resultado final acordado</th></tr>
+<tr><td>Siigo</td><td>Sustituido por Alegra.</td></tr>
+<tr><td>DelSol</td><td>Operación consolidada en Alegra; no se construyó un conector separado.</td></tr>
+<tr><td>LiveConnect</td><td>Sustituido por Chatwoot como centro omnicanal.</td></tr>
+<tr><td>Tracking GPS</td><td>Sustituido por seguimiento por estados y reasignación manual.</td></tr>
+<tr><td>Alta de clientes por chat</td><td>Derivación obligatoria a recepción; el bot no registra clientes nuevos.</td></tr>
+<tr><td>Emisión DIAN y pasarela de pago</td><td>Fuera de esta versión; Alegra recibe borradores y contabilidad revisa/emite o gestiona el pago.</td></tr>
+<tr><td>Fotos, soportes y OCR por chat</td><td>Fuera del alcance final; el canal automatizado procesa texto y entrega PDF de resultados.</td></tr>
+<tr><td>Roles adicionales</td><td>Dos accesos: personal A3 y portal de veterinarias. Los motorizados reciben avisos, sin iniciar sesión.</td></tr>
+<tr><td>Validación bloqueante del médico</td><td>Se registra el nombre informado sin bloquear la orden.</td></tr>
+</table>
+<p class="small">Respaldo: <code>Auditoria Alcance/09-acta-cambios-de-criterio.md</code>, <code>Auditoria Alcance/13-decisiones-alcance-2026-08-28.md</code> y actas de reuniones versionadas.</p>
+
+<h2>5. Evidencia de validación y puesta en servicio</h2>
+<table>
+<tr><th>Fecha</th><th>Evidencia</th><th>Resultado</th></tr>
+<tr><td>21/08/2026</td><td>Demo guiada del flujo pedido → órdenes → pago → una factura.</td><td class="ok">Criterio aprobado por A3 en reunión.</td></tr>
+<tr><td>31/08/2026</td><td>Pruebas de estrés con pedidos de 5 y 10 órdenes.</td><td class="ok">15/15 órdenes; un pedido y una factura por ejecución.</td></tr>
+<tr><td>04/09/2026</td><td>Conversación real por WhatsApp conectada mediante Meta y Chatwoot.</td><td class="ok">Respuesta, continuidad de sesión y canal WhatsApp verificados.</td></tr>
+<tr><td>08/09/2026</td><td>Suite automatizada sobre la versión candidata.</td><td class="ok">1.524 pruebas aprobadas, 4 omitidas y 1 caso conocido marcado <code>xfail</code>.</td></tr>
+<tr><td>14/09/2026</td><td>Consulta del ambiente público <code>https://a3-plataforma.onrender.com</code>.</td><td class="ok">Servicio, dashboard y portal disponibles; Supabase, OpenAI, Alegra y PDF operativos. Anarvet respondió lento en el chequeo detallado.</td></tr>
+</table>
+<div class="box"><strong>Control de versión pendiente de cierre:</strong> antes de firmar, registrar en la sección 9 el commit exacto desplegado. La revisión pública confirma el servicio, pero el endpoint no expone la revisión de Git.</div>
+
+<h2>6. Documentación y traspaso</h2>
+<table>
+<thead><tr><th>Entregable</th><th>Ubicación</th></tr></thead>
+<tbody>
+<tr><td>Manual final de usuario, operación y handover</td><td><code>data/manual-entrega-operacion-a3-20260914.pdf</code></td></tr>
+<tr><td>Arquitectura técnica</td><td><code>docs/architecture.md</code></td></tr>
+<tr><td>Contrato del flujo conversacional</td><td><code>docs/contrato-flujo-conversacional.md</code></td></tr>
+<tr><td>Runbooks de despliegue y operación</td><td><code>docs/runbooks/</code></td></tr>
+<tr><td>Decisiones de arquitectura y alcance</td><td><code>docs/decisions/</code> y <code>Auditoria Alcance/</code></td></tr>
+<tr><td>Evidencia de QA y errores resueltos</td><td><code>tasks/qa-e2e-2026-07-28.md</code> y <code>tasks/errores-soluciones.md</code></td></tr>
+<tr><td>Retrospectiva y backlog posproducción</td><td>Sección 13 del manual final</td></tr>
+<tr><td>Código fuente y configuración reproducible</td><td>Repositorio Git, <code>requirements.txt</code>, <code>Dockerfile</code> y <code>render.yaml</code></td></tr>
+</tbody>
+</table>
+
+<h2>7. Pendientes externos y observaciones aceptadas</h2>
+<p>Los siguientes puntos no representan desarrollo funcional pendiente del alcance cerrado:</p>
+<ul>
+<li>Completar NIT y otros datos maestros faltantes de las veterinarias para habilitar portal y facturación.</li>
+<li>Resolver con A3 los códigos Anarvet 907 y 842, que conservan 232 informes sin asignación definitiva.</li>
+<li>Gestionar con Anarvet TLS, autorización de IP si aplica y una fuente para estados de análisis. La operación actual usa resultados ya validados.</li>
+<li>Definir por escrito responsables y condiciones de soporte posteriores al cierre.</li>
+</ul>
+
+<h2>8. Declaración de aceptación</h2>
+<div class="box">Con la firma de esta acta, A3 declara recibido el producto descrito, ratifica de forma consolidada la aceptación de las fases del proyecto y autoriza su traspaso a operación. Los cambios y exclusiones de la sección 4 forman parte del alcance final. Los puntos de la sección 7 se reciben como dependencias externas u observaciones conocidas y no reabren por sí mismos el alcance cerrado.</div>
+<p>Cualquier garantía, soporte o evolución posterior se regirá por el acuerdo comercial aplicable o por una orden de trabajo separada.</p>
+
+<h2>9. Checklist para firma</h2>
+<div class="check">
+☐ Commit desplegado en producción: ___________________________________________<br>
+☐ Prueba final de WhatsApp, dashboard, portal y PDF realizada el: ____ / ____ / 2026<br>
+☐ Credenciales entregadas por canal seguro a: _________________________________<br>
+☐ Recorrido de operación realizado el: ____ / ____ / 2026<br>
+☐ Acompañamiento ejecutado entre: ____ / ____ / 2026 y ____ / ____ / 2026<br>
+☐ Observaciones de aceptación: _______________________________________________<br>
+____________________________________________________________________________
+</div>
+
+<div class="signatures no-break">
+<div class="signature"><strong>Por A3 Laboratorio Veterinario</strong><br>Nombre: __________________________<br>Cargo: ___________________________<br>Documento: _______________________<br>Fecha: ___________________________</div>
+<div class="signature"><strong>Por Laberit / equipo de desarrollo</strong><br>Nombre: __________________________<br>Cargo: ___________________________<br>Documento: _______________________<br>Fecha: ___________________________</div>
+</div>
+</body>
+</html>

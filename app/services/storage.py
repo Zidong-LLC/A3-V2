@@ -22,7 +22,10 @@ def upload_result_pdf(client_id: str, order_ref: str | None, data: bytes) -> str
 
 def result_signed_url(path: str, expires_in: int = 300) -> str:
     """URL firmada temporal para ver/descargar un PDF del bucket."""
-    result = _client.storage.from_(PORTAL_RESULTS_BUCKET).create_signed_url(path, expires_in)
+    try:
+        result = _client.storage.from_(PORTAL_RESULTS_BUCKET).create_signed_url(path, expires_in)
+    except Exception:  # noqa: BLE001 — objeto borrado del bucket: la pantalla sigue, sin enlace
+        return ""
     return result.get("signedURL") or result.get("signedUrl") or ""
 
 

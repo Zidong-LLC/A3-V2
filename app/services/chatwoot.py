@@ -6,6 +6,7 @@ from app.config import (
     CHATWOOT_TEAM_CONTABILIDAD, CHATWOOT_TEAM_OPERACIONES,
 )
 from app.services.multipart import encode as _encode_multipart
+from app.text import partir_mensaje
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,10 @@ _TEAM_MAP = {
 }
 
 
+# Sin timeout, un Chatwoot colgado dejaba el hilo del turno esperando para siempre.
+_TIMEOUT = 20
+
+
 def _post(path: str, body: dict) -> None:
     payload = json.dumps(body).encode()
     req = urllib.request.Request(
@@ -33,16 +38,18 @@ def _post(path: str, body: dict) -> None:
         headers=_HEADERS,
         method="POST",
     )
-    with urllib.request.urlopen(req) as r:
+    with urllib.request.urlopen(req, timeout=_TIMEOUT) as r:
         r.read()
 
 
 def send_message(conversation_id: str, text: str) -> None:
-    _post(f"/conversations/{conversation_id}/messages", {
-        "content": text,
-        "message_type": "outgoing",
-        "private": False,
-    })
+    # WhatsApp (y Telegram) rechazan más de 4096 caracteres: se manda en partes.
+    for parte in partir_mensaje(text):
+        _post(f"/conversations/{conversation_id}/messages", {
+            "content": parte,
+            "message_type": "outgoing",
+            "private": False,
+        })
 
 
 def send_document(conversation_id: str, filename: str, content: bytes, caption: str | None = None) -> None:
@@ -59,7 +66,7 @@ def send_document(conversation_id: str, filename: str, content: bytes, caption: 
         headers=headers,
         method="POST",
     )
-    with urllib.request.urlopen(req) as r:
+    with urllib.request.urlopen(req, timeout=_TIMEOUT) as r:
         r.read()
 
 

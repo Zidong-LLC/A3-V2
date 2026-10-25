@@ -201,7 +201,7 @@ def _upload_one(file, index: int, tax_id: str, explicit_client: str) -> tuple[di
         "uploaded_by": session.get("dashboard_username"),
     })
     if not result:
-        return None, f"{nombre}: no se pudo guardar"
+        return None, f"{getattr(file, 'filename', None) or 'archivo'}: no se pudo guardar"
     return result, ""
 
 

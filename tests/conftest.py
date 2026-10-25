@@ -40,3 +40,18 @@ def pytest_configure(config):
     # El .env real trae ANARVET_ENABLED=true: fijarlo acá evita que /health y el sync
     # peguen a la base externa de Anarvet en los tests (misma razón que PORTAL_DEMO_MODE).
     os.environ.setdefault("ANARVET_ENABLED",           "false")
+    # Avisos de error APAGADOS (forzado, no setdefault): el .env real trae el bot de
+    # avisos y un test que fallaba por red mandaba el error al Telegram de reportes.
+    # test_alerts.py los configura a mano con valores falsos.
+    os.environ["ADMIN_TELEGRAM_CHAT_ID"] = ""
+    os.environ["ALERT_TELEGRAM_BOT_TOKEN"] = ""
+
+
+@pytest.fixture(autouse=True)
+def _sin_intentos_de_ingreso_previos():
+    """El límite de claves equivocadas vive en memoria del proceso: sin limpiarlo, los
+    logins fallidos de un test bloquearían el login de otro."""
+    from app import access
+
+    access._fallidos.clear()
+    yield

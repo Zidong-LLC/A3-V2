@@ -1,0 +1,28 @@
+{# Trasladar o reemplazar un motorizado (cierre v1). Mueve en un paso sus clientes, su
+   cobertura (localidades y zonas) y/o sus recogidas pendientes a otro motorizado, que
+   recibe el aviso. Primero muestra cuántos registros se mueven; nada cambia sin confirmar. #}
+{% set _db_couriers = context.couriers_rows | selectattr('source', 'equalto', 'db') | list %}
+<section class="card" id="traslado" data-traslado>
+  <div class="card-head"><div>
+    <h3>Trasladar o reemplazar un motorizado</h3>
+    <p>Para un día de descanso, pasa sus recogidas de ese día. Para una baja, pasa también sus clientes y su cobertura.</p>
+  </div></div>
+  <div class="users-form" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px 14px;padding:0 12px 12px;align-items:end">
+    <label>De<select class="cell-select" name="origen">{% for c in _db_couriers %}<option value="{{ c.id }}">{{ c.name }}</option>{% endfor %}</select></label>
+    <label>A<select class="cell-select" name="destino">{% for c in _db_couriers if c.is_active %}<option value="{{ c.id }}" {{ 'selected' if loop.index == 2 else '' }}>{{ c.name }}</option>{% endfor %}</select></label>
+    <label>Recogidas pendientes<select class="cell-select" name="recogidas">
+      <option value="dia">Solo las de un día</option>
+      <option value="pendientes">Todas las pendientes</option>
+      <option value="ninguna">Ninguna</option>
+    </select></label>
+    <label>Día<input class="cell-input" type="date" name="fecha" value="{{ context.today_iso or '' }}"></label>
+    <label>Solo zona o municipio (opcional)<input class="cell-input" name="zona" placeholder="ej. 5 o Soacha"></label>
+    <label class="portal-check"><input type="checkbox" name="clientes"> Sus clientes</label>
+    <label class="portal-check"><input type="checkbox" name="localidades"> Su cobertura (localidades y zonas)</label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button type="button" class="ghost-btn" data-traslado-ver>Ver qué va a pasar</button>
+      <button type="button" class="primary-btn" data-traslado-confirmar hidden>Confirmar traslado</button>
+    </div>
+  </div>
+  <p class="muted-text" style="padding:0 12px 12px" data-traslado-resumen></p>
+</section>

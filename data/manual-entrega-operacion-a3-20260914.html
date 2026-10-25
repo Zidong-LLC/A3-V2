@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Manual final de entrega y operación - A3</title>
+<style>
+@page{size:A4;margin:16mm 15mm}@media print{.page{break-before:page}.no-break{break-inside:avoid}}
+*{box-sizing:border-box}body{margin:0;color:#202124;font:10pt/1.45 "Segoe UI",Arial,sans-serif}header{border-bottom:4px solid #7a0d20;padding-bottom:12px;margin-bottom:14px}h1{margin:0;color:#7a0d20;font-size:19pt;line-height:1.15}h2{margin:17px 0 7px;padding-bottom:3px;border-bottom:1px solid #decbd0;color:#7a0d20;font-size:12.5pt}h3{margin:12px 0 4px;font-size:10.5pt}.sub{margin-top:4px;color:#5f6368}p{margin:5px 0}ul,ol{margin:5px 0;padding-left:20px}li{margin:3px 0}table{width:100%;border-collapse:collapse;margin:7px 0 10px;font-size:9.2pt}th{padding:6px 7px;background:#7a0d20;color:#fff;text-align:left}td{padding:6px 7px;border-bottom:1px solid #ddd;vertical-align:top}.note{margin:9px 0;padding:8px 11px;border-left:4px solid #7a0d20;background:#f8eff1}.warn{margin:9px 0;padding:8px 11px;border-left:4px solid #b46713;background:#fff7e8}.small{font-size:8.6pt;color:#5f6368}code{font-family:Consolas,monospace;font-size:8.7pt}.footer{margin-top:15px;padding-top:7px;border-top:1px solid #ddd;color:#6b6b6b;font-size:8.5pt}
+</style>
+</head>
+<body>
+<header>
+<h1>A3 Laboratorio Veterinario</h1>
+<div class="sub"><strong>Manual final de usuario, operación y handover</strong><br>Versión documental: 1.0 · 14 de septiembre de 2026</div>
+</header>
+
+<h2>1. Propósito y audiencia</h2>
+<p>Este manual concentra la información necesaria para recibir y operar la plataforma A3. Está dirigido al personal administrativo y operativo del laboratorio, al responsable técnico y a las veterinarias usuarias del portal.</p>
+<div class="note"><strong>Regla de seguridad:</strong> este documento no contiene contraseñas, tokens ni llaves. Las credenciales se entregan únicamente por un canal seguro y se rotan cuando cambia el responsable.</div>
+
+<h2>2. Qué compone la solución</h2>
+<table>
+<tr><th>Superficie</th><th>Uso</th><th>Acceso</th></tr>
+<tr><td>WhatsApp / Chatwoot</td><td>Atención automatizada y escalamiento al equipo humano.</td><td>Número oficial de A3 y bandejas de Chatwoot.</td></tr>
+<tr><td>Plataforma interna</td><td>Operación, solicitudes, pedidos, muestras, facturación, resultados, clientes y motorizados.</td><td><code>https://a3-plataforma.onrender.com/login</code></td></tr>
+<tr><td>Portal de veterinarias</td><td>Solicitudes, resultados, notificaciones y estado de cuenta del cliente identificado.</td><td><code>https://a3-plataforma.onrender.com/portal/login</code></td></tr>
+<tr><td>Repositorio</td><td>Código, migraciones, configuración, pruebas y documentación.</td><td><code>https://github.com/Zidong-LLC/A3-V2</code></td></tr>
+</table>
+
+<h2>3. Flujo funcional</h2>
+<h3>3.1 Programar una recogida</h3>
+<ol>
+<li>El cliente inicia por WhatsApp o crea la solicitud desde el portal.</li>
+<li>El agente identifica la veterinaria por nombre o NIT y confirma la dirección.</li>
+<li>Registra una orden por paciente con médico, paciente, especie, raza, sexo, edad, propietario, fecha de toma, análisis y observaciones.</li>
+<li>El cliente puede agregar más órdenes al mismo pedido.</li>
+<li>Al cerrar el pedido se solicita una sola forma de pago y se genera una factura en borrador en Alegra.</li>
+<li>La recogida se asigna según la configuración del cliente/zona y se avisa al motorizado vinculado.</li>
+</ol>
+<h3>3.2 Consultar resultados</h3>
+<ol>
+<li>El cliente solicita el resultado por paciente u orden.</li>
+<li>El sistema consulta los informes publicados para la veterinaria identificada.</li>
+<li>Si hay coincidencia, envía el PDF por el chat; si falta información, pide una sola precisión.</li>
+</ol>
+<h3>3.3 Pagos y cliente nuevo</h3>
+<p>El agente no resuelve pagos ni registra clientes nuevos. Los deriva, respectivamente, a contabilidad y recepción.</p>
+
+<h2>4. Operación diaria del personal A3</h2>
+<table>
+<thead><tr><th>Módulo</th><th>Acciones principales</th></tr></thead>
+<tbody>
+<tr><td>Panel</td><td>Revisar KPIs, alertas, carga operativa, facturación, TAT y actividad reciente.</td></tr>
+<tr><td>Operación / Solicitudes</td><td>Buscar órdenes, revisar atrasos, cambiar estados y atender excepciones.</td></tr>
+<tr><td>Pedidos</td><td>Consultar las órdenes agrupadas, sus importes y el estado del pedido/factura.</td></tr>
+<tr><td>Nueva orden</td><td>Registrar pedidos que llegan por teléfono o atención presencial.</td></tr>
+<tr><td>Muestras</td><td>Mover cada muestra por el ciclo operativo y consultar catálogo/perfiles.</td></tr>
+<tr><td>Resultados</td><td>Sincronizar/consultar Anarvet, mapear clientes pendientes, generar o publicar PDF y revisar entregas.</td></tr>
+<tr><td>Facturación</td><td>Sincronizar Alegra, revisar borradores y cartera. La emisión DIAN la realiza contabilidad en Alegra.</td></tr>
+<tr><td>Clientes</td><td>Actualizar datos, NIT, estado, dirección y asignación operativa.</td></tr>
+<tr><td>Motorizados</td><td>Gestionar disponibilidad, agenda, cobertura, chat de avisos y reasignaciones.</td></tr>
+</tbody>
+</table>
+<h3>Rutina recomendada</h3>
+<ol>
+<li>Al iniciar el día, revisar Panel, alertas de recogidas atrasadas y pedidos abiertos.</li>
+<li>Durante el día, mantener actualizados los estados de las muestras y resolver solicitudes sin asignación.</li>
+<li>Publicar resultados solo después de validar cliente, paciente y documento.</li>
+<li>Antes del cierre diario, revisar borradores de Alegra, excepciones, conversaciones escaladas y alertas técnicas.</li>
+</ol>
+
+<h2>5. Uso del portal por las veterinarias</h2>
+<ol>
+<li>Ingresar con el nombre registrado de la veterinaria y su NIT. Si el NIT corresponde a varias sedes, seleccionar la sede correcta.</li>
+<li>En “Solicitudes”, consultar el avance o crear una recogida usando el catálogo buscable.</li>
+<li>En “Resultados”, abrir o descargar únicamente los informes publicados para esa veterinaria.</li>
+<li>En “Notificaciones”, revisar avisos pendientes; en “Mi perfil”, verificar los datos maestros.</li>
+</ol>
+<div class="warn">Una veterinaria sin NIT completo no puede autenticarse correctamente ni facturarse. El personal A3 debe completar el dato maestro antes de habilitarla.</div>
+
+<h2>6. Canales y escalamiento</h2>
+<ul>
+<li>Las conversaciones automatizadas quedan normalmente en estado <code>pending</code> en Chatwoot.</li>
+<li>Para verlas todas, usar la vista guardada “TODAS (incluye las del bot)”.</li>
+<li>Cada agente humano debe tener cuenta y ser miembro de las bandejas correspondientes.</li>
+<li>Cuando el bot escala, el equipo toma la conversación desde contabilidad u operaciones.</li>
+<li>Los motorizados no ingresan a la plataforma; reciben el aviso en la conversación configurada para cada uno.</li>
+</ul>
+
+<h2>7. Monitoreo e incidentes</h2>
+<table>
+<thead><tr><th>Comprobación</th><th>Interpretación</th></tr></thead>
+<tbody>
+<tr><td><code>GET /health</code></td><td>Chequeo rápido de Render. Debe responder <code>status: ok</code>.</td></tr>
+<tr><td><code>GET /health/detalle</code></td><td>Estado de Supabase, OpenAI, Alegra, Anarvet y generación de PDF. Una integración lenta puede marcar <code>degraded</code> sin tumbar el servicio.</td></tr>
+<tr><td>Alertas a Telegram técnico</td><td>Informan errores del servidor sin incluir contenido de las conversaciones.</td></tr>
+</tbody>
+</table>
+<h3>Orden de diagnóstico</h3>
+<ol>
+<li>Revisar <code>/health</code> y luego <code>/health/detalle</code>.</li>
+<li>Confirmar en Render que el último deploy terminó correctamente y revisar sus logs.</li>
+<li>Si el chat no responde, verificar URL del Agent Bot, token del webhook, asociación al inbox, membresía y filtros de Chatwoot.</li>
+<li>Si falla Anarvet, conservar la plataforma activa y revisar conectividad/TLS/IP; no reiniciar todo por una integración degradada.</li>
+<li>Si falla Alegra, la recogida debe continuar; revisar después la creación del borrador y el evento de auditoría.</li>
+</ol>
+
+<h2>8. Despliegue y recuperación</h2>
+<ul>
+<li>Producción usa Docker en Render y despliegue manual; <code>autoDeploy</code> está desactivado.</li>
+<li>Antes de desplegar: suite verde, rama publicada y commit de release identificado.</li>
+<li>Después: verificar health, login interno, portal, conversación real, una orden de prueba y entrega de PDF.</li>
+<li>Las integraciones <code>ALEGRA_ENABLED</code>, <code>ANARVET_ENABLED</code> y <code>PDF_ENABLED</code> se encienden o apagan por separado para contener incidentes.</li>
+<li><code>ALEGRA_PRODUCTION=false</code> es un guardrail permanente: la plataforma crea borradores y no emite a la DIAN.</li>
+<li>Para rollback, seleccionar en Render el último deploy estable y ejecutar “Rollback to this version”; después repetir el smoke test.</li>
+</ul>
+<p>Procedimiento completo: <code>docs/runbooks/deploy.md</code>.</p>
+
+<h2>9. Seguridad y manejo de datos</h2>
+<ul>
+<li>No enviar archivos <code>.env</code>, tokens, contraseñas ni service keys por correo o dentro de actas.</li>
+<li>La API <code>/api/platform/*</code> exige <code>X-Platform-Token</code> en producción.</li>
+<li>El portal aísla la información por cliente; los resultados se almacenan en un bucket privado y se sirven mediante enlaces firmados.</li>
+<li>El acceso Anarvet es de solo lectura. Supabase conserva sesiones, solicitudes y eventos de auditoría.</li>
+<li>Antes de cambios masivos de clientes, generar snapshot; nunca desactivar ausentes de una lista sin confirmación de A3.</li>
+</ul>
+
+<h2>10. Interfaces técnicas principales</h2>
+<table>
+<tr><th>Interfaz</th><th>Uso</th></tr>
+<tr><td><code>POST /chatwoot/webhook?token=…</code></td><td>Entrada del Agent Bot para Telegram/WhatsApp.</td></tr>
+<tr><td><code>GET /api/platform/overview</code></td><td>Resumen operativo autenticado.</td></tr>
+<tr><td><code>GET /api/platform/clients</code></td><td>Clientes y asignaciones.</td></tr>
+<tr><td><code>GET /api/platform/requests</code></td><td>Solicitudes, con filtro opcional de estado.</td></tr>
+<tr><td><code>GET /api/platform/requests/&lt;id&gt;/events</code></td><td>Trazabilidad de una solicitud.</td></tr>
+<tr><td><code>PATCH /api/platform/requests/&lt;id&gt;/status</code></td><td>Cambio de estado con evento de auditoría.</td></tr>
+<tr><td><code>POST /api/platform/anarvet/sync</code></td><td>Sincronización incremental de resultados.</td></tr>
+</table>
+
+<h2>11. Responsabilidades después de la entrega</h2>
+<table>
+<tr><th>Responsable</th><th>Actividad</th></tr>
+<tr><td>A3</td><td>Operación diaria, calidad de datos de clientes, estados de muestras, revisión/emisión de facturas, publicación de resultados y gestión de usuarios de Chatwoot.</td></tr>
+<tr><td>Responsable técnico</td><td>Render, variables de entorno, monitoreo, despliegues, backups, incidentes e integraciones.</td></tr>
+<tr><td>Anarvet / terceros</td><td>Disponibilidad, seguridad y contenido de sus fuentes externas.</td></tr>
+<tr><td>Proveedor</td><td>Soporte o evoluciones únicamente bajo las condiciones comerciales que se acuerden por escrito.</td></tr>
+</table>
+
+<h2>12. Índice documental de handover</h2>
+<ul>
+<li><code>README.md</code>: instalación, variables y accesos principales.</li>
+<li><code>docs/architecture.md</code>: arquitectura y modelo de datos.</li>
+<li><code>docs/contrato-flujo-conversacional.md</code>: comportamiento aprobado del agente.</li>
+<li><code>docs/runbooks/</code>: despliegue, sesión local, orden de servicio, padrón y zonas.</li>
+<li><code>docs/decisions/</code>: decisiones de arquitectura.</li>
+<li><code>Auditoria Alcance/</code>: reuniones, cambios de criterio y decisiones de alcance.</li>
+<li><code>tasks/errores-soluciones.md</code>: bitácora técnica de errores y soluciones.</li>
+</ul>
+
+<h2>13. Retrospectiva y backlog posproducción</h2>
+<table>
+<tr><th>Aprendizaje</th><th>Aplicación permanente</th></tr>
+<tr><td>Las integraciones no se validan solo con mocks.</td><td>Smoke real por canal y servicio, más health detallado y evidencia de auditoría.</td></tr>
+<tr><td>Los cambios de criterio afectan flujo, datos y facturación.</td><td>Decisiones versionadas y una sola fuente de verdad para catálogo y precios.</td></tr>
+<tr><td>Los mensajes reales son ambiguos y llegan en ráfagas.</td><td>Guardrails, debounce, estado persistente y pruebas de estrés multiorden.</td></tr>
+<tr><td>Una dependencia lenta no debe reiniciar toda la plataforma.</td><td>Liveness separado del chequeo de integraciones y flags para aislar servicios.</td></tr>
+</table>
+<h3>Backlog fuera del cierre</h3>
+<ul>
+<li><strong>Alta:</strong> completar NIT/datos maestros y resolver los códigos Anarvet pendientes.</li>
+<li><strong>Alta externa:</strong> solicitar a Anarvet TLS y una fuente de estados de análisis.</li>
+<li><strong>Operativa:</strong> registrar el commit exacto de cada release y conservar evidencia del smoke posterior.</li>
+<li><strong>Monitoreo:</strong> observar fraseos ambiguos del catálogo durante la operación real y escalar si afectan cierres.</li>
+<li><strong>Evolución opcional:</strong> emisión DIAN, pasarela, GPS, adjuntos/OCR o roles adicionales solo mediante un alcance nuevo aprobado.</li>
+</ul>
+</body>
+</html>

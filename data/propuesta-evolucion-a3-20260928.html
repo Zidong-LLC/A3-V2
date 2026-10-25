@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Propuesta de evolución — A3 Laboratorio Veterinario</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --brand: #7a0d20;
+    --brand-dark: #4c0814;
+    --brand-tint: #f8eef0;
+    --brand-line: #ead3d8;
+    --ok: #166534;
+    --ok-mid: #15803d;
+    --ok-tint: #ecf7f0;
+    --ok-line: #cfe9d8;
+    --ink: #1c1917;
+    --ink-2: #44403c;
+    --muted: #6b6468;
+    --line: #e5e1e2;
+    --zebra: #faf8f8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: "Public Sans", "Segoe UI", Arial, sans-serif;
+    color: var(--ink);
+    background: #fff;
+    font-size: 9.4pt;
+    line-height: 1.42;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .page { break-after: page; }
+  .page:last-child { break-after: auto; }
+  .kicker { font-size: 7.8pt; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--brand); }
+  h1 { font-size: 25pt; font-weight: 800; color: var(--brand-dark); margin: 4px 0 6px; line-height: 1.08; letter-spacing: -.01em; }
+  .lead { font-size: 11pt; color: var(--ink-2); margin: 0 0 14px; max-width: 165mm; }
+  h2 { font-size: 15pt; font-weight: 800; color: var(--brand-dark); margin: 2px 0 6px; }
+  h3 { font-size: 10.5pt; font-weight: 700; color: var(--brand-dark); margin: 14px 0 5px; }
+  p { margin: 0 0 8px; }
+  b { font-weight: 700; }
+  .intro { color: var(--ink-2); margin: 0 0 10px; }
+  .small { font-size: 8.6pt; color: var(--ink-2); }
+
+  .kpis { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--brand-line); border-radius: 8px; overflow: hidden; margin: 0 0 14px; }
+  .kpi { padding: 11px 14px; background: var(--brand-tint); text-align: center; }
+  .kpi + .kpi { border-left: 1px solid var(--brand-line); }
+  .kpi .val { font-size: 19pt; font-weight: 800; color: var(--brand-dark); line-height: 1.1; }
+  .kpi .lbl { font-size: 8.3pt; color: var(--muted); margin-top: 3px; }
+  .kpi.ok { background: var(--ok-tint); }
+  .kpi.ok .val { color: var(--ok); }
+
+  table.sum { width: 100%; border-collapse: collapse; font-size: 9pt; margin: 6px 0 0; }
+  table.sum th { background: var(--brand); color: #fff; text-align: left; font-weight: 700; padding: 6px 9px; }
+  table.sum th + th, table.sum td + td { text-align: right; white-space: nowrap; width: 22mm; }
+  table.sum td { padding: 5px 9px; border-bottom: 1px solid var(--line); }
+  table.sum tr.grp td { background: var(--brand-tint); color: var(--brand-dark); font-weight: 700; font-size: 8.3pt; letter-spacing: .06em; text-transform: uppercase; padding-top: 6px; }
+  table.sum tr.grp.free td { background: var(--ok-tint); color: var(--ok); }
+  table.sum tr.free-row td { color: var(--ok); }
+  table.sum tr.free-row td:last-child { font-weight: 700; }
+  table.sum td + td { font-variant-numeric: tabular-nums; font-weight: 600; }
+  table.sum tr.tot td { background: var(--brand-dark); color: #fff; font-weight: 800; font-size: 11pt; padding: 8px 9px; border: 0; }
+  .foot { font-size: 8.2pt; color: var(--muted); margin-top: 8px; }
+  .consol { font-size: 8.9pt; color: var(--ink-2); border-left: 3px solid var(--ok-mid); background: var(--ok-tint); padding: 7px 10px; margin: 0 0 12px; }
+
+  .card { border: 1px solid var(--brand-line); border-radius: 8px; margin: 0 0 9px; break-inside: avoid; overflow: hidden; }
+  .card header { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; background: var(--brand-tint); padding: 7px 12px; border-bottom: 1px solid var(--brand-line); }
+  .card header h3 { margin: 0; font-size: 10.8pt; }
+  .card .price { font-weight: 800; color: var(--brand-dark); white-space: nowrap; font-size: 10.5pt; }
+  .card .body { padding: 7px 12px 8px; }
+  .why { font-size: 8.8pt; color: var(--ink-2); margin-bottom: 4px; }
+  table.tasks { width: 100%; border-collapse: collapse; font-size: 8.7pt; margin: 0; }
+  table.tasks td { padding: 3.5px 0; border-bottom: 1px dashed var(--line); vertical-align: top; }
+  table.tasks tr:last-child td { border-bottom: 0; }
+  table.tasks td + td { width: 12mm; text-align: right; white-space: nowrap; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--brand-dark); }
+  .outcome { border-left: 3px solid var(--brand); background: var(--zebra); padding: 6px 10px; font-size: 8.8pt; margin: 2px 0 8px; }
+
+  .card.free { border-color: var(--ok-line); }
+  .card.free header { background: var(--ok-tint); border-color: var(--ok-line); }
+  .card.free header h3, .card.free .price { color: var(--ok); }
+  .card.free table.tasks td + td { color: var(--ok); }
+
+  ul.list, ol.steps { margin: 4px 0 10px; padding-left: 18px; }
+  ul.list li, ol.steps li { margin: 0 0 4px; }
+  table.pay { width: 100%; border-collapse: collapse; font-size: 9pt; margin: 4px 0 10px; }
+  table.pay th { background: var(--brand); color: #fff; text-align: left; font-weight: 700; padding: 6px 8px; }
+  table.pay td { padding: 7px 8px; border-bottom: 1px solid var(--line); }
+  table.pay td:nth-child(2) { white-space: nowrap; font-weight: 700; }
+  .note { background: var(--brand-tint); border-left: 4px solid var(--brand); padding: 9px 12px; font-size: 9pt; margin: 10px 0; }
+  .next { border: 1px solid var(--brand-line); border-radius: 8px; padding: 11px 14px; margin-top: 14px; font-size: 9.4pt; }
+</style>
+</head>
+<body>
+
+<section class="page">
+  <div class="kicker">Propuesta comercial · Evolución de la plataforma</div>
+  <h1>A3 Laboratorio Veterinario</h1>
+  <p class="lead">Municipios en el mapa, reemplazo de motorizados, factura automática, pago en línea con Wompi y autorización de datos en WhatsApp, con el detalle de cada hora.</p>
+
+  <div class="kpis">
+    <div class="kpi"><div class="val">USD 1.080</div><div class="lbl">Inversión total</div></div>
+    <div class="kpi"><div class="val">36 horas</div><div class="lbl">11 entregables cotizados</div></div>
+    <div class="kpi ok"><div class="val">4 horas</div><div class="lbl">Sistema base, sin costo</div></div>
+  </div>
+
+  <p>Esta propuesta reúne el estimado ya aprobado y lo que A3 pidió en la última reunión. Cada entregable indica por qué se hace, qué incluye y cuántas horas lleva.</p>
+  <p class="consol"><b>Lo que es base de cualquier sistema no se cobra.</b> Los usuarios con sus roles y las cargas masivas se hacen igual, pero sus 4 horas se descuentan del total.</p>
+
+  <table class="sum">
+    <thead><tr><th>Entregable</th><th>Horas</th><th>Valor</th></tr></thead>
+    <tbody>
+      <tr class="grp"><td colspan="3">Operación y plataforma</td></tr>
+      <tr><td>1. Municipios en el mapa y la cobertura</td><td>4 h</td><td>USD 120</td></tr>
+      <tr><td>2. Reemplazo de motorizado por día o por zona</td><td>3 h</td><td>USD 90</td></tr>
+      <tr><td>3. Historial de cambios de motorizados y clientes</td><td>2 h</td><td>USD 60</td></tr>
+      <tr><td>4. Acceso al portal desde la página web de A3</td><td>1 h</td><td>USD 30</td></tr>
+      <tr><td>5. Depuración de clientes y NIT</td><td>1 h</td><td>USD 30</td></tr>
+      <tr class="grp"><td colspan="3">Facturación y pagos</td></tr>
+      <tr><td>6. Factura electrónica automática</td><td>5 h</td><td>USD 150</td></tr>
+      <tr><td>7. Wompi: enlace de pago por pedido y confirmación</td><td>6 h</td><td>USD 180</td></tr>
+      <tr><td>8. Enlace de pago en el chat, el portal y la plataforma</td><td>3 h</td><td>USD 90</td></tr>
+      <tr><td>9. Pago aplicado en Alegra y vista de contabilidad</td><td>3 h</td><td>USD 90</td></tr>
+      <tr class="grp"><td colspan="3">WhatsApp y entrega</td></tr>
+      <tr><td>10. Autorización de datos personales en WhatsApp</td><td>5 h</td><td>USD 150</td></tr>
+      <tr><td>11. Recorrido completo y puesta en marcha</td><td>3 h</td><td>USD 90</td></tr>
+      <tr class="grp free"><td colspan="3">Sistema base, se hace sin costo</td></tr>
+      <tr class="free-row"><td>Usuarios individuales y tres roles</td><td>3 h</td><td>Sin costo</td></tr>
+      <tr class="free-row"><td>Plantillas y exportación de cargas masivas</td><td>1 h</td><td>Sin costo</td></tr>
+      <tr class="tot"><td>Total a pagar</td><td>36 h</td><td>USD 1.080</td></tr>
+    </tbody>
+  </table>
+  <p class="foot">Tarifa de USD 30 por hora. Cada entregable incluye sus pruebas y su publicación en producción. Emitida el 28 de septiembre de 2026 · vigencia de 15 días calendario.</p>
+</section>
+
+<section class="page">
+  <div class="kicker">Parte 1 · 11 horas</div>
+  <h2>Operación y plataforma</h2>
+  <p class="intro">Ajustes que salieron de la revisión de A3 y de la última reunión. Todos modifican la plataforma actual.</p>
+
+  <article class="card">
+    <header><h3>1. Municipios en el mapa y la cobertura</h3><span class="price">4 h · USD 120</span></header>
+    <div class="body">
+      <p class="why">Los clientes de Soacha, Chía y Sibaté ya están en la base y se atienden asignándoles el motorizado a mano. Lo que falta es verlos: el mapa y la cobertura se construyeron sobre las 20 localidades de Bogotá y no muestran los municipios.</p>
+      <table class="tasks">
+        <tr><td>Mapa de cobertura ampliado con los municipios cercanos (Soacha, Chía, Sibaté y los que A3 confirme).</td><td>1 h</td></tr>
+        <tr><td>Cada municipio como una localidad más, con su motorizado. A3 agrega municipios desde la pantalla.</td><td>1 h</td></tr>
+        <tr><td>Asignación automática de las recogidas por municipio, a partir de la dirección del cliente.</td><td>1 h</td></tr>
+        <tr><td>Pruebas con clínicas reales de esos municipios.</td><td>1 h</td></tr>
+      </table>
+    </div>
+  </article>
+
+  <article class="card">
+    <header><h3>2. Reemplazo de motorizado por día o por zona</h3><span class="price">3 h · USD 90</span></header>
+    <div class="body">
+      <p class="why">Hoy, cuando un motorizado descansa, sus recogidas se cambian una por una en la Agenda. En la reunión A3 pidió poder pasar su «maletín» completo a otro motorizado.</p>
+      <table class="tasks">
+        <tr><td>Elegir un motorizado y un día, y pasar sus recogidas (todas o solo las de una zona) a otro en un solo paso.</td><td>2 h</td></tr>
+        <tr><td>Aviso automático al motorizado que reemplaza y registro del cambio en la Agenda.</td><td>1 h</td></tr>
+      </table>
+    </div>
+  </article>
+
+  <article class="card">
+    <header><h3>3. Historial de cambios de motorizados y clientes</h3><span class="price">2 h · USD 60</span></header>
+    <div class="body">
+      <p class="why">A3 preguntó si la plataforma guarda el historial cuando se modifica o se desactiva un motorizado. Hoy solo lo guardan los precios y las recogidas.</p>
+      <table class="tasks">
+        <tr><td>Registro de cada cambio (qué, quién y cuándo) en motorizados y clientes, incluidas activaciones y desactivaciones.</td><td>1 h</td></tr>
+        <tr><td>Consulta del historial desde la ficha del motorizado y del cliente.</td><td>1 h</td></tr>
+      </table>
+    </div>
+  </article>
+
+  <article class="card">
+    <header><h3>4. Acceso al portal desde la página web de A3</h3><span class="price">1 h · USD 30</span></header>
+    <div class="body">
+      <p class="why">Hoy el portal se comparte con un enlace suelto. A3 quiere que sus clientes entren desde la zona de clientes de su página web.</p>
+      <table class="tasks">
+        <tr><td>Botones «Consultar resultados» y «Solicitar recogida» en la página web, que llevan al portal.</td><td>1 h</td></tr>
+      </table>
+    </div>
+  </article>
+
+  <article class="card">
+    <header><h3>5. Depuración de clientes y NIT</h3><span class="price">1 h · USD 30</span></header>
+    <div class="body">
+      <p class="why">Sin NIT, una veterinaria no puede entrar al portal ni recibir factura a su nombre.</p>
+      <table class="tasks">
+        <tr><td>Aplicar las correcciones que entregue A3 (NIT faltantes, duplicados, inactivos), con copia de respaldo previa.</td><td>1 h</td></tr>
+      </table>
+    </div>
+  </article>
+</section>
+
+<section class="page">
+  <div class="kicker">Parte 2 · 17 horas</div>
+  <h2>Facturación y pagos</h2>
+  <p class="intro">El recorrido que A3 describió en la reunión: la veterinaria hace su pedido, paga en línea o contraentrega, y la factura le llega sola al correo.</p>
+
+  <article class="card">
+    <header><h3>6. Factura electrónica automática</h3><span class="price">5 h · USD 150</span></header>
+    <div class="body">
+      <p class="why">La plataforma se entregó con cada factura en borrador para revisión humana. En la reunión A3 precisó que las quiere emitidas automáticamente, porque son unas 300 al día, y corregidas con nota crédito cuando haga falta.</p>
+      <table class="tasks">
+        <tr><td>Emisión sin borrador al confirmarse el pago en línea o la contraentrega, a nombre del cliente o de consumidor final.</td><td>2 h</td></tr>
+        <tr><td>Revisión de datos antes de emitir (NIT, dígito de verificación, correo): si falta algo, esa factura queda en borrador con aviso a contabilidad.</td><td>1 h</td></tr>
+        <tr><td>Una sola factura por pedido, aun con reintentos, y aviso si la DIAN la rechaza.</td><td>1 h</td></tr>
+        <tr><td>Prueba con el contador de A3 sobre pedidos reales, verificando que Alegra envíe la factura al correo.</td><td>1 h</td></tr>
+      </table>
+    </div>
+  </article>
+
+  <article class="card">
+    <header><h3>7. Wompi: enlace de pago por pedido y confirmación</h3><span class="price">6 h · USD 180</span></header>
+    <div class="body">
+      <p class="why">El acta del 31 de agosto dejó la pasarela automática para una fase posterior. En la reunión A3 confirmó que la necesita, con Wompi, la pasarela de Bancolombia.</p>
+      <table class="tasks">
+        <tr><td>Revisión de Wompi con A3 (tipo de enlace, costo por transacción, medios de pago) y configuración del comercio.</td><td>1 h</td></tr>
+        <tr><td>Enlace de pago propio de cada pedido, con el valor exacto, una referencia única y firma de seguridad.</td><td>2 h</td></tr>
+        <tr><td>Confirmación automática de Wompi, verificada y sin procesar dos veces el mismo pago; el pedido queda pagado o rechazado.</td><td>2 h</td></tr>
+        <tr><td>Pruebas en el ambiente de pruebas de Wompi (aprobado, rechazado, PSE, Nequi) y un pago real de bajo valor.</td><td>1 h</td></tr>
+      </table>
+    </div>
+  </article>
+
+  <article class="card">
+    <header><h3>8. Enlace de pago en el chat, el portal y la plataforma</h3><span class="price">3 h · USD 90</span></header>
+    <div class="body">
+      <p class="why">El enlace tiene que llegar a la veterinaria por donde haga el pedido.</p>
+      <table class="tasks">
+        <tr><td>Enlace en el chat al cerrar el pedido con pago en línea.</td><td>1 h</td></tr>
+        <tr><td>Botón «Pagar en línea» en los pedidos del portal.</td><td>1 h</td></tr>
+        <tr><td>Enlace para los pedidos que se crean desde la plataforma (por teléfono o en el laboratorio).</td><td>1 h</td></tr>
+      </table>
+    </div>
+  </article>
+
+  <article class="card">
+    <header><h3>9. Pago aplicado en Alegra y vista de contabilidad</h3><span class="price">3 h · USD 90</span></header>
+    <div class="body">
+      <p class="why">Para que contabilidad no tenga que registrar a mano cada pago recibido por Wompi.</p>
+      <table class="tasks">
+        <tr><td>Pago registrado en Alegra: la factura queda saldada y la cartera, al día.</td><td>2 h</td></tr>
+        <tr><td>Estado de cada pago en Facturación y Cartera, con verificación de respaldo si un aviso de Wompi no llega.</td><td>1 h</td></tr>
+      </table>
+    </div>
+  </article>
+
+  <div class="outcome"><b>Resultado:</b> pedido, pago en la página segura de Wompi, factura emitida y saldada, y correo al cliente, sin intervención manual. Ni el chat ni la plataforma reciben datos de tarjetas o cuentas.</div>
+</section>
+
+<section class="page">
+  <div class="kicker">Parte 3 · 8 horas</div>
+  <h2>WhatsApp y entrega</h2>
+
+  <article class="card">
+    <header><h3>10. Autorización de datos personales en WhatsApp</h3><span class="price">5 h · USD 150</span></header>
+    <div class="body">
+      <p class="why">Con WhatsApp como canal principal, A3 debe pedir y conservar la autorización de cada persona antes de tratar sus datos (Ley 1581 de 2012). Hoy el chat no la pide.</p>
+      <table class="tasks">
+        <tr><td>Aviso y aceptación en el primer contacto, con el texto y el enlace a la política de A3. Quien ya aceptó no lo vuelve a ver.</td><td>2 h</td></tr>
+        <tr><td>Evidencia de cada aceptación (número, fecha y hora, canal y versión del texto), consultable y exportable.</td><td>2 h</td></tr>
+        <tr><td>Pruebas del recorrido, incluida una conversación real: acepta, no acepta y ya había aceptado.</td><td>1 h</td></tr>
+      </table>
+    </div>
+  </article>
+
+  <article class="card">
+    <header><h3>11. Recorrido completo y puesta en marcha</h3><span class="price">3 h · USD 90</span></header>
+    <div class="body">
+      <p class="why">Une todo lo nuevo con lo que ya funciona y lo valida con el equipo de A3, en producción.</p>
+      <table class="tasks">
+        <tr><td>Publicación de todos los cambios en producción y verificación de los canales.</td><td>1 h</td></tr>
+        <tr><td>Recorrido con el equipo de A3: pedido por chat y por portal, con pago, factura y correo.</td><td>1 h</td></tr>
+        <tr><td>Actualización del manual de operación y ajustes menores del recorrido.</td><td>1 h</td></tr>
+      </table>
+    </div>
+  </article>
+
+  <h3>Sistema base: se hace, pero no se cobra</h3>
+  <article class="card free">
+    <header><h3>Usuarios, roles y cargas masivas</h3><span class="price">4 h · sin costo</span></header>
+    <div class="body">
+      <table class="tasks">
+        <tr><td>Cada persona de A3 con su propio usuario y contraseña, y tres roles: Administrador (todo, incluidos los usuarios), Operación y Contabilidad. Hoy el equipo comparte un único acceso.</td><td>3 h</td></tr>
+        <tr><td>Plantilla descargable para cada carga masiva (precios, clientes y portafolio) y exportación a Excel. Las cargas ya existen en el menú Cargas.</td><td>1 h</td></tr>
+      </table>
+    </div>
+  </article>
+  <p class="small">Ya disponible, sin costo: crear, editar y desactivar clientes, precios y motorizados (menús Clientes, Muestras → Catálogo y Motorizados). Un registro creado por error y sin movimientos se puede eliminar; si ya tiene pedidos, facturas o resultados, se desactiva para conservar la historia contable.</p>
+</section>
+
+<section class="page">
+  <div class="kicker">Parte 4</div>
+  <h2>Límites, entrega y condiciones</h2>
+
+  <h3>Qué aporta A3</h3>
+  <ul class="list">
+    <li>Cuenta de comercio Wompi aprobada, sus llaves y los medios de pago que quiera habilitar. La propuesta asume Wompi; si se cambia de pasarela, se revisa el estimado.</li>
+    <li>Resolución de facturación electrónica vigente en Alegra y el acompañamiento del contador en la prueba.</li>
+    <li>Texto aprobado de la política de tratamiento de datos y el enlace donde se publica.</li>
+    <li>Lista de municipios con su motorizado, acceso a la página web y los datos para depurar clientes y NIT.</li>
+  </ul>
+
+  <h3>Fuera de esta propuesta</h3>
+  <ul class="list">
+    <li>Pagos parciales o combinados (parte en línea y parte en efectivo), devoluciones desde la plataforma y cobros recurrentes.</li>
+    <li>Notas crédito desde la plataforma: se hacen en Alegra, como hoy.</li>
+    <li>Un editor para crear roles a medida: la plataforma queda con los tres roles base.</li>
+    <li>Redacción o revisión jurídica de la política de datos, y cambios de diseño en la página web de A3.</li>
+    <li>Comisiones de Wompi, plan de Alegra, mensajes de WhatsApp y otros costos de terceros, que asume A3.</li>
+  </ul>
+
+  <h3>Orden de entrega</h3>
+  <ol class="steps">
+    <li><b>Operación y plataforma</b>, junto con usuarios, roles y cargas (sin costo).</li>
+    <li><b>Autorización de datos personales en WhatsApp.</b></li>
+    <li><b>Facturación y pagos:</b> factura automática, Wompi y pago aplicado en Alegra.</li>
+    <li><b>Recorrido completo y puesta en marcha.</b></li>
+  </ol>
+
+  <h3>Criterio de aceptación</h3>
+  <p>Cada entregable se da por recibido cuando lo descrito se puede usar en producción con datos reales y los ajustes menores de esa validación quedan resueltos.</p>
+
+  <h3>Condiciones de pago</h3>
+  <table class="pay">
+    <thead><tr><th>Pago</th><th>Valor</th><th>Momento</th></tr></thead>
+    <tbody>
+      <tr><td>Anticipo</td><td>USD 540</td><td>Al aprobar la propuesta.</td></tr>
+      <tr><td>Saldo</td><td>USD 540</td><td>A la entrega y aceptación de los entregables.</td></tr>
+    </tbody>
+  </table>
+  <div class="note">
+    El valor total es fijo para el alcance descrito. Cualquier cambio se estima y se aprueba por escrito antes de hacerse. Vigencia de la propuesta: 15 días calendario desde el 28 de septiembre de 2026.
+  </div>
+  <div class="next">
+    <b>Siguiente paso:</b> aprobar la propuesta y compartir los accesos y datos de «Qué aporta A3». Mientras llegan, el trabajo arranca por operación y plataforma.
+  </div>
+</section>
+
+</body>
+</html>

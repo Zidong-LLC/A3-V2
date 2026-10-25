@@ -19,20 +19,18 @@ Secuencia:
 2. Identificar cliente por NIT o nombre.
 3. Confirmar direccion registrada o capturar direccion corregida.
 4. Capturar los datos de la orden, uno por turno.
-5. Preguntar forma de pago.
-6. Mostrar resumen final.
-7. Crear `requests` y registrar evento `created` con `service_order`.
-8. Preguntar si necesita crear otra orden de servicio para otro paciente o animal.
+5. Mostrar el resumen editable y crear una orden dentro del pedido.
+6. Preguntar si necesita otra orden para otro paciente.
+7. Al cerrar el pedido, pedir una sola forma de pago.
+8. Mostrar el resumen del pedido, cerrarlo y crear una factura borrador agrupada.
 
-Si el cliente responde que si necesita otra orden, el agente conserva cliente,
-direccion y telefono de contacto, limpia los datos de la orden anterior y empieza
-una nueva orden por `requesting_doctor`. Si responde que no, cierra la
-conversacion con despedida sin reiniciar el flujo.
+Si el cliente responde que si necesita otra orden, el agente conserva cliente y
+datos estables, limpia los datos del paciente anterior y empieza una nueva orden.
+La forma de pago pertenece al pedido completo, no a cada orden.
 
 ## Datos capturados por el agente
 
 - `requesting_doctor`: medico solicitante
-- `clinic_phone`: telefono de contacto
 - `exam_type`: analisis o perfil
 - `patient_name`: paciente
 - `species`: especie
@@ -40,8 +38,10 @@ conversacion con despedida sin reiniciar el flujo.
 - `sex`: sexo
 - `patient_age`: edad
 - `owner_name`: propietario
+- `sample_taken_date`: fecha de toma de la muestra
 - `observations`: observaciones
-- `payment_method`: forma de pago
+
+La forma de pago se captura una vez al cerrar el pedido.
 
 ## Persistencia
 

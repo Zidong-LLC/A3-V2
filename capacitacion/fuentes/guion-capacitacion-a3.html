@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Guion de la capacitación — Plataforma A3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root { --brand: #7a0d20; --brand-dark: #4c0814; --brand-tint: #f8eef0; --brand-line: #ead3d8;
+          --ok: #166534; --ok-tint: #ecf7f0; --info: #1e40af; --info-tint: #e8eefc; --warn-tint: #fdf3e6;
+          --ink: #1c1917; --ink-2: #44403c; --muted: #6b6468; --line: #e5e1e2; --zebra: #faf8f8; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: "Public Sans", "Segoe UI", Arial, sans-serif; color: var(--ink); font-size: 9.2pt; line-height: 1.45;
+         -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page { break-after: page; } .page:last-child { break-after: auto; }
+  .kicker { font-size: 7.8pt; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--brand); }
+  h1 { font-size: 24pt; font-weight: 800; color: var(--brand-dark); margin: 4px 0 6px; line-height: 1.1; }
+  h2 { font-size: 14pt; font-weight: 800; color: var(--brand-dark); margin: 4px 0 6px; break-after: avoid; }
+  h3 { font-size: 10.4pt; font-weight: 700; color: var(--brand-dark); margin: 12px 0 4px; break-after: avoid; }
+  p { margin: 0 0 6px; } b { font-weight: 700; }
+  .lead { font-size: 10.6pt; color: var(--ink-2); margin: 0 0 12px; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0 0 12px; }
+  .kpi { background: var(--brand-tint); border: 1px solid var(--brand-line); border-radius: 8px; padding: 9px 10px; text-align: center; }
+  .kpi b { display: block; font-size: 15pt; color: var(--brand-dark); }
+  .kpi span { font-size: 8pt; color: var(--muted); }
+  table.t { width: 100%; border-collapse: collapse; font-size: 8.6pt; margin: 4px 0 10px; }
+  table.t th { background: var(--brand); color: #fff; text-align: left; font-weight: 700; padding: 5px 7px; }
+  table.t td { padding: 5px 7px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.t tr:nth-child(even) td { background: var(--zebra); }
+  table.t td.h { white-space: nowrap; font-weight: 700; color: var(--brand-dark); font-variant-numeric: tabular-nums; }
+  table.t tr.pausa td { background: var(--ok-tint); color: var(--ok); font-weight: 700; }
+  ul.check { list-style: none; padding: 0; margin: 4px 0 10px; }
+  ul.check li { padding: 0 0 4px 22px; position: relative; break-inside: avoid; }
+  ul.check li::before { content: ""; position: absolute; left: 0; top: 2px; width: 12px; height: 12px; border: 1.6px solid var(--brand); border-radius: 3px; }
+  ul.lista { margin: 3px 0 8px; padding-left: 17px; } ul.lista li { margin: 0 0 3px; }
+  .bloque { border: 1px solid var(--brand-line); border-radius: 8px; margin: 0 0 9px; break-inside: avoid; overflow: hidden; }
+  .bloque header { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; background: var(--brand-tint);
+                   padding: 6px 11px; border-bottom: 1px solid var(--brand-line); }
+  .bloque header h3 { margin: 0; font-size: 10.4pt; }
+  .bloque header span { font-weight: 800; color: var(--brand-dark); white-space: nowrap; font-size: 9pt; }
+  .bloque .c { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; padding: 7px 11px 8px; }
+  .bloque .c b.t { display: block; font-size: 7.6pt; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin-bottom: 2px; }
+  .decir { font-style: italic; color: var(--ink-2); }
+  .nota { border-radius: 8px; padding: 8px 11px; margin: 6px 0 10px; font-size: 8.9pt; border-left: 4px solid; break-inside: avoid; }
+  .nota.importante { background: var(--warn-tint); border-color: #d97706; }
+  .nota.consejo { background: var(--ok-tint); border-color: #15803d; }
+  .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+</style>
+</head>
+<body>
+
+<section class="page">
+  <div class="kicker">Documento interno · Para quien dicta la capacitación</div>
+  <h1>Guion de la capacitación de la plataforma A3</h1>
+  <p class="lead">Dos reuniones con A3: primero la <b>puesta en marcha</b> (prueba en vivo y publicación en el servidor) y después la <b>capacitación de 2 horas</b> para el equipo. Este guion dice qué mostrar, qué decir y cuánto dura cada parte.</p>
+  <div class="kpis">
+    <div class="kpi"><b>2 h</b><span>capacitación</span></div>
+    <div class="kpi"><b>11</b><span>bloques cronometrados</span></div>
+    <div class="kpi"><b>1</b><span>caso que recorre todo</span></div>
+    <div class="kpi"><b>5</b><span>perfiles practicando</span></div>
+  </div>
+
+  <h2>El caso que recorre toda la sesión</h2>
+  <p>En vez de mostrar pantallas sueltas, la sesión sigue a una veterinaria de prueba de punta a punta. Cada sección se ve en uso real:</p>
+  <table class="t">
+    <thead><tr><th>Momento</th><th>Qué le pasa a «Veterinaria Demo Patitas»</th><th>Sección</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Se carga junto con otras dos con el archivo <b>clientes_demo_carga_masiva.csv</b>.</td><td>Cargas masivas</td></tr>
+      <tr><td>2</td><td>Se abre su ficha: municipio, motorizado (Javier) e historial de la carga.</td><td>Clientes</td></tr>
+      <tr><td>3</td><td>Pide una recogida por WhatsApp desde el teléfono de prueba (NIT 900999001-1).</td><td>Agente</td></tr>
+      <tr><td>4</td><td>Su recogida aparece en Operación, Solicitudes y la Agenda de Javier.</td><td>Operación y Agenda</td></tr>
+      <tr><td>5</td><td>Javier «no viene»: se pasan sus recogidas del día a otro motorizado con el reemplazo.</td><td>Motorizados</td></tr>
+      <tr><td>6</td><td>Entra a su portal con nombre y NIT, pide otro retiro y ve su estado de cuenta.</td><td>Portal</td></tr>
+      <tr><td>7</td><td>Al final se da de baja: como tiene movimientos, se desactiva y conserva su historia.</td><td>Clientes</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Reunión 1 · Puesta en marcha (≈ 45 min, antes de la capacitación)</h2>
+  <table class="t">
+    <thead><tr><th>Min</th><th>Qué se hace</th></tr></thead>
+    <tbody>
+      <tr><td class="h">0–10</td><td>Repaso de lo entregado en la fase 1 (perfiles, clientes, motorizados y municipios, cargas, historial) y de lo que queda para la fase 2 (Wompi, factura automática, autorización de datos, enlace desde la web).</td></tr>
+      <tr><td class="h">10–20</td><td>Publicación en vivo en el servidor (Render): reactivar el servicio, desplegar la versión final y verificar que respondan la plataforma, el portal y la salud del servicio.</td></tr>
+      <tr><td class="h">20–35</td><td>Prueba en vivo por WhatsApp y Telegram con un teléfono de A3: saludo, identificación, una recogida completa y una consulta de resultado.</td></tr>
+      <tr><td class="h">35–45</td><td>A3 confirma la lista de personas y perfiles, el texto de las dos decisiones pendientes (precios solo Administrador; Cargas para Digitación y Procesamiento) y la fecha de la capacitación.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="page">
+  <div class="kicker">Capacitación · 120 minutos</div>
+  <h2>Agenda cronometrada</h2>
+  <table class="t">
+    <thead><tr><th>Hora</th><th>Bloque</th><th>Qué se muestra</th><th>Min</th></tr></thead>
+    <tbody>
+      <tr><td class="h">0:00</td><td><b>1. Bienvenida y mapa</b></td><td>Objetivo, las tres partes de la plataforma, perfiles y la guía en PDF.</td><td>10</td></tr>
+      <tr><td class="h">0:10</td><td><b>2. Ingreso y usuarios</b></td><td>Cada uno entra con su usuario; el Administrador crea uno; «Sin permiso».</td><td>10</td></tr>
+      <tr><td class="h">0:20</td><td><b>3. Panel y Operación</b></td><td>La rutina diaria y cómo resolver una alerta.</td><td>10</td></tr>
+      <tr><td class="h">0:30</td><td><b>4. Clientes y carga masiva</b></td><td>Cargar los 3 clientes demo, buscar, ficha, editar e historial.</td><td>15</td></tr>
+      <tr><td class="h">0:45</td><td><b>5. Agente por WhatsApp</b></td><td>Demo Patitas pide una recogida en vivo; aparece en la plataforma.</td><td>15</td></tr>
+      <tr class="pausa"><td class="h">1:00</td><td colspan="2">Pausa</td><td>10</td></tr>
+      <tr><td class="h">1:10</td><td><b>6. Solicitudes, motorizados y agenda</b></td><td>Orden manual, agenda, reemplazo del día, municipios.</td><td>15</td></tr>
+      <tr><td class="h">1:25</td><td><b>7. Portal de veterinarias</b></td><td>Entrar como Demo Patitas, pedir retiro, resultados, estado de cuenta.</td><td>8</td></tr>
+      <tr><td class="h">1:33</td><td><b>8. Muestras, catálogo y precios</b></td><td>Estados de muestra, editar un precio, descuentos, carga de precios.</td><td>7</td></tr>
+      <tr><td class="h">1:40</td><td><b>9. Resultados y facturación</b></td><td>Espejo Anarvet, publicar al portal, facturas, cartera y exportar.</td><td>8</td></tr>
+      <tr><td class="h">1:48</td><td><b>10. Práctica por perfil</b></td><td>Cada persona hace una tarea con su propio usuario.</td><td>8</td></tr>
+      <tr><td class="h">1:56</td><td><b>11. Cierre</b></td><td>Preguntas, próximos pasos (fase 2) y soporte.</td><td>4</td></tr>
+    </tbody>
+  </table>
+  <div class="nota consejo"><b>Ritmo:</b> si un bloque se alarga, recortar del 8 o del 9 (están en la guía con detalle) y nunca de la práctica del bloque 10: es lo que más se recuerda.</div>
+
+  <h2>Antes de la capacitación (1 o 2 días antes)</h2>
+  <div class="dos">
+    <ul class="check">
+      <li>Plataforma publicada en Render y verificada: ingreso, portal y salud.</li>
+      <li>El bot de Chatwoot apuntando al servidor de Render (no a ngrok).</li>
+      <li>Usuarios reales de A3 creados, uno por persona, con su perfil; credenciales enviadas por un canal seguro.</li>
+      <li>Usuarios de prueba <b>prueba.*</b>: mantenerlos para la demo de perfiles y bloquearlos al final.</li>
+      <li>Motorizado «QA Prueba TestSprite» borrado.</li>
+    </ul>
+    <ul class="check">
+      <li>A mano: <b>clientes_demo_carga_masiva.csv</b>, <b>precios_demo_actualizacion.csv</b> y <b>precios_demo_restaurar.csv</b>.</li>
+      <li>Teléfono de prueba con WhatsApp y Telegram, sin ser cliente registrado.</li>
+      <li>Guía de uso en PDF lista para enviar al terminar.</li>
+      <li>Video «Recorrido de la plataforma» abierto como plan B.</li>
+      <li>Ensayo completo del caso Demo Patitas el día anterior (≈ 30 min).</li>
+    </ul>
+  </div>
+  <div class="nota importante"><b>Facturas de la demo:</b> si Alegra está activo, el pedido de prueba de Demo Patitas crea un <b>borrador</b> en la cuenta real de A3. Pedir a contabilidad que lo elimine al terminar, o hacer la demo con Alegra apagado y mostrar la facturación con las facturas ya existentes.</div>
+</section>
+
+<section class="page">
+  <div class="kicker">Capacitación · guion por bloque</div>
+  <h2>Qué mostrar y qué decir</h2>
+
+  <div class="bloque"><header><h3>1. Bienvenida y mapa</h3><span>0:00 · 10 min</span></header><div class="c">
+    <div><b class="t">Mostrar</b>Página 2 de la guía: las tres partes y el cuadro de perfiles.</div>
+    <div><b class="t">Decir</b><span class="decir">«Hoy cada uno va a terminar sabiendo hacer su trabajo diario en la plataforma, con su propio usuario. Todo lo que vean está en esta guía.»</span></div>
+  </div></div>
+
+  <div class="bloque"><header><h3>2. Ingreso y usuarios</h3><span>0:10 · 10 min</span></header><div class="c">
+    <div><b class="t">Mostrar</b>Todos entran con su usuario. Como Administrador: crear un usuario, cambiarle el perfil, bloquearlo. Entrar con <i>prueba.digitacion</i> y abrir Facturación: «Sin permiso».</div>
+    <div><b class="t">Decir</b><span class="decir">«Cada cambio queda con el nombre de quien lo hizo: por eso cada persona tiene su usuario y no se comparte.»</span><br><b class="t" style="margin-top:4px">Chequeo</b>¿Quién puede crear usuarios?</div>
+  </div></div>
+
+  <div class="bloque"><header><h3>3. Panel y Operación</h3><span>0:20 · 10 min</span></header><div class="c">
+    <div><b class="t">Mostrar</b>Indicadores del Panel; en Operación, una alerta «sin motorizado» y cómo se resuelve con «Ver».</div>
+    <div><b class="t">Decir</b><span class="decir">«La rutina del día empieza acá: primero lo que está en rojo.»</span></div>
+  </div></div>
+
+  <div class="bloque"><header><h3>4. Clientes y carga masiva</h3><span>0:30 · 15 min</span></header><div class="c">
+    <div><b class="t">Mostrar</b>Cargas → subir <i>clientes_demo_carga_masiva.csv</i> → columnas → vista previa (3 a crear) → Aplicar. Buscar «Demo Patitas» → ficha → cambiar el teléfono → Guardar → ver el Historial.</div>
+    <div><b class="t">Decir</b><span class="decir">«Nada se guarda hasta que ustedes lo confirman. Y dar de baja nunca borra la historia de un cliente con movimientos.»</span><br><b class="t" style="margin-top:4px">Chequeo</b>¿Qué pasa si damos de baja un cliente que ya facturó?</div>
+  </div></div>
+
+  <div class="bloque"><header><h3>5. Agente por WhatsApp</h3><span>0:45 · 15 min</span></header><div class="c">
+    <div><b class="t">Mostrar</b>En el teléfono de prueba (proyectado): «Hola» → programar recogida → NIT 900999001-1 → paciente y análisis → forma de pago. Después, la recogida en Operación y en la Agenda de Javier. Mostrar también una pregunta de pago que deriva a Contabilidad en Chatwoot.</div>
+    <div><b class="t">Decir</b><span class="decir">«El agente hace cuatro cosas: recogidas, resultados, y deriva pagos y clientes nuevos a una persona. Nunca inventa precios: salen del catálogo.»</span></div>
+  </div></div>
+
+  <div class="bloque"><header><h3>6. Solicitudes, motorizados y agenda</h3><span>1:10 · 15 min</span></header><div class="c">
+    <div><b class="t">Mostrar</b>Nueva Orden manual para Demo Patitas. Agenda: cambiar el motorizado de una recogida. Motorizados → reemplazo: De Javier a otro, «Solo las de un día» → Ver qué va a pasar → Confirmar. Cobertura: los municipios y Agregar municipio.</div>
+    <div><b class="t">Decir</b><span class="decir">«Cuando alguien falta, no hay que cambiar veterinaria por veterinaria: se pasan todas sus recogidas del día en un solo paso.»</span></div>
+  </div></div>
+</section>
+
+<section class="page">
+  <div class="kicker">Capacitación · guion por bloque (continuación)</div>
+  <div class="bloque"><header><h3>7. Portal de veterinarias</h3><span>1:25 · 8 min</span></header><div class="c">
+    <div><b class="t">Mostrar</b>Portal → nombre «Veterinaria Demo Patitas» y NIT → Solicitudes → Solicitar retiro → Resultados → Estado de cuenta.</div>
+    <div><b class="t">Decir</b><span class="decir">«Esto es lo que ve la veterinaria. Sin NIT en su ficha no puede entrar: por eso importa tener los NIT completos.»</span></div>
+  </div></div>
+
+  <div class="bloque"><header><h3>8. Muestras, catálogo y precios</h3><span>1:33 · 7 min</span></header><div class="c">
+    <div><b class="t">Mostrar</b>Catálogo y filtros; editar un precio con el lápiz y volverlo a su valor; Descuentos por volumen. Cargas → <i>precios_demo_actualizacion.csv</i> → vista previa (antes y después) <b>sin aplicar</b>.</div>
+    <div><b class="t">Decir</b><span class="decir">«Los precios solo los cambia el Administrador, porque el bot y las facturas los usan al instante.»</span></div>
+  </div></div>
+
+  <div class="bloque"><header><h3>9. Resultados y facturación</h3><span>1:40 · 8 min</span></header><div class="c">
+    <div><b class="t">Mostrar</b>Espejo Anarvet: buscar, abrir un informe, Descargar PDF, Publicar al portal. Facturación: filtros, Exportar Excel y Cartera. Cómo nace una factura: borrador en Alegra y emisión por contabilidad.</div>
+    <div><b class="t">Decir</b><span class="decir">«La emisión automática y el pago en línea con Wompi llegan en la fase 2.»</span></div>
+  </div></div>
+
+  <div class="bloque"><header><h3>10. Práctica por perfil</h3><span>1:48 · 8 min</span></header><div class="c" style="grid-template-columns:1fr">
+    <table class="t" style="margin:0">
+      <thead><tr><th>Perfil</th><th>Tarea con su propio usuario</th></tr></thead>
+      <tbody>
+        <tr><td><b>Administrador</b></td><td>Crear un usuario de práctica y bloquearlo.</td></tr>
+        <tr><td><b>Recepción</b></td><td>Abrir Demo Patitas, cambiar su dirección y ver el historial; hacer la vista previa de un reemplazo del día.</td></tr>
+        <tr><td><b>Digitación</b></td><td>Buscar un informe en el Espejo Anarvet y descargar su PDF.</td></tr>
+        <tr><td><b>Auxiliar administrativa</b></td><td>Filtrar las facturas de un cliente y exportarlas a Excel; ver su cartera.</td></tr>
+        <tr><td><b>Procesamiento</b></td><td>Avanzar el estado de una muestra de prueba en Muestras.</td></tr>
+      </tbody>
+    </table>
+  </div></div>
+
+  <div class="bloque"><header><h3>11. Cierre</h3><span>1:56 · 4 min</span></header><div class="c">
+    <div><b class="t">Mostrar</b>Sección 12 de la guía («Qué hacer si…»). Enviar la guía en PDF por el chat de la reunión.</div>
+    <div><b class="t">Decir</b><span class="decir">«Cualquier duda, escríbannos con una captura de pantalla. Las observaciones por escrito hasta [fecha] entran en el ajuste final.»</span></div>
+  </div></div>
+
+</section>
+
+<section class="page">
+  <div class="kicker">Si algo falla y al terminar</div>
+  <h2>Plan B</h2>
+  <table class="t">
+    <thead><tr><th>Si pasa esto</th><th>Hacer esto</th></tr></thead>
+    <tbody>
+      <tr><td>El servidor no responde</td><td>Mostrar la plataforma levantada en el equipo local (runbook de sesión local) o el video del recorrido.</td></tr>
+      <tr><td>WhatsApp no contesta</td><td>Mostrar el mismo caso por Telegram (@A3veterinariabot); revisar después el log del servidor.</td></tr>
+      <tr><td>El bot responde el saludo pero no sigue</td><td>Conexión con la IA: en local suele ser el antivirus (runbook, paso 0b). Seguir la demo con la orden manual.</td></tr>
+      <tr><td>Se acaba el tiempo</td><td>Saltar los bloques 8 y 9 y remitir a la guía; mantener la práctica y el cierre.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Después de la capacitación</h2>
+  <ul class="check">
+    <li>Dar de baja los 3 clientes demo (Demo Patitas queda inactiva por tener movimientos) y borrar sus pedidos de prueba.</li>
+    <li>Si se aplicó la carga de precios, aplicar <b>precios_demo_restaurar.csv</b>.</li>
+    <li>Borrador de factura de la demo eliminado en Alegra (contabilidad).</li>
+    <li>Usuarios <b>prueba.*</b> bloqueados desde Usuarios.</li>
+    <li>Enviar la guía en PDF y la grabación de la sesión; fijar la fecha límite de observaciones por escrito.</li>
+    <li>Firmar el acta de cierre de la fase 1.</li>
+  </ul>
+</section>
+
+</body>
+</html>

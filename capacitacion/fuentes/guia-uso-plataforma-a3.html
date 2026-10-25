@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Guía de uso — Plataforma A3 Laboratorio Veterinario</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --brand: #7a0d20; --brand-dark: #4c0814; --brand-tint: #f8eef0; --brand-line: #ead3d8;
+    --ok: #166534; --ok-tint: #ecf7f0; --info: #1e40af; --info-tint: #e8eefc;
+    --warn: #92400e; --warn-tint: #fdf3e6;
+    --ink: #1c1917; --ink-2: #44403c; --muted: #6b6468; --line: #e5e1e2; --zebra: #faf8f8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: "Public Sans", "Segoe UI", Arial, sans-serif; color: var(--ink); background: #fff;
+         font-size: 9.6pt; line-height: 1.48; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page { break-after: page; }
+  .page:last-child { break-after: auto; }
+
+  .cover { height: 254mm; margin: 0; border-radius: 14px; padding: 26mm 16mm 16mm; color: #fff; display: flex;
+           flex-direction: column; justify-content: space-between;
+           background: linear-gradient(160deg, var(--brand-dark) 0%, var(--brand) 58%, #9a2038 100%); }
+  .cover .k { letter-spacing: .18em; text-transform: uppercase; font-size: 9pt; font-weight: 700; opacity: .8; }
+  .cover h1 { font-size: 34pt; font-weight: 800; line-height: 1.05; margin: 14px 0 12px; }
+  .cover .lead { font-size: 13pt; opacity: .92; max-width: 150mm; }
+  .cover .tres { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 26px; }
+  .cover .tres div { background: rgba(255,255,255,.1); border-radius: 10px; padding: 12px 14px; font-size: 9.6pt; }
+  .cover .tres b { display: block; font-size: 11pt; margin-bottom: 4px; }
+  .cover .meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; font-size: 9pt;
+                 border-top: 1px solid rgba(255,255,255,.3); padding-top: 14px; }
+  .cover .meta b { display: block; font-size: 10.5pt; margin-top: 2px; }
+
+  .kicker { font-size: 7.8pt; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--brand); }
+  h2 { font-size: 17pt; font-weight: 800; color: var(--brand-dark); margin: 2px 0 4px; break-after: avoid; }
+  h3 { font-size: 11pt; font-weight: 700; color: var(--brand-dark); margin: 14px 0 5px; break-after: avoid; }
+  p { margin: 0 0 7px; }
+  b { font-weight: 700; }
+  .intro { color: var(--ink-2); font-size: 10pt; margin: 0 0 10px; }
+  .quien { margin: 0 0 10px; }
+  .chip { display: inline-block; font-size: 7.4pt; font-weight: 700; letter-spacing: .03em; border-radius: 999px;
+          padding: 2px 8px; margin: 0 4px 3px 0; background: var(--brand-tint); color: var(--brand-dark); }
+  .chip.c { background: var(--info-tint); color: var(--info); }
+
+  figure { margin: 6px 0 10px; break-inside: avoid; }
+  figure img { width: 100%; border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 4px 14px rgba(28,25,23,.08); display: block; }
+  figure.media img { width: 72%; margin: 0 auto; }
+  figure.chica img { width: 46%; margin: 0 auto; }
+  figure.p7 img { aspect-ratio: 1440/640; object-fit: cover; object-position: top left; }
+  figure.p6 img { aspect-ratio: 1440/540; object-fit: cover; object-position: top left; }
+  figure.p5 img { aspect-ratio: 1440/440; object-fit: cover; object-position: top left; }
+  figure.p4 img { aspect-ratio: 1440/360; object-fit: cover; object-position: top left; }
+  figure.ancho78 img { width: 78%; margin: 0 auto; }
+  figcaption { font-size: 8.2pt; color: var(--muted); margin-top: 5px; text-align: center; }
+  .dos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: start; }
+  .dos-menu { display: grid; grid-template-columns: 34mm 1fr; gap: 14px; align-items: start; }
+
+  ol.pasos { counter-reset: paso; list-style: none; padding: 0; margin: 4px 0 10px; }
+  ol.pasos li { counter-increment: paso; position: relative; padding: 0 0 6px 30px; break-inside: avoid; }
+  ol.pasos li::before { content: counter(paso); position: absolute; left: 0; top: -1px; width: 20px; height: 20px;
+                        border-radius: 50%; background: var(--brand); color: #fff; font-size: 8.4pt; font-weight: 800;
+                        display: flex; align-items: center; justify-content: center; }
+  ul.lista { margin: 4px 0 10px; padding-left: 18px; }
+  ul.lista li { margin: 0 0 4px; }
+  .nota { border-radius: 8px; padding: 9px 12px 9px 14px; margin: 8px 0 12px; font-size: 9.2pt; break-inside: avoid; border-left: 4px solid; }
+  .nota b.t { display: block; margin-bottom: 2px; }
+  .nota.consejo { background: var(--ok-tint); border-color: #15803d; }
+  .nota.importante { background: var(--warn-tint); border-color: #d97706; }
+  .nota.info { background: var(--info-tint); border-color: var(--info); }
+
+  table.t { width: 100%; border-collapse: collapse; font-size: 8.8pt; margin: 6px 0 12px; break-inside: avoid; }
+  table.t th { background: var(--brand); color: #fff; text-align: left; font-weight: 700; padding: 6px 8px; }
+  table.t td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.t tr:nth-child(even) td { background: var(--zebra); }
+  table.t td.c, table.t th.c { text-align: center; }
+  .g { color: var(--ok); font-weight: 700; } .v { color: var(--info); }
+
+  .indice { columns: 2; column-gap: 18px; font-size: 10pt; margin: 8px 0 0; padding: 0; list-style: none; }
+  .indice li { padding: 6px 0; border-bottom: 1px dashed var(--line); break-inside: avoid; }
+  .indice span { color: var(--brand); font-weight: 800; display: inline-block; width: 24px; }
+  .partes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 8px 0 12px; }
+  .partes div { border: 1px solid var(--brand-line); border-radius: 8px; padding: 10px 12px; background: var(--brand-tint); }
+  .partes b { display: block; color: var(--brand-dark); margin-bottom: 3px; }
+  .url { font-family: Consolas, monospace; font-size: 9pt; background: var(--zebra); border: 1px solid var(--line);
+         border-radius: 4px; padding: 1px 5px; }
+</style>
+</head>
+<body>
+
+<section class="page">
+  <div class="cover">
+    <div>
+      <div class="k">A3 Laboratorio Clínico Veterinario · Guía de uso</div>
+      <h1>Cómo usar la plataforma A3</h1>
+      <p class="lead">Guía paso a paso para el equipo de A3: la plataforma interna, el portal de las veterinarias y el agente que atiende por WhatsApp y Telegram.</p>
+      <div class="tres">
+        <div><b>Plataforma interna</b>Operación, clientes, motorizados, resultados, facturación y cargas.</div>
+        <div><b>Portal de veterinarias</b>Cada clínica pide recogidas, ve sus resultados y su estado de cuenta.</div>
+        <div><b>Agente por chat</b>Atiende por WhatsApp y Telegram y deriva a una persona cuando hace falta.</div>
+      </div>
+    </div>
+    <div class="meta">
+      <div>Versión<b>Octubre de 2026</b></div>
+      <div>Para<b>Todo el equipo de A3</b></div>
+      <div>Uso<b>Capacitación y consulta diaria</b></div>
+    </div>
+  </div>
+</section>
+
+<section class="page">
+  <div class="kicker">Antes de empezar</div>
+  <h2>La plataforma en una página</h2>
+  <p class="intro">La plataforma tiene tres partes que comparten la misma información: lo que una veterinaria pide por WhatsApp aparece en la plataforma interna, y lo que el laboratorio publica aparece en el portal de la veterinaria.</p>
+  <div class="partes">
+    <div><b>1. Plataforma interna</b>La usa el equipo de A3, cada persona con su propio usuario.<br><span class="url">a3-plataforma.onrender.com/login</span></div>
+    <div><b>2. Portal de veterinarias</b>Cada clínica entra con su nombre y su NIT.<br><span class="url">a3-plataforma.onrender.com/portal</span></div>
+    <div><b>3. Agente por chat</b>Responde por WhatsApp y Telegram; las conversaciones que necesitan una persona pasan a Chatwoot.</div>
+  </div>
+
+  <h3>Qué ve cada perfil</h3>
+  <p>Cada persona entra con su usuario, y su <b>perfil</b> define qué secciones ve y qué puede modificar. Los perfiles salen del documento «Perfiles Plataforma» de A3.</p>
+  <table class="t">
+    <thead><tr><th>Sección</th><th class="c">Administrador</th><th class="c">Recepción</th><th class="c">Digitación</th><th class="c">Auxiliar admin.</th><th class="c">Procesamiento</th></tr></thead>
+    <tbody>
+      <tr><td>Panel</td><td class="c g">Gestionar</td><td class="c g">Gestionar</td><td class="c g">Gestionar</td><td class="c g">Gestionar</td><td class="c g">Gestionar</td></tr>
+      <tr><td>Operación</td><td class="c g">Gestionar</td><td class="c g">Gestionar</td><td class="c g">Gestionar</td><td class="c">—</td><td class="c g">Gestionar</td></tr>
+      <tr><td>Clientes</td><td class="c g">Gestionar</td><td class="c g">Gestionar</td><td class="c v">Consultar</td><td class="c g">Gestionar</td><td class="c">—</td></tr>
+      <tr><td>Solicitudes</td><td class="c g">Gestionar</td><td class="c g">Gestionar</td><td class="c g">Gestionar</td><td class="c">—</td><td class="c v">Consultar</td></tr>
+      <tr><td>Pedidos</td><td class="c g">Gestionar</td><td class="c g">Gestionar</td><td class="c g">Gestionar</td><td class="c v">Consultar</td><td class="c v">Consultar</td></tr>
+      <tr><td>Facturación</td><td class="c g">Gestionar</td><td class="c">—</td><td class="c">—</td><td class="c g">Gestionar</td><td class="c">—</td></tr>
+      <tr><td>Motorizados y Agenda</td><td class="c g">Gestionar</td><td class="c g">Gestionar</td><td class="c">—</td><td class="c">—</td><td class="c">—</td></tr>
+      <tr><td>Muestras</td><td class="c g">Gestionar</td><td class="c g">Gestionar</td><td class="c g">Gestionar</td><td class="c">—</td><td class="c g">Gestionar</td></tr>
+      <tr><td>Resultados</td><td class="c g">Gestionar</td><td class="c v">Consultar</td><td class="c g">Gestionar</td><td class="c">—</td><td class="c g">Gestionar</td></tr>
+      <tr><td>Precios, cargas masivas y usuarios</td><td class="c g">Gestionar</td><td class="c">—</td><td class="c">—</td><td class="c">—</td><td class="c">—</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:8.6pt;color:var(--muted)"><b>Gestionar:</b> ver y modificar. <b>Consultar:</b> solo ver. <b>—:</b> la sección no aparece en el menú. Si alguien intenta entrar a una sección que no le corresponde, ve la pantalla «Sin permiso».</p>
+
+  <h3>Contenido</h3>
+  <ul class="indice">
+    <li><span>1</span>Ingreso y usuarios</li><li><span>2</span>Panel y Operación</li>
+    <li><span>3</span>Clientes</li><li><span>4</span>Solicitudes y pedidos</li>
+    <li><span>5</span>Motorizados y agenda</li><li><span>6</span>Muestras, catálogo y precios</li>
+    <li><span>7</span>Resultados</li><li><span>8</span>Facturación y cartera</li>
+    <li><span>9</span>Cargas masivas</li><li><span>10</span>El agente por WhatsApp y Telegram</li>
+    <li><span>11</span>El portal de las veterinarias</li><li><span>12</span>Qué hacer si…</li>
+  </ul>
+</section>
+
+<section class="page">
+  <div class="kicker">Sección 1</div>
+  <h2>Ingreso y usuarios</h2>
+  <div class="quien"><span class="chip">Todos los perfiles</span><span class="chip">Usuarios: solo Administrador</span></div>
+  <div class="dos">
+    <figure><img src="img/login.png" alt=""><figcaption>Pantalla de ingreso de la plataforma interna.</figcaption></figure>
+    <div>
+      <h3 style="margin-top:0">Entrar y salir</h3>
+      <ol class="pasos">
+        <li>Abrir <span class="url">a3-plataforma.onrender.com/login</span>.</li>
+        <li>Escribir el <b>usuario</b> y la <b>contraseña</b> personales y tocar <b>Ingresar</b>.</li>
+        <li>Abajo del menú se ve con qué usuario y perfil se entró.</li>
+        <li>Para salir, tocar <b>Cerrar sesión</b>, al final del menú.</li>
+      </ol>
+      <div class="nota importante"><b class="t">Cada persona con su usuario</b>No compartir usuarios ni contraseñas: cada cambio queda registrado con el nombre de quien lo hizo.</div>
+    </div>
+  </div>
+  <h3>Crear y administrar usuarios (Administrador)</h3>
+  <figure class="p7"><img src="img/usuarios.png" alt=""><figcaption>Usuarios: alta de una persona, lista de usuarios y lo que puede hacer cada perfil.</figcaption></figure>
+  <ol class="pasos">
+    <li>Entrar a <b>Usuarios</b>, al final del menú.</li>
+    <li>En <b>Nuevo usuario</b>, completar usuario (por ejemplo <i>recepcion.ana</i>), nombre, correo, <b>perfil</b> y una contraseña de al menos 8 caracteres. Tocar <b>Crear usuario</b>.</li>
+    <li>Para cambiar el perfil o la contraseña de alguien, editar su fila y tocar <b>Guardar</b>. Si la contraseña se deja vacía, no cambia.</li>
+    <li>Para que alguien ya no entre (por ejemplo, si deja la empresa), destildar <b>Activo</b> y guardar. Su historial se conserva.</li>
+  </ol>
+  <div class="nota consejo"><b class="t">Olvido de contraseña</b>Un Administrador le asigna una contraseña nueva desde esta misma pantalla.</div>
+</section>
+
+<section class="page">
+  <div class="kicker">Sección 2</div>
+  <h2>Panel y Operación</h2>
+  <div class="quien"><span class="chip">Panel: todos</span><span class="chip">Operación: Administrador, Recepción, Digitación, Procesamiento</span></div>
+  <h3>Panel: cómo va el laboratorio</h3>
+  <figure class="p6"><img src="img/panel.png" alt=""><figcaption>Panel ejecutivo.</figcaption></figure>
+  <ul class="lista">
+    <li><b>Indicadores de arriba:</b> solicitudes activas, muestras por recoger, procesadas en la semana, recogidas sin motorizado y facturación del mes.</li>
+    <li><b>Pipeline de solicitudes:</b> cuántas hay en cada estado (recibida, asignada, en ruta, en laboratorio…).</li>
+    <li><b>Facturación de las últimas 12 semanas</b>, tiempo de proceso y actividad reciente.</li>
+  </ul>
+  <h3>Operación: el día a día</h3>
+  <figure class="p6"><img src="img/operacion.png" alt=""><figcaption>Centro operativo diario.</figcaption></figure>
+  <ul class="lista">
+    <li><b>Alertas y excepciones:</b> lo que necesita atención ya, por ejemplo una recogida sin motorizado o atrasada. Tocar <b>Ver</b> para resolverla.</li>
+    <li><b>Órdenes del día:</b> todas las órdenes de hoy, con buscador por orden, cliente o paciente.</li>
+    <li><b>Actividad del día</b> y <b>Agenda operativa:</b> qué pasó hoy y qué recogidas hay por motorizado.</li>
+  </ul>
+  <div class="nota consejo"><b class="t">Rutina recomendada</b>Empezar el día en Operación y resolver primero las alertas en rojo.</div>
+</section>
+
+<section class="page">
+  <div class="kicker">Sección 3</div>
+  <h2>Clientes</h2>
+  <div class="quien"><span class="chip">Gestionar: Administrador, Recepción, Auxiliar administrativa</span><span class="chip c">Consultar: Digitación</span></div>
+  <figure class="p4"><img src="img/clientes.png" alt=""><figcaption>Lista de clientes con buscador y filtros.</figcaption></figure>
+  <h3>Buscar un cliente</h3>
+  <ol class="pasos">
+    <li>En <b>Clientes</b>, escribir en el buscador el nombre, el NIT, el teléfono o el correo. Aparecen sugerencias mientras se escribe.</li>
+    <li>Los filtros de <b>tipo</b>, <b>estado</b>, <b>motorizado</b> y <b>facturación electrónica</b> acotan la lista.</li>
+    <li>Tocar el cliente para abrir su <b>ficha</b>.</li>
+  </ol>
+  <h3>Editar los datos desde la ficha</h3>
+  <figure><img src="img/ficha_datos.png" alt=""><figcaption>Datos de la veterinaria en su ficha, editables según el perfil.</figcaption></figure>
+  <ol class="pasos">
+    <li>Cambiar lo que haga falta: nombre, NIT, teléfono, correo, dirección, <b>municipio o ciudad</b>, zona, <b>motorizado asignado</b>, facturación o forma de pago.</li>
+    <li>Tocar <b>Guardar cambios</b>. Abajo, en <b>Historial de cambios</b>, queda quién cambió qué y cuándo.</li>
+    <li>Para reactivar un cliente inactivo, marcar <b>Activo</b> y guardar.</li>
+  </ol>
+  <div class="nota importante"><b class="t">Dar de baja un cliente</b>El botón <b>Dar de baja</b> es seguro: si el cliente tiene solicitudes, pedidos, resultados o facturas, <b>se desactiva</b> y conserva toda su historia. Solo se elimina un cliente creado por error, sin ningún movimiento.</div>
+  <h3>Clientes nuevos</h3>
+  <ul class="lista">
+    <li><b>Nuevo Cliente</b> (arriba a la derecha) abre el registro con datos fiscales, de contacto y de ubicación.</li>
+    <li>Las veterinarias que piden el alta por el chat quedan <b>pendientes de aprobación</b> en Clientes: revisar sus datos y tocar <b>Aprobar</b> o <b>Rechazar</b>.</li>
+    <li><b>Sugerir motorizados</b> propone el motorizado de los clientes que todavía no tienen, según su zona; se confirma antes de guardar.</li>
+  </ul>
+</section>
+
+<section class="page">
+  <div class="kicker">Sección 4</div>
+  <h2>Solicitudes y pedidos</h2>
+  <div class="quien"><span class="chip">Gestionar: Administrador, Recepción, Digitación</span><span class="chip c">Consultar: Procesamiento (y Auxiliar en Pedidos)</span></div>
+  <h3>Solicitudes de recogida</h3>
+  <figure class="p4"><img src="img/solicitudes.png" alt=""><figcaption>Solicitudes: dirección, cantidad de muestras, análisis, motorizado y estado editables en la tabla.</figcaption></figure>
+  <ul class="lista">
+    <li>Cada solicitud muestra cliente, dirección, análisis, <b>motorizado</b> y <b>estado</b>. Se cambian directamente en la tabla y se guardan solos.</li>
+    <li>Asignar o cambiar el motorizado le envía el aviso a su chat (si tiene el chat de avisos configurado).</li>
+  </ul>
+  <h3>Cargar una orden que llega por teléfono o al laboratorio</h3>
+  <div class="dos">
+    <figure><img src="img/solicitud_nueva.png" alt=""><figcaption>Nueva orden (carga manual).</figcaption></figure>
+    <ol class="pasos">
+      <li>En Solicitudes, tocar <b>Nueva Orden</b>.</li>
+      <li><b>Veterinaria:</b> elegirla de la lista; la dirección de retiro y el motorizado salen de su ficha.</li>
+      <li><b>Paciente:</b> nombre, especie, raza, edad, propietario y fecha de toma de muestra.</li>
+      <li><b>Análisis:</b> buscar y marcar perfiles o análisis sueltos. El código y el precio salen del catálogo.</li>
+      <li>Guardar. Queda igual que una orden del chat: con número, motorizado y factura.</li>
+    </ol>
+  </div>
+  <h3>Pedidos</h3>
+  <figure class="p4"><img src="img/pedidos.png" alt=""><figcaption>Pedidos: un pedido agrupa las órdenes de una misma conversación y se factura junto.</figcaption></figure>
+  <ul class="lista">
+    <li>Estados: <b>Abierto</b> (todavía se pueden sumar órdenes), <b>Cerrado sin facturar</b> y <b>Facturado</b>.</li>
+    <li><b>Cerrar y facturar</b> o <b>Facturar</b> genera la factura del pedido en Alegra como borrador, para que contabilidad la revise y la emita.</li>
+  </ul>
+</section>
+
+<section class="page">
+  <div class="kicker">Sección 5</div>
+  <h2>Motorizados y agenda</h2>
+  <div class="quien"><span class="chip">Administrador y Recepción</span></div>
+  <figure class="p6"><img src="img/motorizados.png" alt=""><figcaption>Motorizados: indicadores, traslado, equipo y cobertura.</figcaption></figure>
+  <div class="dos">
+    <div>
+      <h3 style="margin-top:0">Equipo de motorizados</h3>
+      <ul class="lista">
+        <li><b>Nuevo motorizado</b> para darlo de alta.</li>
+        <li>En su tarjeta se editan nombre, teléfono, disponibilidad, color y <b>chat de avisos</b>; se guardan al salir de cada campo.</li>
+        <li><b>Activo</b> lo habilita o deshabilita. <b>Historial</b> muestra sus cambios.</li>
+        <li><b>Eliminar</b> solo funciona si no tiene clientes, cobertura ni recogidas. Si tiene, primero se traslada (abajo) o se desactiva.</li>
+      </ul>
+    </div>
+    <figure class="media"><img src="img/motorizado_tarjeta.png" alt=""><figcaption>Tarjeta de un motorizado.</figcaption></figure>
+  </div>
+  <h3>Cobertura por localidad y municipio</h3>
+  <div class="dos">
+    <ul class="lista">
+      <li>Cada localidad de Bogotá y cada <b>municipio cercano</b> (Soacha, Chía, Sibaté, Mosquera, Funza, Madrid, Cota…) tiene su motorizado. Se cambia en el desplegable de la tabla.</li>
+      <li>Para sumar un municipio, escribirlo en <b>Agregar municipio</b> y tocar <b>Agregar</b>; aparece en la tabla y en el mapa.</li>
+      <li>La recogida de un cliente se asigna sola en este orden: el <b>motorizado fijo del cliente</b>; si no tiene, el de su <b>municipio o localidad</b>; si no, el de su <b>zona</b>.</li>
+    </ul>
+    <figure style="margin-top:0"><img src="img/mapa.png" alt=""><figcaption>Mapa de cobertura: cada punto es una localidad o un municipio, con el color de su motorizado.</figcaption></figure>
+  </div>
+</section>
+
+<section class="page">
+  <div class="kicker">Sección 5 · continuación</div>
+  <h2>Reemplazos y agenda</h2>
+  <h3>Trasladar o reemplazar un motorizado</h3>
+  <figure><img src="img/traslado.png" alt=""><figcaption>Panel «Trasladar o reemplazar un motorizado», arriba en Motorizados.</figcaption></figure>
+  <ol class="pasos">
+    <li>Elegir <b>De</b> (quien no va a estar) y <b>A</b> (quien lo reemplaza).</li>
+    <li><b>Día de descanso:</b> en «Recogidas pendientes» dejar <i>Solo las de un día</i> y elegir la fecha. Opcional: limitar a una zona o un municipio (por ejemplo «Soacha»).</li>
+    <li><b>Baja o cambio permanente:</b> marcar también <i>Sus clientes</i> y <i>Su cobertura</i>.</li>
+    <li>Tocar <b>Ver qué va a pasar</b>: muestra cuántas recogidas, clientes, localidades y zonas se mueven. No cambia nada todavía.</li>
+    <li>Tocar <b>Confirmar traslado</b>. El reemplazo recibe el aviso de cada recogida.</li>
+  </ol>
+  <h3>Agenda semanal</h3>
+  <figure class="p7"><img src="img/agenda.png" alt=""><figcaption>Agenda: una fila por motorizado y una columna por día.</figcaption></figure>
+  <ul class="lista">
+    <li>Cada tarjeta es una recogida: se puede cambiar el <b>motorizado</b> o la <b>fecha</b> ahí mismo.</li>
+    <li>Las flechas pasan de semana. <b>Reemplazar motorizado del día</b> lleva directo al panel de traslado.</li>
+  </ul>
+</section>
+
+<section class="page">
+  <div class="kicker">Sección 6</div>
+  <h2>Muestras, catálogo y precios</h2>
+  <div class="quien"><span class="chip">Muestras: Administrador, Recepción, Digitación, Procesamiento</span><span class="chip">Precios: solo Administrador</span></div>
+  <figure class="p7"><img src="img/muestras.png" alt=""><figcaption>Muestras y perfiles: el catálogo completo, con buscador y filtros.</figcaption></figure>
+  <ul class="lista">
+    <li>El catálogo tiene <b>perfiles y análisis</b> con su código, especie, muestra y precio. Se busca por nombre o código y se filtra por tipo, especie y categoría.</li>
+    <li><b>Perfiles personalizados:</b> combinaciones de análisis guardadas para usarlas de nuevo.</li>
+    <li>El estado de cada muestra avanza desde la plataforma: por recoger, recogida, en laboratorio, analizada y enviada.</li>
+  </ul>
+  <div class="dos">
+    <div>
+      <h3 style="margin-top:0">Cambiar un precio (Administrador)</h3>
+      <ol class="pasos">
+        <li>Buscar el análisis o el perfil.</li>
+        <li>Tocar el <b>lápiz</b> de su tarjeta.</li>
+        <li>Escribir el precio nuevo (y la especie, si cambia) y tocar <b>Guardar</b>.</li>
+      </ol>
+      <p>El bot y las facturas usan el precio nuevo desde ese momento. Cada cambio queda registrado con su valor anterior.</p>
+      <div class="nota consejo"><b class="t">Muchos precios a la vez</b>Para actualizar la lista de precios completa, usar <b>Cargas masivas</b> (Sección 9).</div>
+    </div>
+    <figure class="chica" style="margin-top:0"><img src="img/precio_editar.png" alt=""><figcaption>Edición del precio de un perfil.</figcaption></figure>
+  </div>
+  <h3>Descuentos por volumen</h3>
+  <p>En <b>Descuentos por volumen</b> (tocar para desplegar) se definen los tramos: desde cuántas pruebas aplica cada porcentaje. El bot los aplica al cotizar y la factura los lleva.</p>
+</section>
+
+<section class="page">
+  <div class="kicker">Sección 7</div>
+  <h2>Resultados</h2>
+  <div class="quien"><span class="chip">Gestionar: Administrador, Digitación, Procesamiento</span><span class="chip c">Consultar: Recepción</span></div>
+  <p class="intro">Hay dos pestañas: <b>Espejo Anarvet</b>, con los informes que vienen de Anarvet, e <b>Informes de A3</b>, para subir un PDF a mano.</p>
+  <h3>Espejo Anarvet</h3>
+  <figure class="p7"><img src="img/anarvet_informe.png" alt=""><figcaption>Un informe de Anarvet abierto en la plataforma.</figcaption></figure>
+  <ol class="pasos">
+    <li>En Resultados, abrir <b>Espejo Anarvet</b>. <b>Sincronizar ahora</b> trae los informes nuevos.</li>
+    <li>Buscar por paciente, propietario o veterinaria, y por fechas. Tocar <b>Ver informe</b>.</li>
+    <li><b>Descargar PDF</b> genera el informe con el formato de A3. <b>Publicar al portal</b> lo comparte con la veterinaria, que lo ve en su portal y por el chat.</li>
+    <li><b>Emparejar veterinarias</b> asocia los códigos de cliente de Anarvet con los clientes de A3, para que cada informe llegue a quien corresponde.</li>
+  </ol>
+  <h3>Subir un informe a mano</h3>
+  <ol class="pasos">
+    <li>En <b>Informes de A3 → Subir informe de resultados</b>, escribir el número de orden (A3-XXXXX) o el NIT del cliente.</li>
+    <li>Adjuntar uno o varios PDF y marcar <b>Compartir con el cliente al subir</b> si ya lo puede ver.</li>
+    <li>En <b>Historial de resultados emitidos</b> se busca cualquier informe y se puede <b>dejar de compartir</b>.</li>
+  </ol>
+  <div class="nota importante"><b class="t">Antes de publicar</b>Verificar que el informe corresponda a la veterinaria, al paciente y a la orden correctos.</div>
+</section>
+
+<section class="page">
+  <div class="kicker">Sección 8</div>
+  <h2>Facturación y cartera</h2>
+  <div class="quien"><span class="chip">Administrador y Auxiliar administrativa</span></div>
+  <figure class="p7"><img src="img/facturacion.png" alt=""><figcaption>Facturación conectada con Alegra.</figcaption></figure>
+  <ul class="lista">
+    <li><b>Facturas:</b> las facturas de Alegra, con indicadores del día, el mes y el año. Se filtran por número, cliente, NIT, estado, fechas y montos.</li>
+    <li><b>Exportar CSV</b> o <b>Exportar Excel</b> descargan la lista con los filtros aplicados.</li>
+    <li><b>Cartera:</b> lo pendiente de cobro, agrupado por cliente.</li>
+    <li><b>Sincronizar con Alegra</b> trae los últimos cambios de Alegra.</li>
+  </ul>
+  <h3>Cómo nace una factura hoy</h3>
+  <ol class="pasos">
+    <li>La veterinaria cierra su pedido por el chat, o el equipo lo cierra en <b>Pedidos</b>.</li>
+    <li>La plataforma crea la factura <b>en borrador</b> en Alegra, a nombre del cliente (o de consumidor final si no factura electrónica a su NIT).</li>
+    <li>Contabilidad la revisa y la <b>emite desde Alegra</b>.</li>
+  </ol>
+  <div class="nota info"><b class="t">Próxima fase</b>La emisión automática de la factura, el pago en línea con Wompi y la autorización de datos por WhatsApp son parte de la fase 2.</div>
+</section>
+
+<section class="page">
+  <div class="kicker">Sección 9</div>
+  <h2>Cargas masivas</h2>
+  <div class="quien"><span class="chip">Administrador</span></div>
+  <p class="intro">Sirven para cargar o actualizar muchos datos de una vez con un archivo de Excel o CSV: <b>precios del catálogo</b>, <b>clientes</b>, <b>portafolio nuevo</b> (análisis o perfiles que no existen) y <b>motorizados</b>.</p>
+  <figure class="ancho78"><img src="img/cargas_plan.png" alt=""><figcaption>Carga de clientes: columnas reconocidas y vista previa antes de aplicar.</figcaption></figure>
+  <ol class="pasos">
+    <li>En <b>Cargas</b>, descargar la <b>plantilla</b> del tipo de carga (o exportar la lista actual, corregirla y volver a subirla).</li>
+    <li>Subir el archivo. Se acepta CSV con coma o punto y coma, o Excel (.xlsx). Con «Detectar por las columnas», la plataforma reconoce sola qué trae el archivo.</li>
+    <li>Revisar el paso de <b>columnas</b>: cada dato viene emparejado con su columna; si alguna no se reconoció, elegirla en la lista y tocar <b>Recalcular la vista previa</b>.</li>
+    <li>Revisar la <b>vista previa</b>: qué se va a crear, qué cambia (antes y después) y qué filas tienen problemas. <b>Hasta acá no se guardó nada.</b></li>
+    <li>Tocar <b>Aplicar estos cambios</b>. Al final se muestra cuántos registros se crearon o actualizaron, y la carga queda en el historial.</li>
+  </ol>
+  <div class="nota consejo"><b class="t">Clientes: completar o actualizar</b>Por defecto, la carga de clientes solo completa los datos vacíos. Marcando «Actualizar también los datos que cambiaron», reemplaza los que difieren. La columna <b>Motorizado</b> asigna el motorizado por su nombre.</div>
+  <div class="nota importante"><b class="t">Los precios cambian de verdad</b>Al aplicar una carga de precios, el bot y las facturas los usan de inmediato. Revisar bien la columna «Después» de la vista previa.</div>
+</section>
+
+<section class="page">
+  <div class="kicker">Sección 10</div>
+  <h2>El agente por WhatsApp y Telegram</h2>
+  <div class="quien"><span class="chip">Lo usan las veterinarias · lo supervisa el equipo en Chatwoot</span></div>
+  <p class="intro">El agente atiende a las clínicas y profesionales veterinarios registrados, con un tono cercano, y hace cuatro cosas:</p>
+  <table class="t">
+    <thead><tr><th>Lo que pide la veterinaria</th><th>Qué hace el agente</th><th>Dónde se ve en la plataforma</th></tr></thead>
+    <tbody>
+      <tr><td><b>Programar una recogida</b></td><td>Identifica la clínica por NIT o nombre, pide los datos del paciente y los análisis, ofrece agregar más órdenes al mismo pedido y pregunta la forma de pago.</td><td>Solicitudes, Pedidos, Agenda y Operación</td></tr>
+      <tr><td><b>Consultar un resultado</b></td><td>Busca el informe publicado del paciente y lo envía en PDF por el mismo chat.</td><td>Resultados</td></tr>
+      <tr><td><b>Pagos o facturación</b></td><td>Deriva siempre a <b>Contabilidad</b>.</td><td>Bandeja de Chatwoot</td></tr>
+      <tr><td><b>Cliente nuevo</b></td><td>Deriva siempre a <b>Recepción</b>: el agente no registra clientes.</td><td>Bandeja de Chatwoot y Clientes pendientes</td></tr>
+    </tbody>
+  </table>
+  <h3>Reglas que el agente cumple siempre</h3>
+  <ul class="lista">
+    <li>Identifica al cliente antes de registrar cualquier solicitud.</li>
+    <li>Corte de las 17:30: lo que llega después se programa para el siguiente día hábil.</li>
+    <li>El motorizado se asigna con la cobertura de la plataforma (Sección 5).</li>
+    <li>Los precios y descuentos salen siempre del catálogo: nunca los inventa.</li>
+  </ul>
+  <h3>Cuándo interviene una persona</h3>
+  <ol class="pasos">
+    <li>Las conversaciones derivadas aparecen en <b>Chatwoot</b>, en la bandeja del equipo correspondiente (Contabilidad u Operaciones).</li>
+    <li>La persona responde desde Chatwoot; la veterinaria lo recibe en el mismo WhatsApp o Telegram.</li>
+    <li>Al terminar, resolver la conversación en Chatwoot.</li>
+  </ol>
+  <div class="nota consejo"><b class="t">Para probarlo</b>Escribir «Hola» al WhatsApp o al Telegram de A3 desde un teléfono de prueba y seguir la conversación como una veterinaria.</div>
+</section>
+
+<section class="page">
+  <div class="kicker">Sección 11</div>
+  <h2>El portal de las veterinarias</h2>
+  <div class="quien"><span class="chip">Lo usan las veterinarias registradas</span></div>
+  <div class="dos">
+    <figure><img src="img/portal_login.png" alt=""><figcaption>Ingreso al portal.</figcaption></figure>
+    <div>
+      <h3 style="margin-top:0">Cómo entra una veterinaria</h3>
+      <ol class="pasos">
+        <li>Abre <span class="url">a3-plataforma.onrender.com/portal</span>.</li>
+        <li>Escribe el <b>nombre de la veterinaria</b> y su <b>NIT</b>.</li>
+        <li>Si su NIT tiene varias sedes, elige la sede.</li>
+      </ol>
+      <div class="nota importante"><b class="t">Sin NIT no hay portal</b>Un cliente sin NIT en su ficha no puede entrar. Completarlo en Clientes.</div>
+    </div>
+  </div>
+  <div class="dos">
+    <figure><img src="img/portal_nueva.png" alt=""><figcaption>Solicitar retiro de muestras.</figcaption></figure>
+    <figure><img src="img/portal_cuenta.png" alt=""><figcaption>Estado de cuenta.</figcaption></figure>
+  </div>
+  <ul class="lista">
+    <li><b>Solicitudes:</b> su historial con el estado de cada retiro, y <b>Solicitar retiro</b> para pedir uno nuevo con paciente, análisis y forma de pago.</li>
+    <li><b>Resultados:</b> los informes que el laboratorio le publicó; los abre o los descarga en PDF.</li>
+    <li><b>Estado de cuenta:</b> facturas pagadas y pendientes. <b>Notificaciones</b> y <b>Mi perfil</b> completan el menú.</li>
+  </ul>
+</section>
+
+<section class="page">
+  <div class="kicker">Sección 12</div>
+  <h2>Qué hacer si…</h2>
+  <table class="t">
+    <thead><tr><th style="width:38%">Situación</th><th>Qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td>No encuentro un cliente</td><td>Buscarlo por NIT o teléfono en Clientes. Revisar el filtro «Estado»: puede estar inactivo.</td></tr>
+      <tr><td>Una veterinaria no puede entrar al portal</td><td>Verificar que tenga NIT en su ficha y que esté activa. Debe escribir el nombre y el NIT tal como figuran.</td></tr>
+      <tr><td>Una recogida no tiene motorizado</td><td>Aparece como alerta en Operación. Asignarlo en Solicitudes o en la Agenda. Para que no se repita, darle motorizado fijo al cliente o a su municipio o localidad.</td></tr>
+      <tr><td>Un motorizado no viene hoy</td><td>Motorizados → Trasladar o reemplazar → «Solo las de un día» con la fecha de hoy → Ver qué va a pasar → Confirmar.</td></tr>
+      <tr><td>Un motorizado deja la empresa</td><td>Trasladar sus clientes y su cobertura a otro, y después desactivarlo (o eliminarlo, si no tiene recogidas registradas).</td></tr>
+      <tr><td>Cambiaron muchos precios</td><td>Cargas → exportar la lista de precios → corregir en Excel → subirla → revisar la vista previa → aplicar.</td></tr>
+      <tr><td>Un resultado no le aparece a la veterinaria</td><td>En Resultados, verificar que esté publicado y que esté asociado a la veterinaria correcta (Emparejar veterinarias).</td></tr>
+      <tr><td>Alguien olvidó su contraseña</td><td>Un Administrador le asigna una nueva en Usuarios.</td></tr>
+      <tr><td>Alguien ve «Sin permiso»</td><td>Su perfil no incluye esa sección. Si la necesita, un Administrador le cambia el perfil.</td></tr>
+      <tr><td>Quiero saber quién cambió un dato</td><td>En la ficha del cliente o en la tarjeta del motorizado, ver el Historial de cambios.</td></tr>
+      <tr><td>Hay que dar de baja un cliente</td><td>Ficha → Dar de baja. Si tiene movimientos, queda inactivo con toda su historia.</td></tr>
+    </tbody>
+  </table>
+  <div class="nota info"><b class="t">Soporte</b>Ante cualquier error o duda que no esté en esta guía, escribir al equipo de soporte de la plataforma con una captura de pantalla y una descripción de lo que se estaba haciendo.</div>
+</section>
+
+</body>
+</html>

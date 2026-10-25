@@ -4,7 +4,10 @@ from app.config import OPENAI_API_KEY, OPENAI_MODEL
 from app.prompt import SYSTEM_PROMPT
 from app.schema import RESPONSE_SCHEMA
 
-_client = OpenAI(api_key=OPENAI_API_KEY)
+# Sin `timeout`, el SDK espera hasta 600 s por intento (x3 intentos): un cuelgue de OpenAI
+# dejaba al cliente mirando el chat media hora. 60 s alcanza de sobra para un turno
+# (auditoría de salida a producción, 2026-10-25).
+_client = OpenAI(api_key=OPENAI_API_KEY, timeout=60.0, max_retries=2)
 
 _ROUTE_FIELD_INTERPRET_SYSTEM = (
     "Eres parte del equipo de A3 Laboratorio Veterinario (Bogotá, Colombia), tomando los datos "

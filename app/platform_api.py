@@ -34,7 +34,7 @@ def _auth_required(route_fn):
         if not PLATFORM_API_TOKEN:
             return jsonify({"error": "platform_api_not_configured"}), 503
         token = request.headers.get("X-Platform-Token", "")
-        if not hmac.compare_digest(token, PLATFORM_API_TOKEN):
+        if not hmac.compare_digest(token.encode(), PLATFORM_API_TOKEN.encode()):
             return jsonify({"error": "unauthorized"}), 401
         return route_fn(*args, **kwargs)
 

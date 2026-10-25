@@ -45,6 +45,7 @@
     <strong>{{ informes|length }}</strong>
     <p class="delta">{{ publicados }} compartido(s) con el cliente</p>
   </article>
+  {% if ver_cartera %}
   <article class="kpi-card">
     <div class="kpi-head"><span>Facturado</span><i data-lucide="receipt"></i></div>
     <strong class="kpi-money">{{ cartera.facturado | money }}</strong>
@@ -55,26 +56,10 @@
     <strong class="kpi-money">{{ cartera.por_cobrar | money }}</strong>
     <p class="delta">{{ cartera.facturas_pendientes }} sin pagar</p>
   </article>
-</section>
-
-<section class="card">
-  <div class="card-head"><div><h3>Datos de la veterinaria</h3><p>Definen su motorizado y cómo se le factura</p></div></div>
-  <div class="portal-detail-grid">
-    <div><span>NIT</span><strong>{{ cliente.tax_id or '— sin NIT —' }}</strong></div>
-    <div><span>Teléfono</span><strong>{{ cliente.phone or '—' }}</strong></div>
-    <div><span>Dirección</span><strong>{{ cliente.address or '—' }}</strong></div>
-    <div><span>Zona</span><strong>{{ cliente.zone or '—' }}</strong></div>
-    <div><span>Correo</span><strong>{{ cliente.email or '—' }}</strong></div>
-    <div><span>Facturación</span><strong>
-      {% if cliente.electronic_invoice is sameas false %}Consumidor final{% else %}Electrónica a su NIT{% endif %}
-    </strong></div>
-    <div><span>Estado</span><strong>{{ 'Activo' if cliente.is_active else 'Inactivo' }}</strong></div>
-    <div><span>Forma de pago</span><strong>{{ 'Crédito' if cliente.billing_type == 'credit' else 'Contado' }}</strong></div>
-  </div>
-  {% if not cliente.tax_id %}
-  <p class="approval-notice error" style="margin-top:12px">Sin NIT no puede entrar al portal ni recibir factura electrónica.</p>
   {% endif %}
 </section>
+
+{% include '_ficha_cliente_datos.html' %}
 
 <section class="card">
   <div class="card-head">
@@ -172,6 +157,7 @@
   </div>
 </section>
 
+{% if ver_cartera %}
 <section class="card">
   <div class="card-head">
     <div><h3>Estado de cuenta</h3><p>{{ cartera.facturas_pendientes }} sin pagar de {{ facturas_total }} · {{ cartera.vencido | money }} vencido</p></div>
@@ -202,10 +188,13 @@
     </table>
   </div>
 </section>
-    </main>
+{% endif %}
+    {% include '_historial_cambios.html' %}
+</main>
   </div>
   <script>window.addEventListener('DOMContentLoaded', function () { if (window.lucide) lucide.createIcons(); });</script>
   <script src="{{ url_for('static', filename='os-fx.js') }}?v=9" defer></script>
   <script src="{{ url_for('static', filename='upload-multi.js') }}?v=2" defer></script>
+  <script src="{{ url_for('static', filename='ficha_cliente.js') }}?v=1" defer></script>
 </body>
 </html>

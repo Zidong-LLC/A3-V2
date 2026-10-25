@@ -26,6 +26,21 @@ netstat -ano | findstr :5000
 Si hay algún PID escuchando, matarlo (`taskkill /F /PID XXXX`) antes del paso 1.
 El script `verify_chatwoot_telegram_agent.py` ahora FALLA si detecta ≠ 1 listener.
 
+### 0b. Antivirus que intercepta HTTPS (Kaspersky en este equipo, 2026-10-19)
+Síntoma: el bot contesta el saludo y el menú pero se calla en el primer turno con IA, y
+el log dice `openai.APIConnectionError … CERTIFICATE_VERIFY_FAILED: self-signed certificate`.
+Kaspersky re-firma la conexión a api.openai.com con su raíz; Windows confía, Python no.
+Una sola vez (o si cambia el antivirus): `python tools/scripts/ca_bundle_local.py` y
+agregar al `.env` la línea `SSL_CERT_FILE=…` que imprime. Solo local: en Render no aplica.
+
+### 0c. MCP de Supabase y Context7 en Claude Code (2026-10-19)
+`.mcp.json` lee `SUPABASE_ACCESS_TOKEN` del entorno de Claude Code, no del `.env`: sin él,
+el servidor sale apenas arranca («Connection closed»). El token y `NODE_EXTRA_CA_CERTS`
+(certificados del paso 0b, para que Node pase la intercepción del antivirus) van en el
+bloque `env` de `.claude/settings.local.json`, que no se sube a git. Se aplican al
+reiniciar Claude Code. Context7 (documentación de Flask, supabase-py, OpenAI, Playwright)
+no necesita credenciales.
+
 ### 1. Levantar Flask (Terminal 1)
 ```bash
 cd "c:\Users\Artel\Downloads\A3 V2"

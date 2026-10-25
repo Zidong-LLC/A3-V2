@@ -16,7 +16,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from app.config import ALEGRA_EMAIL, ALEGRA_API_TOKEN, ALEGRA_BASE_URL, ALEGRA_COUNTRY
+from app.config import ALEGRA_EMAIL, ALEGRA_API_TOKEN, ALEGRA_BASE_URL, ALEGRA_COUNTRY, ALEGRA_PRODUCTION
 
 _AUTH = base64.b64encode(f"{ALEGRA_EMAIL}:{ALEGRA_API_TOKEN}".encode()).decode()
 _HEADERS = {
@@ -36,7 +36,7 @@ def _request(method: str, path: str, body: dict | None = None) -> dict | list:
     url = f"{ALEGRA_BASE_URL}{path}"
     req = urllib.request.Request(url, data=data, headers=_HEADERS, method=method)
     try:
-        with urllib.request.urlopen(req) as r:
+        with urllib.request.urlopen(req, timeout=30) as r:  # Alegra tarda ~1,5 s; colgado no
             raw = r.read()
             return json.loads(raw) if raw else {}
     except urllib.error.HTTPError as e:
@@ -260,6 +260,11 @@ def create_invoice(
     }
     if status:
         body["status"] = status
+    elif not ALEGRA_PRODUCTION:
+        # Guardrail NO NEGOCIABLE: fuera de producción la factura sale como BORRADOR
+        # explícito. En la cuenta real (con factura electrónica) el default de Alegra
+        # podía ser «abierta» y consumir consecutivo (auditoría 2026-10-25).
+        body["status"] = "draft"
     if anotation:
         body["anotation"] = anotation
     return _request("POST", "/invoices", body)

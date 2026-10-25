@@ -1,10 +1,12 @@
-import os
+import hmac
+import logging
 import secrets
 import time
 from flask import Flask, request, jsonify, abort, session
+from werkzeug.middleware.proxy_fix import ProxyFix
 from app.config import (
     TELEGRAM_WEBHOOK_SECRET, CHATWOOT_WEBHOOK_SECRET, FLASK_SECRET_KEY, APP_ENV,
-    MESSAGE_DEBOUNCE_SECONDS, MESSAGE_DEBOUNCE_MAX_WAIT, APP_TIMEZONE,
+    MESSAGE_DEBOUNCE_SECONDS, MESSAGE_DEBOUNCE_MAX_WAIT, PLATFORM_API_TOKEN,
 )
 from app.agent import process_turn
 from app.alerts import notify_error
@@ -21,11 +23,26 @@ from app.dashboard_client import dashboard_client
 from app.dashboard_anarvet import dashboard_anarvet
 from app.dashboard_agenda import dashboard_agenda
 from app.dashboard_import import dashboard_import
+from app.dashboard_users import dashboard_users
+from app.dashboard_maestros import dashboard_maestros
+from app import access
 from app.portal import portal_bp
 from app.text import money, short_datetime
 
+# Gunicorn solo captura lo que sale por stdout/stderr: sin un handler raíz, los
+# `app.logger.info` del webhook no aparecían en los logs de Render.
+if not logging.getLogger().handlers:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
 app = Flask(__name__)
 app.secret_key = FLASK_SECRET_KEY
+# Render atiende detrás de un proxy: sin esto la IP de quien entra (límite de intentos
+# de ingreso) sería la del proxy. Se confía en un solo salto, el de Render.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
+# La cookie de sesión no viaja en pedidos armados por otro sitio (CSRF) y, fuera de
+# desarrollo, solo por HTTPS (auditoría 2026-10-19).
+app.config.update(SESSION_COOKIE_SAMESITE="Lax", SESSION_COOKIE_HTTPONLY=True,
+                  SESSION_COOKIE_SECURE=APP_ENV != "development")
 # Formato de dinero colombiano en las plantillas ({{ total | money }} -> $18.000).
 # `app.text.money` es una utilidad de formato pura, no lógica de negocio.
 app.jinja_env.filters["money"] = money
@@ -37,6 +54,9 @@ app.register_blueprint(dashboard_client)
 app.register_blueprint(dashboard_anarvet)
 app.register_blueprint(dashboard_agenda)
 app.register_blueprint(dashboard_import)
+app.register_blueprint(dashboard_users)
+app.register_blueprint(dashboard_maestros)
+access.registrar(app)
 app.register_blueprint(portal_bp)
 
 
@@ -86,6 +106,11 @@ def _security_headers(resp):
         resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return resp
 
+def _secreto_ok(recibido: str, esperado: str) -> bool:
+    """Comparación en tiempo constante. Un secreto sin configurar no deja pasar a nadie."""
+    return bool(esperado) and hmac.compare_digest(recibido.encode(), esperado.encode())
+
+
 # Pausa tras el mensaje de progreso para que se sienta humano (segundos)
 PROGRESS_PAUSE_SECONDS = 1.5
 
@@ -111,7 +136,7 @@ def _make_progress_callback(channel, chat_id: str):
 @app.route("/webhooks/telegram", methods=["POST"])
 def telegram_webhook():
     token = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-    if token != TELEGRAM_WEBHOOK_SECRET:
+    if not _secreto_ok(token, TELEGRAM_WEBHOOK_SECRET):
         abort(403)
 
     data = request.get_json(force=True, silent=True) or {}
@@ -145,19 +170,21 @@ def _process_telegram(chat_id: str, user_text: str) -> None:
         telegram.send_message(chat_id, reply)
     except Exception as e:
         app.logger.error("Error sending message to %s: %s", chat_id, e)
+        notify_error("envío a Telegram", e, f"chat {chat_id}")
 
     # Resultados pedidos por chat: el PDF va después del texto (paso 3.4a).
     try:
         deliver_pending(chat_id, channel="telegram")
     except Exception as e:
         app.logger.error("Error entregando resultados a %s: %s", chat_id, e)
+        notify_error("entrega de resultados por Telegram", e, f"chat {chat_id}")
 
 
 @app.route("/chatwoot/webhook", methods=["POST"])
 def chatwoot_webhook():
     # Chatwoot no firma los webhooks de agent bot: el secreto viaja en la URL
     # (?token=...) y se configura en el webhook del bot. Tapón #3 de WhatsApp.
-    if CHATWOOT_WEBHOOK_SECRET and request.args.get("token", "") != CHATWOOT_WEBHOOK_SECRET:
+    if CHATWOOT_WEBHOOK_SECRET and not _secreto_ok(request.args.get("token", ""), CHATWOOT_WEBHOOK_SECRET):
         abort(403)
     data = request.get_json(force=True, silent=True) or {}
 
@@ -208,6 +235,7 @@ def _process_chatwoot(conversation_id: str, content: str, canal: str = "chatwoot
             chatwoot.assign_team(conversation_id, session["handoff_area"])
     except Exception as e:
         app.logger.error("Error enviando a chatwoot %s: %s", conversation_id, e, exc_info=True)
+        notify_error(f"envío a {canal}", e, f"conversación {conversation_id}")
 
     # Resultados pedidos por chat: el PDF va después del texto (paso 3.4a). Se pasa el
     # canal DETECTADO (whatsapp|chatwoot) para no pisar el de la sesión; el transporte
@@ -216,13 +244,14 @@ def _process_chatwoot(conversation_id: str, content: str, canal: str = "chatwoot
         deliver_pending(conversation_id, channel=canal)
     except Exception as e:
         app.logger.error("Error entregando resultados a chatwoot %s: %s", conversation_id, e)
+        notify_error(f"entrega de resultados por {canal}", e, f"conversación {conversation_id}")
 
 
 @app.route("/setup-webhook", methods=["POST"])
 def setup_webhook():
     # Reconfigura el webhook de Telegram: exige el MISMO secreto del webhook como
     # autorización — antes cualquiera podía re-apuntar el bot (hueco de la auditoría).
-    if request.headers.get("X-Telegram-Bot-Api-Secret-Token", "") != TELEGRAM_WEBHOOK_SECRET:
+    if not _secreto_ok(request.headers.get("X-Telegram-Bot-Api-Secret-Token", ""), TELEGRAM_WEBHOOK_SECRET):
         abort(403)
     from app.config import TELEGRAM_WEBHOOK_URL
     result = telegram.set_webhook(TELEGRAM_WEBHOOK_URL, TELEGRAM_WEBHOOK_SECRET)
@@ -241,7 +270,11 @@ def health():
 def health_detalle():
     """Salud completa de TODAS las dependencias (Alegra, Anarvet, PDF incluidos).
     Tarda ~3 s: es para mirar a mano o desde un monitor externo, nunca para el
-    health check de la plataforma."""
+    health check de la plataforma. Abre conexiones a Alegra y Anarvet y muestra sus
+    errores: lo ve quien tenga sesión en la plataforma o mande X-Platform-Token."""
+    token = request.headers.get("X-Platform-Token", "")
+    if not session.get("dashboard_authenticated") and not _secreto_ok(token, PLATFORM_API_TOKEN):
+        return jsonify({"error": "unauthorized"}), 401
     payload, status_code = check_all()
     return jsonify(payload), status_code
 

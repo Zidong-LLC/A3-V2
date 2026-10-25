@@ -58,7 +58,9 @@ def test_el_nombre_no_puede_quedar_vacio():
 
 
 def test_se_puede_dar_de_baja_y_reactivar():
-    respuesta, editar, _ = _post("/api/dashboard/courier", {"courier_id": "c-1", "is_active": False})
+    sin_nada = {"recogidas": 0, "clientes": 0, "localidades": 0, "zonas": 0}
+    with patch("app.services.maestros_db.historia_motorizado", return_value=sin_nada):
+        respuesta, editar, _ = _post("/api/dashboard/courier", {"courier_id": "c-1", "is_active": False})
     assert respuesta.status_code == 200
     editar.assert_called_once_with("c-1", {"is_active": False})
 

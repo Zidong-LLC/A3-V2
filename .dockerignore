@@ -1,0 +1,33 @@
+# Lo que NO entra en la imagen de Render (auditoría de salida a producción, 2026-10-25).
+# Sin este archivo, `COPY . .` metía en la imagen el .env local (secretos y un
+# SSL_CERT_FILE con ruta de Windows que rompería TLS adentro del contenedor), los
+# videos de capacitación, respaldos con datos reales y los tests.
+# En tiempo de ejecución la app solo lee app/, data/barrios_zonas_a3.csv y requirements.
+.env
+.env.*
+!.env.example
+.git
+.github
+.claude
+.certs
+.mcp.json
+__pycache__
+*.pyc
+.pytest_cache
+tests/
+testsprite_tests/
+tools/
+docs/
+mockups/
+output/
+capacitacion/
+Auditoria Alcance/
+data/backups/
+data/snapshots/
+data/conciliacion-*/
+data/evidencias-informe-demostrativo-a3/
+data/*.pdf
+data/*.html
+*.mp4
+*.pdf
+*.docx

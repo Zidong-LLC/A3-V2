@@ -2,6 +2,114 @@
 
 ---
 
+## Salida a producción (2026-10-26) — auditoría del 2026-10-25 (ERR-185)
+
+Verificado: suite 1622 (con `.env` local y con los valores de `render.yaml`), imagen Docker
+construida y arrancada en local (/health y /health/detalle OK), 33 tablas y columnas contra
+Supabase, webhooks (Telegram → Chatwoot, bot → Render con token, bot en inbox 1 y 3), portal
+con login real (8 pantallas), 5 perfiles × 17 pantallas del panel.
+
+- [x] Infraestructura endurecida sin tocar el flujo (detalle en ERR-185): borrador explícito en
+      Alegra, timeouts OpenAI/Telegram/Chatwoot/Alegra, mensajes largos partidos, debounce sin
+      bloquear el webhook, avisos en fallos de envío, logging en Render, `.dockerignore`,
+      `verificar_produccion.py`, runbook de deploy al día
+- [x] Commit local con TODO lo pendiente (Render construye desde GitHub) — **falta el push (OK)**
+- [ ] Decidir `FSM_ENFORCE` para producción: `render.yaml` dice `false` (así corrió sep–oct);
+      el `.env` local dice `true` (así se probó en local). La suite pasa con ambos.
+- [ ] **Pendientes con OK (tocan el flujo conversacional):**
+  - [ ] Mensaje de contingencia cuando `process_turn` falla (hoy el cliente no recibe nada)
+  - [ ] Candado por chat en el debounce (dos turnos simultáneos pisan la sesión; pueden duplicar la orden)
+  - [ ] Adjunto/audio sin texto: hoy se ignora en silencio; contestar un texto fijo
+  - [ ] Barrido de pedidos abandonados: limpiar `_pedido_profiles/_pedido_ordenes` de la sesión al
+        cerrar (si no, el pedido siguiente del mismo chat puede facturar perfiles del viejo)
+  - [ ] Handoff en Chatwoot: verificar en vivo que la escalada pase la conversación a «open»
+- [ ] Después del deploy: `python tools/scripts/verificar_produccion.py https://a3-plataforma.onrender.com`,
+      prueba en vivo del runbook (paso 6) y correr el sync de Anarvet (el espejo quedó en 07/09)
+- [ ] Sin resolver: ¿repositorio privado? (tests y testsprite con NITs reales); documentos .docx/.pdf
+      de la raíz quedaron fuera del commit a propósito
+
+## Auditoría profunda y pulido (2026-10-19) — HECHO
+
+Pedido del usuario: análisis profundo con skills y MCP, traer de otros repos lo que sirva,
+pulir lo existente y que todo funcione. Regla: el flujo conversacional no se toca sin OK.
+
+- [x] Carpeta `capacitacion/` (guía, guion, ejemplos, video, fuentes) con README
+- [x] MCP: Supabase reparado (token en `.claude/settings.local.json` env) + Context7 agregado;
+      skills de ZIDONG-OS/BIBLIOTECA instaladas antes (ponytail*, blueprint-blast, etc.)
+- [x] 4 auditorías en paralelo (solo lectura): seguridad, rendimiento/BD, estructura,
+      correctitud y cobertura
+- [ ] Verificar hallazgos, arreglar los seguros con tests (fuera del flujo conversacional)
+  - [x] Cartera por NIT exacto (se filtraban facturas de otros clientes) y fechas en hora de Bogotá
+  - [x] Sesión: cookie SameSite=Lax/HttpOnly/Secure, ProxyFix; login con límite de 5 intentos
+        en 10 min, hash de relleno y clave con tilde sin error 500; `/health/detalle` con sesión
+        o token; secretos de webhooks en tiempo constante (Telegram sin secreto = cerrado)
+  - [x] Permisos: facturar un pedido exige Facturación (+ candado anti doble clic y la sede
+        exacta a Alegra); cartera de la ficha solo con Facturación; historial por módulo
+  - [x] CSV/Excel: celdas que empiezan con = @ (o +/- con letras) neutralizadas
+  - [x] Cargas: fila por fila con try, categoría y especie validadas (NOT NULL), precio en
+        rango, lista blanca de columnas al aplicar, clientes repetidos, `iguales` exacto,
+        detección por columnas propias, motorizado nuevo sin teléfono, historial por cliente
+  - [x] Motorizado con clientes/zonas no se desactiva (409); zona del traslado sin tildes;
+        el traslado dice cuántos avisos salieron de verdad
+  - [x] ERR-184: tests y demo ya no mandan avisos reales; bot de Chatwoot devuelto a Render;
+        `ALEGRA_ENABLED=true` restaurado en el `.env` local
+  - [x] Rendimiento: lecturas del panel en paralelo (6,8 s → 1,4 s medido contra la base real),
+        sin el N+1 de altas pendientes, knowledge solo con las columnas que se usan, Anarvet
+        clientes 3,4 s → 1,6 s (`normalizar` memorizada), facturas en paralelo
+  - [x] Truncado de 1000 filas: `fetch_rows` pagina y trae lo más nuevo (en orden cronológico);
+        conteo de informes de Anarvet por cliente sumaba 1000 de 2.493 → ahora 2.493
+  - [x] Limpieza: un solo `login_requerido` (6 copias), 4 funciones muertas, traba en
+        `reset_test_data.py` (base de producción), `.gitignore` para datos reales de clientes
+- [ ] Lo que toque el flujo o sea arquitectura: proponer y esperar OK (lista entregada al usuario)
+- [x] Suite verde (1616) + recorrido HTTP real: 5 perfiles × 17 pantallas, 0 problemas
+- **Render apagado a propósito** (el usuario, 2026-10-19) mientras se hacen los cambios; se
+  vuelve a subir con el próximo deploy. Después: sitio web para cerrar la fase 1 de punta a punta.
+
+---
+
+## Cierre versión 1: perfiles, administración y cargas (2026-10-19) — HECHO (falta deploy)
+
+Pedido de A3 (vía Laberit) para liberar el pago pendiente: `Perfiles Plataforma.docx`,
+cargas con cualquier CSV, alta/baja de motorizados, edición/baja de clientes, más lo
+comprometido para el 23/10 en `output/pdf/Pendientes_Cronograma_A3_2026-10-09.pdf`.
+OK del usuario el 19/10 ("hacé todos estos cambios"). Sin tocar el flujo conversacional.
+
+- [x] **1. Usuarios y perfiles**: tabla `dashboard_users` (migración 033), login por
+      usuario (el admin del .env sigue como Administrador de respaldo), matriz del docx
+      (Recepción, Digitación, Auxiliar administrativa, Procesamiento + Administrador)
+      aplicada en servidor por módulo y lectura/escritura, menú según perfil, pantalla
+      /usuarios. Precios: solo Administrador (mueven plata)
+- [x] **2. Clientes y motorizados**: borrado seguro (con historia → se desactiva),
+      edición desde la ficha, borrar motorizado sin historia, trasladar clientes,
+      localidades y recogidas pendientes de un motorizado a otro (también por día/zona)
+- [x] **3. Cargas con cualquier archivo**: CSV con cualquier separador y codificación,
+      .xlsx, paso para elegir qué columna es cada dato, actualizar clientes existentes,
+      plantillas y exportación
+- [x] **4. Municipios e historial**: municipios como localidades en cobertura y mapa;
+      registro de quién cambió qué en clientes, motorizados, precios y usuarios
+- [x] **5. Verificación**: suite completa verde + prueba manual en local con Supabase real
+
+**Resultados (19/10)**
+- Migraciones 033 (`dashboard_users`, `audit_log`) y 034 (`coverage_municipalities`, 7 municipios)
+  aplicadas en Supabase real. Solo agregan tablas.
+- Código nuevo: `app/permissions.py`, `app/access.py`, `app/dashboard_users.py`,
+  `app/dashboard_maestros.py`, `app/municipios.py`, `app/imports_archivo.py`,
+  `app/imports_aplicar.py`, `app/imports_exportar.py`, `app/services/{users_db,audit_db,maestros_db}.py`.
+- Suite 1524 → 1584 passed. Tests nuevos: test_perfiles_acceso (26), test_maestros (11),
+  test_cargas_cualquier_archivo (15), test_municipios (7) + 1 de baja con historia.
+- Verificado contra la base real (solo lectura + usuario de prueba en tabla nueva, borrado):
+  matriz por perfil idéntica al docx; municipios con clientes reales (Soacha 40, Sibaté 4,
+  Cota 2, Funza 1, Mosquera 1); exportación de 1013 clientes.
+- Decisiones a confirmar con A3: precios y usuarios solo Administrador; cargar precios exige
+  poder cambiar precios (Digitación/Procesamiento ven Cargas pero sin tipos habilitados).
+- Verificación punta a punta en navegador contra localhost:5000 y base real (19/10): 45/45 OK con
+  los 5 perfiles; datos QA borrados al final. Bug real encontrado y corregido: `create_client`
+  fallaba con 23502 si la carga no traía dirección (`address` NOT NULL) → default "" + test.
+- Enlace desde la web de A3: pasa a la fase 2 (decisión del usuario 19/10).
+- Pendiente: commit, push y deploy a Render (requiere OK del usuario); reactivar el servicio.
+
+---
+
 ## Refactor de raíz FASE 2: la IA entiende la oración (2026-08-21) — EN CURSO
 
 Plan aprobado: `~/.claude/plans/lively-swimming-popcorn.md`. Pedido del usuario: que el

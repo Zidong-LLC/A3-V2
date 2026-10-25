@@ -4,7 +4,7 @@ import difflib
 import unicodedata
 from datetime import datetime, timedelta, timezone
 from supabase import create_client, Client
-from app.config import SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+from app.config import APP_TIMEZONE, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 from app.rules import (
     INTENT_TO_SERVICE_AREA, calculate_custom_profile_total,
     calculate_profile_adjusted_total, get_scheduled_pickup_date,
@@ -271,6 +271,7 @@ def _fetch_all_active_clients(select_fields: str = "*") -> list[dict]:
             _client.table("clients")
             .select(select_fields)
             .eq("is_active", True)
+            .order("id")  # sin orden fijo, las páginas podían pisarse o saltear clientes
             .range(offset, offset + PAGE - 1)
             .execute()
         )
@@ -495,17 +496,23 @@ def list_pending_client_reviews(limit: int = 300) -> list[dict]:
         .execute()
     )
     rows = result.data or []
+    if not rows:
+        return rows
+    # Una sola consulta para los eventos de todas las filas (antes, una por fila): ordenados
+    # del más nuevo al más viejo, el primero que aparece de cada solicitud es el vigente.
+    eventos = (
+        _client.table("request_events")
+        .select("request_id, event_payload, created_at")
+        .in_("request_id", [row["id"] for row in rows])
+        .eq("event_type", "client_review_submitted")
+        .order("created_at", desc=True)
+        .execute()
+    ).data or []
+    ultimo = {}
+    for evento in eventos:
+        ultimo.setdefault(evento.get("request_id"), evento.get("event_payload") or {})
     for row in rows:
-        event_result = (
-            _client.table("request_events")
-            .select("event_payload, created_at")
-            .eq("request_id", row["id"])
-            .eq("event_type", "client_review_submitted")
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        row["review_payload"] = (event_result.data or [{}])[0].get("event_payload", {})
+        row["review_payload"] = ultimo.get(row["id"], {})
     return rows
 
 
@@ -1056,9 +1063,29 @@ def list_conversation_messages(limit: int = 500) -> list[dict]:
     return result.data or []
 
 
-def fetch_rows(table: str, select: str = "*", limit: int = 500) -> list[dict]:
-    result = _client.table(table).select(select).limit(limit).execute()
-    return result.data or []
+def _paginado(armar, limit: int) -> list[dict]:
+    """Hasta `limit` filas, de a 1000: es el tope por request de Supabase y un `.limit()`
+    mayor se corta ahí en silencio. `armar()` devuelve la consulta (ordenada) sin rango."""
+    PAGE = 1000
+    filas: list[dict] = []
+    while len(filas) < limit:
+        lote = armar().range(len(filas), min(len(filas) + PAGE, limit) - 1).execute().data or []
+        filas.extend(lote)
+        if len(lote) < PAGE:
+            break
+    return filas
+
+
+def fetch_rows(table: str, select: str = "*", limit: int = 500, order: str | None = None) -> list[dict]:
+    """Con `order`, las `limit` MÁS NUEVAS, devueltas en orden cronológico (quien las recorre
+    asume que el último evento pisa a los anteriores). Sin orden, pasadas las 1000 filas el
+    panel se quedaba con las más viejas y perdía las de los pedidos en curso (auditoría
+    2026-10-19)."""
+    def armar():
+        consulta = _client.table(table).select(select)
+        return consulta.order(order, desc=True) if order else consulta
+    filas = _paginado(armar, limit)
+    return filas[::-1] if order else filas
 
 
 def insert_rows(table: str, rows: list[dict]) -> list[dict]:
@@ -1239,6 +1266,15 @@ _CARTERA_COLUMNAS = (
 )
 
 
+def _nit_cartera(client_nit: str) -> list[str]:
+    """NITs exactos con los que buscar la cartera de UN cliente en invoices_cache (que guarda
+    solo dígitos, sin DV). Antes se buscaba como subcadena (`ilike %base%`) y un cliente con
+    NIT corto veía facturas de decenas de NITs ajenos en su portal (auditoría 2026-10-19)."""
+    texto = str(client_nit or "").strip()
+    nit = re.sub(r"[^0-9]", "", texto.split("-", 1)[0])
+    return [nit] if len(nit) >= 5 else []
+
+
 def list_cartera(client_nit: str | None = None, solo_pendientes: bool = False,
                  limit: int = 5000) -> list[dict]:
     """Facturas para la vista de cartera, de la más reciente a la más vieja.
@@ -1251,9 +1287,10 @@ def list_cartera(client_nit: str | None = None, solo_pendientes: bool = False,
     while len(rows) < limit:
         query = _client.table("invoices_cache").select(_CARTERA_COLUMNAS)
         if client_nit:
-            base = re.sub(r"[^0-9]", "", str(client_nit).split("-", 1)[0])
-            if base:
-                query = query.ilike("client_nit", f"%{base}%")
+            candidatos = _nit_cartera(client_nit)
+            if not candidatos:
+                return []  # NIT ilegible o corto: mejor nada que facturas ajenas
+            query = query.in_("client_nit", candidatos)
         if solo_pendientes:
             query = query.gt("balance", 0)
         lote = (
@@ -1275,7 +1312,7 @@ def cartera_totales(rows: list[dict], hoy: str | None = None) -> dict:
 
     Vencido = con saldo y fecha de vencimiento ya pasada. Es lo que A3 tiene que salir a
     cobrar, y lo que el cliente ve como deuda vencida en su portal."""
-    referencia = hoy or datetime.now(timezone.utc).date().isoformat()
+    referencia = hoy or datetime.now(APP_TIMEZONE).date().isoformat()
     facturado = sum(int(r.get("total") or 0) for r in rows)
     cobrado = sum(int(r.get("total_paid") or 0) for r in rows)
     por_cobrar = sum(int(r.get("balance") or 0) for r in rows)
@@ -1298,7 +1335,7 @@ def cartera_totales(rows: list[dict], hoy: str | None = None) -> dict:
 
 def cartera_por_cliente(rows: list[dict], hoy: str | None = None) -> list[dict]:
     """Agrupa la cartera por cliente, ordenando por lo que más se debe."""
-    referencia = hoy or datetime.now(timezone.utc).date().isoformat()
+    referencia = hoy or datetime.now(APP_TIMEZONE).date().isoformat()
     por_nit: dict[str, dict] = {}
     for r in rows:
         nit = str(r.get("client_nit") or "-")
@@ -1366,34 +1403,6 @@ def assign_anarvet_client(cod_cliente: str, client_id: str | None, source: str) 
     }).eq("cod_cliente", cod_cliente).execute()
 
 
-def list_anarvet_results(
-    filters: dict | None = None, page: int = 1, per_page: int = 50
-) -> tuple[list[dict], int]:
-    """Lista el espejo de resultados con filtros básicos y paginación del lado
-    servidor. Devuelve (filas, total)."""
-    f = filters or {}
-    query = _client.table("anarvet_results").select("*", count="exact")
-    if f.get("cod_cliente"):
-        query = query.eq("cod_cliente", f["cod_cliente"])
-    if f.get("codigo"):
-        query = query.eq("codigo", f["codigo"])
-    if f.get("date_from"):
-        query = query.gte("fecha_solicitud", f["date_from"])
-    if f.get("date_to"):
-        query = query.lte("fecha_solicitud", f["date_to"])
-    if f.get("search"):
-        term = str(f["search"]).replace(",", " ").strip()
-        if term:
-            query = query.or_(
-                f"mascota.ilike.%{term}%,nombre_propietario.ilike.%{term}%,nombre_cliente.ilike.%{term}%"
-            )
-    query = query.order("fecha_solicitud", desc=True).order("dedup_key")
-    start = max(page - 1, 0) * per_page
-    query = query.range(start, start + per_page - 1)
-    result = query.execute()
-    return result.data or [], (result.count or 0)
-
-
 def list_anarvet_informes(
     filters: dict | None = None, page: int = 1, per_page: int = 50
 ) -> tuple[list[dict], int]:
@@ -1446,13 +1455,11 @@ def count_anarvet_informes_por_cliente() -> dict[str, int]:
     """
     from collections import Counter
 
-    filas = (
-        _client.table("anarvet_informes")
-        .select("cod_cliente")
-        .limit(20000)
-        .execute()
-        .data
-    ) or []
+    # Paginado: con `.limit(20000)` a secas Supabase devolvía 1000 de 2.493 informes y los
+    # conteos salían por debajo (auditoría 2026-10-19). Orden por la clave del informe para
+    # que las páginas no se pisen.
+    filas = _paginado(lambda: _client.table("anarvet_informes").select("cod_cliente")
+                      .order("codigo").order("fecha_solicitud"), 20000)
     return dict(Counter(str(f.get("cod_cliente") or "") for f in filas))
 
 
@@ -1853,11 +1860,18 @@ def _auto_assign_courier(client_id: str) -> dict | None:
         client = get_client_by_id(client_id)
         if not client:
             return None
+        from app.services import maestros_db  # import local: maestros_db importa este módulo
+        try:
+            municipios = maestros_db.list_municipios(solo_activos=True)
+        except Exception:  # sin la tabla 034, la cascada de Bogotá sigue igual que antes
+            municipios = []
         resolved = zone_routing.resolve_zone_courier(
             address=client.get("address"),
             zone_text=client.get("zone"),
             coverage_rows=list_courier_locality_coverage(),
             zone_rows=list_territorial_zones(),
+            city=client.get("city"),
+            municipios=municipios,
         )
         if not resolved:
             return None
@@ -1878,11 +1892,6 @@ def list_active_couriers(limit: int = 500) -> list[dict]:
         .execute()
     )
     return result.data or []
-
-
-def update_courier_phone(courier_id: str, phone: str) -> bool:
-    result = _client.table("couriers").update({"phone": phone}).eq("id", courier_id).execute()
-    return bool(result.data)
 
 
 # Lo unico que la plataforma puede tocar de un motorizado. La request nunca compone
@@ -2034,6 +2043,9 @@ def create_client(payload: dict) -> dict | None:
     # billing_type es NOT NULL sin default en la tabla: sin esto, TODA alta por CSV
     # reventaba con 23502. "cash" es como opera casi todo el padrón (991 de 992).
     payload.setdefault("billing_type", "cash")
+    # address también es NOT NULL sin default: una lista sin dirección (nombre y NIT)
+    # reventaba cada alta con 23502. Vacía se completa después (ficha o carga).
+    payload.setdefault("address", "")
     result = _client.table("clients").insert(payload).execute()
     return (result.data or [None])[0]
 
@@ -2055,7 +2067,7 @@ def update_client_profile(client_id: str, payload: dict) -> bool:
     return bool(result.data)
 
 
-def list_a3_knowledge_index(limit: int = 20000) -> list[dict]:
+def list_a3_knowledge_index(limit: int = 20000, columns: str = "*") -> list[dict]:
     """Fichas de knowledge, paginando de a 1000 (tope por request de Supabase).
 
     Con `.limit(5000)` a secas devolvía 1000 de 1427 y al dashboard le faltaban 427 fichas
@@ -2066,7 +2078,7 @@ def list_a3_knowledge_index(limit: int = 20000) -> list[dict]:
     while len(rows) < limit:
         batch = (
             _client.table("clients_a3_knowledge")
-            .select("*")
+            .select(columns)
             .range(len(rows), min(len(rows) + PAGE, limit) - 1)
             .execute()
             .data
@@ -2160,7 +2172,7 @@ def list_clients_with_assignment(limit: int = 5000) -> list[dict]:
         batch = (
             _client.table("clients")
             .select(
-                "id, clinic_name, tax_id, phone, address, zone, billing_type, is_active, email, "
+                "id, clinic_name, tax_id, phone, address, zone, city, billing_type, is_active, email, "
                 "electronic_invoice, invoice_note, "
                 "client_courier_assignment(courier_id, couriers(id, name, phone, availability, is_active))"
             )
@@ -2276,7 +2288,9 @@ def update_request_status(
 # lanzaba APIError 23514 y el turno final no respondía. La migración 031 amplió el CHECK:
 # la columna ya distingue chatwoot y whatsapp (tapón #1 para conectar el número de A3).
 # Un canal desconocido sigue cayendo a "telegram" para no romper el insert.
-_ALLOWED_ENTRY_CHANNELS = {"telegram", "chatwoot", "whatsapp"}
+# Los mismos que admite el CHECK de requests.entry_channel (migración 031). Sin «portal»
+# acá, las órdenes del portal quedaban registradas como si vinieran por Telegram.
+_ALLOWED_ENTRY_CHANNELS = {"telegram", "chatwoot", "whatsapp", "portal"}
 
 
 def create_request(chat_id: str, session: dict, ai_response: dict,

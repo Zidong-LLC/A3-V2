@@ -74,9 +74,9 @@ def test_plan_precios_reporta_un_precio_ilegible_en_vez_de_adivinar():
 # ── Plan de portafolio ───────────────────────────────────────────────────────
 
 def test_plan_portafolio_crea_solo_lo_que_falta():
-    filas, _ = imports.leer_csv(_csv("codigo,nombre,precio,tipo\n952,Hemograma,30000,analisis\n"
-                                     "3001,Prueba nueva,50000,analisis\n"
-                                     "3002,Perfil nuevo,90000,perfil\n"))
+    filas, _ = imports.leer_csv(_csv("codigo,nombre,precio,tipo,categoria\n952,Hemograma,30000,analisis,Hematología\n"
+                                     "3001,Prueba nueva,50000,analisis,Química\n"
+                                     "3002,Perfil nuevo,90000,perfil,Renal\n"))
     plan = imports.plan_portafolio(filas, TESTS, PROFILES)
     assert plan["iguales"] == 1
     assert [c["code"] for c in plan["crear"]] == ["3001", "3002"]
@@ -84,7 +84,7 @@ def test_plan_portafolio_crea_solo_lo_que_falta():
 
 
 def test_plan_portafolio_no_deja_pasar_un_codigo_repetido_en_el_archivo():
-    filas, _ = imports.leer_csv(_csv("codigo,nombre,precio\n3001,Uno,1000\n3001,Otro,2000\n"))
+    filas, _ = imports.leer_csv(_csv("codigo,nombre,precio,categoria\n3001,Uno,1000,Otros\n3001,Otro,2000,Otros\n"))
     plan = imports.plan_portafolio(filas, TESTS, PROFILES)
     assert len(plan["crear"]) == 1
     assert "repetido" in plan["errores"][0]
@@ -209,6 +209,7 @@ def test_create_client_pone_billing_type_porque_la_tabla_lo_exige():
     enviado = cliente.table.return_value.insert.call_args.args[0]
     assert enviado["billing_type"] == "cash"
     assert enviado["is_active"] is True
+    assert enviado["address"] == ""  # NOT NULL: sin esto una lista sin dirección no da de alta a nadie
 
 
 def test_una_alta_que_revienta_no_cancela_las_demas():

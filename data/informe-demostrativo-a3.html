@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Informe demostrativo A3 - acuerdos y plataforma</title>
+<style>
+@page{size:A4;margin:13mm 13mm 15mm}@media print{.page{break-after:page}.page:last-child{break-after:auto}.avoid{break-inside:avoid}}*{box-sizing:border-box}body{margin:0;color:#172033;font:9.5pt/1.38 Arial,sans-serif;-webkit-print-color-adjust:exact;print-color-adjust:exact}h1,h2,h3{margin:0;color:#750d25}h1{font-size:27pt;line-height:1.06}h2{font-size:16pt;border-bottom:2px solid #dec4cb;padding-bottom:5px;margin-bottom:9px}h3{font-size:11.5pt;margin-bottom:4px}p{margin:5px 0}.page{min-height:268mm}.cover{display:flex;flex-direction:column;justify-content:space-between;padding:13mm 11mm;background:linear-gradient(135deg,#720b23,#a51f3b 63%,#d47988);color:#fff}.cover h1,.cover h2{color:#fff;border:0}.cover h1{font-size:30pt}.cover .eyebrow,.caps{font-weight:700;letter-spacing:.8px;text-transform:uppercase}.cover .eyebrow{font-size:10pt;color:#ffdce2}.cover .summary{font-size:14pt;line-height:1.45;max-width:145mm}.cover-card{padding:13px 15px;border-left:4px solid #ffd5dd;background:#ffffff1a}.muted{color:#58677d}.small{font-size:8.2pt}.note,.warning,.good{padding:9px 11px;border-radius:6px;margin:8px 0}.note{background:#eef3fa;border-left:4px solid #42648f}.warning{background:#fff4df;border-left:4px solid #a76600}.good{background:#eaf7ef;border-left:4px solid #187442}.legend{display:flex;gap:8px;flex-wrap:wrap;margin:7px 0}.badge{display:inline-block;padding:3px 8px;border-radius:99px;font-weight:700;font-size:8pt}.implemented{background:#dff4e6;color:#155b34}.external{background:#e5eefb;color:#254f87}.out{background:#fee8e6;color:#9a372b}.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}.card{border:1px solid #d8dce4;border-radius:7px;padding:9px;background:#fff}.card p:last-child{margin-bottom:0}.timeline{border-left:3px solid #9d1a35;margin:7px 0 0 6px;padding-left:15px}.event{position:relative;padding:0 0 10px}.event:before{content:"";position:absolute;left:-21px;top:3px;width:9px;height:9px;border-radius:50%;background:#9d1a35}.date{font-weight:700;color:#750d25}.table-wrap{overflow:hidden;border:1px solid #d8dce4;border-radius:6px;margin:8px 0}table{width:100%;border-collapse:collapse;font-size:8.35pt}th{background:#750d25;color:#fff;text-align:left;padding:6px;vertical-align:top}td{padding:6px;border-bottom:1px solid #e1e4e9;vertical-align:top}tr:last-child td{border-bottom:0}.image-card{border:1px solid #cfd5df;border-radius:7px;padding:6px;margin:8px 0;background:#f7f8fa}.image-card img{display:block;width:100%;height:auto;border-radius:3px}.caption{padding:5px 3px 0;color:#526174;font-size:8pt}.how{display:grid;grid-template-columns:32px 1fr;gap:7px;margin:5px 0}.num{height:23px;width:23px;border-radius:50%;display:grid;place-items:center;background:#750d25;color:#fff;font-weight:bold}.flow{display:flex;align-items:stretch;gap:4px;margin:8px 0}.flow div{flex:1;padding:7px 5px;text-align:center;border-radius:4px;background:#f4e8eb;font-size:8.2pt;font-weight:700}.flow div:nth-child(even){background:#eef3fa}.flow b{align-self:center;color:#750d25}.source{font-size:7.8pt;color:#566176;margin-top:8px}.rule{height:1px;background:#d8dce4;margin:9px 0}.two-images{display:grid;grid-template-columns:1fr 1fr;gap:7px}.two-images img{width:100%;border:1px solid #d8dce4;border-radius:5px}.footer{margin-top:11px;padding-top:5px;border-top:1px solid #d8dce4;font-size:7.5pt;color:#68758a}
+</style>
+</head>
+<body>
+<section class="page cover">
+  <div><p class="eyebrow">A3 Laboratorio Veterinario</p><h1>Informe demostrativo</h1><h2>Solicitudes, cambios registrados y uso de la plataforma</h2><p class="summary">Un recorrido documental y visual para revisar qué se pidió, qué se precisó después y cómo se encuentra resuelto cada frente en la versión inspeccionada.</p></div>
+  <div class="cover-card"><p class="caps">Corte de evidencia</p><p><strong>22 de septiembre de 2026</strong></p><p>Fuentes: registros de reuniones, decisiones versionadas, plantillas y pruebas locales del repositorio.</p></div>
+  <div><p><strong>Propósito:</strong> facilitar una demostración conjunta y evitar que una función existente, una decisión de alcance o una dependencia externa se confundan entre sí.</p><p class="small">Este documento no reemplaza contrato, acta firmada ni prueba de disponibilidad productiva.</p></div>
+</section>
+
+<section class="page">
+  <h2>Cómo leer la evidencia</h2>
+  <div class="legend"><span class="badge implemented">IMPLEMENTADO EN LA VERSIÓN INSPECCIONADA</span><span class="badge external">REQUIERE CONFIGURACIÓN O TERCERO</span><span class="badge out">NO INCLUIDO / RETIRADO</span></div>
+  <div class="note"><strong>Fuente y atribución.</strong> Las reuniones 00a y 00b son transcripciones literales. Las reuniones 1 a 8 son resúmenes; por eso este informe cita “según el registro de la reunión” y no atribuye frases personales. El registro del 21/08 indica que su fecha es inferida. La decisión del 28/08 declara que prevalece sobre inventarios anteriores.</div>
+  <div class="warning"><strong>Ambiente público.</strong> Al verificar <code>https://a3-plataforma.onrender.com/health</code> el 22/09/2026, Render respondió HTTP 503: <code>Service Suspended</code>, con <code>x-render-routing: suspend-by-user</code>. Por ello, las imágenes de este informe son capturas locales de las plantillas reales, con datos ficticios y una marca visible; no afirman que producción esté disponible hoy.</div>
+  <h3>Cronología que explica los ajustes</h3>
+  <div class="timeline">
+    <div class="event"><span class="date">07/04 · Reunión 00a.</span> Se acuerda sustituir LiveConnect por Chatwoot y llevar la captura de datos al chat.</div>
+    <div class="event"><span class="date">16/04 · Reunión 1.</span> Se pide asignación por zona, excepción manual y calendario de mensajeros.</div>
+    <div class="event"><span class="date">22/04 · Reunión 2.</span> Recepción conserva el control de rutas; GPS en tiempo real requeriría una app móvil.</div>
+    <div class="event"><span class="date">13/05 · Reunión 4.</span> Se muestra el módulo de motorizados, localidades, reasignación y estados operativos.</div>
+    <div class="event"><span class="date">20/05 · Reunión 5.</span> Se precisa que una recogida puede tener varias órdenes y el pago va después de decidir si se agrega otra.</div>
+    <div class="event"><span class="date">07/07 · Reunión 7.</span> GPS queda como mejora posterior; se muestra portal y trazabilidad por estados.</div>
+    <div class="event"><span class="date">28/07 · Reunión 8.</span> Se formaliza la jerarquía pedido → órdenes → análisis y una factura por pedido.</div>
+    <div class="event"><span class="date">21/08 · Registro de demo.</span> Se registra la aprobación del pago al final del pedido y del borrador en Alegra.</div>
+    <div class="event"><span class="date">28/08 · Decisión de alcance.</span> Pasarela, roles de motorizado, adjuntos y GPS en vivo quedan fuera; agenda y resultados por chat permanecen.</div>
+  </div>
+  <div class="footer">Referencias: [R00a], [R1], [R2], [R4], [R5], [R7], [R8], [R9], [D28]. Detalle de fuentes al final.</div>
+</section>
+
+<section class="page">
+  <h2>Motorizados, zonas y cobertura</h2>
+  <div class="grid">
+    <article class="card"><h3>Solicitud registrada</h3><p><strong>16/04, reunión 1:</strong> asignación automática por zona, posibilidad de excepción manual y calendario.</p><p><strong>13/05, reunión 4:</strong> alta de motorizado, localidad/zona, clientes asignados y reasignación desde recepción.</p></article>
+    <article class="card"><h3>Precisión posterior</h3><p><strong>22/04:</strong> recepción confirma o cambia antes de notificar. <strong>07/07:</strong> GPS real queda como mejora futura. <strong>28/08:</strong> el motorizado recibe avisos, no inicia sesión.</p></article>
+  </div>
+  <div class="table-wrap"><table><thead><tr><th>Pregunta operativa</th><th>Estado verificable</th><th>Límite actual</th></tr></thead><tbody>
+    <tr><td>Crear, editar o desactivar motorizados</td><td><span class="badge implemented">Sí</span> Tarjeta con nombre, teléfono, disponibilidad, chat de avisos, color y estado activo.</td><td>No hay eliminación definitiva ni bitácora completa de versiones del motorizado.</td></tr>
+    <tr><td>Varias localidades y clientes</td><td><span class="badge implemented">Sí</span> Cobertura por localidad y asignación directa por cliente.</td><td>El catálogo territorial nativo cubre 20 localidades de Bogotá.</td></tr>
+    <tr><td>Municipios, incluido César</td><td><span class="badge external">Manual</span> Se puede vincular el cliente o reasignar la recogida a un motorizado.</td><td>No existe modelo territorial específico de municipios ni cobertura temporal por fechas.</td></tr>
+    <tr><td>Reemplazo temporal / redistribución</td><td><span class="badge implemented">Por recogida</span> Agenda permite cambiar motorizado y fecha.</td><td>No hay regla recurrente ni rebalanceo automático de la carga.</td></tr>
+  </tbody></table></div>
+  <div class="image-card"><img src="evidencias-informe-demostrativo-a3/01-motorizados.png" alt="Pantalla demostrativa de Motorizados y Cobertura por localidad"><p class="caption">Dónde está: menú interno <strong>Motorizados</strong>. La tarjeta permite editar datos y activar/desactivar; la tabla lateral asigna cada localidad. Captura local con datos ficticios.</p></div>
+  <div class="footer">Evidencia técnica: <code>app/dashboard.py</code> (ruta <code>/motorizados</code>, cobertura y APIs), <code>app/services/db.py</code>, <code>app/zone_routing.py</code>, migraciones 005 y 006; pruebas <code>tests/test_dashboard_motorizados.py</code>.</div>
+</section>
+
+<section class="page">
+  <h2>Agenda: reasignar o reprogramar una recogida</h2>
+  <div class="good"><strong>Cómo se aplica la excepción.</strong> La autoasignación deja una propuesta inicial. Para una novedad concreta, recepción entra a <strong>Agenda</strong>, abre la tarjeta de la recogida, selecciona otro motorizado o cambia la fecha. La misma API guarda el cambio y crea el evento operativo de la solicitud.</div>
+  <div class="grid">
+    <article class="card"><h3>1. Ubicar la semana</h3><p>Usar “Semana anterior”, “Esta semana” o “Semana siguiente”. La grilla presenta una fila por motorizado, incluso sin carga.</p></article>
+    <article class="card"><h3>2. Editar la tarjeta</h3><p>Elegir el motorizado en el desplegable o modificar la fecha. Es una acción de operación, no una conversación visible para la veterinaria.</p></article>
+  </div>
+  <div class="image-card"><img src="evidencias-informe-demostrativo-a3/02-agenda.png" alt="Agenda demostrativa de motorizados"><p class="caption">Dónde está: menú interno <strong>Agenda</strong>. La captura muestra las dos acciones disponibles dentro de cada tarjeta: lista de motorizado y campo de fecha.</p></div>
+  <div class="warning"><strong>Lo que no representa esta pantalla:</strong> no es GPS, no calcula cercanía en tiempo real y no reemplaza una planificación de vacaciones/permisos con cobertura automática por rango de fechas. Es la solución manual de recepción acordada cuando GPS no era viable.</div>
+  <div class="footer">Referencias de cambio: [R1] §6–7; [R2] §11–13; [R4] §6–8; [R7] §7–8. Evidencia técnica: <code>app/dashboard_agenda.py</code>, <code>app/static/agenda.js</code> y <code>tests/test_dashboard_agenda.py</code>.</div>
+</section>
+
+<section class="page">
+  <h2>Flujo conversacional, pedido y facturación</h2>
+  <div class="table-wrap"><table><thead><tr><th>Solicitud</th><th>Fecha / llamada</th><th>Modificación o validación posterior</th><th>Estado al corte</th></tr></thead><tbody>
+    <tr><td>Varias órdenes en una recogida; después decidir si se agrega otra o se continúa al pago.</td><td>20/05 · R5</td><td>28/07 · R8 define pedido → órdenes → análisis. 21/08 · R9 registra demo aprobada: dos órdenes, un pago y una factura.</td><td><span class="badge implemented">Implementado</span> La decisión 011 indica una forma de pago por pedido y una factura acumulada.</td></tr>
+    <tr><td>Factura y pago en línea.</td><td>22/04 · R2; 27/05 · R6; 28/07 · R8</td><td>21/08 · R9: el bot deja borrador en Alegra y una persona revisa/emite. 28/08 · D28 cancela la pasarela.</td><td><span class="badge out">Sin pasarela automática</span> Contabilidad gestiona el cobro; no hay enlace Wompi/Bancolombia generado por el sistema.</td></tr>
+  </tbody></table></div>
+  <div class="flow"><div>Clínica identificada</div><b>→</b><div>Pedido</div><b>→</b><div>1 o más órdenes</div><b>→</b><div>Total y forma de pago</div><b>→</b><div>Borrador Alegra</div><b>→</b><div>Revisión humana</div></div>
+  <div class="note"><strong>Respuesta directa sobre pago en línea:</strong> el flujo puede registrar la opción “pago en línea” y derivarla a Contabilidad, pero <strong>no cobra ni genera una pasarela automática</strong>. Esto no es una función pendiente oculta: quedó cancelada expresamente en la decisión de alcance del 28/08.</div>
+  <div class="image-card"><img src="evidencias-informe-demostrativo-a3/06-facturacion.png" alt="Pantalla demostrativa de facturación con factura en borrador"><p class="caption">Dónde está: menú interno <strong>Facturación</strong>. La fila demostrativa muestra el estado <strong>Borrador</strong> y acceso a Alegra. El importe y los datos son ficticios.</p></div>
+  <div class="footer">Referencias: [R5] §6; [R8] §8–14; [R9] §1 y §5; [D28] §1; <code>docs/decisions/011-jerarquia-pedido-ordenes.md</code>; <code>app/config.py</code>, <code>app/agent.py</code>, <code>app/billing.py</code>.</div>
+</section>
+
+<section class="page">
+  <h2>Portal: solicitudes, seguimiento y resultados</h2>
+  <div class="grid">
+    <article class="card"><h3>Solicitud y seguimiento</h3><p><strong>07/07, R7:</strong> se muestra portal para solicitar análisis, ver resultados y notificaciones. El GPS se reemplaza por estados de la orden.</p><p><span class="badge implemented">Implementado</span> El cliente entra con clínica y NIT, consulta solicitudes propias y abre el detalle.</p></article>
+    <article class="card"><h3>Resultado compartido</h3><p>El laboratorio publica el PDF; solo entonces aparece al cliente. Se permite abrir el informe, descargar PDF y descargar un ZIP de resultados filtrados.</p><p><span class="badge implemented">Implementado</span> El portal limita cada vista al <code>client_id</code> de la sesión.</p></article>
+  </div>
+  <div class="two-images"><figure><img src="evidencias-informe-demostrativo-a3/03-portal-solicitudes.png" alt="Portal demostrativo con solicitud de retiro"><figcaption class="caption">Solicitud: estado, retiro programado y motorizado.</figcaption></figure><figure><img src="evidencias-informe-demostrativo-a3/04-portal-resultados.png" alt="Portal demostrativo con resultado disponible"><figcaption class="caption">Resultados: informe y PDF publicados por el laboratorio.</figcaption></figure></div>
+  <div class="warning"><strong>Interpretación correcta del seguimiento:</strong> “En ruta”, “Retirada”, “En laboratorio” y demás estados muestran el avance operativo registrado. No son posición del motorizado ni ubicación GPS en tiempo real.</div>
+  <div class="footer">Referencias: [R7] §10 y §8; [D28] (roles y agenda); [A14] §3–4. Evidencia técnica: <code>app/portal/client_requests.py</code>, <code>app/portal/client_results.py</code>, plantillas <code>app/templates/portal/</code>.</div>
+</section>
+
+<section class="page">
+  <h2>Anarvet y entrega de resultados</h2>
+  <div class="table-wrap"><table><thead><tr><th>Solicitud / cambio</th><th>Registro</th><th>Resultado actual</th></tr></thead><tbody>
+    <tr><td>Consultar estados, resultados y eventualmente entregar PDF.</td><td>13/05 · R4: acceso solo lectura. 28/07 · R8: posible SQL de consulta. 21/08 · R9: se detallan estado, consulta por WhatsApp, documento y portal.</td><td><span class="badge implemented">Espejo de solo lectura</span> con sincronización manual, consulta y generación/publicación de PDF incorporadas después de la primera fase.</td></tr>
+    <tr><td>Mostrar proceso en tiempo real.</td><td>Acta de cierre borrador, 14/09: falta una fuente de estados, TLS/IP y resolver mapeos pendientes.</td><td><span class="badge external">Dependencia externa</span> El espejo muestra datos validados que lleguen desde Anarvet; no inventa ni calcula un estado que la fuente no provea.</td></tr>
+  </tbody></table></div>
+  <div class="image-card"><img src="evidencias-informe-demostrativo-a3/05-anarvet.png" alt="Pantalla demostrativa del espejo Anarvet"><p class="caption">Dónde está: menú interno <strong>Resultados → Espejo Anarvet</strong>. “Sincronizar ahora” actualiza el espejo mediante lectura; “Emparejar veterinarias” atiende correspondencias pendientes. Captura local con fila ficticia.</p></div>
+  <div class="note"><strong>Operación propuesta:</strong> primero sincronizar/consultar, revisar el mapeo de la veterinaria y luego publicar/entregar el PDF. La disponibilidad real depende de <code>ANARVET_ENABLED</code>, credenciales, conectividad/TLS/IP y de la fuente de Anarvet.</div>
+  <div class="footer">Referencias: [R4] §4; [R8] §22–23; [R9] §7; <code>docs/decisions/013-anarvet-fase-1-espejo-lectura.md</code>; <code>app/dashboard_results.py</code> y <code>app/anarvet_sync.py</code>.</div>
+</section>
+
+<section class="page">
+  <h2>Canales, roles y puntos retirados</h2>
+  <div class="table-wrap"><table><thead><tr><th>Tema</th><th>Solicitud inicial</th><th>Cambio documentado</th><th>Cómo queda</th></tr></thead><tbody>
+    <tr><td>Centro de conversación</td><td>07/04 · R00a: revisar alternativa a LiveConnect.</td><td>07/04 · R00a: acuerdo explícito de usar Chatwoot.</td><td><span class="badge implemented">Código disponible</span> Telegram y webhook Chatwoot; WhatsApp depende de cuenta Meta/Chatwoot operativa.</td></tr>
+    <tr><td>GPS en vivo</td><td>22/04 · R2: motorizado más cercano por GPS.</td><td>07/07 · R7: se deja como mejora posterior.</td><td><span class="badge out">No incluido</span> Sustituido por estados y reasignación manual.</td></tr>
+    <tr><td>Rol / login de motorizado</td><td>22/04 · R2: usuarios limitados para mensajeros.</td><td>28/08 · D28: solo personal interno y portal de veterinarias.</td><td><span class="badge out">No incluido</span> El motorizado recibe aviso en su conversación configurada.</td></tr>
+    <tr><td>Adjuntos, soportes y OCR en chat</td><td>22/04 · R2 y 20/05 · R5: soportes/foto de orden.</td><td>28/08 · D28: adjuntos y fotos fuera; la prueba de foto no era legible.</td><td><span class="badge out">No incluido</span> Contabilidad y recepción tratan esos casos por canal humano.</td></tr>
+    <tr><td>Pasarela de pago</td><td>Se evaluaron link/pasarela y Wompi/Bancolombia.</td><td>28/08 · D28: cancelada; pago se deriva a persona.</td><td><span class="badge out">No incluido</span> Factura en borrador y gestión humana.</td></tr>
+  </tbody></table></div>
+  <div class="warning"><strong>WhatsApp no debe concluirse solo por código.</strong> El repositorio reconoce el canal WhatsApp dentro de Chatwoot, pero la activación real exige una cuenta Business de A3, inbox/configuración de Chatwoot y servicio público activo. El estado 503 observado impide certificarlo hoy desde internet.</div>
+  <h3>Qué sí conviene probar en una demostración conjunta</h3>
+  <div class="how"><span class="num">1</span><p>Restablecer el servicio y confirmar <code>/health</code>, dashboard y portal.</p></div><div class="how"><span class="num">2</span><p>Crear una recogida de prueba, ver su asignación y cambiar motorizado/fecha en Agenda.</p></div><div class="how"><span class="num">3</span><p>Recorrer un pedido con una o dos órdenes y verificar el borrador con Contabilidad.</p></div><div class="how"><span class="num">4</span><p>Publicar un resultado de prueba y comprobar su visualización en el portal y el canal configurado.</p></div>
+</section>
+
+<section class="page">
+  <h2>Conclusión y fuentes</h2>
+  <div class="good"><strong>Conclusión operacional.</strong> La plataforma inspeccionada contiene las superficies para gestionar motorizados, cobertura por localidad, agenda manual, portal, resultados, espejo Anarvet y facturación en borrador. También incorpora las sustituciones documentadas: no hay GPS en vivo, login de motorizado ni pasarela automática.</div>
+  <div class="note"><strong>Pruebas técnicas ya ejecutadas localmente.</strong> La suite focalizada de motorizados, agenda, WhatsApp, portal, resultados, Anarvet y Alegra registró <strong>129 aprobadas y 1 advertencia</strong>. Estas pruebas validan código/mocks; no sustituyen una prueba de cuentas externas en producción.</div>
+  <h3>Índice de fuentes</h3>
+  <div class="table-wrap"><table><tbody>
+    <tr><td><strong>[R00a]</strong></td><td><code>Auditoria Alcance/reuniones/llamada-00a-2026-04-07.md</code> · transcripción literal.</td></tr>
+    <tr><td><strong>[R1]–[R8]</strong></td><td><code>Auditoria Alcance/reuniones/llamada-01-2026-04-16.md</code> a <code>llamada-08-2026-07-28.md</code> · resúmenes de reunión.</td></tr>
+    <tr><td><strong>[R9]</strong></td><td><code>Auditoria Alcance/reuniones/llamada-09-2026-08-21.md</code> · fecha indicada como inferida por el propio registro.</td></tr>
+    <tr><td><strong>[D28]</strong></td><td><code>Auditoria Alcance/13-decisiones-alcance-2026-08-28.md</code> · documento que declara prevalecer sobre inventarios anteriores.</td></tr>
+    <tr><td><strong>[A14]</strong></td><td><code>data/acta-cierre-final-a3-20260914.html</code> · borrador para revisión y firma; no aceptación suscrita.</td></tr>
+    <tr><td><strong>[E]</strong></td><td>Rutas, plantillas y pruebas mencionadas en cada sección; capturas generadas por <code>tools/scripts/capturas_demostrativas_a3.py</code>.</td></tr>
+  </tbody></table></div>
+  <div class="footer">Informe generado el 22/09/2026. Las capturas contienen únicamente datos sintéticos: “Clínica Demostración”, “Camila Demo”, “Luna” y valores de ejemplo.</div>
+</section>
+</body>
+</html>

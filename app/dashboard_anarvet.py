@@ -6,6 +6,7 @@ del resultado. Blueprint separado (misma razón que dashboard_results): usa la M
 sesión del dashboard y no toca app/dashboard.py. Solo LECTURA del espejo local:
 nunca le pega a Anarvet — para traer datos nuevos está el botón de sync.
 """
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 from functools import wraps
 
@@ -69,10 +70,14 @@ def clientes_page():
     como de nadie. Los endpoints de asignación ya existían (`/api/dashboard/anarvet/clients*`)
     pero ningún template los usaba, así que la única vía era un script.
     """
-    mapa = db.list_anarvet_client_map()
-    clientes = [c for c in db.list_clients_with_assignment()
+    # Las tres lecturas a la vez: en serie sumaban ~3 s (auditoría 2026-10-19).
+    with ThreadPoolExecutor(max_workers=3) as hilos:
+        mapa_f = hilos.submit(db.list_anarvet_client_map)
+        clientes_f = hilos.submit(db.list_clients_with_assignment)
+        informes_f = hilos.submit(db.count_anarvet_informes_por_cliente)
+    mapa, informes_por_cod = mapa_f.result(), informes_f.result()
+    clientes = [c for c in clientes_f.result()
                 if c.get("is_active") and (c.get("clinic_name") or "").strip()]
-    informes_por_cod = db.count_anarvet_informes_por_cliente()
 
     pendientes = [m for m in mapa if not m.get("client_id")]
     plan = anarvet_map.planificar(pendientes, clientes)

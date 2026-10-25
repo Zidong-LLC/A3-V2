@@ -15,6 +15,7 @@ de un paciente a la veterinaria equivocada.
 """
 import re
 import unicodedata
+from functools import lru_cache
 
 # Formas jurídicas y palabras del rubro: las dos partes del nombre que no distinguen a una
 # veterinaria de otra. "Clínica Veterinaria Zoopecas" y "Zoopecas SAS" son la misma.
@@ -25,6 +26,7 @@ _RUIDO = frozenset({
 })
 
 
+@lru_cache(maxsize=8192)  # la pantalla compara cada pendiente contra ~1.000 clientes
 def normalizar(nombre: str | None) -> str:
     """Nombre comparable: sin tildes, sin puntuación y sin la palabrería comercial.
 

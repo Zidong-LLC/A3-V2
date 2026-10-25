@@ -1,0 +1,37 @@
+{# Paso de columnas de la carga masiva: qué columna del archivo es cada dato. Viene
+   autocompletado por el nombre del encabezado; la persona corrige lo que haga falta y
+   recalcula la vista previa sin volver a subir el archivo. #}
+<section class="card">
+  <div class="card-head"><div>
+    <h3>Columnas de «{{ mapeo.archivo }}»</h3>
+    <p>Elige qué columna del archivo corresponde a cada dato. Lo que no venga, déjalo en «No viene».</p>
+  </div></div>
+  {% if falta %}
+  <p class="approval-notice error" style="margin:0 12px 12px">Falta indicar: {{ falta | join(', ') }}.</p>
+  {% endif %}
+  <form method="post" action="{{ url_for('dashboard_import.remapear') }}" class="portal-upload-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="tipo" value="{{ mapeo.tipo }}">
+    <input type="hidden" name="tabla" value="{{ mapeo.tabla_json }}">
+    <div class="form-grid">
+      {% for campo in mapeo.campos %}
+      <label>{{ etiquetas[campo] }}
+        <select name="col_{{ campo }}">
+          <option value="">No viene</option>
+          {% for encabezado in mapeo.encabezados %}
+          <option value="{{ loop.index0 }}" {{ 'selected' if mapeo.mapa.get(campo) == loop.index0 else '' }}>
+            {{ encabezado or ('Columna ' ~ loop.index) }}{% if mapeo.ejemplo and mapeo.ejemplo[0]|length > loop.index0 %} — ej.: {{ mapeo.ejemplo[0][loop.index0][:30] }}{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+      </label>
+      {% endfor %}
+    </div>
+    {% if mapeo.tipo == 'clientes' %}
+    <label class="portal-check"><input type="checkbox" name="actualizar" {{ 'checked' if mapeo.actualizar else '' }}> Actualizar también los datos que cambiaron (no solo completar los vacíos)</label>
+    {% endif %}
+    <div class="portal-upload-actions">
+      <button type="submit" class="ghost-btn"><i data-lucide="refresh-cw"></i>Recalcular la vista previa</button>
+    </div>
+  </form>
+</section>

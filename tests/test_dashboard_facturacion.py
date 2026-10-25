@@ -272,3 +272,25 @@ def test_sin_filtros_la_tabla_vacia_sigue_invitando_a_sincronizar():
          _patch("app.dashboard._build_invoices_context", return_value=vacio):
         cuerpo = client.get("/facturacion").get_data(as_text=True)
     assert "No hay facturas en cache" in cuerpo
+
+
+def test_cartera_del_cliente_compara_el_nit_exacto_y_no_por_subcadena():
+    """Auditoría 2026-10-19: con ilike %base% un cliente con NIT corto veía en su portal
+    facturas de 93 NITs ajenos. Ahora es igualdad exacta, y sin NIT legible no hay cartera."""
+    from unittest.mock import MagicMock, patch
+    from app.services import db as dbs
+
+    consulta = MagicMock()
+    consulta.select.return_value = consulta
+    consulta.in_.return_value = consulta
+    consulta.not_ = consulta
+    consulta.order.return_value = consulta
+    consulta.range.return_value = consulta
+    consulta.execute.return_value = MagicMock(data=[])
+    cliente = MagicMock()
+    cliente.table.return_value = consulta
+    with patch.object(dbs, "_client", cliente):
+        dbs.list_cartera(client_nit="1117504844-9")
+        consulta.in_.assert_any_call("client_nit", ["1117504844"])
+        consulta.ilike.assert_not_called()
+        assert dbs.list_cartera(client_nit="1-R") == []

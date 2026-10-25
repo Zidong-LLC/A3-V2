@@ -9,3 +9,5 @@ tzdata>=2024.1
 # propósito: el PDF es lo que ve el cliente y no puede cambiar de métrica en un deploy
 # cualquiera. Debe coincidir con el tag de la imagen del Dockerfile.
 playwright==1.55.0
+# Cargas masivas desde Excel (.xlsx), cierre v1 (2026-10-19).
+openpyxl==3.1.5

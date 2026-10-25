@@ -1,7 +1,7 @@
 # 013 — Anarvet Fase 1: espejo de solo lectura
 
 **Fecha:** 2026-08-25
-**Estado:** Aceptada (Fase 1 implementada)
+**Estado:** Aceptada; Fase 1 implementada y ampliada posteriormente con PDF y consulta por chat
 
 ## Contexto
 
@@ -45,6 +45,10 @@ fase con su propio plan y OK explícito.
 
 ## Consecuencias
 
+> Estado posterior: la Fase 2 añadió sincronización incremental, generación/publicación
+> de PDF y entrega de resultados por chat. Esta decisión conserva el antecedente de la
+> integración inicial de solo lectura.
+
 - Primera corrida real: 84/103 códigos mapeados en automático (82%), 15 ambiguos y
   4 sin match quedaron `pending`.
 - **Riesgo IP (el mayor):** conectividad verificada solo desde la máquina local; si
@@ -54,4 +58,5 @@ fase con su propio plan y OK explícito.
   resultados, credenciales de solo lectura); pedir TLS a Anarvet queda anotado.
 - Colisión de dedupe aceptada: mismo paciente + examen + analito + fecha colapsa en
   una fila (2 casos en 7.694 filas reales).
-- El PDF de resultados y el flujo de chat quedan para fases siguientes.
+- En esta decisión inicial, el PDF y el flujo de chat quedaron para fases siguientes;
+  ambos fueron implementados después.

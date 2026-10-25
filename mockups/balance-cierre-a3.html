@@ -1,0 +1,488 @@
+<title>Ruta al cierre de A3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --shell:#ecedf0; --paper:#ffffff; --head:#f5f5f7;
+  --line:#d3d4d9; --line-soft:#e6e6ea;
+  --ink:#171717; --ink-2:#3f3f46; --muted:#67676f; --faint:#87878f;
+  --brand:#7a0d20; --brand-tint:#f7ebee; --on-brand:#ffffff;
+  --ok:#15803d; --ok-tint:#e8f5ec;
+  --wait:#b45309; --wait-tint:#fdf1e3;
+  --stop:#b91c1c; --stop-tint:#fdecec;
+  --shadow:0 1px 2px rgba(24,24,27,.07), 0 1px 3px rgba(24,24,27,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --shell:#141416; --paper:#1c1c20; --head:#232328;
+    --line:#33333a; --line-soft:#28282e;
+    --ink:#f4f4f5; --ink-2:#d4d4d8; --muted:#a1a1aa; --faint:#8b8b93;
+    --brand:#e8899b; --brand-tint:#3a1620; --on-brand:#1c1c20;
+    --ok:#4ade80; --ok-tint:#14301f;
+    --wait:#fbbf24; --wait-tint:#33261a;
+    --stop:#f87171; --stop-tint:#331b1b;
+    --shadow:0 1px 2px rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --shell:#141416; --paper:#1c1c20; --head:#232328;
+  --line:#33333a; --line-soft:#28282e;
+  --ink:#f4f4f5; --ink-2:#d4d4d8; --muted:#a1a1aa; --faint:#8b8b93;
+  --brand:#e8899b; --brand-tint:#3a1620; --on-brand:#1c1c20;
+  --ok:#4ade80; --ok-tint:#14301f;
+  --wait:#fbbf24; --wait-tint:#33261a;
+  --stop:#f87171; --stop-tint:#331b1b;
+  --shadow:0 1px 2px rgba(0,0,0,.4);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--shell);color:var(--ink);
+  font-family:"Public Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3,p{margin:0}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+
+.wrap{max-width:940px;margin:0 auto;padding:40px 24px 72px;display:flex;flex-direction:column;gap:30px}
+.top{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.mark{width:44px;height:44px;border-radius:99px;background:var(--brand);color:var(--on-brand);
+  display:grid;place-items:center;font-weight:800;font-size:16px;flex:none}
+.top h1{font-size:30px;font-weight:800;letter-spacing:-.03em;text-wrap:balance;line-height:1.15}
+.top .sub{font-size:13px;color:var(--muted);margin-top:2px}
+
+.score{background:var(--paper);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);
+  padding:22px 24px;display:flex;gap:26px;align-items:center;flex-wrap:wrap}
+.score .num{font-size:52px;font-weight:800;letter-spacing:-.04em;line-height:1;color:var(--brand);font-variant-numeric:tabular-nums}
+.score .txt{flex:1;min-width:260px}
+.score .txt strong{display:block;font-size:16px;font-weight:700}
+.score .txt p{font-size:14px;color:var(--muted);margin-top:4px;max-width:64ch}
+
+.aviso{background:var(--wait-tint);border:1px solid var(--wait);border-radius:10px;padding:16px 20px}
+.aviso strong{font-size:15px;font-weight:700;color:var(--wait)}
+.aviso ul{margin:8px 0 0;padding-left:18px;font-size:13.5px;color:var(--ink-2)}
+.aviso li{margin-bottom:5px;max-width:76ch}
+
+.frentes{display:grid;gap:9px}
+.frente{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:11px 16px;
+  display:grid;grid-template-columns:180px 1fr auto;gap:14px;align-items:center;box-shadow:var(--shadow)}
+.frente b{font-size:14px;font-weight:600}
+.frente .barra{height:7px;border-radius:99px;background:var(--line-soft);overflow:hidden;min-width:70px}
+.frente .barra i{display:block;height:100%;border-radius:99px;background:var(--brand)}
+.frente .pct{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;min-width:44px;text-align:right}
+.frente small{grid-column:1/-1;font-size:12.5px;color:var(--muted)}
+.frente.listo .barra i{background:var(--ok)}
+.frente.listo .pct{color:var(--ok)}
+
+section.bloque{display:flex;flex-direction:column;gap:12px}
+.bloque > header{border-bottom:2px solid var(--line);padding-bottom:10px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.bloque h2{font-size:20px;font-weight:800;letter-spacing:-.02em}
+.bloque header p{font-size:13.5px;color:var(--muted)}
+.bloque header .cuenta{margin-left:auto;font-size:12.5px;color:var(--faint);font-variant-numeric:tabular-nums}
+
+.item{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:13px 16px;
+  display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:start;box-shadow:var(--shadow)}
+.chip{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+  padding:3px 9px;border-radius:99px;white-space:nowrap;height:fit-content}
+.c-stop{background:var(--stop-tint);color:var(--stop)}
+.c-wait{background:var(--wait-tint);color:var(--wait)}
+.c-ok{background:var(--ok-tint);color:var(--ok)}
+.c-brand{background:var(--brand-tint);color:var(--brand)}
+.item .cuerpo strong{display:block;font-size:15px;font-weight:700;text-wrap:balance}
+.item .cuerpo p{font-size:13.5px;color:var(--ink-2);margin-top:4px;max-width:74ch}
+.item .cuerpo .nota{color:var(--muted);font-size:12.5px;margin-top:5px}
+.flujo{font-size:10.5px;font-weight:700;color:var(--brand);background:var(--brand-tint);
+  padding:3px 9px;border-radius:99px;white-space:nowrap;height:fit-content}
+
+.ruta{display:grid;gap:0}
+.paso{display:grid;grid-template-columns:34px 1fr;gap:14px;padding:13px 0;border-bottom:1px solid var(--line-soft)}
+.paso:last-child{border-bottom:0}
+.paso .n{width:28px;height:28px;border-radius:99px;background:var(--brand);color:var(--on-brand);
+  display:grid;place-items:center;font-size:13px;font-weight:700}
+.paso strong{display:block;font-size:15px;font-weight:700}
+.paso p{font-size:13.5px;color:var(--ink-2);margin-top:3px;max-width:74ch}
+.paso .quien{font-size:12px;color:var(--muted);margin-top:5px}
+
+footer{border-top:1px solid var(--line);padding-top:16px;font-size:12.5px;color:var(--muted)}
+
+@media (max-width:660px){
+  .frente{grid-template-columns:1fr auto}
+  .frente .barra{grid-column:1/-1;order:3}
+  .item{grid-template-columns:1fr}
+  .score .num{font-size:42px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+
+<div class="wrap">
+
+  <div class="top">
+    <div class="mark">A3</div>
+    <div>
+      <h1>Ruta al cierre</h1>
+      <p class="sub">Revisión completa del proyecto · 27 de agosto de 2026</p>
+    </div>
+  </div>
+
+  <div class="score">
+    <div class="num">88%</div>
+    <div class="txt">
+      <strong>El producto está terminado en un 88%</strong>
+      <p>Cada punto está contrastado con el código, la base o la cuenta de Alegra. Subió del 86%
+      porque el 27/08 salieron del alcance las cuentas por rol y los adjuntos por chat. Lo que
+      queda: el <b>chat</b> (5 fallos), <b>WhatsApp</b> y el <b>paso a producción</b>.</p>
+    </div>
+  </div>
+
+  <div class="aviso">
+    <strong>Decisiones de alcance del 27 de agosto</strong>
+    <ul>
+      <li><b>Cuentas por rol: fuera del alcance.</b> Quedan los dos accesos actuales — portal del
+      cliente (veterinaria + NIT) y plataforma administrativa (usuario + contraseña). Venía de la
+      llamada del 22/04, donde el problema real era que recepción perdía de vista la conversación
+      al derivarla al mensajero, no los permisos.</li>
+      <li><b>Adjuntar soporte de pago por chat: fuera del alcance.</b> Estaba pedido en esa misma
+      llamada («el bot debe permitir adjuntar soporte de pago»), pero los pagos se aclaran por
+      otro canal. El bot sigue procesando solo texto.</li>
+      <li><b>Calendario de mensajeros: versión mínima.</b> Del acta del 16/04. Solo marcar que un
+      motorizado no está disponible un día, para que la asignación automática no le mande retiros.
+      Turnos y compensatorios se siguen manejando fuera de la plataforma.</li>
+      <li>Antes de esto corregí tres errores míos: <b>Anarvet Fase 2 está completa</b> desde el
+      25/08, los fallos del chat son <b>5 y no 7</b> (dos figuraban abiertos estando resueltos), y
+      el <b>PDF de resultados ya existe</b> con la identidad de A3.</li>
+    </ul>
+  </div>
+
+  <section class="bloque">
+    <header><h2>Avance por frente</h2><p>Ponderado por peso en lo contratado</p></header>
+    <div class="frentes">
+      <div class="frente listo"><b>Catálogo y precios</b><div class="barra"><i style="width:100%"></i></div><span class="pct">100%</span><small>Mascolab cargado y catálogo auditado contra el PDF nuevo: ningún precio cambió.</small></div>
+      <div class="frente listo"><b>Portal del cliente</b><div class="barra"><i style="width:100%"></i></div><span class="pct">100%</span><small>Fuera del modo demostración. Entra con clínica y NIT; aislamiento comprobado.</small></div>
+      <div class="frente"><b>Resultados / Anarvet</b><div class="barra"><i style="width:92%"></i></div><span class="pct">92%</span><small>Fase 2 completa. Falta la consulta por chat y lo que depende de Anarvet.</small></div>
+      <div class="frente"><b>Facturación</b><div class="barra"><i style="width:90%"></i></div><span class="pct">90%</span><small>Falta la prueba en vivo, el IVA por análisis y la pasarela de pago.</small></div>
+      <div class="frente"><b>Agente conversacional</b><div class="barra"><i style="width:90%"></i></div><span class="pct">90%</span><small>5 fallos abiertos, uno crítico. Los adjuntos por chat salieron del alcance.</small></div>
+      <div class="frente"><b>Plataforma interna</b><div class="barra"><i style="width:90%"></i></div><span class="pct">90%</span><small>Zonas y reportes listos. Falta mejorar Resultados y marcar la disponibilidad del motorizado.</small></div>
+      <div class="frente"><b>Canales</b><div class="barra"><i style="width:65%"></i></div><span class="pct">65%</span><small>WhatsApp: tres arreglos nuestros y la cuenta de Meta de A3.</small></div>
+      <div class="frente"><b>Producción</b><div class="barra"><i style="width:20%"></i></div><span class="pct">20%</span><small>El Dockerfile está listo. Falta desplegar, el cron y la semana de acompañamiento.</small></div>
+    </div>
+  </section>
+
+  <section class="bloque">
+    <header>
+      <h2>Desarrollo pendiente</h2>
+      <p>Lo que hacemos nosotros, sin depender de nadie</p>
+      <span class="cuenta">11 puntos</span>
+    </header>
+
+    <article class="item">
+      <span class="chip c-stop">Crítico</span>
+      <div class="cuerpo">
+        <strong>ERR-099 · Cambiar de cliente a mitad de la confirmación</strong>
+        <p>El cliente dice «no, soy Animal Pets» y el bot cambia solo el nombre: la orden se queda
+        con el NIT, la dirección y el motorizado del anterior. Puede mandar al motorizado
+        equivocado y facturarle a otra veterinaria.</p>
+        <p class="nota">Reproducido en vivo por Telegram el 28/07. Sin cierre en la bitácora.</p>
+      </div>
+      <span class="flujo">toca el flujo</span>
+    </article>
+
+    <article class="item">
+      <span class="chip c-wait">Alto</span>
+      <div class="cuerpo">
+        <strong>ERR-117 · El cliente cambia de paciente sin decir «otra orden»</strong>
+        <p>Si describe el siguiente paciente directamente («ahora P2, gato criollo, 1101 y 1701»),
+        el bot lo toma como corrección de la orden actual en vez de abrir una nueva. Es la forma
+        natural de hablar de quien manda varias muestras juntas.</p>
+        <p class="nota">Está marcado como decisión de flujo: necesito tu criterio sobre cómo debe
+        comportarse antes de tocarlo.</p>
+      </div>
+      <span class="flujo">toca el flujo</span>
+    </article>
+
+    <article class="item">
+      <span class="chip c-wait">Alto</span>
+      <div class="cuerpo">
+        <strong>ERR-118 · Varias órdenes seguidas en una misma conversación</strong>
+        <p>En la prueba de estrés (6 personas, hasta 10 órdenes cada una) el resultado mejoró de
+        0/5 a 4/5, pero quedó anotado «no declarar producción hasta la vara». Es el escenario del
+        cliente que manda seis muestras de una vez.</p>
+      </div>
+      <span class="flujo">toca el flujo</span>
+    </article>
+
+    <article class="item">
+      <span class="chip c-wait">Medio</span>
+      <div class="cuerpo">
+        <strong>ERR-095 · Preguntas de preventa sin dar el NIT</strong>
+        <p>Quien pregunta precios o tiempos antes de identificarse puede quedar en un bucle
+        pidiéndole el NIT. Las respuestas del bot son buenas; el problema es que no sale del
+        pedido de identificación.</p>
+      </div>
+      <span class="flujo">toca el flujo</span>
+    </article>
+
+    <article class="item">
+      <span class="chip c-wait">Medio</span>
+      <div class="cuerpo">
+        <strong>ERR-113 · La primera captura de códigos sueltos pierde el estado</strong>
+        <p>A veces, al mandar códigos de análisis sueltos al principio, se pierde lo ya cargado.
+        Anotado como preexistente.</p>
+      </div>
+      <span class="flujo">toca el flujo</span>
+    </article>
+
+    
+
+    <article class="item">
+      <span class="chip c-wait">Operativo</span>
+      <div class="cuerpo">
+        <strong>Mejorar la pantalla de Resultados</strong>
+        <p>Cinco cosas concretas, en orden de importancia: <b>no se puede deshacer</b> —si el informe
+        se sube al cliente equivocado y se comparte, no hay cómo despublicarlo ni borrarlo, y el
+        cliente ya lo vio—; el destino se escribe <b>de memoria</b> (número de orden o NIT, sin
+        buscador por nombre); <b>no se ve a quién le va</b> hasta después de subir; «compartir con el
+        cliente» viene <b>desmarcado</b>, así que es fácil dejarlo en borrador sin querer; y se sube
+        <b>de a un archivo</b>.</p>
+        <p class="nota">El atajo desde la ficha del cliente, hecho hoy, ya resuelve en parte el
+        segundo y el tercero.</p>
+      </div>
+    </article>
+
+    <article class="item">
+      <span class="chip c-wait">Operativo</span>
+      <div class="cuerpo">
+        <strong>Disponibilidad del motorizado</strong>
+        <p>Marcar que un motorizado no trabaja un día, para que la asignación automática no le mande
+        retiros. Es la versión mínima del calendario que se habló en abril.</p>
+      </div>
+    </article>
+
+    <article class="item">
+      <span class="chip c-wait">Antes de WhatsApp</span>
+      <div class="cuerpo">
+        <strong>Tres arreglos para que WhatsApp funcione</strong>
+        <p>La base solo acepta «telegram» como canal y reetiqueta el resto, con lo que las métricas
+        por canal salen mal; el aviso de resultados llama a Telegram directo, así que un cliente de
+        WhatsApp no recibiría nada; y el webhook de Chatwoot no valida la firma de quien lo llama.</p>
+      </div>
+    </article>
+
+    <article class="item">
+      <span class="chip c-brand">Alcance pedido</span>
+      <div class="cuerpo">
+        <strong>Consultar resultados desde el chat</strong>
+        <p>Sin empezar: el bot responde que los resultados no están disponibles por chat. Ahora es
+        más viable que antes, porque el informe ya se genera y se publica al portal.</p>
+      </div>
+    </article>
+
+    <article class="item">
+      <span class="chip c-brand">Alcance pedido</span>
+      <div class="cuerpo">
+        <strong>Pago en línea e inventario</strong>
+        <p>El flujo ya ofrece «pago en línea» como forma de pago pero no hay pasarela detrás. El
+        inventario es trabajo nuevo y no arranca hasta que A3 diga qué quiere ver.</p>
+      </div>
+    </article>
+
+    <article class="item">
+      <span class="chip c-ok">Menor</span>
+      <div class="cuerpo">
+        <strong>Dos arreglos chicos</strong>
+        <p>En «Nueva orden» el paso 3 encima dos rótulos y desborda el selector del catálogo (ya
+        pasaba antes del cambio de estilo). Y el contacto de Alegra se crea recién al facturar, no
+        al identificar al cliente.</p>
+      </div>
+    </article>
+
+    <article class="item">
+      <span class="chip c-ok">Mantenimiento</span>
+      <div class="cuerpo">
+        <strong>Poner al día la bitácora de errores</strong>
+        <p>Son 148 registros y al menos dos figuran abiertos estando resueltos. Es lo que hizo que
+        te pasara un número inflado.</p>
+      </div>
+    </article>
+  </section>
+
+  <section class="bloque">
+    <header>
+      <h2>Depende de A3</h2>
+      <p>Datos y decisiones del laboratorio</p>
+      <span class="cuenta">7 puntos</span>
+    </header>
+
+    <article class="item">
+      <span class="chip c-stop">Bloquea facturar</span>
+      <div class="cuerpo">
+        <strong>Prueba de facturación en vivo</strong>
+        <p>Cerrar una orden de punta a punta y revisar el borrador: uno a nombre del cliente y uno
+        como consumidor final. Quedan en la cuenta que ve el contador, por eso lo hacemos juntos.</p>
+      </div>
+    </article>
+    <article class="item">
+      <span class="chip c-stop">Bloquea facturar</span>
+      <div class="cuerpo">
+        <strong>IVA por análisis y régimen por cliente</strong>
+        <p>Hoy la factura no discrimina IVA por ítem. Para emitir de verdad hace falta saber qué
+        análisis llevan IVA y bajo qué régimen está cada veterinaria.</p>
+      </div>
+    </article>
+    <article class="item">
+      <span class="chip c-wait">Bloquea el portal</span>
+      <div class="cuerpo">
+        <strong>El NIT de 161 veterinarias</strong>
+        <p>Son el 19% de los activos: sin NIT no entran al portal ni se les puede facturar. Ya
+        tenés el PDF con la lista, ordenado por prioridad.</p>
+      </div>
+    </article>
+    <article class="item">
+      <span class="chip c-wait">Bloquea WhatsApp</span>
+      <div class="cuerpo">
+        <strong>Cuenta de WhatsApp Business</strong>
+        <p>La infraestructura ya sirve; sin la cuenta de Meta no se puede conectar ni probar.</p>
+      </div>
+    </article>
+    <article class="item">
+      <span class="chip c-wait">Bloquea inventario</span>
+      <div class="cuerpo">
+        <strong>Qué quieren ver del inventario</strong>
+        <p>Alegra ya descuenta stock al facturar, así que nuestro trabajo es reflejarlo. Falta que
+        muestren cómo lo manejan y qué campos necesitan.</p>
+      </div>
+    </article>
+    <article class="item">
+      <span class="chip c-brand">Mejora los informes</span>
+      <div class="cuerpo">
+        <strong>20 mapeos de cliente y 8 duplicados</strong>
+        <p>Quedan 20 clientes de Anarvet sin emparejar; 8 de ellos porque están duplicados en la
+        base de A3 y hay que unificarlos allá.</p>
+      </div>
+    </article>
+    <article class="item">
+      <span class="chip c-brand">Decidir</span>
+      <div class="cuerpo">
+        <strong>Desde qué fecha ver resultados en el portal</strong>
+        <p>El espejo tiene 27.102 informes. Hay que definir si el cliente ve todo el histórico o
+        solo desde una fecha.</p>
+      </div>
+    </article>
+  </section>
+
+  <section class="bloque">
+    <header>
+      <h2>Depende de Anarvet</h2>
+      <p>Pedidos al proveedor</p>
+      <span class="cuenta">4 puntos</span>
+    </header>
+    <article class="item">
+      <span class="chip c-stop">Seguridad</span>
+      <div class="cuerpo">
+        <strong>TLS y permitir nuestras IPs</strong>
+        <p>El tráfico va sin cifrar, y el sync solo se probó desde acá: en producción no corre
+        hasta que habiliten las IPs del servidor.</p>
+      </div>
+    </article>
+    <article class="item">
+      <span class="chip c-wait">Calidad clínica</span>
+      <div class="cuerpo">
+        <strong>Unidades y valores de referencia por analito</strong>
+        <p>Sin eso el informe muestra números sin contexto: el veterinario no ve si un valor está
+        alto o bajo.</p>
+      </div>
+    </article>
+    <article class="item">
+      <span class="chip c-wait">Habilita funciones</span>
+      <div class="cuerpo">
+        <strong>Estado del análisis</strong>
+        <p>Hoy solo devuelve lo ya validado: no existe «recibido» ni «en proceso».</p>
+      </div>
+    </article>
+    <article class="item">
+      <span class="chip c-brand">Resolvería mucho</span>
+      <div class="cuerpo">
+        <strong>El NIT del cliente en su base</strong>
+        <p>Es el dato que emparejaría de una vez las veterinarias, incluidos los 20 mapeos que
+        quedan.</p>
+      </div>
+    </article>
+  </section>
+
+  <section class="bloque">
+    <header>
+      <h2>Salir a producción</h2>
+      <p>El Dockerfile ya está listo; falta ejecutarlo</p>
+      <span class="cuenta">4 puntos</span>
+    </header>
+    <article class="item">
+      <span class="chip c-wait">Despliegue</span>
+      <div class="cuerpo">
+        <strong>Cambiar Render a Docker y desplegar</strong>
+        <p>La imagen incluye el navegador que genera los PDF. Se despliega con la generación
+        apagada, se verifica que responda y recién ahí se enciende.</p>
+      </div>
+    </article>
+    <article class="item">
+      <span class="chip c-wait">Automatizar</span>
+      <div class="cuerpo">
+        <strong>Programar el cron del sync de Anarvet</strong>
+        <p>El endpoint ya existe; falta que algo lo llame solo, en vez del clic manual.</p>
+      </div>
+    </article>
+    <article class="item">
+      <span class="chip c-wait">Configurar</span>
+      <div class="cuerpo">
+        <strong>Credenciales y webhooks de producción</strong>
+        <p>Variables reales en Render y apuntar Telegram y Chatwoot a la URL definitiva, no a la
+        de ngrok que cambia cada sesión.</p>
+      </div>
+    </article>
+    <article class="item">
+      <span class="chip c-brand">Acompañar</span>
+      <div class="cuerpo">
+        <strong>La semana de seguimiento en vivo</strong>
+        <p>Estar encima los primeros días con el equipo usándolo de verdad.</p>
+      </div>
+    </article>
+  </section>
+
+  <section class="bloque">
+    <header><h2>El orden que propongo</h2><p>Cada paso desbloquea al siguiente</p></header>
+    <div class="ruta">
+      <div class="paso"><span class="n">1</span><div>
+        <strong>Los 5 fallos del chat, empezando por el crítico</strong>
+        <p>Es lo que más se nota en el uso diario y el crítico puede mandar una muestra a la
+        dirección equivocada. Cuatro de los cinco tocan pasos aprobados, así que te aviso qué voy a
+        tocar antes de cada uno.</p>
+        <p class="quien">Desarrollo · necesito tu OK para tocar el flujo</p>
+      </div></div>
+      <div class="paso"><span class="n">2</span><div>
+        <strong>Prueba de facturación en vivo</strong>
+        <p>Media hora juntos. Cierra el frente de facturación y valida en la cuenta real todo lo
+        que se hizo hoy.</p>
+        <p class="quien">Vos y yo</p>
+      </div></div>
+      <div class="paso"><span class="n">3</span><div>
+        <strong>Resultados y disponibilidad del motorizado</strong>
+        <p>Poder deshacer un informe mal enviado y marcar los días que un motorizado no trabaja. Son
+        las dos cosas que el equipo va a tocar todos los días.</p>
+        <p class="quien">Desarrollo · sin dependencias</p>
+      </div></div>
+      <div class="paso"><span class="n">4</span><div>
+        <strong>WhatsApp</strong>
+        <p>Los tres arreglos se hacen mientras A3 consigue la cuenta de Meta.</p>
+        <p class="quien">Desarrollo + A3</p>
+      </div></div>
+      <div class="paso"><span class="n">5</span><div>
+        <strong>Producción y la semana de acompañamiento</strong>
+        <p>Desplegar, programar el cron, cargar credenciales y estar encima los primeros días.</p>
+        <p class="quien">Desarrollo + A3 · último paso</p>
+      </div></div>
+    </div>
+  </section>
+
+  <footer>
+    Contrastado el 27 de agosto de 2026 contra el código, la base y la cuenta de Alegra ·
+    1.332 pruebas en verde · 992 clientes y 438 ítems de catálogo · 27.102 informes de Anarvet ·
+    Los porcentajes ponderan cada frente por su peso en lo contratado, no cuentan ítems sueltos.
+  </footer>
+
+</div>

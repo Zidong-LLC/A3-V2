@@ -4,10 +4,11 @@ import io
 import json as _json
 import math
 import re
+import threading
 import urllib.request
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timezone
-from functools import wraps
 
 from flask import Blueprint, Response, abort, jsonify, redirect, render_template, request, session, url_for
 
@@ -21,10 +22,13 @@ from app.config import (
     DISCOUNT_TIERS,
 )
 from app import billing_charts, client_filters
-from app.services import db, alegra
+from app import access, municipios
+from app import permissions as P
+from app.services import audit_db, db, alegra, maestros_db
 from app import anarvet_sync, dashboard_metrics, orders, pricing, rules, territory, billing
 from app.courier_notify import notify_assignment
 from app.alerts import notify_error
+from app.text import celda_csv
 
 dashboard = Blueprint("dashboard", __name__)
 
@@ -133,14 +137,7 @@ SAMPLE_PROCESS_STAGES = [
 ]
 
 
-def _login_required(view_func):
-    @wraps(view_func)
-    def wrapped(*args, **kwargs):
-        if not session.get("dashboard_authenticated"):
-            return redirect(url_for("dashboard.login"))
-        return view_func(*args, **kwargs)
-
-    return wrapped
+_login_required = access.login_requerido
 
 
 def _assignment_from_client(client: dict) -> dict | None:
@@ -283,6 +280,39 @@ def _safe_fetch(fetcher, default):
         return fetcher()
     except Exception:
         return default
+
+
+# Lo que la tabla de clientes usa de la ficha de knowledge: `*` traía ~1,3 KB por fila
+# (fuentes, JSON de origen) para 1.400 fichas y era la lectura más lenta del panel.
+_COLUMNAS_KNOWLEDGE = ("clinic_key, clinic_name, phone, commercial_name, entered_flag, client_code, "
+                       "client_type, email, billing_email, vat_regime, invoicing_rut_url, observations, "
+                       "registration_timestamp, registration_date, registration_time, source_updated_at")
+
+
+class _Fallo:
+    """Defecto de una lectura crítica: si falla, la pantalla muestra el error en vez de
+    armarse con datos a medias."""
+    def __init__(self, mensaje: str = ""):
+        self.mensaje = mensaje
+
+
+_FALLO = _Fallo()
+
+
+def _leer_en_paralelo(**lecturas) -> dict:
+    """Lecturas independientes a la vez. En serie, ~20 consultas de ~0,2 s cada una hacían
+    esperar 6-7 s por pantalla (auditoría 2026-10-19). Cada valor es (función, defecto): la
+    que falla devuelve su defecto, igual que _safe_fetch; con defecto _FALLO devuelve el error."""
+    with ThreadPoolExecutor(max_workers=min(8, len(lecturas)), thread_name_prefix="panel") as hilos:
+        futuros = {nombre: hilos.submit(fn) for nombre, (fn, _defecto) in lecturas.items()}
+    salida = {}
+    for nombre, futuro in futuros.items():
+        try:
+            salida[nombre] = futuro.result()
+        except Exception as exc:  # noqa: BLE001 — cada lectura decide su defecto
+            defecto = lecturas[nombre][1]
+            salida[nombre] = _Fallo(str(exc)) if defecto is _FALLO else defecto
+    return salida
 
 
 def _normalize_lookup_key(value: str | None) -> str:
@@ -760,13 +790,60 @@ def _build_sample_process_lanes_with_orders(samples: list[dict], events: list[di
     ]
 
 
+def _agregar_municipios(clients, coverage_by_code, courier_index, localities_by_courier, clients_by_courier,
+                        localities_rows, coverage_map_points, municipios_leidos=None) -> None:
+    """Municipios cercanos como localidades más (cierre v1): fila en la cobertura, punto en
+    el mapa y conteo de clientes por su campo municipio (o por la dirección si su zona no
+    es de Bogotá). Sin la tabla 034 no agrega nada y la pantalla queda como antes."""
+    if municipios_leidos is None:
+        municipios_leidos = _safe_fetch(lambda: maestros_db.list_municipios(), [])
+    activos = [m for m in municipios_leidos if m.get("is_active", True)]
+    if not activos:
+        return
+    por_municipio = Counter()
+    for client in clients:
+        encontrado = municipios.coincide(client.get("city"), activos)
+        if not encontrado and not _resolve_locality(client.get("zone")):
+            encontrado = municipios.coincide(client.get("address"), activos)
+        if encontrado:
+            por_municipio[encontrado["code"]] += 1
+    for m in activos:
+        code = m["code"]
+        row = coverage_by_code.get(code) or {}
+        courier_id = str(row.get("courier_id") or "").strip()
+        courier_name = courier_index.get(courier_id, {}).get("name") or ("Sin asignar" if not courier_id else courier_id)
+        if courier_id:
+            localities_by_courier.setdefault(courier_id, []).append(m["name"])
+            clients_by_courier[courier_id] += por_municipio.get(code, 0)
+        localities_rows.append({
+            "locality_code": code, "locality_name": m["name"], "es_municipio": True,
+            "clients_count": por_municipio.get(code, 0),
+            "coverage_state": "assigned" if courier_id else "pending",
+            "assigned_courier_id": courier_id, "assigned_courier_name": courier_name,
+            "zone_number": None, "barrios_count": 0, "is_assigned": bool(courier_id),
+        })
+        if m.get("lat") is not None and m.get("lng") is not None:
+            coverage_map_points.append({
+                "locality_code": code, "locality_name": f"{m['name']} (municipio)",
+                "lat": m["lat"], "lng": m["lng"], "courier_id": courier_id, "courier_name": courier_name,
+                "color": _courier_color(courier_id, courier_name), "is_assigned": bool(courier_id),
+                "clients_count": por_municipio.get(code, 0),
+            })
+
+
 def _build_motorizados_context(clients: list[dict]) -> dict:
     # La pantalla del equipo muestra activos E inactivos (para poder reactivar a uno);
     # los desplegables de asignación se arman aparte, solo con los activos.
-    couriers = _safe_fetch(lambda: db.list_couriers(limit=500), [])
-    coverage = _safe_fetch(lambda: db.list_courier_locality_coverage(limit=500), [])
-    territorial_zone_rows = _safe_fetch(lambda: db.list_territorial_zones(limit=100), []) or territory.build_zone_rows()
-    territorial_locality_rows = _safe_fetch(lambda: db.list_territorial_neighborhoods(limit=3000), []) or territory.build_locality_zone_rows()
+    leido = _leer_en_paralelo(
+        couriers=(lambda: db.list_couriers(limit=500), []),
+        coverage=(lambda: db.list_courier_locality_coverage(limit=500), []),
+        zones=(lambda: db.list_territorial_zones(limit=100), []),
+        localities=(lambda: db.list_territorial_neighborhoods(limit=3000), []),
+        municipios=(maestros_db.list_municipios, []),
+    )
+    couriers, coverage = leido["couriers"], leido["coverage"]
+    territorial_zone_rows = leido["zones"] or territory.build_zone_rows()
+    territorial_locality_rows = leido["localities"] or territory.build_locality_zone_rows()
     courier_index = {str(row.get("id") or ""): row for row in couriers if row.get("id")}
     couriers_options = [
         {
@@ -877,6 +954,9 @@ def _build_motorizados_context(clients: list[dict]) -> dict:
             "clients_count": clients_count,
         })
 
+    _agregar_municipios(clients, coverage_by_code, courier_index, localities_by_courier, clients_by_courier,
+                        localities_rows, coverage_map_points, municipios_leidos=leido["municipios"])
+
     couriers_rows = []
     for courier in couriers_options:
         assigned_localities = sorted(set(localities_by_courier.get(courier["id"], [])), key=_normalize_lookup_key)
@@ -896,7 +976,7 @@ def _build_motorizados_context(clients: list[dict]) -> dict:
             "localities_text": ", ".join(assigned_localities) if assigned_localities else "Sin zonas asignadas",
         })
 
-    assigned_localities = sum(1 for row in localities_rows if row["is_assigned"])
+    assigned_localities = sum(1 for row in localities_rows if row["is_assigned"] and not row.get("es_municipio"))
     clients_in_catalog = sum(clients_by_locality.values())
     clients_assigned = sum(row["clients_count"] for row in localities_rows if row["is_assigned"])
     risk_localities = sum(1 for row in localities_rows if row["clients_count"] and not row["is_assigned"])
@@ -913,7 +993,7 @@ def _build_motorizados_context(clients: list[dict]) -> dict:
             key=lambda row: (row.get("source") != "db", row["name"]),
         ),
         "couriers_rows": sorted(couriers_rows, key=lambda row: (row.get("source") != "db", row["name"])),
-        "localities_rows": sorted(localities_rows, key=lambda row: row["locality_name"]),
+        "localities_rows": sorted(localities_rows, key=lambda row: (bool(row.get("es_municipio")), row["locality_name"])),
         "motorizados_summary": {
             "coverage_rate": round((assigned_localities / len(BOGOTA_LOCALITIES)) * 100) if BOGOTA_LOCALITIES else 0,
             "assigned_localities": assigned_localities,
@@ -1206,7 +1286,7 @@ def _build_cartera_context(top: int = 25) -> dict:
 def _invoice_event_index() -> dict:
     """Cruza facturas de Alegra con la orden de servicio que las generó, usando el evento
     `alegra_invoiced` que el agente guarda en request_events (ver guardrails)."""
-    events = _safe_fetch(lambda: db.fetch_rows("request_events", "request_id, event_type, event_payload", 4000), [])
+    events = _safe_fetch(lambda: db.fetch_rows("request_events", "request_id, event_type, event_payload", 4000, order="created_at"), [])
     index = {}
     for event in events:
         if event.get("event_type") != "alegra_invoiced":
@@ -1270,7 +1350,7 @@ def _parse_invoice_filters(args) -> dict:
 
 def _compute_invoice_metrics(rows: list[dict]) -> dict:
     """Métricas del panel superior calculadas sobre el cache (no emite nada)."""
-    today = datetime.now(timezone.utc).date().isoformat()
+    today = datetime.now(APP_TIMEZONE).date().isoformat()
     month_prefix = today[:7]
     year_prefix = today[:4]
     count = len(rows)
@@ -1299,11 +1379,12 @@ def _compute_invoice_metrics(rows: list[dict]) -> dict:
 
 
 def _build_invoices_context(page: int = 1, filters: dict | None = None, order_field: str = "invoice_date", order_desc: bool = True) -> dict:
-    rows, total = _safe_fetch(
-        lambda: db.list_cached_invoices(filters, page=page, per_page=INVOICES_PER_PAGE, order_field=order_field, order_desc=order_desc),
-        ([], 0),
+    leido = _leer_en_paralelo(
+        pagina=(lambda: db.list_cached_invoices(filters, page=page, per_page=INVOICES_PER_PAGE,
+                                                order_field=order_field, order_desc=order_desc), ([], 0)),
+        metricas=(lambda: db.list_all_cached_invoices("total, invoice_date, client_name"), []),
     )
-    metrics_rows = _safe_fetch(lambda: db.list_all_cached_invoices("total, invoice_date, client_name"), [])
+    (rows, total), metrics_rows = leido["pagina"], leido["metricas"]
     pages = max((total + INVOICES_PER_PAGE - 1) // INVOICES_PER_PAGE, 1)
     return {
         "invoices_rows": rows,
@@ -1325,8 +1406,7 @@ def _money_fmt(value) -> str:
 def _build_executive_panel(requests_rows: list, request_events: list) -> dict:
     """Métricas adicionales del Panel Ejecutivo. No hace queries extra."""
     from datetime import timedelta
-    today_str = datetime.now(timezone.utc).date().isoformat()
-    week_ago_str = (datetime.now(timezone.utc).date() - timedelta(days=7)).isoformat()
+    week_ago_str = (datetime.now(APP_TIMEZONE).date() - timedelta(days=7)).isoformat()
     active_statuses_exec = {
         "received", "assigned", "on_route", "picked_up", "in_lab", "processed", "error_pending_assignment",
     }
@@ -1419,12 +1499,29 @@ def _build_executive_panel(requests_rows: list, request_events: list) -> dict:
 
 
 def build_dashboard_context(billing_period: str = "auto") -> dict:
-    try:
-        clients = db.list_clients_with_assignment()
-        requests_rows = db.list_requests(limit=500)
-        sessions_rows = db.list_sessions(limit=500)
-    except Exception as exc:
-        return _empty_context(str(exc))
+    leido = _leer_en_paralelo(
+        clients=(db.list_clients_with_assignment, _FALLO),
+        requests=(lambda: db.list_requests(limit=500), _FALLO),
+        sessions=(lambda: db.list_sessions(limit=500), _FALLO),
+        messages=(lambda: db.list_conversation_messages(limit=500), []),
+        catalog=(lambda: db.list_catalog_tests(limit=4000), []),
+        profiles=(lambda: db.list_catalog_profiles(limit=4000), []),
+        knowledge=(lambda: db.list_a3_knowledge_index(limit=5000, columns=_COLUMNAS_KNOWLEDGE), []),
+        professionals=(lambda: db.list_client_professionals(limit=5000), []),
+        samples=(lambda: db.fetch_rows(
+            "lab_samples",
+            "id, request_id, client_id, status, priority, test_code, test_name, sample_type, created_at, clients(clinic_name), couriers(name)",
+            4000, order="created_at"), []),
+        sample_events=(lambda: db.fetch_rows("lab_sample_events", "id, sample_id, event_type, event_payload, created_at", 4000, order="created_at"), []),
+        request_events=(lambda: db.fetch_rows("request_events", "id, request_id, event_type, event_payload, created_at", 4000, order="created_at"), []),
+        pending_reviews=(lambda: db.list_pending_client_reviews(limit=300), []),
+        custom_profiles=(lambda: db.list_custom_profiles(limit=100), []),
+        billing_rows=(lambda: db.list_all_cached_invoices("total, balance, invoice_date, client_name"), []),
+    )
+    for critica in ("clients", "requests", "sessions"):
+        if isinstance(leido[critica], _Fallo):
+            return _empty_context(leido[critica].mensaje)
+    clients, requests_rows, sessions_rows = leido["clients"], leido["requests"], leido["sessions"]
 
     # Alerta por tiempo (llamada 4): marcar las recogidas con fecha vencida sin recoger.
     hoy_iso = datetime.now(APP_TIMEZONE).date().isoformat()
@@ -1438,21 +1535,9 @@ def build_dashboard_context(billing_period: str = "auto") -> dict:
         "received", "assigned", "on_route", "picked_up", "in_lab", "processed", "error_pending_assignment",
     }
     unassigned = [row for row in requests_rows if _request_is_unassigned(row)]
-    messages = _safe_fetch(lambda: db.list_conversation_messages(limit=500), [])
-    catalog = _safe_fetch(lambda: db.list_catalog_tests(limit=4000), [])
-    profiles = _safe_fetch(lambda: db.list_catalog_profiles(limit=4000), [])
-    knowledge = _safe_fetch(lambda: db.list_a3_knowledge_index(limit=5000), [])
-    professionals = _safe_fetch(lambda: db.list_client_professionals(limit=5000), [])
-    samples = _safe_fetch(
-        lambda: db.fetch_rows(
-            "lab_samples",
-            "id, request_id, client_id, status, priority, test_code, test_name, sample_type, created_at, clients(clinic_name), couriers(name)",
-            4000,
-        ),
-        [],
-    )
-    sample_events = _safe_fetch(lambda: db.fetch_rows("lab_sample_events", "id, sample_id, event_type, event_payload, created_at", 4000), [])
-    request_events = _safe_fetch(lambda: db.fetch_rows("request_events", "id, request_id, event_type, event_payload, created_at", 4000), [])
+    messages, catalog, profiles = leido["messages"], leido["catalog"], leido["profiles"]
+    knowledge, professionals, samples = leido["knowledge"], leido["professionals"], leido["samples"]
+    sample_events, request_events = leido["sample_events"], leido["request_events"]
     sample_count_map = {}
     sample_types_map = {}
     for event in request_events:
@@ -1473,7 +1558,7 @@ def build_dashboard_context(billing_period: str = "auto") -> dict:
             row["sample_types_display"] = sample_types_map[rid]
     phases = Counter((row.get("phase_current") or "sin_etapa") for row in sessions_rows)
     sample_status = Counter((row.get("status") or "unknown") for row in samples)
-    pending_reviews = _safe_fetch(lambda: db.list_pending_client_reviews(limit=300), [])
+    pending_reviews = leido["pending_reviews"]
     pending_request_by_client = {
         str(row["client_id"]): row["id"] for row in pending_reviews if row.get("client_id")
     }
@@ -1522,7 +1607,7 @@ def build_dashboard_context(billing_period: str = "auto") -> dict:
         "profile_catalog_rows": profile_rows,
         "profile_analysis_rows": analysis_rows,
         "profile_builder_items": builder_items,
-        "custom_profiles": _safe_fetch(lambda: db.list_custom_profiles(limit=100), []),
+        "custom_profiles": leido["custom_profiles"],
         "profile_categories": sorted({row["category"] for row in builder_items if row.get("category")}),
         "profile_species": sorted({row["species"] for row in builder_items if row.get("species")}),
         "catalog_species_options": sorted(_CATALOG_SPECIES),
@@ -1548,8 +1633,7 @@ def build_dashboard_context(billing_period: str = "auto") -> dict:
     exec_data = _build_executive_panel(requests_rows, request_events)
     context.update(exec_data)
     context.update(dashboard_metrics.build_tat_and_trends(requests_rows, request_events))
-    _billing_rows = _safe_fetch(
-        lambda: db.list_all_cached_invoices("total, balance, invoice_date, client_name"), [])
+    _billing_rows = leido["billing_rows"]
     _raw_billing = _compute_invoice_metrics(_billing_rows)
     # Serie de los últimos 12 meses para el gráfico del Panel (facturado, cobrado y deuda).
     context["exec_billing_chart"] = billing_charts.chart_data(_billing_rows, periodo=billing_period)
@@ -1566,11 +1650,15 @@ def build_dashboard_context(billing_period: str = "auto") -> dict:
 @dashboard.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
-        username = (request.form.get("username") or "").strip()
-        password = request.form.get("password") or ""
-        if username == DASHBOARD_ADMIN_USER and password == DASHBOARD_ADMIN_PASSWORD:
-            session["dashboard_authenticated"] = True
-            session["dashboard_username"] = username
+        ip, nombre = request.remote_addr or "", request.form.get("username")
+        if access.bloqueado(ip, nombre):
+            return render_template("login.html", error="Demasiados intentos. Espera unos minutos "
+                                                        "y vuelve a intentar."), 429
+        usuario = access.autenticar(nombre, request.form.get("password"),
+                                    DASHBOARD_ADMIN_USER, DASHBOARD_ADMIN_PASSWORD)
+        access.anotar_intento(ip, nombre, bool(usuario))
+        if usuario:
+            access.iniciar_sesion(usuario)
             return redirect(url_for("dashboard.dashboard_home"))
         return render_template("login.html", error="Credenciales invalidas")
     return render_template("login.html", error=None)
@@ -1578,8 +1666,7 @@ def login():
 
 @dashboard.get("/logout")
 def logout():
-    session.pop("dashboard_authenticated", None)
-    session.pop("dashboard_username", None)
+    access.cerrar_sesion()
     return redirect(url_for("dashboard.login"))
 
 
@@ -1940,7 +2027,7 @@ def api_export_invoices():
     writer = csv.writer(output, delimiter=";" if fmt == "xlsx" else ",")
     writer.writerow([label for _key, label in columns])
     for row in rows:
-        writer.writerow([row.get(key, "") for key, _label in columns])
+        writer.writerow([celda_csv(row.get(key, "")) for key, _label in columns])
     payload = output.getvalue()
     # "Excel": CSV con BOM y separador ';' que Excel-ES abre en columnas sin asistente.
     if fmt == "xlsx":
@@ -2025,6 +2112,13 @@ def update_courier_endpoint():
         return jsonify({"error": error}), 400
     if not cambios:
         return jsonify({"error": "Nada para actualizar"}), 400
+    if cambios.get("is_active") is False:
+        # La asignación de recogidas no mira si el motorizado está activo: desactivarlo con
+        # clientes o zonas dejaba esas recogidas en manos de alguien que ya no trabaja.
+        historia = maestros_db.historia_motorizado(courier_id)
+        if historia["clientes"] or historia["localidades"] or historia["zonas"]:
+            return jsonify({"error": "Primero traslada sus clientes, localidades y zonas a otro motorizado.",
+                            "historia": historia}), 409
     try:
         ok = db.update_courier(courier_id, cambios)
     except Exception as exc:
@@ -2033,6 +2127,8 @@ def update_courier_endpoint():
         return jsonify({"error": "No se pudo guardar el motorizado"}), 503
     if not ok:
         return jsonify({"error": "Courier not found"}), 404
+    accion = "update" if "is_active" not in cambios else ("activate" if cambios["is_active"] else "deactivate")
+    audit_db.registrar("courier", courier_id, accion, cambios)
     return jsonify({"ok": True, "courier_id": courier_id, **cambios})
 
 
@@ -2073,6 +2169,7 @@ def create_courier_endpoint():
         return jsonify({"error": "No se pudo crear el motorizado"}), 503
     if not creado:
         return jsonify({"error": "No se pudo crear el motorizado"}), 503
+    audit_db.registrar("courier", (creado or {}).get("id"), "create", cambios)
     return jsonify({"ok": True, "courier": creado})
 
 
@@ -2082,9 +2179,16 @@ def update_courier_locality_assignment():
     payload = request.get_json(silent=True) or {}
     locality_code = _normalize_locality_code(payload.get("locality_code"))
     courier_id = str(payload.get("courier_id") or "").strip()
-    if locality_code not in BOGOTA_LOCALITIES_BY_CODE:
+    if municipios.es_municipio(locality_code):
+        municipio = next((m for m in _safe_fetch(lambda: maestros_db.list_municipios(), [])
+                          if m["code"] == locality_code), None)
+        if not municipio:
+            return jsonify({"error": "Unsupported locality_code"}), 400
+        locality_name = municipio["name"]
+    elif locality_code not in BOGOTA_LOCALITIES_BY_CODE:
         return jsonify({"error": "Unsupported locality_code"}), 400
-    locality_name = BOGOTA_LOCALITIES_BY_CODE[locality_code]["name"]
+    else:
+        locality_name = BOGOTA_LOCALITIES_BY_CODE[locality_code]["name"]
     assigned_by = f"dashboard:{session.get('dashboard_username') or 'operator'}"
     try:
         if courier_id:
@@ -2098,6 +2202,7 @@ def update_courier_locality_assignment():
             db.delete_courier_locality_coverage(locality_code)
     except Exception:
         return jsonify({"error": "Unable to update locality coverage"}), 503
+    audit_db.registrar("courier", courier_id or "", "update", {"localidad": locality_name, "motorizado": courier_id or None})
     return jsonify({"ok": True, "locality_code": locality_code, "locality_name": locality_name, "courier_id": courier_id or None})
 
 
@@ -2150,6 +2255,7 @@ def update_client_assignment():
         db.upsert_client_assignment(client_id=client_id, courier_id=courier_id or None, assigned_by=f"dashboard:{session.get('dashboard_username') or 'operator'}")
     except Exception:
         return jsonify({"error": "Unable to update courier assignment"}), 503
+    audit_db.registrar("client", client_id, "update", {"motorizado": courier_id or None})
     return jsonify({"ok": True, "client_id": client_id, "courier_id": courier_id or None})
 
 
@@ -2161,13 +2267,24 @@ def delete_client():
     clinic_key = _normalize_lookup_key(payload.get("clinic_key"))
     if not client_id:
         return jsonify({"error": "Missing client_id"}), 400
+    # Borrado seguro (cierre v1): con solicitudes, pedidos, muestras, resultados o facturas
+    # el cliente se desactiva y conserva su historia; sin movimientos, se elimina.
     try:
+        cliente = maestros_db.get_client_any(client_id)
+        if not cliente:
+            return jsonify({"error": "Client not found"}), 404
+        historia = maestros_db.historia_cliente(cliente)
+        if any(historia.values()):
+            maestros_db.actualizar_cliente(client_id, {"is_active": False})
+            audit_db.registrar("client", client_id, "deactivate", {"motivo": "baja con historia", **historia})
+            return jsonify({"ok": True, "client_id": client_id, "deactivated": True, "historia": historia})
         ok = db.delete_client_completely(client_id=client_id, clinic_key=clinic_key or None)
     except Exception:
         return jsonify({"error": "Unable to delete client"}), 503
     if not ok:
         return jsonify({"error": "Client not found"}), 404
-    return jsonify({"ok": True, "client_id": client_id})
+    audit_db.registrar("client", client_id, "delete", {"clinic_name": cliente.get("clinic_name")})
+    return jsonify({"ok": True, "client_id": client_id, "deleted": True})
 
 
 @dashboard.post("/api/dashboard/client-profile")
@@ -2223,6 +2340,7 @@ def update_client_profile():
                 db.update_client_profile(client_id, {"external_code": profile_value})
     except Exception:
         return jsonify({"error": "Unable to update client profile"}), 503
+    audit_db.registrar("client", client_id or clinic_key, "update", {field: value})
     return jsonify({"ok": True, "client_id": client_id, "field": field, "value": value})
 
 
@@ -2486,7 +2604,27 @@ def close_pedido_manually():
     facturar = bool(payload.get("invoice"))
     if not pedido_id:
         return jsonify({"error": "Missing pedido_id"}), 400
+    # Facturar crea un borrador en Alegra: es de quien gestiona Facturación (docx de
+    # perfiles). Cerrar sin facturar es de quien gestiona Pedidos.
+    if not P.puede(access.perfil_actual(), "facturacion" if facturar else "pedidos", P.GESTION):
+        return jsonify({"error": "Tu perfil no tiene permiso para esta acción."}), 403
+    # Doble clic o dos pestañas: sin esto salían dos borradores en Alegra del mismo pedido.
+    with _PEDIDOS_CANDADO:
+        if pedido_id in _PEDIDOS_EN_CURSO:
+            return jsonify({"error": "Ese pedido ya se está procesando"}), 409
+        _PEDIDOS_EN_CURSO.add(pedido_id)
+    try:
+        return _cerrar_pedido(pedido_id, payment_method, facturar)
+    finally:
+        with _PEDIDOS_CANDADO:
+            _PEDIDOS_EN_CURSO.discard(pedido_id)
 
+
+_PEDIDOS_EN_CURSO: set[str] = set()
+_PEDIDOS_CANDADO = threading.Lock()
+
+
+def _cerrar_pedido(pedido_id: str, payment_method: str | None, facturar: bool):
     pedido = db.get_pedido(pedido_id)
     if not pedido:
         return jsonify({"error": "El pedido no existe"}), 404
@@ -2522,8 +2660,9 @@ def close_pedido_manually():
             return jsonify(resultado)
         factura = billing.invoice_order(
             nit, cliente.get("clinic_name") or "Cliente A3", lineas,
-            datetime.now(timezone.utc).date().isoformat(),
+            datetime.now(APP_TIMEZONE).date().isoformat(),
             {k: v for k, v in {"email": cliente.get("email")}.items() if v},
+            client_row=cliente,  # la sede exacta: entre sedes con el mismo NIT puede cambiar
         )
         if factura and factura.get("invoice_id"):
             db.mark_pedido_invoiced(pedido_id, str(factura["invoice_id"]))
@@ -2586,6 +2725,8 @@ def update_catalog_item():
         despues=cambios,
         por=session.get("dashboard_username"),
     )
+    audit_db.registrar("catalog", f"{kind}:{code}", "update",
+                       {k: {"antes": anterior.get(k), "despues": v} for k, v in cambios.items()})
     return jsonify({"ok": True, "item": actualizado})
 
 
@@ -2635,6 +2776,7 @@ def update_discount_tiers():
         por=session.get("dashboard_username"),
     )
     pricing.invalidate_discount_tiers_cache()
+    audit_db.registrar("catalog", "descuentos", "update", {"antes": anteriores, "despues": parsed})
     return jsonify({"ok": True, "tiers": guardados})
 
 

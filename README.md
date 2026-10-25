@@ -1,7 +1,7 @@
 # A3 Laboratorio Veterinario — Agente Conversacional
 
 Plataforma completa de A3 Laboratorio Veterinario (Bogotá, Colombia): agente
-conversacional por Telegram/Chatwoot (WhatsApp listo para conectar), dashboard operativo
+conversacional por Telegram/Chatwoot y WhatsApp, dashboard operativo
 de 11 secciones, y portal web para las veterinarias. El agente gestiona recogidas de
 muestras (multi-orden con una factura por pedido), consulta resultados y ENVÍA el informe
 PDF por el chat, y deriva a equipo humano cuando corresponde.

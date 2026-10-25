@@ -20,6 +20,7 @@
   ('muestras',    'dashboard.samples_page',          'test-tube-2',      'Muestras'),
   ('resultados',  'dashboard_results.results_page',  'file-check-2',     'Resultados'),
   ('cargas',      'dashboard_import.cargas_page',    'upload-cloud',     'Cargas'),
+  ('usuarios',    'dashboard_users.usuarios_page',   'shield-check',     'Usuarios'),
 ] %}
 <aside class="crm-sidebar">
   <div class="brand-row">
@@ -31,7 +32,7 @@
   <div class="menu-block">
     <span class="menu-caption">Menu principal</span>
     <nav class="menu-list os-stagger">
-      {% for clave, endpoint, icono, etiqueta in secciones %}
+      {% for clave, endpoint, icono, etiqueta in secciones if puede is not defined or puede(clave) %}
       <a href="{{ url_for(endpoint) }}" class="menu-link{{ ' active' if actual == clave else '' }}"><i data-lucide="{{ icono }}"></i><span>{{ etiqueta }}</span></a>
       {% endfor %}
     </nav>
@@ -39,6 +40,7 @@
 
   <div class="menu-block menu-foot">
     <span class="menu-caption">Soporte</span>
+    {% if usuario_nombre %}<span class="menu-link" title="Perfil: {{ perfil_nombre }}"><i data-lucide="user-round"></i><span>{{ usuario_nombre }} · {{ perfil_nombre }}</span></span>{% endif %}
     <a href="{{ url_for('dashboard.logout') }}" class="menu-link"><i data-lucide="log-out"></i><span>Cerrar sesion</span></a>
   </div>
 </aside>

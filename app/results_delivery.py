@@ -5,6 +5,7 @@ devuelve texto. Lo llama `main.py` DESPUÉS de mandar la respuesta, para que el
 cliente lea primero y reciba el archivo después."""
 import logging
 
+from app.alerts import notify_error
 from app.enforcers.resultados import DELIVER_KEY
 from app.results_lookup import pdf_filename
 from app.services import chatwoot, db, portal_db, storage, telegram
@@ -45,6 +46,7 @@ def deliver_pending(chat_id: str, channel: str = "telegram") -> int:
             content = storage.download_result_pdf(result["pdf_path"])
             _send(channel, chat_id, pdf_filename(result), content, "")
             sent += 1
-        except Exception:
+        except Exception as exc:  # noqa: BLE001
             logger.exception("No se pudo entregar el resultado %s por %s", result_id, channel)
+            notify_error("entrega de PDF", exc, f"resultado {result_id} por {channel}")
     return sent

@@ -1,0 +1,393 @@
+<title>CRM Operativo A3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ─────────────────────────────────────────────────────────────────────────
+   Maqueta del dashboard interno con la identidad A3 (vinotinto #7a0d20).
+   Los nombres de clase son los REALES del proyecto (crm-app, kpi-card,
+   status-badge…) para que esta hoja sirva de referencia directa al retemar
+   app.css. Tema claro único.
+   ───────────────────────────────────────────────────────────────────────── */
+:root{
+  --ground:#ffffff; --shell:#ecedf0; --card:#ffffff;
+  --head:#f5f5f7;
+  --line:#d3d4d9; --line-soft:#e6e6ea;
+  --ink:#171717; --ink-soft:#3f3f46; --muted:#67676f; --faint:#87878f;
+  --shadow:0 1px 2px rgba(24,24,27,.07), 0 1px 3px rgba(24,24,27,.05);
+  --shadow-lift:0 1px 2px rgba(24,24,27,.07), 0 12px 26px -16px rgba(24,24,27,.4);
+  --brand:#7a0d20; --brand-ink:#ffffff; --brand-hover:#5f0a19;
+  --brand-tint:#f7ebee; --brand-ring:rgba(122,13,32,.16);
+  --ok:#15803d; --ok-tint:#e8f5ec;
+  --warn:#b45309; --warn-tint:#fdf1e3;
+  --danger:#b91c1c; --danger-tint:#fdecec;
+  --info:#1d4ed8; --info-tint:#e9eefc;
+  --r:8px; --r-sm:6px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--shell);color:var(--ink);
+  font-family:"Public Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased}
+h1,h2,h3,p{margin:0}
+a{color:inherit;text-decoration:none}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
+.ico{width:16px;height:16px;flex:none;stroke-width:1.75}
+
+/* ── Shell: .crm-app / .crm-sidebar / .crm-main ── */
+.crm-app{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh}
+.crm-sidebar{background:var(--ground);border-right:1px solid var(--line);box-shadow:1px 0 0 rgba(24,24,27,.03);padding:16px 14px;
+  display:flex;flex-direction:column;gap:18px;position:sticky;top:0;height:100vh}
+.brand-row{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px}
+.brand-mark{width:34px;height:34px;border-radius:99px;background:var(--brand);color:var(--brand-ink);
+  display:grid;place-items:center;font-weight:800;font-size:13px;letter-spacing:-.02em}
+.brand-copy{display:grid;gap:1px;min-width:0}
+.brand-copy strong{font-size:13px;font-weight:700}
+.brand-copy span{font-size:11px;color:var(--muted)}
+.sidebar-toggle{width:30px;height:30px;border-radius:var(--r-sm);border:1px solid var(--line);
+  background:var(--ground);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;padding:0}
+.sidebar-toggle:hover{background:var(--head)}
+.sidebar-toggle span{display:block;width:13px;height:1.5px;background:var(--muted);border-radius:2px}
+.menu-block{display:grid;gap:6px}
+.menu-caption{font-size:11px;color:var(--muted);font-weight:700;padding:0 6px}
+.menu-list{display:grid;gap:2px}
+.menu-link{display:flex;align-items:center;gap:10px;padding:7px 9px;border-radius:var(--r-sm);
+  color:var(--ink-soft);font-size:13.5px;font-weight:500;transition:background .12s,color .12s}
+.menu-link .ico{color:var(--faint)}
+.menu-link:hover{background:var(--head);color:var(--ink)}
+.menu-link.active{background:var(--brand-tint);color:var(--brand);font-weight:700}
+.menu-link.active .ico{color:var(--brand)}
+.menu-link .tag{margin-left:auto;background:var(--brand);color:var(--brand-ink);font-size:10.5px;
+  font-weight:700;border-radius:99px;padding:1px 6px;min-width:18px;text-align:center}
+.menu-foot{margin-top:auto}
+
+.crm-main{min-width:0;display:flex;flex-direction:column;gap:18px;padding:24px 26px 44px;max-width:1280px}
+.top-header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.hello-label{color:var(--muted);font-size:12.5px;margin-bottom:2px}
+.top-header h1{font-size:26px;font-weight:800;letter-spacing:-.025em;line-height:1.15}
+.header-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+.primary-btn,.ghost-btn{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 13px;
+  border-radius:var(--r-sm);border:1px solid transparent;font-size:13px;font-weight:600;cursor:pointer;
+  transition:background .12s,border-color .12s,color .12s}
+.primary-btn{background:var(--brand);color:var(--brand-ink)}
+.primary-btn:hover{background:var(--brand-hover)}
+.ghost-btn{background:var(--ground);border-color:var(--line);color:var(--ink-soft)}
+.ghost-btn:hover{background:var(--head);color:var(--ink)}
+.ghost-btn.small{height:28px;font-size:12.5px;padding:0 10px;font-weight:500}
+
+/* ── Aviso: .approval-notice ── */
+.approval-notice{border:1px solid var(--line);border-left:3px solid var(--ok);background:var(--ok-tint);
+  color:#14532d;border-radius:var(--r);padding:11px 14px;font-size:13.5px;font-weight:600}
+.approval-notice.error{border-left-color:var(--danger);background:var(--danger-tint);color:#7f1d1d}
+
+/* ── KPI: .kpi-grid / .kpi-card / .kpi-head / .delta ── */
+.exec-widget{display:grid;gap:12px}
+.widget-cap{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em}
+.kpi-grid{display:grid;gap:12px}
+.kpi-grid.four{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+.kpi-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;
+  display:grid;gap:3px;box-shadow:var(--shadow);transition:border-color .14s,box-shadow .14s}
+.kpi-card:hover{border-color:var(--faint);box-shadow:var(--shadow-lift)}
+.kpi-head{display:flex;align-items:center;gap:10px}
+.kpi-head span{font-size:12px;color:var(--muted);font-weight:600}
+.kpi-head .ico{margin-left:auto;color:var(--faint);width:15px;height:15px}
+.kpi-card strong{font-size:27px;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.kpi-card .delta{font-size:11.5px;color:var(--faint)}
+.kpi-card .delta.up{color:var(--ok);font-weight:600}
+.kpi-money{font-size:23px !important}
+.kpi-alert{border-color:var(--warn);background:var(--warn-tint)}
+.kpi-alert .kpi-head span,.kpi-alert .kpi-head .ico{color:var(--warn)}
+.kpi-alert .delta{color:var(--warn);font-weight:600}
+
+/* ── Card / tabla ── */
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow)}
+.card-head{padding:14px 16px;background:var(--head);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.card-head h3{font-size:14.5px;font-weight:700}
+.card-head p{font-size:12.5px;color:var(--muted);margin-top:2px}
+.card-head .spread{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.filter-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--head)}
+.cell-input,.cell-select{height:32px;padding:0 10px;border:1px solid var(--line);border-radius:var(--r-sm);
+  background:var(--ground);font-size:13px;min-width:160px;color:var(--ink)}
+.cell-input::placeholder{color:var(--faint)}
+.cell-input:focus,.cell-select:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-ring)}
+.table-counter{margin-left:auto;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.cols-btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 10px;border:1px solid var(--line);
+  border-radius:var(--r-sm);background:var(--ground);font-size:12.5px;color:var(--ink-soft);cursor:pointer}
+.cols-btn:hover{background:var(--head)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;
+  padding:10px 14px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--head)}
+td{padding:11px 14px;border-bottom:1px solid var(--line-soft);color:var(--ink-soft);white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+tbody tr{cursor:pointer;transition:background .12s}
+tbody tr:hover{background:var(--head)}
+td.key{color:var(--ink);font-weight:700;font-variant-numeric:tabular-nums}
+td.num{font-variant-numeric:tabular-nums}
+.who{display:flex;align-items:center;gap:8px}
+.chip-avatar{width:24px;height:24px;border-radius:99px;background:var(--brand-tint);color:var(--brand);
+  display:grid;place-items:center;font-size:10px;font-weight:700}
+.status-badge{display:inline-flex;align-items:center;gap:6px;border-radius:99px;padding:3px 10px 3px 8px;
+  font-size:11.5px;font-weight:600;background:var(--line-soft);color:var(--muted)}
+.status-badge i{width:6px;height:6px;border-radius:99px;background:currentColor;flex:none}
+.status-scheduled{background:var(--info-tint);color:var(--info)}
+.status-route{background:var(--brand-tint);color:var(--brand)}
+.status-processing{background:var(--warn-tint);color:var(--warn)}
+.status-delivered{background:var(--ok-tint);color:var(--ok)}
+.row-actions{display:flex;gap:6px;justify-content:flex-end}
+.muted-text{color:var(--muted);font-size:12.5px}
+.card-foot{padding:11px 16px;background:var(--head);border-top:1px solid var(--line);display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--muted)}
+.card-foot .spread{margin-left:auto;display:flex;gap:6px}
+
+/* ── Hoja de orden de servicio: .service-order-sheet ── */
+.sheet-grid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:16px;align-items:start}
+.service-order-sheet{background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow)}
+.service-order-sheet > header{display:flex;align-items:center;gap:10px;padding:12px 16px;
+  background:var(--brand);color:var(--brand-ink);flex-wrap:wrap}
+.service-order-sheet > header strong{font-size:14px;font-weight:700}
+.service-order-sheet > header span{margin-left:auto;font-size:11.5px;font-weight:700;background:rgba(255,255,255,.18);
+  border-radius:99px;padding:2px 10px}
+.order-expand-hint{font-size:11px;opacity:.8;width:100%}
+.service-order-detail{padding:16px;display:grid;gap:14px}
+.service-order-block{display:grid;gap:8px}
+.service-order-block label,.service-order-observations label{font-size:10.5px;text-transform:uppercase;
+  letter-spacing:.07em;color:var(--muted);font-weight:700}
+.service-order-block p{font-size:13.5px;color:var(--ink);font-weight:500}
+.service-order-two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.service-order-three{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.service-order-table{border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;font-size:12.5px}
+.service-order-table > div{display:grid;grid-template-columns:90px 1fr 120px;gap:10px;padding:9px 12px;border-bottom:1px solid var(--line)}
+.service-order-table > div:first-child{background:var(--head);font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.service-order-table > div:last-child{border-bottom:0}
+.service-order-table b{font-weight:700}
+.service-order-sheet > .service-order-detail > footer,
+.service-order-sheet footer{display:flex;align-items:center;gap:12px;padding-top:12px;border-top:1px solid var(--line-soft);
+  font-size:12px;color:var(--muted);flex-wrap:wrap}
+.print-order-link{margin-left:auto;color:var(--brand);font-weight:700}
+.print-order-link:hover{text-decoration:underline}
+
+/* ── Panel lateral de ruta ── */
+.route-list{display:grid;gap:0}
+.route-item{display:flex;align-items:center;gap:11px;padding:12px 16px;border-bottom:1px solid var(--line)}
+.route-item:last-child{border-bottom:0}
+.route-time{font-size:12px;font-weight:700;color:var(--ink);min-width:58px;font-variant-numeric:tabular-nums}
+.route-body{min-width:0;flex:1}
+.route-body strong{display:block;font-size:13px;font-weight:600}
+.route-body span{display:block;font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+@media (max-width:1080px){.sheet-grid{grid-template-columns:1fr}}
+@media (max-width:860px){
+  .crm-app{grid-template-columns:1fr}
+  .crm-sidebar{position:static;height:auto}
+  .menu-list{grid-auto-flow:column;grid-auto-columns:max-content;overflow-x:auto}
+  .menu-foot{margin-top:0}
+  .crm-main{padding:16px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<g id="i-dash" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/></g>
+<g id="i-radio" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 16.1a7 7 0 0 1 0-9.9M19.1 6.2a7 7 0 0 1 0 9.9M2 20.5a11 11 0 0 1 0-16M22 4.5a11 11 0 0 1 0 16"/><circle cx="12" cy="11" r="2"/><path d="M12 13v8"/></g>
+<g id="i-users" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/></g>
+<g id="i-clip" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M8 11h8M8 15h5"/></g>
+<g id="i-box" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 9 5v10l-9 5-9-5V7Z"/><path d="m3 7 9 5 9-5M12 12v10"/></g>
+<g id="i-receipt" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1.5L8 22l2-1.5L12 22l2-1.5L16 22l2-1.5L20 22V2l-2 1.5L16 2l-2 1.5L12 2l-2 1.5L8 2 6 3.5Z"/><path d="M8 8h8M8 12h6"/></g>
+<g id="i-bike" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/></g>
+<g id="i-tube" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10 2v7.5L4.6 18a2 2 0 0 0 1.7 3h11.4a2 2 0 0 0 1.7-3L14 9.5V2"/><path d="M8.5 2h7M7 14h10"/></g>
+<g id="i-check" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M9 15l2 2 4-4"/></g>
+<g id="i-out" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5M21 12H9"/></g>
+<g id="i-alert" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/></g>
+<g id="i-trend" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="m22 7-8.5 8.5-5-5L2 17"/><path d="M16 7h6v6"/></g>
+<g id="i-plus" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></g>
+<g id="i-cols" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M15 3v18"/></g>
+<g id="i-dl" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/></g>
+</defs></svg>
+
+<div class="crm-app">
+  <aside class="crm-sidebar">
+    <div class="brand-row">
+      <div class="brand-mark">A3</div>
+      <div class="brand-copy"><strong>CRM Operativo</strong><span>Centro de control</span></div>
+      <button type="button" class="sidebar-toggle" aria-label="Colapsar menú"><span></span><span></span><span></span></button>
+    </div>
+
+    <div class="menu-block">
+      <span class="menu-caption">Menú principal</span>
+      <nav class="menu-list">
+        <a href="#" class="menu-link active"><svg class="ico" viewBox="0 0 24 24"><use href="#i-dash"/></svg><span>Panel</span></a>
+        <a href="#" class="menu-link"><svg class="ico" viewBox="0 0 24 24"><use href="#i-radio"/></svg><span>Operación</span></a>
+        <a href="#" class="menu-link"><svg class="ico" viewBox="0 0 24 24"><use href="#i-users"/></svg><span>Clientes</span></a>
+        <a href="#" class="menu-link"><svg class="ico" viewBox="0 0 24 24"><use href="#i-clip"/></svg><span>Solicitudes</span><b class="tag">7</b></a>
+        <a href="#" class="menu-link"><svg class="ico" viewBox="0 0 24 24"><use href="#i-box"/></svg><span>Pedidos</span></a>
+        <a href="#" class="menu-link"><svg class="ico" viewBox="0 0 24 24"><use href="#i-receipt"/></svg><span>Facturación</span></a>
+        <a href="#" class="menu-link"><svg class="ico" viewBox="0 0 24 24"><use href="#i-bike"/></svg><span>Motorizados</span></a>
+        <a href="#" class="menu-link"><svg class="ico" viewBox="0 0 24 24"><use href="#i-tube"/></svg><span>Muestras</span></a>
+        <a href="#" class="menu-link"><svg class="ico" viewBox="0 0 24 24"><use href="#i-check"/></svg><span>Resultados</span></a>
+      </nav>
+    </div>
+
+    <div class="menu-block menu-foot">
+      <span class="menu-caption">Soporte</span>
+      <a href="#" class="menu-link"><svg class="ico" viewBox="0 0 24 24"><use href="#i-out"/></svg><span>Cerrar sesión</span></a>
+    </div>
+  </aside>
+
+  <main class="crm-main">
+    <header class="top-header">
+      <div>
+        <p class="hello-label">Bienvenida de nuevo, Angie</p>
+        <h1>Panel Ejecutivo</h1>
+      </div>
+      <div class="header-actions">
+        <button class="ghost-btn"><svg class="ico" viewBox="0 0 24 24"><use href="#i-dl"/></svg>Exportar</button>
+        <button class="primary-btn"><svg class="ico" viewBox="0 0 24 24"><use href="#i-plus"/></svg>Nueva orden</button>
+      </div>
+    </header>
+
+    <section class="approval-notice">Ruta de la tarde confirmada: 6 retiros asignados a Andrés Gómez y Julián Ruiz.</section>
+
+    <div class="exec-widget">
+      <span class="widget-cap">Operación de hoy</span>
+      <section class="kpi-grid four">
+        <article class="kpi-card">
+          <div class="kpi-head"><span>Solicitudes activas</span><svg class="ico" viewBox="0 0 24 24"><use href="#i-radio"/></svg></div>
+          <strong>18</strong>
+          <p class="delta">En pipeline operativo</p>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-head"><span>Sin recoger</span><svg class="ico" viewBox="0 0 24 24"><use href="#i-tube"/></svg></div>
+          <strong>6</strong>
+          <p class="delta">Muestras a retirar antes del corte</p>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-head"><span>Procesadas (7 días)</span><svg class="ico" viewBox="0 0 24 24"><use href="#i-check"/></svg></div>
+          <strong>74</strong>
+          <p class="delta up">+11 frente a la semana pasada</p>
+        </article>
+        <article class="kpi-card kpi-alert">
+          <div class="kpi-head"><span>Sin motorizado</span><svg class="ico" viewBox="0 0 24 24"><use href="#i-alert"/></svg></div>
+          <strong>2</strong>
+          <p class="delta">Activas sin asignar</p>
+        </article>
+      </section>
+    </div>
+
+    <div class="exec-widget">
+      <span class="widget-cap">Negocio</span>
+      <section class="kpi-grid four">
+        <article class="kpi-card">
+          <div class="kpi-head"><span>Clientes activos</span><svg class="ico" viewBox="0 0 24 24"><use href="#i-users"/></svg></div>
+          <strong>812</strong>
+          <p class="delta">Registrados en la plataforma</p>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-head"><span>Facturación del mes</span><svg class="ico" viewBox="0 0 24 24"><use href="#i-receipt"/></svg></div>
+          <strong class="kpi-money">$38.420.000</strong>
+          <p class="delta up">+8% frente a julio</p>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-head"><span>Ticket promedio</span><svg class="ico" viewBox="0 0 24 24"><use href="#i-trend"/></svg></div>
+          <strong class="kpi-money">$122.400</strong>
+          <p class="delta">Por factura del mes</p>
+        </article>
+        <article class="kpi-card">
+          <div class="kpi-head"><span>Órdenes del día</span><svg class="ico" viewBox="0 0 24 24"><use href="#i-clip"/></svg></div>
+          <strong>23</strong>
+          <p class="delta">14 por Telegram · 9 por el portal</p>
+        </article>
+      </section>
+    </div>
+
+    <section class="card">
+      <div class="card-head">
+        <div><h3>Solicitudes del día</h3><p>Retiros programados para el 27 de agosto</p></div>
+        <div class="spread">
+          <button class="cols-btn"><svg class="ico" viewBox="0 0 24 24"><use href="#i-cols"/></svg>Columnas</button>
+          <button class="ghost-btn small">Exportar CSV</button>
+        </div>
+      </div>
+      <div class="filter-bar">
+        <input class="cell-input" placeholder="Veterinaria o paciente">
+        <input class="cell-input" placeholder="N° orden">
+        <select class="cell-select"><option>Todos los estados</option><option>Programada</option><option>En ruta</option><option>Procesando</option><option>Entregada</option></select>
+        <select class="cell-select"><option>Todos los motorizados</option><option>Andrés Gómez</option><option>Julián Ruiz</option></select>
+        <button class="ghost-btn small">Filtrar</button>
+        <span class="table-counter">23 solicitudes</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Orden</th><th>Veterinaria</th><th>Paciente</th><th>Análisis</th><th>Retiro</th><th>Motorizado</th><th>Estado</th><th>Valor</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="key">OS-2418</td><td>Veterinaria Los Alpes</td><td>Kira</td><td>Perfil prequirúrgico</td><td class="num">8:00–11:00</td><td><div class="who"><span class="chip-avatar">AG</span>Andrés Gómez</div></td><td><span class="status-badge status-route"><i></i>En ruta</span></td><td class="num">$86.000</td><td><div class="row-actions"><button class="ghost-btn small">Abrir</button></div></td></tr>
+            <tr><td class="key">OS-2417</td><td>Clínica Vet. Chicó</td><td>Simón</td><td>Hemograma completo</td><td class="num">9:00–12:00</td><td><div class="who"><span class="chip-avatar">JR</span>Julián Ruiz</div></td><td><span class="status-badge status-route"><i></i>En ruta</span></td><td class="num">$38.000</td><td><div class="row-actions"><button class="ghost-btn small">Abrir</button></div></td></tr>
+            <tr><td class="key">OS-2416</td><td>Pet Salud Suba</td><td>Nala</td><td>Química sanguínea (6)</td><td class="num">14:00–17:00</td><td><span class="muted-text">Por asignar</span></td><td><span class="status-badge status-scheduled"><i></i>Programada</span></td><td class="num">$92.000</td><td><div class="row-actions"><button class="ghost-btn small">Abrir</button></div></td></tr>
+            <tr><td class="key">OS-2415</td><td>Animal Care Usaquén</td><td>Rocky</td><td>Cuadro hemático</td><td class="num">Recogida 9:20</td><td><div class="who"><span class="chip-avatar">AG</span>Andrés Gómez</div></td><td><span class="status-badge status-processing"><i></i>Procesando</span></td><td class="num">$38.000</td><td><div class="row-actions"><button class="ghost-btn small">Abrir</button></div></td></tr>
+            <tr><td class="key">OS-2414</td><td>Veterinaria Los Alpes</td><td>Luna</td><td>Uroanálisis completo</td><td class="num">Recogida 8:45</td><td><div class="who"><span class="chip-avatar">JR</span>Julián Ruiz</div></td><td><span class="status-badge status-delivered"><i></i>Entregada</span></td><td class="num">$34.000</td><td><div class="row-actions"><button class="ghost-btn small">Abrir</button></div></td></tr>
+            <tr><td class="key">OS-2413</td><td>Huellitas Kennedy</td><td>Toby</td><td>Perfil renal</td><td class="num">Recogida 8:10</td><td><div class="who"><span class="chip-avatar">AG</span>Andrés Gómez</div></td><td><span class="status-badge status-delivered"><i></i>Entregada</span></td><td class="num">$74.000</td><td><div class="row-actions"><button class="ghost-btn small">Abrir</button></div></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card-foot"><span>Mostrando 6 de 23</span><div class="spread"><button class="ghost-btn small">Anterior</button><button class="ghost-btn small">Siguiente</button></div></div>
+    </section>
+
+    <div class="sheet-grid">
+      <article class="service-order-sheet">
+        <header>
+          <strong>Orden de Servicio OS-2418</strong>
+          <span>En ruta</span>
+          <small class="order-expand-hint">Veterinaria Los Alpes · Kira · 27 ago 2026 · Andrés Gómez</small>
+        </header>
+        <div class="service-order-detail">
+          <section class="service-order-block">
+            <label>Médico solicitante</label><p>Dr. Felipe Ochoa</p>
+            <label>Veterinaria</label><p>Veterinaria Los Alpes</p>
+            <div class="service-order-two">
+              <span><label>Dirección</label><p>Cra. 45 #128-19</p></span>
+              <span><label>Teléfono</label><p>(601) 742 1180</p></span>
+            </div>
+          </section>
+          <section class="service-order-block">
+            <label>Paciente</label><p>Kira</p>
+            <div class="service-order-three">
+              <span><label>Especie</label><p>Canino</p></span>
+              <span><label>Raza</label><p>Schnauzer</p></span>
+              <span><label>Sexo</label><p>Hembra</p></span>
+            </div>
+            <div class="service-order-two">
+              <span><label>Edad</label><p>4 años</p></span>
+              <span><label>Propietario</label><p>María C. Restrepo</p></span>
+            </div>
+          </section>
+          <section class="service-order-table">
+            <div><b>Cód.</b><b>Descripción</b><b>Valor</b></div>
+            <div><span>PRQ-01</span><span>Perfil prequirúrgico</span><span>$86.000</span></div>
+            <div><span>URO-01</span><span>Uroanálisis</span><span>$34.000</span></div>
+          </section>
+          <section class="service-order-observations">
+            <label>Observaciones</label>
+            <p>Paciente en ayuno de 12 horas. Programada para cirugía el 28 de agosto.</p>
+          </section>
+          <footer>
+            <span>Motorizado: Andrés Gómez</span>
+            <span>Forma de pago: crédito 30 días</span>
+            <a href="#" class="print-order-link">Imprimir PDF</a>
+          </footer>
+        </div>
+      </article>
+
+      <section class="card">
+        <div class="card-head"><div><h3>Ruta de la tarde</h3><p>Andrés Gómez · 6 paradas</p></div></div>
+        <div class="route-list">
+          <div class="route-item"><span class="route-time">2:40 p.m.</span><div class="route-body"><strong>Veterinaria Los Alpes</strong><span>Cra. 45 #128-19 · OS-2418</span></div><span class="status-badge status-route"><i></i>Ahora</span></div>
+          <div class="route-item"><span class="route-time">3:10 p.m.</span><div class="route-body"><strong>Clínica Vet. Chicó</strong><span>Cl. 94 #11-27 · OS-2417</span></div><span class="status-badge status-scheduled"><i></i>15 min</span></div>
+          <div class="route-item"><span class="route-time">3:45 p.m.</span><div class="route-body"><strong>Pet Salud Suba</strong><span>Cra. 92 #146-10 · OS-2416</span></div><span class="status-badge"><i></i>Pendiente</span></div>
+          <div class="route-item"><span class="route-time">4:20 p.m.</span><div class="route-body"><strong>Animal Care Usaquén</strong><span>Cl. 116 #15-45 · OS-2412</span></div><span class="status-badge"><i></i>Pendiente</span></div>
+          <div class="route-item"><span class="route-time">4:55 p.m.</span><div class="route-body"><strong>Huellitas Kennedy</strong><span>Av. 1ª de Mayo #40-12 · OS-2411</span></div><span class="status-badge"><i></i>Pendiente</span></div>
+        </div>
+        <div class="card-foot"><span>Corte del laboratorio: 5:30 p.m.</span></div>
+      </section>
+    </div>
+  </main>
+</div>

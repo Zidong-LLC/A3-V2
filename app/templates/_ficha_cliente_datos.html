@@ -1,0 +1,51 @@
+{# Datos de la veterinaria en su ficha. Con permiso de gestión de Clientes se editan acá
+   mismo (POST /api/dashboard/client-ficha, queda en el historial); si no, solo se ven. #}
+<style>.ficha-edit label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600}.ficha-edit .portal-check{flex-direction:row;align-items:center;gap:8px}</style>
+<section class="card" data-ficha-cliente data-client-id="{{ cliente.id }}">
+  <div class="card-head">
+    <div><h3>Datos de la veterinaria</h3><p>Definen su motorizado y cómo se le factura{% if not cliente.is_active %} · <strong>Cliente inactivo</strong>{% endif %}</p></div>
+  </div>
+  {% if puede('clientes', 2) %}
+  <div class="portal-detail-grid ficha-edit">
+    <label><span>Nombre</span><input class="cell-input" name="clinic_name" value="{{ cliente.clinic_name or '' }}" required></label>
+    <label><span>NIT</span><input class="cell-input" name="tax_id" value="{{ cliente.tax_id or '' }}"></label>
+    <label><span>Teléfono</span><input class="cell-input" name="phone" value="{{ cliente.phone or '' }}"></label>
+    <label><span>Correo</span><input class="cell-input" name="email" type="email" value="{{ cliente.email or '' }}"></label>
+    <label><span>Dirección</span><input class="cell-input" name="address" value="{{ cliente.address or '' }}"></label>
+    <label><span>Municipio o ciudad</span><input class="cell-input" name="city" value="{{ cliente.city or '' }}" placeholder="Bogotá, Soacha, Chía…"></label>
+    <label><span>Zona</span><input class="cell-input" name="zone" value="{{ cliente.zone or '' }}"></label>
+    <label><span>Motorizado asignado</span><select class="cell-select" name="courier_id">
+      <option value="">Sin motorizado fijo</option>
+      {% for m in motorizados %}<option value="{{ m.id }}" {{ 'selected' if m.id == motorizado_id else '' }}>{{ m.name }}</option>{% endfor %}
+    </select></label>
+    <label><span>Facturación</span><select class="cell-select" name="electronic_invoice">
+      <option value="true" {{ 'selected' if cliente.electronic_invoice is not sameas false else '' }}>Electrónica a su NIT</option>
+      <option value="false" {{ 'selected' if cliente.electronic_invoice is sameas false else '' }}>Consumidor final</option>
+    </select></label>
+    <label><span>Forma de pago</span><select class="cell-select" name="billing_type">
+      <option value="cash" {{ 'selected' if cliente.billing_type != 'credit' else '' }}>Contado</option>
+      <option value="credit" {{ 'selected' if cliente.billing_type == 'credit' else '' }}>Crédito</option>
+    </select></label>
+    <label class="portal-check"><input type="checkbox" name="is_active" {{ 'checked' if cliente.is_active else '' }}> Activo</label>
+  </div>
+  <div class="courier-card-actions" style="padding:0 12px 12px">
+    <button type="button" class="primary-btn" data-ficha-guardar><i data-lucide="save"></i>Guardar cambios</button>
+    <button type="button" class="reject-btn" data-ficha-baja data-clinic-name="{{ cliente.clinic_name }}">Dar de baja</button>
+    <small class="save-flag" data-ficha-flag></small>
+  </div>
+  {% else %}
+  <div class="portal-detail-grid">
+    <div><span>NIT</span><strong>{{ cliente.tax_id or '— sin NIT —' }}</strong></div>
+    <div><span>Teléfono</span><strong>{{ cliente.phone or '—' }}</strong></div>
+    <div><span>Dirección</span><strong>{{ cliente.address or '—' }}</strong></div>
+    <div><span>Municipio o ciudad</span><strong>{{ cliente.city or '—' }}</strong></div>
+    <div><span>Zona</span><strong>{{ cliente.zone or '—' }}</strong></div>
+    <div><span>Correo</span><strong>{{ cliente.email or '—' }}</strong></div>
+    <div><span>Facturación</span><strong>{% if cliente.electronic_invoice is sameas false %}Consumidor final{% else %}Electrónica a su NIT{% endif %}</strong></div>
+    <div><span>Estado</span><strong>{{ 'Activo' if cliente.is_active else 'Inactivo' }}</strong></div>
+  </div>
+  {% endif %}
+  {% if not cliente.tax_id %}
+  <p class="approval-notice error" style="margin:12px">Sin NIT no puede entrar al portal ni recibir factura electrónica.</p>
+  {% endif %}
+</section>

@@ -26,3 +26,18 @@ Documentos de actualizacion/
 testsprite_tests/tmp/
 testsprite_tests/tmp/config.json
 .playwright-mcp/
+
+# Certificados locales para antivirus que interceptan HTTPS (tools/scripts/ca_bundle_local.py)
+.certs/
+
+# Datos reales de clientes (NIT, teléfonos, cartera): nunca al repositorio (auditoría 2026-10-19)
+data/backups/
+data/snapshots/
+data/clientes-sin-nit*.csv
+data/conciliacion-*/
+data/veterinarias-sin-nit.*
+
+# Salidas generadas (videos, PDFs de trabajo)
+output/
+# Video de capacitación (7,5 MB): queda local, no en git
+capacitacion/video/*.mp4

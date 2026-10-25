@@ -26,9 +26,15 @@ Sin el `?token=`, el webhook responde 403 y el bot queda mudo.
 ## Antes de desplegar
 
 - [ ] `python -m pytest` en verde
-- [ ] La rama a desplegar está publicada en GitHub
+- [ ] La rama a desplegar está publicada en GitHub (Render construye desde GitHub: lo que
+      no está commiteado y pusheado NO se despliega)
+- [ ] Las migraciones de `db/migrations/` están commiteadas Y aplicadas en Supabase (las
+      tablas nuevas se crean a mano; el deploy no corre migraciones)
 - [ ] El tag de la imagen del Dockerfile coincide con `playwright==` de requirements.txt
       (hoy: `v1.55.0-noble` ↔ `playwright==1.55.0`)
+- [ ] Los valores fijos de `render.yaml` son los que se quieren en producción. Ojo con
+      `FSM_ENFORCE` y `MESSAGE_DEBOUNCE_*`: el `.env` local puede tener otros valores
+      (lo que se probó en local no es necesariamente lo que corre en Render)
 
 ## 1. Crear el servicio
 
@@ -56,9 +62,18 @@ El blueprint despliega con `PDF_ENABLED`, `ANARVET_ENABLED` y `ALEGRA_ENABLED` e
 
 ```bash
 curl https://<servicio>.onrender.com/health
+curl -H "X-Platform-Token: $PLATFORM_API_TOKEN" https://<servicio>.onrender.com/health/detalle
 ```
 
-Esperado: `supabase: ok`, `openai: ok`, el resto `disabled`.
+`/health` es el liviano que mira Render (solo Supabase, ERR-182). El completo es
+`/health/detalle` y desde el 2026-10-19 exige el token de la plataforma (o sesión del
+panel): sin él responde 401. Esperado: `supabase: ok`, `openai: ok`, el resto `disabled`.
+
+Todo el cableado de una vez (solo lectura; sirve después de CADA deploy):
+
+```bash
+python tools/scripts/verificar_produccion.py https://<servicio>.onrender.com
+```
 
 ## 3. Encender las integraciones, de a una
 
@@ -80,9 +95,11 @@ Cada vez: cambiar la variable en Render → esperar el redeploy → mirar `/heal
 https://<servicio>.onrender.com/chatwoot/webhook?token=<CHATWOOT_WEBHOOK_SECRET>
 ```
 
-Verificar con `python tools/scripts/verify_chatwoot_telegram_agent.py` (comprueba
-`/health`, la `outgoing_url`, la asociación del bot al inbox y que el webhook de
-Telegram siga apuntando a Chatwoot).
+Verificar con `python tools/scripts/verificar_produccion.py https://<servicio>.onrender.com`
+(comprueba `/health`, `/health/detalle`, la `outgoing_url` con su token, la asociación del
+bot a los inboxes de Telegram y WhatsApp, y que el webhook de Telegram siga apuntando a
+Chatwoot). `verify_chatwoot_telegram_agent.py` es el de la sesión LOCAL con ngrok: ese
+REESCRIBE la URL del bot, no usarlo contra producción.
 
 ## 5. Programar el sync de Anarvet
 
@@ -103,15 +120,12 @@ Sugerido: cada hora en horario laboral (`0 7-19 * * 1-6`, hora de Bogotá).
 - [ ] Entrar al dashboard y al portal desde la URL pública
 - [ ] Confirmar que la orden de prueba aparece en Solicitudes y en la Agenda
 
-## Cuando A3 entregue la cuenta de WhatsApp Business
+## WhatsApp Business
 
-El código ya está listo (migración 031, ERR-177). Falta solo:
-1. Conectar el número como inbox de WhatsApp en Chatwoot
-2. Asociar el A3 Bot a ese inbox nuevo
-3. Probar la cadena completa **antes** de que A3 cancele LiveConnect
-
-El canal se detecta solo: el payload de Chatwoot trae `Channel::Whatsapp` y la orden
-queda marcada `whatsapp` en `entry_channel`.
+El canal quedó conectado y probado el 04/09/2026 (ERR-181). Al cambiar el número o
+recrear el inbox: asociar el A3 Bot, agregar los agentes como miembros y probar la
+cadena completa antes de retirar el canal anterior. El payload de Chatwoot identifica
+`Channel::Whatsapp` y la orden queda marcada `whatsapp` en `entry_channel`.
 
 ## Si algo sale mal
 
@@ -119,6 +133,8 @@ queda marcada `whatsapp` en `entry_channel`.
 |---|---|
 | El bot no contesta | La URL del Agent Bot no lleva `?token=` → 403 |
 | `/health` da 503 | Supabase no responde: revisar `SUPABASE_URL` y la service role key |
+| `/health` da 503 con HTML «Service Suspended» | El servicio está suspendido en Render (apagado a mano o por facturación): reanudarlo desde el panel |
+| `/health/detalle` da 401 | Falta la cabecera `X-Platform-Token` (o la sesión del panel) |
 | El check `anarvet` da error | IP de Render no autorizada por Anarvet |
 | El PDF falla | El tag de la imagen no coincide con la versión de playwright |
 | Build en verde pero revienta al usar el PDF | Runtime nativo en vez de Docker |

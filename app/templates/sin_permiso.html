@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#7a0d20">
+  <title>A3 CRM - Sin permiso</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='os-kit.css') }}?v=9">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=23">
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js" defer></script>
+</head>
+<body class="crm-theme" data-sidebar="expanded">
+  <div class="crm-app">
+    {% set seccion = '' %}{% include '_sidebar.html' %}
+    <main class="crm-main os-scene">
+      <header class="top-header"><div>
+        <p class="hello-label">{{ perfil_nombre }}</p>
+        <h1>Sin permiso</h1>
+      </div></header>
+      <section class="card" style="padding:16px">
+        <p>{{ mensaje }}</p>
+        <p class="muted-text">Si necesitas este acceso, pídeselo a un Administrador de la plataforma.</p>
+        <p><a class="ghost-btn" href="{{ url_for('dashboard.dashboard_home') }}">Ir al panel</a></p>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

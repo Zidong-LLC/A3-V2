@@ -1,161 +1,137 @@
-"""Cargas masivas por CSV: precios, clientes y portafolio (pedido de A3, llamada 4).
+"""Cargas masivas: precios, clientes, portafolio y motorizados (pedido de A3, llamada 4;
+cualquier archivo, cierre v1).
 
-Siempre en dos pasos: se sube el archivo, se MUESTRA el plan (qué se crea, qué se
-actualiza, qué queda igual, qué no se pudo leer) y recién con la confirmación se
-escribe. Una carga a ciegas puede pisar cientos de precios sin que nadie lo note.
+Siempre en pasos: se sube el archivo (CSV con cualquier separador o .xlsx), se eligen
+las columnas (ya vienen reconocidas por nombre), se MUESTRA el plan (qué se crea, qué se
+actualiza, qué queda igual, qué no se pudo leer) y recién con la confirmación se escribe.
+Una carga a ciegas puede pisar cientos de precios sin que nadie lo note.
 
-El plan viaja al paso de confirmación en un campo oculto, pero no se aplica tal
-cual: al confirmar se vuelve a validar contra la base (tabla en lista blanca, el
-código existe, el cliente existe). Lo que llega del navegador no manda.
+El plan viaja al paso de confirmación en un campo oculto, pero no se aplica tal cual: al
+confirmar se vuelve a validar contra la base. Lo que llega del navegador no manda. Cada
+tipo exige además poder gestionar su módulo (precios, clientes o motorizados).
 """
 import json
-from functools import wraps
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, Response, flash, redirect, render_template, request, session, url_for
 
-from app import imports
-from app.services import db
+from app import access, imports, imports_aplicar, imports_archivo as archivo
+from app import imports_exportar
+from app import permissions as P
+from app.services import audit_db, db, maestros_db
 
 dashboard_import = Blueprint("dashboard_import", __name__)
 
-TIPOS = {
-    "precios": "Precios del catálogo",
-    "clientes": "Clientes",
-    "portafolio": "Portafolio nuevo",
-}
+TIPOS = {"precios": "Precios del catálogo", "clientes": "Clientes",
+         "portafolio": "Portafolio nuevo", "motorizados": "Motorizados"}
 MAX_CSV_BYTES = 5 * 1024 * 1024
+_aplicar_clientes = imports_aplicar.aplicar_clientes  # nombre histórico (tests)
 
 
-def _login_required(view_func):
-    @wraps(view_func)
-    def wrapped(*args, **kwargs):
-        if not session.get("dashboard_authenticated"):
-            return redirect(url_for("dashboard.login"))
-        return view_func(*args, **kwargs)
-
-    return wrapped
+_login_required = access.login_requerido
 
 
-def _armar_plan(tipo: str, filas: list[dict]) -> dict:
+def _tipos_permitidos() -> dict:
+    perfil = access.perfil_actual()
+    return {t: n for t, n in TIPOS.items() if P.puede(perfil, P.MODULO_DE_CARGA[t], P.GESTION)}
+
+
+def _armar_plan(tipo: str, filas: list[dict], actualizar: bool = False) -> dict:
     if tipo == "clientes":
-        return imports.plan_clientes(filas, db.list_clients_basic(), db.client_name_matches)
+        couriers = db.list_active_couriers()
+        return imports.plan_clientes(filas, db.list_clients_basic(), db.client_name_matches, actualizar,
+                                     {imports.norm(c.get("name")): c["id"] for c in couriers},
+                                     maestros_db.asignaciones())
+    if tipo == "motorizados":
+        return imports_aplicar.plan_motorizados(filas, db.list_couriers())
     tests, profiles = db.list_catalog_tests(limit=2000), db.list_catalog_profiles(limit=2000)
     if tipo == "portafolio":
         return imports.plan_portafolio(filas, tests, profiles)
     return imports.plan_precios(filas, tests, profiles)
 
 
+def _pagina(**extra):
+    contexto = {"plan": None, "mapeo": None, **extra}
+    return render_template("dashboard_import.html", tipos=_tipos_permitidos(), etiquetas=archivo.ETIQUETAS,
+                           username=session.get("dashboard_username", ""), **contexto)
+
+
+def _vista_previa(tipo, nombre, encabezados, filas_brutas, mapa, actualizar):
+    tabla = {"encabezados": encabezados, "filas": filas_brutas, "archivo": nombre}
+    contexto = {"tipo": tipo, "tabla_json": json.dumps(tabla), "encabezados": encabezados,
+                "mapa": mapa, "campos": archivo.CAMPOS[tipo], "actualizar": actualizar, "archivo": nombre,
+                "ejemplo": filas_brutas[:3]}
+    falta = archivo.faltantes(mapa, tipo)
+    if falta:
+        return _pagina(mapeo=contexto, falta=falta)
+    filas = archivo.filas_con_mapa(filas_brutas, mapa)
+    plan = _armar_plan(tipo, filas, actualizar)
+    usadas = set(mapa.values())
+    plan.update({"leidas": len(filas), "archivo": nombre, "titulo": TIPOS[tipo], "actualizar_activo": actualizar,
+                 "ignorados": [h for i, h in enumerate(encabezados) if i not in usadas and h]})
+    return _pagina(mapeo=contexto, plan=plan, plan_json=json.dumps(plan))
+
+
 @dashboard_import.get("/cargas")
 @_login_required
 def cargas_page():
-    return render_template("dashboard_import.html", tipos=TIPOS, plan=None,
-                           username=session.get("dashboard_username", ""))
+    return _pagina()
 
 
 @dashboard_import.post("/cargas/previsualizar")
 @_login_required
 def previsualizar():
-    tipo = (request.form.get("tipo") or "").strip()
-    if tipo not in TIPOS:
+    tipo = (request.form.get("tipo") or "auto").strip()
+    if tipo != "auto" and tipo not in _tipos_permitidos():
         flash("Elige qué tipo de carga es el archivo", "error")
         return redirect(url_for("dashboard_import.cargas_page"))
-
-    archivo = request.files.get("csv")
-    data = archivo.read(MAX_CSV_BYTES + 1) if archivo else b""
+    subido = request.files.get("csv")
+    data = subido.read(MAX_CSV_BYTES + 1) if subido else b""
     if not data or len(data) > MAX_CSV_BYTES:
-        flash("Archivo inválido: debe ser un CSV de máximo 5 MB", "error")
+        flash("Archivo inválido: debe ser un CSV o Excel (.xlsx) de máximo 5 MB", "error")
         return redirect(url_for("dashboard_import.cargas_page"))
-
-    filas, ignorados = imports.leer_csv(data)
+    try:
+        encabezados, filas = archivo.leer_tabla(data, subido.filename or "")
+    except Exception:  # noqa: BLE001 — archivo dañado o de otro formato
+        encabezados, filas = [], []
     if not filas:
-        flash("El archivo no tiene filas con datos", "error")
+        flash("No se encontraron filas con datos en el archivo", "error")
         return redirect(url_for("dashboard_import.cargas_page"))
-
-    plan = _armar_plan(tipo, filas)
-    plan.update({"leidas": len(filas), "ignorados": ignorados,
-                 "archivo": archivo.filename, "titulo": TIPOS[tipo]})
-    return render_template("dashboard_import.html", tipos=TIPOS, plan=plan,
-                           plan_json=json.dumps(plan), username=session.get("dashboard_username", ""))
-
-
-def _aplicar_precios(cambios: list[dict], quien: str) -> tuple[int, list[str]]:
-    hechos, fallidos = 0, []
-    for cambio in cambios:
-        tabla, code = cambio.get("tabla"), str(cambio.get("code") or "")
-        if tabla not in ("catalog_tests", "catalog_profiles"):
-            fallidos.append(f"{code}: tabla inválida")
-            continue
-        antes = db.get_catalog_item(tabla, code)
-        if not antes:
-            fallidos.append(f"{code}: ya no existe en el catálogo")
-            continue
-        despues = db.update_catalog_item(tabla, code, {"price": int(cambio["despues"])})
-        if not despues:
-            fallidos.append(f"{code}: no se pudo actualizar")
-            continue
-        db.log_catalog_change(tabla, code, antes, despues, quien)
-        hechos += 1
-    return hechos, fallidos
+    # El tipo elegido manda solo si el archivo trae lo que ese tipo necesita; si no, se
+    # detecta por las columnas (un archivo de clientes cargado como «precios» por dejar
+    # el desplegable como venía no puede terminar en «faltan Código y Precio»).
+    elegido = tipo
+    if tipo == "auto" or archivo.faltantes(archivo.mapa_automatico(encabezados, tipo), tipo):
+        detectado = archivo.detectar_tipo(encabezados, list(_tipos_permitidos()))
+        if detectado:
+            tipo = detectado
+        elif tipo == "auto":
+            flash("No se pudo reconocer qué trae el archivo: elige el tipo de carga y vuelve a subirlo", "error")
+            return redirect(url_for("dashboard_import.cargas_page"))
+    if tipo != elegido:
+        flash(f"Por sus columnas, el archivo se leyó como «{TIPOS[tipo]}».", "ok")
+    return _vista_previa(tipo, subido.filename, encabezados, filas,
+                         archivo.mapa_automatico(encabezados, tipo), request.form.get("actualizar") == "on")
 
 
-def _aplicar_portafolio(nuevos: list[dict], quien: str) -> tuple[int, list[str]]:
-    hechos, fallidos = 0, []
-    for item in nuevos:
-        tabla, code = item.get("tabla"), str(item.get("code") or "")
-        if tabla not in ("catalog_tests", "catalog_profiles"):
-            fallidos.append(f"{code}: tabla inválida")
-            continue
-        if db.get_catalog_item(tabla, code):
-            fallidos.append(f"{code}: ya existía, no se pisa")
-            continue
-        payload = {k: item.get(k) for k in ("code", "name", "price", "category", "species")}
-        if tabla == "catalog_tests":
-            payload["sample"] = item.get("sample")
-        creado = db.create_catalog_item(tabla, payload)
-        if not creado:
-            fallidos.append(f"{code}: no se pudo crear")
-            continue
-        db.log_catalog_change(tabla, code, {}, creado, quien)
-        hechos += 1
-    return hechos, fallidos
-
-
-def _aplicar_clientes(plan: dict) -> tuple[int, int, list[str]]:
-    # Cada fila por separado: que una reviente (NIT o teléfono duplicado, restricción
-    # de la tabla) no cancela las demás. Con la lista real de terceros v3, un teléfono
-    # repetido a mitad de la carga dejó 17 altas hechas y todo lo demás sin aplicar.
-    creados, actualizados, fallidos = 0, 0, []
-    for nuevo in plan.get("crear") or []:
-        try:
-            hecho = db.create_client(nuevo)
-        except Exception as exc:  # noqa: BLE001 — se informa por fila
-            hecho = None
-            fallidos.append(f"{nuevo.get('clinic_name')}: {_motivo(exc)}")
-        else:
-            if not hecho:
-                fallidos.append(f"{nuevo.get('clinic_name')}: no se pudo crear")
-        creados += 1 if hecho else 0
-    for cambio in plan.get("actualizar") or []:
-        client_id = cambio.get("id")
-        if not client_id or not db.get_client_by_id(client_id):
-            fallidos.append(f"{cambio.get('clinic_name')}: el cliente ya no existe")
-            continue
-        try:
-            if db.update_client_profile(client_id, cambio.get("cambios") or {}):
-                actualizados += 1
-        except Exception as exc:  # noqa: BLE001
-            fallidos.append(f"{cambio.get('clinic_name')}: {_motivo(exc)}")
-    return creados, actualizados, fallidos
-
-
-def _motivo(exc: Exception) -> str:
-    """El mensaje útil del error de la base, sin el JSON completo."""
-    texto = str(getattr(exc, "message", "") or exc)
-    if "clients_phone_key" in texto:
-        return "el teléfono ya pertenece a otro cliente"
-    if "duplicate key" in texto:
-        return "ya existía un registro con esa clave"
-    return texto[:120]
+@dashboard_import.post("/cargas/columnas")
+@_login_required
+def remapear():
+    tipo = (request.form.get("tipo") or "").strip()
+    try:
+        tabla = json.loads(request.form.get("tabla") or "{}")
+    except json.JSONDecodeError:
+        tabla = {}
+    if tipo not in _tipos_permitidos() or not tabla.get("filas"):
+        flash("Vuelve a subir el archivo", "error")
+        return redirect(url_for("dashboard_import.cargas_page"))
+    total = len(tabla.get("encabezados") or [])
+    mapa = {}
+    for campo in archivo.CAMPOS[tipo]:
+        valor = request.form.get(f"col_{campo}", "")
+        if valor.isdigit() and int(valor) < total and int(valor) not in mapa.values():
+            mapa[campo] = int(valor)
+    return _vista_previa(tipo, tabla.get("archivo") or "archivo", tabla["encabezados"], tabla["filas"],
+                         mapa, request.form.get("actualizar") == "on")
 
 
 @dashboard_import.post("/cargas/aplicar")
@@ -166,22 +142,50 @@ def aplicar():
     except json.JSONDecodeError:
         plan = {}
     tipo = plan.get("tipo")
-    if tipo not in TIPOS:
+    if tipo not in _tipos_permitidos():
         flash("No hay un plan que aplicar", "error")
         return redirect(url_for("dashboard_import.cargas_page"))
 
     quien = session.get("dashboard_username") or "operator"
     if tipo == "precios":
-        hechos, fallidos = _aplicar_precios(plan.get("actualizar") or [], quien)
-        resumen = f"{hechos} precio{'' if hechos == 1 else 's'} actualizado{'' if hechos == 1 else 's'}"
+        hechos, fallidos = imports_aplicar.aplicar_precios(plan.get("actualizar") or [], quien)
+        resumen = f"{hechos} precio(s) actualizado(s)"
     elif tipo == "portafolio":
-        hechos, fallidos = _aplicar_portafolio(plan.get("crear") or [], quien)
-        resumen = f"{hechos} ítem{'' if hechos == 1 else 's'} agregado{'' if hechos == 1 else 's'} al catálogo"
+        hechos, fallidos = imports_aplicar.aplicar_portafolio(plan.get("crear") or [], quien)
+        resumen = f"{hechos} ítem(s) agregado(s) al catálogo"
+    elif tipo == "motorizados":
+        creados, actualizados, fallidos = imports_aplicar.aplicar_motorizados(plan)
+        resumen = f"{creados} motorizado(s) creado(s) y {actualizados} actualizado(s)"
     else:
-        creados, actualizados, fallidos = _aplicar_clientes(plan)
-        resumen = f"{creados} cliente(s) creado(s) y {actualizados} completado(s)"
-
+        creados, actualizados, fallidos = imports_aplicar.aplicar_clientes(plan)
+        resumen = f"{creados} cliente(s) creado(s) y {actualizados} actualizado(s)"
+    audit_db.registrar("import", tipo, "import", {"archivo": plan.get("archivo"), "resultado": resumen,
+                                                  "con_problemas": len(fallidos)})
     flash(resumen, "ok")
     for problema in fallidos[:20]:
         flash(problema, "error")
     return redirect(url_for("dashboard_import.cargas_page"))
+
+
+@dashboard_import.get("/cargas/plantilla/<tipo>")
+@_login_required
+def plantilla(tipo):
+    if tipo not in TIPOS:
+        return redirect(url_for("dashboard_import.cargas_page"))
+    return _csv(imports_exportar.plantilla(tipo), f"plantilla-{tipo}.csv")
+
+
+@dashboard_import.get("/cargas/exportar/<tipo>")
+@_login_required
+def exportar(tipo):
+    if tipo not in ("clientes", "precios", "motorizados") or \
+            not P.puede(access.perfil_actual(), P.MODULO_DE_CARGA[tipo], P.CONSULTA):
+        flash("Tu perfil no puede exportar esa lista", "error")
+        return redirect(url_for("dashboard_import.cargas_page"))
+    return _csv(imports_exportar.exportar(tipo), f"{tipo}-a3.csv")
+
+
+def _csv(contenido: str, nombre: str) -> Response:
+    # BOM + punto y coma: Excel en español lo abre en columnas sin preguntar.
+    return Response("﻿" + contenido, mimetype="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{nombre}"'})

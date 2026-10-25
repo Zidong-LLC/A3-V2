@@ -3,7 +3,16 @@ Script para limpiar datos de prueba de Supabase.
 Borra: lab_results, request_events, requests, pedidos, conversation_messages,
 telegram_sessions (en ese orden por las FK).
 NO toca: clients, client_courier_assignment, catálogo (datos de referencia).
+
+⚠ Desde el 2026-08-27 esa base es la de PRODUCCIÓN: esto borra pedidos y conversaciones
+REALES. Exige `--borrar-todo-de-verdad` y escribir BORRAR (auditoría 2026-10-19).
 """
+import sys
+
+if "--borrar-todo-de-verdad" not in sys.argv or \
+        input("Esto borra pedidos y conversaciones REALES. Escribe BORRAR para seguir: ").strip() != "BORRAR":
+    sys.exit("Cancelado: no se borró nada.")
+
 from dotenv import load_dotenv
 load_dotenv()
 

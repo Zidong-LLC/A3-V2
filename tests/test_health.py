@@ -42,6 +42,8 @@ def test_la_ruta_health_usa_el_liviano_y_detalle_el_completo():
 
     app.config["TESTING"] = True
     c = app.test_client()
+    with c.session_transaction() as sesion:  # /health/detalle exige sesión o token
+        sesion["dashboard_authenticated"] = True
     with patch("app.main.check_liveness", return_value=({"status": "ok"}, 200)) as liviano, \
          patch("app.main.check_all", return_value=({"status": "ok"}, 200)) as completo:
         c.get("/health")

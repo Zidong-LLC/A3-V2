@@ -1,0 +1,26 @@
+{# Historial de cambios (audit_log): quién cambió qué y cuándo. Recibe `historial`. #}
+{% set _acciones = {'create': 'Alta', 'update': 'Cambio', 'activate': 'Activación', 'deactivate': 'Desactivación',
+                    'delete': 'Baja', 'transfer': 'Traslado', 'import': 'Carga masiva'} %}
+<section class="card">
+  <div class="card-head"><div><h3>Historial de cambios</h3><p>Quién cambió qué y cuándo. No se edita ni se borra.</p></div></div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Fecha</th><th>Usuario</th><th>Operación</th><th>Detalle</th></tr></thead>
+    <tbody>
+    {% for h in historial %}
+      <tr>
+        <td>{{ (h.created_at or '')[:16] | replace('T', ' ') }}</td>
+        <td>{{ h.username }}</td>
+        <td>{{ _acciones.get(h.action, h.action) }}</td>
+        <td class="muted-text">
+          {% for campo, valor in (h.changes or {}).items() %}
+            {% if valor is mapping and 'despues' in valor %}<strong>{{ campo }}</strong>: {{ valor.antes if valor.antes is not none else '—' }} → {{ valor.despues if valor.despues is not none else '—' }}
+            {% else %}<strong>{{ campo }}</strong>: {{ valor if valor is not none else '—' }}{% endif %}{% if not loop.last %} · {% endif %}
+          {% endfor %}
+        </td>
+      </tr>
+    {% else %}
+      <tr><td colspan="4" class="muted-text">Sin cambios registrados todavía.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</section>

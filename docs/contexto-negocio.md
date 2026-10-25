@@ -22,7 +22,7 @@
 
 ## 2. Para qué sirve el agente
 
-El agente atiende a los clientes de A3 por **Telegram y Chatwoot** (WhatsApp: código listo desde la migración 031; falta conectar la cuenta Business de A3). No reemplaza al equipo; filtra y gestiona lo que puede resolver solo, y escala lo que no puede.
+El agente atiende a los clientes de A3 por **Telegram, WhatsApp y Chatwoot**. No reemplaza al equipo; filtra y gestiona lo que puede resolver solo, y escala lo que no puede.
 
 ### Cuatro cosas que el agente hace (y solo cuatro)
 

@@ -796,3 +796,24 @@ compartida, y ahí no hubo problema) no alcanza: la UI también se duplica y se 
 mismo y reutilizar su template/JS/CSS. Acá `new-request.js` y las clases de `app.css`
 sirvieron sin tocar una línea: el JS ya tenía guardas para los campos que no existen en
 el otro contexto.
+
+## 2026-10-19 — Una prueba contra localhost deja producción desconectada si no se revierte
+
+**Qué pasó.** Para probar el bot por WhatsApp/Telegram apunté el Agent Bot de Chatwoot (el
+de PRODUCCIÓN, es uno solo) a ngrok. Terminó la prueba, se apagó Flask/ngrok y la URL quedó
+ahí: los mensajes reales de clientes iban a un túnel muerto. Además, los tests y la demo
+local mandaban avisos reales al Telegram de reportes porque leen el `.env` real.
+
+**Regla.** Todo cambio temporal sobre un recurso compartido con producción (outgoing_url,
+webhooks, flags del `.env`) se revierte en el MISMO bloque de trabajo en que termina la
+prueba, y se verifica con una lectura. Cualquier proceso que no sea producción (tests, demo,
+capturas) arranca con el bot de avisos apagado.
+
+## 2026-10-19 — Un servicio caído puede estar apagado a propósito
+
+**Qué pasó.** Render respondía 503 «Service Suspended» y lo reporté como un problema urgente
+a resolver. El usuario lo había apagado él mismo mientras se terminan los cambios.
+
+**Regla.** Ante un servicio de producción apagado, primero decir lo que se ve y preguntar si
+es intencional, sin presentarlo como incidente. El estado vigente queda en la memoria
+`project_produccion_render`.

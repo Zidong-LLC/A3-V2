@@ -21,7 +21,7 @@
       <header class="top-header">
         <div>
           <p class="hello-label">Herramientas · Cargas por archivo</p>
-          <h1>Cargar precios, clientes o portafolio</h1>
+          <h1>Cargar precios, clientes, portafolio o motorizados</h1>
         </div>
       </header>
 
@@ -34,29 +34,39 @@
       <section class="card">
         <div class="card-head">
           <div>
-            <h3>Subir un archivo CSV</h3>
-            <p>Primero se muestra qué va a pasar. Nada se guarda hasta que lo confirmes.</p>
+            <h3>Subir un archivo</h3>
+            <p>CSV (con coma, punto y coma o tabulación) o Excel (.xlsx). Primero se muestra qué va a pasar: nada se guarda hasta que lo confirmes.</p>
           </div>
         </div>
+        {% if tipos %}
         <form method="post" action="{{ url_for('dashboard_import.previsualizar') }}" enctype="multipart/form-data" class="portal-upload-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
           <div class="form-grid">
             <label>Qué trae el archivo
               <select name="tipo" required>
+                <option value="auto">Detectar por las columnas</option>
                 {% for clave, nombre in tipos.items() %}<option value="{{ clave }}">{{ nombre }}</option>{% endfor %}
               </select>
             </label>
-            <label>Archivo CSV<input name="csv" type="file" accept=".csv,text/csv" required></label>
+            <label>Archivo<input name="csv" type="file" accept=".csv,.txt,.xlsx,text/csv" required></label>
           </div>
-          <p class="muted-text">Columnas que se reconocen: <strong>precios</strong> código y precio;
-            <strong>portafolio</strong> código, nombre, precio y opcionalmente tipo, categoría, especie y muestra;
-            <strong>clientes</strong> nombre, NIT, teléfono, dirección, ciudad y correo. Los encabezados se
-            reconocen por nombre, en cualquier orden.</p>
+          <label class="portal-check"><input type="checkbox" name="actualizar"> En clientes: actualizar también los datos que cambiaron (no solo completar los vacíos)</label>
+          <p class="muted-text">Las columnas se reconocen por su nombre y en cualquier orden; si alguna no se reconoce, en el siguiente paso eliges cuál es cuál.</p>
           <div class="portal-upload-actions">
             <button type="submit" class="primary-btn"><i data-lucide="search"></i>Ver qué va a pasar</button>
           </div>
         </form>
+        <p class="muted-text" style="padding:0 12px 12px">Plantillas:
+          {% for clave, nombre in tipos.items() %}<a href="{{ url_for('dashboard_import.plantilla', tipo=clave) }}">{{ nombre }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
+          &nbsp;|&nbsp; Exportar la lista actual:
+          {% for clave in ['clientes', 'precios', 'motorizados'] if clave in tipos %}<a href="{{ url_for('dashboard_import.exportar', tipo=clave) }}">{{ tipos[clave] }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
+        </p>
+        {% else %}
+        <p class="muted-text" style="padding:12px">Tu perfil no tiene cargas habilitadas: cargar precios, clientes o motorizados exige poder modificarlos.</p>
+        {% endif %}
       </section>
+
+      {% if mapeo %}{% include '_import_columnas.html' %}{% endif %}
 
       {% if plan %}
       <section class="card">
@@ -83,8 +93,9 @@
                 {% if plan.tipo == 'precios' %}
                 <td>{{ c.code }} · {{ c.name }}</td><td>{{ c.antes | money }}</td><td><strong>{{ c.despues | money }}</strong></td>
                 {% else %}
-                <td>{{ c.clinic_name }}</td><td class="muted-text">sin dato</td>
-                <td>{% for campo, valor in c.cambios.items() %}<strong>{{ campo }}</strong>: {{ valor }}{% if not loop.last %} · {% endif %}{% endfor %}</td>
+                <td>{{ c.clinic_name }}</td>
+                <td class="muted-text">{% for campo in c.cambios if campo != 'courier_id' %}{{ etiquetas.get(campo, campo) }}: {{ (c.antes or {}).get(campo) or 'sin dato' }}{% if not loop.last %} · {% endif %}{% endfor %}</td>
+                <td>{% for campo, valor in c.cambios.items() %}<strong>{{ 'Motorizado' if campo == 'courier_id' else etiquetas.get(campo, campo) }}</strong>{% if campo != 'courier_id' %}: {{ valor }}{% endif %}{% if not loop.last %} · {% endif %}{% endfor %}</td>
                 {% endif %}
               </tr>
               {% endfor %}
@@ -102,7 +113,9 @@
               {% for c in plan.crear[:100] %}
               <tr>
                 {% if plan.tipo == 'clientes' %}
-                <td>{{ c.clinic_name }}</td><td class="muted-text">NIT {{ c.tax_id or '—' }} · {{ c.address or 'sin dirección' }}</td>
+                <td>{{ c.clinic_name }}</td><td class="muted-text">NIT {{ c.tax_id or '—' }} · {{ c.address or 'sin dirección' }}{% if c.city %} · {{ c.city }}{% endif %}</td>
+                {% elif plan.tipo == 'motorizados' %}
+                <td>{{ c.name }}</td><td class="muted-text">{{ c.phone or 'sin teléfono' }}</td>
                 {% else %}
                 <td>{{ c.code }} · {{ c.name }}</td>
                 <td class="muted-text">{{ c.price | money }} · {{ 'Perfil' if c.tabla == 'catalog_profiles' else 'Análisis' }}{% if c.species %} · {{ c.species }}{% endif %}</td>

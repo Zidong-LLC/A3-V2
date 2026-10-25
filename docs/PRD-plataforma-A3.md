@@ -5,8 +5,8 @@
 Plataforma web interna de A3, un laboratorio de análisis clínico veterinario en Bogotá.
 Tiene dos superficies: un **dashboard de staff** (operaciones del laboratorio) y un
 **portal de clientes** (veterinarias que consultan resultados y solicitan recogidas).
-Todo el entorno es de PRUEBA: los datos son de prueba y las acciones de facturación
-externa (Alegra/DIAN) están bloqueadas por la aplicación.
+El entorno público opera con datos reales. La plataforma crea borradores en Alegra,
+pero la emisión DIAN permanece bloqueada y la realiza contabilidad en Alegra.
 
 ## Acceso
 
@@ -75,7 +75,7 @@ externa (Alegra/DIAN) están bloqueadas por la aplicación.
 - Modal de factura abre y cierra; export CSV descarga.
 - Panel lateral de detalle de orden abre desde la tabla de Operación.
 - Portal: login por veterinaria+NIT, listas cargan, notificaciones marcan leído.
-- Responsive básico y tema oscuro consistente (accesibilidad: focos visibles).
+- Responsive básico, identidad visual clara de A3 y focos visibles.
 
 ## Fuera de alcance
 

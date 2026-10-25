@@ -13,7 +13,9 @@ de Alegra, y hoy son doce días. Un gráfico de doce meses con once vacíos no d
 nada. `auto` elige la ventana más grande que tenga al menos dos puntos con datos, así
 el mismo widget sirve hoy y cuando haya historial de verdad.
 """
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+
+from app.config import APP_TIMEZONE
 
 MESES = ("ene", "feb", "mar", "abr", "may", "jun",
          "jul", "ago", "sep", "oct", "nov", "dic")
@@ -78,7 +80,7 @@ def _claves_hacia_atras(hasta: date, cantidad: int, periodo: str) -> list[str]:
 def series(invoices: list[dict], periodo: str = "mes", hoy: date | None = None) -> list[dict]:
     """Un punto por período, del más viejo al más nuevo. Los períodos sin facturas
     van en cero: un hueco en la serie mentiría sobre el ritmo del negocio."""
-    hoy = hoy or date.today()
+    hoy = hoy or datetime.now(APP_TIMEZONE).date()
     cantidad = PERIODOS.get(periodo, PERIODOS["mes"])["puntos"]
     claves = _claves_hacia_atras(hoy, cantidad, periodo)
     puntos = {c: {"clave": c, "facturado": 0, "cobrado": 0, "por_cobrar": 0, "facturas": 0}
@@ -102,11 +104,6 @@ def series(invoices: list[dict], periodo: str = "mes", hoy: date | None = None) 
         punto["etiqueta"], punto["detalle"] = _etiqueta(clave, periodo)
         salida.append(punto)
     return salida
-
-
-def monthly_series(invoices: list[dict], months: int = 12, hoy: date | None = None) -> list[dict]:
-    """Compatibilidad: la serie mensual de siempre."""
-    return series(invoices, periodo="mes", hoy=hoy)
 
 
 def elegir_periodo(invoices: list[dict], hoy: date | None = None) -> str:

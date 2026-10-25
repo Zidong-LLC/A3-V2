@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Pendientes y cronograma — Plataforma A3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --brand: #7a0d20; --brand-dark: #4c0814; --brand-tint: #f8eef0; --brand-line: #ead3d8;
+    --ok: #166534; --ok-tint: #ecf7f0; --add: #1e40af; --add-tint: #e8eefc;
+    --amber: #92400e; --amber-tint: #fdf3e6;
+    --ink: #1c1917; --ink-2: #44403c; --muted: #6b6468; --line: #e5e1e2; --zebra: #faf8f8;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: "Public Sans", "Segoe UI", Arial, sans-serif; color: var(--ink); background: #fff;
+         font-size: 9.2pt; line-height: 1.42; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .page { break-after: page; }
+  .page:last-child { break-after: auto; }
+  .kicker { font-size: 7.8pt; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--brand); }
+  h1 { font-size: 23pt; font-weight: 800; color: var(--brand-dark); margin: 4px 0 6px; line-height: 1.1; }
+  .lead { font-size: 10.8pt; color: var(--ink-2); margin: 0 0 14px; }
+  h2 { break-after: avoid; font-size: 14pt; font-weight: 800; color: var(--brand-dark); margin: 2px 0 6px; }
+  h3 { font-size: 10.3pt; font-weight: 700; color: var(--brand-dark); margin: 12px 0 5px; }
+  p { margin: 0 0 7px; }
+  b { font-weight: 700; }
+  .intro { color: var(--ink-2); margin: 0 0 10px; }
+  .small { font-size: 8.4pt; color: var(--ink-2); }
+  ul.list { margin: 4px 0 10px; padding-left: 18px; }
+  ul.list li { margin: 0 0 3px; }
+
+  table.t { width: 100%; border-collapse: collapse; font-size: 8.7pt; margin: 4px 0 10px; }
+  table.t th { background: var(--brand); color: #fff; text-align: left; font-weight: 700; padding: 5px 7px; }
+  table.t td { padding: 5px 7px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  table.t tr:nth-child(even) td { background: var(--zebra); }
+  table.t tr.grp td { background: var(--brand-tint); color: var(--brand-dark); font-weight: 700; font-size: 8pt;
+                      letter-spacing: .06em; text-transform: uppercase; }
+  table.t td.c { text-align: center; }
+  table.t td.n { white-space: nowrap; }
+  .tag { display: inline-block; font-size: 7pt; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+         border-radius: 999px; padding: 1px 7px; white-space: nowrap; }
+  .tag.ok { background: var(--ok-tint); color: var(--ok); }
+  .tag.add { background: var(--add-tint); color: var(--add); }
+  .tag.part { background: var(--amber-tint); color: var(--amber); }
+  .tag.dep { background: #f1eff0; color: var(--ink-2); }
+
+  .ficha { border: 1px solid var(--brand-line); border-radius: 7px; margin: 0 0 8px; break-inside: avoid; overflow: hidden; }
+  .ficha header { display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+                  background: var(--brand-tint); padding: 6px 11px; border-bottom: 1px solid var(--brand-line); }
+  .ficha header h3 { margin: 0; font-size: 10.2pt; }
+  .ficha header span { font-size: 8.4pt; font-weight: 700; color: var(--brand-dark); white-space: nowrap; }
+  .ficha dl { display: grid; grid-template-columns: 30mm 1fr; margin: 0; padding: 6px 11px 7px; gap: 2px 10px; font-size: 8.6pt; }
+  .ficha dt { color: var(--muted); font-weight: 700; font-size: 7.6pt; text-transform: uppercase; letter-spacing: .04em; padding-top: 1.5px; }
+  .ficha dd { margin: 0; }
+
+  table.matriz td.c b { color: var(--ok); }
+  table.matriz th + th { text-align: center; }
+  .note { background: var(--brand-tint); border-left: 4px solid var(--brand); padding: 8px 11px; font-size: 8.9pt; margin: 8px 0; }
+  .note.ok { background: var(--ok-tint); border-left-color: #15803d; }
+</style>
+</head>
+<body>
+
+<section class="page">
+  <div class="kicker">Plataforma A3 · Documento para revisión de A3</div>
+  <h1>Pendientes, cronograma y criterios de aceptación</h1>
+  <p class="lead">Cierre de los pendientes del proyecto anterior y ejecución de los Hitos 1 y 2. 9 de octubre de 2026.</p>
+
+  <h3>Cómo usar este documento</h3>
+  <ul class="list">
+    <li>Reúne cada pendiente del proyecto anterior y cada entregable de los Hitos 1 y 2. Para cada uno indica qué hace, quién lo usa, sus reglas, cómo se acepta, qué se necesita de A3 y su fecha de entrega.</li>
+    <li>Lo acompaña un video que recorre la plataforma y muestra qué ya funciona y qué falta.</li>
+    <li>Si A3 tiene <b>observaciones adicionales</b>, debe enviarlas por escrito <b>hasta el martes 13 de octubre</b>. Lo que llegue en ese plazo se incorpora al cronograma; lo posterior se trata como un cambio aparte.</li>
+    <li>Las fechas cuentan desde la liberación de la factura pendiente, prevista para el miércoles 14 de octubre, y dependen de los insumos de A3 de la sección 5.</li>
+  </ul>
+
+  <h2>1. Resumen</h2>
+  <table class="t">
+    <thead><tr><th>#</th><th>Entregable</th><th>Estado hoy</th><th>Entrega</th></tr></thead>
+    <tbody>
+      <tr class="grp"><td colspan="4">A. Pendientes del proyecto anterior y sistema base</td></tr>
+      <tr><td>A1</td><td>Administración de clientes, precios y motorizados</td><td><span class="tag ok">Disponible</span> con un ajuste</td><td class="n">Lun 19/10</td></tr>
+      <tr><td>A2</td><td>Usuarios individuales y perfiles</td><td><span class="tag add">Se desarrolla</span></td><td class="n">Vie 16/10</td></tr>
+      <tr><td>A3</td><td>Historial de cambios</td><td><span class="tag part">Parcial</span></td><td class="n">Lun 19/10</td></tr>
+      <tr><td>A4</td><td>Cargas masivas con plantillas y exportación</td><td><span class="tag ok">Disponible</span> se completa</td><td class="n">Mié 21/10</td></tr>
+      <tr><td>A5</td><td>Municipios en el mapa y la cobertura</td><td><span class="tag add">Se desarrolla</span></td><td class="n">Mar 20/10</td></tr>
+      <tr><td>A6</td><td>Reemplazo de motorizado por día o por zona</td><td><span class="tag part">Parcial</span></td><td class="n">Mié 21/10</td></tr>
+      <tr><td>A7</td><td>Acceso al portal desde la página web de A3</td><td><span class="tag dep">Requiere acceso web</span></td><td class="n">Jue 22/10</td></tr>
+      <tr><td>A8</td><td>Depuración de clientes y NIT</td><td><span class="tag dep">Requiere datos de A3</span></td><td class="n">Jue 22/10</td></tr>
+      <tr class="grp"><td colspan="4">B. Hito 1 · Facturación y pagos</td></tr>
+      <tr><td>B1</td><td>Factura electrónica automática</td><td><span class="tag add">Se desarrolla</span></td><td class="n">Vie 23/10</td></tr>
+      <tr><td>B2</td><td>Wompi: enlace de pago por pedido y confirmación</td><td><span class="tag add">Se desarrolla</span></td><td class="n">Lun 26/10</td></tr>
+      <tr><td>B3</td><td>Enlace de pago en el chat, el portal y la plataforma</td><td><span class="tag add">Se desarrolla</span></td><td class="n">Mar 27/10</td></tr>
+      <tr><td>B4</td><td>Pago aplicado en Alegra y vista de contabilidad</td><td><span class="tag add">Se desarrolla</span></td><td class="n">Mar 27/10</td></tr>
+      <tr class="grp"><td colspan="4">C. Hito 2 · WhatsApp y entrega</td></tr>
+      <tr><td>C1</td><td>Autorización de datos personales en WhatsApp</td><td><span class="tag add">Se desarrolla</span></td><td class="n">Jue 22/10</td></tr>
+      <tr><td>C2</td><td>Recorrido completo y puesta en marcha</td><td>Pruebas de A3 el 28 y 29/10</td><td class="n">Vie 30/10</td></tr>
+    </tbody>
+  </table>
+  <p class="small">Los pendientes del bloque A y la autorización de datos (C1) se entregan juntos para validación de A3 el viernes 23 de octubre. Con esa validación se firma el acta de cierre del proyecto anterior.</p>
+</section>
+
+<section class="page">
+  <div class="kicker">Sección 2</div>
+  <h2>2. Detalle: pendientes del proyecto anterior y sistema base</h2>
+
+  <article class="ficha"><header><h3>A1. Administración de clientes, precios y motorizados</h3><span>Lun 19/10</span></header><dl>
+    <dt>Qué hace</dt><dd>Crear, consultar, modificar, activar y desactivar clientes, análisis y perfiles del catálogo (precio y especie), descuentos por volumen y motorizados.</dd>
+    <dt>Hoy</dt><dd>Disponible en los menús Clientes, Muestras → Catálogo y Motorizados. Ajuste: hoy el borrado de un cliente elimina el registro; se cambia por anulación.</dd>
+    <dt>Reglas</dt><dd>Un registro con pedidos, facturas o resultados no se elimina: se desactiva o se anula y conserva su historia. Uno creado por error y sin movimientos sí se puede eliminar. Cada cambio queda en el historial (A3).</dd>
+    <dt>Aceptación</dt><dd>A3 crea, edita, desactiva y reactiva un cliente, un precio y un motorizado. Un cliente con pedidos no se puede eliminar, solo anular.</dd>
+  </dl></article>
+
+  <article class="ficha"><header><h3>A2. Usuarios individuales y perfiles</h3><span>Vie 16/10</span></header><dl>
+    <dt>Qué hace</dt><dd>Cada persona de A3 entra con su propio usuario y contraseña. El Administrador crea, edita y bloquea usuarios y les asigna un perfil.</dd>
+    <dt>Hoy</dt><dd>El personal de A3 comparte un acceso único.</dd>
+    <dt>Reglas</dt><dd>Tres perfiles: Administrador, Operación y Contabilidad, según la matriz de la sección 3. Los permisos se validan en el servidor, no solo ocultando botones. Un usuario bloqueado no puede entrar.</dd>
+    <dt>Aceptación</dt><dd>Con un usuario de cada perfil, solo se ven y se usan las secciones permitidas; un intento sin permiso es rechazado.</dd>
+    <dt>A3 aporta</dt><dd>Aprobación de la matriz y lista de usuarios (nombre, correo y perfil).</dd>
+  </dl></article>
+
+  <article class="ficha"><header><h3>A3. Historial de cambios</h3><span>Lun 19/10</span></header><dl>
+    <dt>Qué hace</dt><dd>Registra cada alta, modificación, activación, desactivación y anulación en clientes, precios, motorizados y usuarios: usuario, fecha, hora, operación, valor anterior y valor nuevo.</dd>
+    <dt>Hoy</dt><dd>Parcial: se registran los cambios de precios y de recogidas.</dd>
+    <dt>Reglas</dt><dd>El historial no se edita ni se borra. Se consulta desde la ficha de cada registro, según el perfil.</dd>
+    <dt>Aceptación</dt><dd>Después de editar un motorizado, su ficha muestra quién lo cambió, cuándo y qué cambió.</dd>
+  </dl></article>
+
+  <article class="ficha"><header><h3>A4. Cargas masivas con plantillas y exportación</h3><span>Mié 21/10</span></header><dl>
+    <dt>Qué hace</dt><dd>Carga por archivo de precios, clientes y portafolio. Antes de aplicar muestra qué se crea, qué se actualiza, qué queda igual y qué filas tienen error y por qué. Se agregan plantillas descargables y exportación a Excel de clientes, precios y motorizados.</dd>
+    <dt>Hoy</dt><dd>Disponible en el menú Cargas, con vista previa y validación.</dd>
+    <dt>Reglas</dt><dd>Nada se escribe sin confirmación, y al confirmar se vuelve a validar. Obligatorios: código y precio (precios); código y nombre (portafolio); nombre o NIT (clientes). Se rechazan códigos inexistentes o repetidos, precios ilegibles y clientes ambiguos.</dd>
+    <dt>Aceptación</dt><dd>A3 descarga la plantilla de precios, la completa, la carga, ve las filas con error marcadas y aplica. El precio queda actualizado y en el historial.</dd>
+  </dl></article>
+
+  <article class="ficha"><header><h3>A5. Municipios en el mapa y la cobertura</h3><span>Mar 20/10</span></header><dl>
+    <dt>Qué hace</dt><dd>Los municipios cercanos aparecen en la cobertura y en el mapa como una localidad más, con su motorizado, y las recogidas se asignan solas. El Administrador agrega o edita municipios desde la pantalla.</dd>
+    <dt>Hoy</dt><dd>Los clientes de municipios se atienden con motorizado asignado al cliente; la cobertura y el mapa solo contemplan Bogotá.</dd>
+    <dt>Reglas</dt><dd>Prioridad de asignación: motorizado fijo del cliente, luego municipio o localidad, luego zona. Cambiar el motorizado de un municipio no modifica las recogidas ya asignadas (para eso está A6).</dd>
+    <dt>Aceptación</dt><dd>Una recogida nueva de una clínica de Soacha queda asignada al motorizado de Soacha, y Soacha se ve en el mapa.</dd>
+    <dt>A3 aporta</dt><dd>Listado oficial de municipios y el motorizado de cada uno.</dd>
+  </dl></article>
+
+  <article class="ficha"><header><h3>A6. Reemplazo de motorizado por día o por zona</h3><span>Mié 21/10</span></header><dl>
+    <dt>Qué hace</dt><dd>Se elige el motorizado ausente, la fecha y, si se quiere, una zona o municipio, y sus recogidas pendientes pasan a otro en un solo paso, con aviso al reemplazo. Opción de trasladar sus clientes de forma permanente.</dd>
+    <dt>Hoy</dt><dd>Parcial: se reasigna recogida por recogida desde la Agenda.</dd>
+    <dt>Reglas</dt><dd>Solo se mueven recogidas pendientes de esa fecha; las ya recogidas no cambian. Antes de aplicar se confirma cuántas recogidas se moverán. El cambio queda en la Agenda y en el historial. Lo usan Administrador y Operación.</dd>
+    <dt>Aceptación</dt><dd>Con dos recogidas de un motorizado para mañana, el reemplazo las pasa a otro motorizado, que recibe el aviso.</dd>
+  </dl></article>
+
+  <article class="ficha"><header><h3>A7. Acceso al portal desde la página web de A3</h3><span>Jue 22/10</span></header><dl>
+    <dt>Qué hace</dt><dd>Botones «Consultar resultados» y «Solicitar recogida» en la zona de clientes de la página web de A3, que llevan al portal (ingreso con nombre de la veterinaria y NIT).</dd>
+    <dt>Aceptación</dt><dd>Desde la página web, una veterinaria entra al portal, ve sus resultados y crea una solicitud.</dd>
+    <dt>A3 aporta</dt><dd>Acceso de administrador a la página web o contacto de quien la administra.</dd>
+  </dl></article>
+
+  <article class="ficha"><header><h3>A8. Depuración de clientes y NIT</h3><span>Jue 22/10</span></header><dl>
+    <dt>Qué hace</dt><dd>Aplica las correcciones que entregue A3: NIT faltantes, duplicados e inactivos.</dd>
+    <dt>Reglas</dt><dd>Copia de respaldo antes de aplicar. Los duplicados que A3 confirme se desactivan; no se elimina ningún cliente con movimientos.</dd>
+    <dt>Aceptación</dt><dd>Los clientes corregidos entran al portal con su NIT.</dd>
+    <dt>A3 aporta</dt><dd>Archivo con las correcciones, en el formato de la plantilla de clientes.</dd>
+  </dl></article>
+
+
+  <h2>Detalle: Hito 1 · Facturación y pagos</h2>
+
+  <article class="ficha"><header><h3>B1. Factura electrónica automática</h3><span>Vie 23/10</span></header><dl>
+    <dt>Qué hace</dt><dd>La factura se emite en Alegra, sin borrador, al confirmarse el pago en línea o la contraentrega, y Alegra la envía al correo del cliente.</dd>
+    <dt>Reglas</dt><dd>Se emite a nombre del cliente si tiene facturación electrónica habilitada; si no, a consumidor final con su nombre en las notas. Si faltan NIT, dígito de verificación o correo, queda en borrador con aviso a contabilidad. Un pedido genera una sola factura, aun con reintentos. Un rechazo de la DIAN genera aviso. Las correcciones se hacen con nota crédito en Alegra.</dd>
+    <dt>Aceptación</dt><dd>Un pedido contraentrega genera su factura y llega al correo; un cliente sin correo queda en borrador con aviso.</dd>
+    <dt>A3 aporta</dt><dd>Resolución de facturación electrónica vigente en Alegra y autorización escrita para emitir desde la plataforma.</dd>
+  </dl></article>
+
+  <article class="ficha"><header><h3>B2. Wompi: enlace de pago por pedido y confirmación</h3><span>Lun 26/10</span></header><dl>
+    <dt>Qué hace</dt><dd>Cada pedido con pago en línea genera su propio enlace, con el valor exacto y una referencia única. Wompi confirma el resultado y el pedido queda pendiente, aprobado, rechazado o anulado.</dd>
+    <dt>Reglas</dt><dd>La plataforma verifica que la confirmación sea auténtica y que el valor coincida, y no procesa dos veces el mismo pago. Ni el chat ni la plataforma reciben datos de tarjetas o cuentas: el pago ocurre en la página segura de Wompi.</dd>
+    <dt>Aceptación</dt><dd>En el ambiente de pruebas, un pago aprobado deja el pedido pagado, uno rechazado lo deja pendiente y una confirmación repetida no duplica el pago.</dd>
+    <dt>A3 aporta</dt><dd>Cuenta de comercio Wompi aprobada, llaves de prueba y de producción, y medios de pago habilitados.</dd>
+  </dl></article>
+
+  <article class="ficha"><header><h3>B3. Enlace de pago en el chat, el portal y la plataforma</h3><span>Mar 27/10</span></header><dl>
+    <dt>Qué hace</dt><dd>El enlace llega por el chat al cerrar el pedido, aparece con el botón «Pagar en línea» en el portal y se genera también para los pedidos creados desde la plataforma.</dd>
+    <dt>Aceptación</dt><dd>Un pedido por cada canal genera su enlace y se paga.</dd>
+  </dl></article>
+
+  <article class="ficha"><header><h3>B4. Pago aplicado en Alegra y vista de contabilidad</h3><span>Mar 27/10</span></header><dl>
+    <dt>Qué hace</dt><dd>Un pago aprobado se registra en Alegra contra su factura, que queda saldada. Facturación y Cartera muestran el estado y la referencia de cada pago.</dd>
+    <dt>Reglas</dt><dd>Si una confirmación de Wompi no llega, la plataforma consulta el estado a Wompi como respaldo. Pagos parciales o combinados quedan fuera de este alcance.</dd>
+    <dt>Aceptación</dt><dd>Después de un pago aprobado, la factura figura pagada en Alegra y en la cartera.</dd>
+  </dl></article>
+
+  <h2>Detalle: Hito 2 · WhatsApp</h2>
+  <article class="ficha"><header><h3>C1. Autorización de datos personales en WhatsApp</h3><span>Jue 22/10</span></header><dl>
+    <dt>Qué hace</dt><dd>En el primer contacto por WhatsApp, el chat muestra el aviso de tratamiento de datos con el enlace a la política de A3 y pide aceptación antes de continuar (Ley 1581 de 2012).</dd>
+    <dt>Reglas</dt><dd>Se guarda la evidencia: número, fecha y hora, canal y versión del texto. Quien ya aceptó no vuelve a verlo; si cambia la versión del texto, se pide de nuevo. Quien no acepta no continúa el trámite y recibe el canal de atención de A3.</dd>
+    <dt>Aceptación</dt><dd>Una conversación nueva pide la autorización, y la evidencia se consulta y exporta desde la plataforma.</dd>
+    <dt>A3 aporta</dt><dd>Texto aprobado de la política, enlace donde se publica y canal de atención para quien no acepte.</dd>
+  </dl></article>
+  <article class="ficha"><header><h3>C2. Recorrido completo y puesta en marcha</h3><span>Vie 30/10</span></header><dl>
+    <dt>Qué hace</dt><dd>Publicación de todo en producción, pruebas del equipo de A3 el 28 y 29 de octubre con observaciones por escrito, ajustes y puesta en marcha.</dd>
+    <dt>Aceptación</dt><dd>El equipo de A3 completa en producción el recorrido pedido → pago → factura → correo, por chat y por portal.</dd>
+  </dl></article>
+</section>
+
+<section class="page">
+  <div class="kicker">Sección 3</div>
+  <h2>3. Matriz de permisos (propuesta para aprobación de A3)</h2>
+  <p class="intro">Las veterinarias siguen entrando al portal con su propio acceso, y los motorizados reciben sus avisos por chat, sin usuario en la plataforma.</p>
+  <table class="t matriz">
+    <thead><tr><th>Sección</th><th>Administrador</th><th>Operación</th><th>Contabilidad</th></tr></thead>
+    <tbody>
+      <tr><td>Panel e indicadores</td><td class="c"><b>Total</b></td><td class="c">Consulta</td><td class="c">Consulta</td></tr>
+      <tr><td>Operación, solicitudes y pedidos</td><td class="c"><b>Total</b></td><td class="c"><b>Total</b></td><td class="c">Consulta</td></tr>
+      <tr><td>Muestras y resultados</td><td class="c"><b>Total</b></td><td class="c"><b>Total</b></td><td class="c">—</td></tr>
+      <tr><td>Clientes</td><td class="c"><b>Total</b></td><td class="c"><b>Total</b></td><td class="c">Consulta y datos de facturación</td></tr>
+      <tr><td>Catálogo, precios y descuentos</td><td class="c"><b>Total</b></td><td class="c">Consulta</td><td class="c"><b>Total</b></td></tr>
+      <tr><td>Motorizados, cobertura, municipios y agenda</td><td class="c"><b>Total</b></td><td class="c"><b>Total</b></td><td class="c">—</td></tr>
+      <tr><td>Facturación, cartera y pagos</td><td class="c"><b>Total</b></td><td class="c">Consulta</td><td class="c"><b>Total</b></td></tr>
+      <tr><td>Cargas masivas</td><td class="c"><b>Total</b></td><td class="c">Clientes</td><td class="c">Precios</td></tr>
+      <tr><td>Historial de cambios</td><td class="c"><b>Total</b></td><td class="c">Sus secciones</td><td class="c">Sus secciones</td></tr>
+      <tr><td>Evidencias de autorización de datos</td><td class="c"><b>Total</b></td><td class="c">Consulta</td><td class="c">—</td></tr>
+      <tr><td>Usuarios y perfiles</td><td class="c"><b>Total</b></td><td class="c">—</td><td class="c">—</td></tr>
+    </tbody>
+  </table>
+  <p class="small"><b>Total:</b> consultar, crear, modificar, activar, desactivar y anular. <b>Consulta:</b> solo ver. <b>—:</b> sin acceso. Los cambios posteriores a la matriz los hace el Administrador al asignar el perfil de cada usuario.</p>
+
+</section>
+
+<section class="page">
+  <div class="kicker">Sección 4</div>
+  <h2>4. Cronograma</h2>
+  <table class="t">
+    <thead><tr><th>Fecha</th><th>Actividad</th></tr></thead>
+    <tbody>
+      <tr><td class="n">Lun 12/10</td><td>Entrega de este documento y del video de la plataforma.</td></tr>
+      <tr><td class="n">Mar 13/10</td><td>Plazo para observaciones adicionales de A3, por escrito.</td></tr>
+      <tr><td class="n">Mié 14/10</td><td>Liberación de la factura pendiente.</td></tr>
+      <tr><td class="n">Jue 15 – Jue 22/10</td><td>Pendientes del proyecto anterior y sistema base (A1 a A8) y autorización de datos (C1).</td></tr>
+      <tr><td class="n">Vie 23/10</td><td>Entrega del bloque A y C1 para validación de A3; factura automática (B1).</td></tr>
+      <tr><td class="n">Lun 26 – Mar 27/10</td><td>Wompi, enlaces de pago y pago aplicado en Alegra (B2 a B4).</td></tr>
+      <tr><td class="n">Mié 28 – Jue 29/10</td><td>Pruebas del equipo de A3 con observaciones por escrito.</td></tr>
+      <tr><td class="n">Vie 30/10</td><td>Puesta en marcha: todo operativo para el 1 de noviembre.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="kicker">Sección 5</div>
+  <h2>5. Qué necesitamos de A3</h2>
+  <table class="t">
+    <thead><tr><th>Insumo</th><th>Para</th><th>Fecha límite</th></tr></thead>
+    <tbody>
+      <tr><td>Observaciones adicionales, por escrito</td><td>Todo el cronograma</td><td class="n">Mar 13/10</td></tr>
+      <tr><td>Aprobación de la matriz de permisos y lista de usuarios</td><td>A2</td><td class="n">Mié 14/10</td></tr>
+      <tr><td>Listado oficial de municipios con su motorizado</td><td>A5</td><td class="n">Vie 16/10</td></tr>
+      <tr><td>Acceso a la página web y archivo de corrección de NIT</td><td>A7 y A8</td><td class="n">Lun 19/10</td></tr>
+      <tr><td>Texto de la política de datos y canal para quien no acepte</td><td>C1</td><td class="n">Lun 19/10</td></tr>
+      <tr><td>Cuenta de comercio Wompi aprobada y sus llaves</td><td>B2 a B4</td><td class="n">Lun 19/10</td></tr>
+      <tr><td>Resolución de facturación en Alegra y autorización escrita para emitir</td><td>B1</td><td class="n">Mié 21/10</td></tr>
+      <tr><td>Equipo de A3 disponible para las pruebas</td><td>C2</td><td class="n">28 y 29/10</td></tr>
+    </tbody>
+  </table>
+  <p class="small">Si un insumo llega después de su fecha límite, las entregas que dependen de él se mueven en la misma medida. La aprobación de la cuenta Wompi la hace Wompi y suele tardar varios días: conviene iniciarla de inmediato.</p>
+</section>
+
+</body>
+</html>

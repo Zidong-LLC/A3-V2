@@ -428,6 +428,7 @@
           <article class="kpi-card os-lift-card" data-spotlight><div class="kpi-head"><span>Mayor carga</span><i data-lucide="bike"></i></div><strong>{{ context.motorizados_summary.busiest_courier_name }}</strong><p class="delta">{{ context.motorizados_summary.busiest_courier_clients }} clientes</p></article>
         </section>
         {% for alert in context.motorizados_alerts %}<p class="approval-notice os-spring-in {{ 'error' if alert.level == 'error' else 'ok' }}"><strong>{{ alert.title }}:</strong> {{ alert.detail }}</p>{% endfor %}
+        {% if puede is not defined or puede('motorizados', 2) %}{% include '_traslado_motorizado.html' %}{% endif %}
         <div class="dashboard-grid motorizados-grid-simple">
           <article class="card">
             <div class="card-head">
@@ -507,7 +508,10 @@
                     <input type="checkbox" data-courier-field="is_active" {{ 'checked' if row.is_active else '' }}>
                     {{ 'Activo' if row.is_active else 'Inactivo' }}
                   </label>
+                  <button type="button" class="ghost-btn small" data-courier-historial>Historial</button>
+                  <button type="button" class="reject-btn" data-courier-delete>Eliminar</button>
                 </div>
+                <div class="courier-historial muted-text" data-courier-historial-box hidden></div>
                 {% else %}
                 <p class="muted-text">Viene de las zonas territoriales, no de la tabla de motorizados.</p>
                 {% endif %}
@@ -526,7 +530,7 @@
               </div>
             </div>
           </article>
-          <article class="card"><div class="card-head simple"><h3>Cobertura por localidad</h3></div><div class="table-wrap"><table><thead><tr><th>Localidad</th><th>Clientes</th><th>Motorizado</th></tr></thead><tbody>{% for row in context.localities_rows %}<tr><td><strong>{{ row.locality_name }}</strong><br><span class="muted-text">{{ row.coverage_state }}</span></td><td>{{ row.clients_count }}</td><td><select class="cell-select locality-assignment-select" data-locality-code="{{ row.locality_code }}"><option value="">Sin asignar</option>{% for courier in context.couriers_options %}<option value="{{ courier.id }}" {{ 'selected' if row.assigned_courier_id == courier.id else '' }}>{{ courier.name }}</option>{% endfor %}</select><small class="save-flag"></small></td></tr>{% endfor %}</tbody></table></div></article>
+          <article class="card"><div class="card-head simple"><h3>Cobertura por localidad y municipio</h3></div>{% if puede is not defined or puede('motorizados', 2) %}<div class="filter-bar" data-municipio-form style="padding:0 12px 8px"><input class="cell-input" data-municipio-nombre placeholder="Agregar municipio (ej. Cajicá)"><button type="button" class="ghost-btn small" data-municipio-agregar>Agregar</button><small class="save-flag" data-municipio-flag></small></div>{% endif %}<div class="table-wrap"><table><thead><tr><th>Localidad</th><th>Clientes</th><th>Motorizado</th></tr></thead><tbody>{% for row in context.localities_rows %}<tr><td><strong>{{ row.locality_name }}</strong>{% if row.es_municipio %} <span class="mot-zona-badge">Municipio</span>{% endif %}<br><span class="muted-text">{{ row.coverage_state }}</span></td><td>{{ row.clients_count }}</td><td><select class="cell-select locality-assignment-select" data-locality-code="{{ row.locality_code }}"><option value="">Sin asignar</option>{% for courier in context.couriers_options %}<option value="{{ courier.id }}" {{ 'selected' if row.assigned_courier_id == courier.id else '' }}>{{ courier.name }}</option>{% endfor %}</select><small class="save-flag"></small></td></tr>{% endfor %}</tbody></table></div></article>
         </div>
 
         <section class="card"><div class="card-head simple"><h3>Mapa de cobertura operativa</h3></div><div id="courier-coverage-map" class="courier-coverage-map"></div><div id="courier-coverage-legend" class="courier-coverage-legend"></div></section>
@@ -590,7 +594,7 @@
         {% elif active_tab == 'pedidos' %}
         <div class="card-head sample-lab-head"><div><h3>Pedidos</h3><p>Un pedido agrupa las ordenes cargadas en una misma conversacion. Se factura junto, al cerrarlo.</p></div><span class="status-badge">{{ context.pedidos_abiertos }} abiertos · {{ context.pedidos_sin_facturar }} cerrados sin facturar</span></div>
         {% if context.pedidos_abiertos %}<p class="muted-text">Los pedidos <strong>abiertos</strong> son conversaciones que quedaron a medias: el cliente cargo ordenes y no confirmo el cierre. Se cierran solos tras una hora de inactividad, pero podes cerrarlos aca si hace falta.</p>{% endif %}
-        <div class="table-wrap"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Estado</th><th>Ordenes</th><th>Forma de pago</th><th>Creado</th><th>Accion</th></tr></thead><tbody>{% for pedido in context.pedidos %}<tr data-pedido-row="{{ pedido.id }}"><td><strong>{{ pedido.pedido_number or '-' }}</strong></td><td>{{ pedido.client_name }}</td><td><span class="status-badge">{{ {'abierto':'Abierto','cerrado':'Cerrado sin facturar','facturado':'Facturado'}.get(pedido.status, pedido.status) }}</span></td><td>{% if pedido.orders %}<details><summary>{{ pedido.orders_count }} orden{{ 'es' if pedido.orders_count != 1 else '' }}</summary><ul>{% for orden in pedido.orders %}<li>{{ orden.order_number or '-' }} · {{ orden.patient_name or 'paciente' }}{% if orden.species %} ({{ orden.species }}){% endif %} · {{ orden.exam_type or 'sin analisis' }}</li>{% endfor %}</ul></details>{% else %}<span class="muted-text">Sin ordenes</span>{% endif %}</td><td>{{ pedido.payment_method or '-' }}</td><td>{{ pedido.created_at | fecha_corta }}</td><td>{% if pedido.status != 'facturado' %}<button type="button" class="primary-btn" data-pedido-close="{{ pedido.id }}" data-invoice="{{ 'closed' if pedido.status == 'cerrado' else 'open' }}">{{ 'Facturar' if pedido.status == 'cerrado' else 'Cerrar y facturar' }}</button><small class="save-flag" data-pedido-flag="{{ pedido.id }}"></small>{% else %}<span class="muted-text">{{ pedido.alegra_invoice_id or 'Facturado' }}</span>{% endif %}</td></tr>{% else %}<tr><td colspan="7">Todavia no hay pedidos. Se crean cuando un cliente carga ordenes por el chat con la jerarquia de pedidos activada.</td></tr>{% endfor %}</tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>Pedido</th><th>Cliente</th><th>Estado</th><th>Ordenes</th><th>Forma de pago</th><th>Creado</th><th>Accion</th></tr></thead><tbody>{% for pedido in context.pedidos %}<tr data-pedido-row="{{ pedido.id }}"><td><strong>{{ pedido.pedido_number or '-' }}</strong></td><td>{{ pedido.client_name }}</td><td><span class="status-badge">{{ {'abierto':'Abierto','cerrado':'Cerrado sin facturar','facturado':'Facturado'}.get(pedido.status, pedido.status) }}</span></td><td>{% if pedido.orders %}<details><summary>{{ pedido.orders_count }} orden{{ 'es' if pedido.orders_count != 1 else '' }}</summary><ul>{% for orden in pedido.orders %}<li>{{ orden.order_number or '-' }} · {{ orden.patient_name or 'paciente' }}{% if orden.species %} ({{ orden.species }}){% endif %} · {{ orden.exam_type or 'sin analisis' }}</li>{% endfor %}</ul></details>{% else %}<span class="muted-text">Sin ordenes</span>{% endif %}</td><td>{{ pedido.payment_method or '-' }}</td><td>{{ pedido.created_at | fecha_corta }}</td><td>{% if pedido.status != 'facturado' and puede('facturacion', 2) %}<button type="button" class="primary-btn" data-pedido-close="{{ pedido.id }}" data-invoice="{{ 'closed' if pedido.status == 'cerrado' else 'open' }}">{{ 'Facturar' if pedido.status == 'cerrado' else 'Cerrar y facturar' }}</button><small class="save-flag" data-pedido-flag="{{ pedido.id }}"></small>{% elif pedido.status != 'facturado' %}<span class="muted-text">Lo factura Facturación</span>{% else %}<span class="muted-text">{{ pedido.alegra_invoice_id or 'Facturado' }}</span>{% endif %}</td></tr>{% else %}<tr><td colspan="7">Todavia no hay pedidos. Se crean cuando un cliente carga ordenes por el chat con la jerarquia de pedidos activada.</td></tr>{% endfor %}</tbody></table></div>
         {% elif active_tab == 'facturacion' %}
         {% set inv = context %}
         {% set invoice_status_labels = {'draft':'Borrador','open':'Abierta','closed':'Pagada','paid':'Pagada','void':'Anulada','cancelled':'Anulada'} %}
@@ -740,6 +744,8 @@
       var mapEl = document.getElementById('courier-coverage-map');
       if (!mapEl || typeof L === 'undefined') return;
       var map = L.map('courier-coverage-map').setView([4.65, -74.1], 11);
+      var puntosMapa = (window.__COVERAGE_MAP_POINTS__ || []).map(function (p) { return [p.lat, p.lng]; });
+      if (puntosMapa.length > 1) map.fitBounds(puntosMapa, { padding: [24, 24] });
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors', maxZoom: 18
       }).addTo(map);
@@ -772,6 +778,7 @@
   <script src="{{ url_for('static', filename='dashboard.js') }}?v=16" defer></script>
   <script src="{{ url_for('static', filename='client-search.js') }}?v=1" defer></script>
   <script src="{{ url_for('static', filename='couriers.js') }}?v=1" defer></script>
+  <script src="{{ url_for('static', filename='courier_admin.js') }}?v=2" defer></script>
   <script src="{{ url_for('static', filename='custom-profiles.js') }}?v=1" defer></script>
   <script src="{{ url_for('static', filename='invoices.js') }}?v=1" defer></script>
   <script src="{{ url_for('static', filename='os-fx.js') }}?v=1" defer></script>

@@ -38,6 +38,36 @@ def short_datetime(value) -> str:
     return f"{texto[8:10]}/{texto[5:7]} {texto[11:16]}"
 
 
+def partir_mensaje(texto: str, maximo: int = 4000) -> list[str]:
+    """Trozos de hasta `maximo` caracteres cortados en un salto de línea (o un espacio).
+    Telegram y WhatsApp rechazan mensajes de más de 4096: un resumen de pedido largo
+    volvía con HTTP 400 y el cliente no recibía nada."""
+    texto = texto or ""
+    partes = []
+    while len(texto) > maximo:
+        corte = texto.rfind("\n", 0, maximo)
+        if corte < maximo // 2:
+            corte = texto.rfind(" ", 0, maximo)
+        if corte < maximo // 2:
+            corte = maximo
+        partes.append(texto[:corte].rstrip())
+        texto = texto[corte:].lstrip()
+    partes.append(texto)
+    return partes
+
+
+def celda_csv(value):
+    """Celda segura para un CSV que se abre en Excel: un texto que empieza con = o @ (o con
+    + o - seguido de letras) Excel lo ejecuta como fórmula. Un nombre de cliente cargado
+    por el chat no puede convertirse en un enlace o un comando al exportar. Teléfonos
+    («+57 300…») y números negativos no se tocan."""
+    if not isinstance(value, str) or not value:
+        return value
+    if value[0] in "=@\t\r" or (value[0] in "+-" and re.search(r"[^0-9\s.,()+\-/]", value)):
+        return "'" + value
+    return value
+
+
 def catalog_item_key(value) -> str:
     """Clave normalizada (sin tildes ni símbolos, con `_`) para comparar nombres/códigos."""
     text = str(value or "").strip().lower()

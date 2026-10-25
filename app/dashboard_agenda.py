@@ -7,10 +7,12 @@ existe (`/api/dashboard/request-operation`), que valida, guarda y deja el evento
 de auditoría. Este módulo solo arma la grilla.
 """
 from datetime import date, datetime, timedelta
-from functools import wraps
 
-from flask import Blueprint, redirect, render_template, request, session, url_for
+from app.config import APP_TIMEZONE
 
+from flask import Blueprint, render_template, request, session
+
+from app import access
 from app.services import db
 
 dashboard_agenda = Blueprint("dashboard_agenda", __name__)
@@ -20,14 +22,7 @@ DIAS = ("Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado")
 SIN_ASIGNAR = "sin_asignar"
 
 
-def _login_required(view_func):
-    @wraps(view_func)
-    def wrapped(*args, **kwargs):
-        if not session.get("dashboard_authenticated"):
-            return redirect(url_for("dashboard.login"))
-        return view_func(*args, **kwargs)
-
-    return wrapped
+_login_required = access.login_requerido
 
 
 def _lunes(texto: str | None) -> date:
@@ -35,7 +30,7 @@ def _lunes(texto: str | None) -> date:
     try:
         referencia = datetime.strptime((texto or "").strip(), "%Y-%m-%d").date()
     except ValueError:
-        referencia = date.today()
+        referencia = datetime.now(APP_TIMEZONE).date()
     return referencia - timedelta(days=referencia.weekday())
 
 
@@ -93,7 +88,7 @@ def agenda_page():
         "dashboard_agenda.html",
         username=session.get("dashboard_username", ""),
         columnas=[{"clave": d.isoformat(), "nombre": nombre, "dia": d.strftime("%d/%m"),
-                   "hoy": d == date.today()}
+                   "hoy": d == datetime.now(APP_TIMEZONE).date()}
                   for d, nombre in zip(dias, DIAS)],
         filas=filas,
         couriers=couriers,

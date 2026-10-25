@@ -83,9 +83,13 @@
         const flag = button.parentElement.querySelector('.save-flag');
         if (!row || !row.dataset.clientId) return;
         const name = row.dataset.clinicName || 'este cliente';
-        if (!window.confirm(`Eliminar definitivamente ${name}? Esta accion no se puede deshacer.`)) return;
+        if (!window.confirm(`Dar de baja a ${name}? Si tiene solicitudes, pedidos, resultados o facturas, se desactiva y conserva su historia; si no, se elimina.`)) return;
         button.disabled = true;
-        try { await postJsonSafe('/api/dashboard/client-delete', {client_id: row.dataset.clientId, clinic_key: row.dataset.clinicKey}); row.remove(); }
+        try {
+          const res = await postJsonSafe('/api/dashboard/client-delete', {client_id: row.dataset.clientId, clinic_key: row.dataset.clinicKey});
+          if (res && res.deactivated) { if (flag) flag.textContent = 'Desactivado (tiene historia)'; row.classList.add('is-inactive'); }
+          else row.remove();
+        }
         catch (err) { button.disabled = false; if (flag) flag.textContent = err.message; }
       });
     });
