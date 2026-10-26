@@ -41,7 +41,60 @@
 6. **Telegram:** la persona de A3 que será dueña del bot pasa su usuario de Telegram.
 7. **Dominio:** acceso al DNS del dominio de A3 (o que creen ellos los registros que se les pidan).
 
-## Orden de ejecución (cada paso se prueba antes de seguir)
+## Plan paso a paso: quién hace qué (lanzamiento directo en las cuentas del cliente)
+
+Decisión del 26/10: la plataforma se lanza **directamente en las cuentas del cliente**, no
+en las actuales. El ritmo lo marcan los pasos del cliente (crear cuentas y dar acceso).
+
+| # | Paso | Quién | Corte | Listo cuando |
+|---|---|---|---|---|
+| 0 | Enviar al cliente el mensaje de abajo y recibir las cuentas y accesos | Vos | — | Tenés acceso a Supabase (org), Render (workspace), OpenAI (2 claves), VPS, Meta, DNS |
+| 1 | Transferir el proyecto de Supabase a la organización del cliente (plan Pro) | Vos (en el panel de Supabase) | Ninguno | `/health` sigue OK y el panel de sistema muestra «plan pro» y la org del cliente |
+| 2 | Cargar las claves de OpenAI del cliente (`OPENAI_API_KEY`, `OPENAI_ADMIN_KEY`) en el servicio nuevo de Render | Vos | — | Un turno del bot responde; el panel muestra el gasto de OpenAI |
+| 3 | Crear el servicio en el workspace de Render del cliente con `render.yaml` y las variables; primer deploy; `verificar_produccion.py` | Yo preparo las variables, vos las cargás | — | `/health` 200, `/health/detalle` todo OK, `/sistema` entra |
+| 4 | Apuntar el Agent Bot de Chatwoot a la URL nueva y crear los 2 crons (Anarvet y pedidos) | Yo (Chatwoot) / vos (crons en Render) | Segundos | El bot contesta por Telegram y WhatsApp; `verificar_produccion.py` TODO OK |
+| 5 | Prueba en vivo (runbook de deploy, paso 6) y sync de Anarvet | Los dos | — | Orden de prueba creada y borrada; PDF recibido; escalada visible en Chatwoot |
+| 6 | Dominio propio (`plataforma.<dominio>`, `portal.<dominio>`) en Render + DNS del cliente | Vos / cliente (DNS) | — | La URL definitiva responde con HTTPS; bot y crons apuntan al dominio |
+| 7 | Chatwoot nuevo en el VPS del cliente: instalar, recrear equipos/agentes/bot/inboxes, reconectar WhatsApp, re-vincular motorizados, cambiar las 8 variables `CHATWOOT_*` | Yo (instalación y configuración), cliente (acceso Meta) | Minutos por inbox | Un mensaje por Telegram y uno por WhatsApp entran al Chatwoot nuevo y el bot responde |
+| 8 | Transferir el bot de Telegram (BotFather) y el repositorio (o dar acceso) | Vos | — | — |
+| 9 | Una semana después sin fallas: suspender/borrar lo viejo (Render viejo, Chatwoot viejo) | Vos | — | Panel de sistema sin errores de esos componentes |
+
+Los pasos 1–5 se pueden hacer en un día cuando el cliente entregó las cuentas; el 7 es
+el largo y puede ir después del lanzamiento (mientras tanto el Chatwoot actual sigue
+funcionando con el Render nuevo).
+
+## Mensaje para enviar al cliente
+
+> Hola, [nombre]. Para que la plataforma quede funcionando en cuentas de A3 (y que los
+> servicios los pague A3 directamente), necesito que creen estas cuentas y me den acceso.
+> Son 5 pasos, ninguno técnico; con esto listo la dejo en producción en un día.
+>
+> 1. **Supabase (base de datos):** crear una cuenta en supabase.com con un correo de A3,
+>    crear una organización en plan **Pro** (USD 25/mes) y, en *Team*, invitarme como
+>    *Owner* a [tu correo]. No crear ningún proyecto: yo transfiero el que ya existe.
+> 2. **Render (servidor):** crear una cuenta en render.com con un correo de A3, cargar la
+>    tarjeta e invitarme como *Admin* al workspace (plan Standard, ~USD 25/mes).
+> 3. **OpenAI (inteligencia artificial del bot):** crear una cuenta en platform.openai.com,
+>    cargar un crédito inicial (sugiero USD 50; se consume según el uso) y crear un
+>    proyecto. Después, en *API keys*, generar una clave del proyecto, y en *Settings →
+>    Organization → Admin keys* una clave de administración con permiso de lectura de uso.
+>    Me las pasan por un canal seguro (no por WhatsApp ni por correo abierto; un gestor de
+>    contraseñas o un mensaje que se autodestruye).
+> 4. **Servidor para Chatwoot (la bandeja de mensajes):** contratar un servidor pequeño
+>    (2 CPU, 4 GB de RAM, ~USD 10–20/mes; por ejemplo en Hetzner o DigitalOcean) y
+>    pasarme el acceso, o darme acceso para contratarlo yo con su tarjeta.
+> 5. **WhatsApp y dominio:** confirmar que el número de WhatsApp Business está en el
+>    *Business Manager* de A3 y darme acceso de administrador ahí; y acceso al DNS del
+>    dominio de A3 (o que creen los registros que les pase) para que la plataforma quede en
+>    una dirección propia, por ejemplo plataforma.[dominio] y portal.[dominio].
+>
+> También necesito saber qué persona de A3 va a ser la dueña del bot de Telegram (me pasa
+> su usuario de Telegram y se lo transfiero).
+>
+> Cuando tengan los puntos 1 a 3 ya puedo lanzar; el 4 y el 5 pueden ir unos días después
+> sin interrumpir nada. Cualquier duda me escriben y lo resolvemos por llamada.
+
+## Orden de ejecución (detalle técnico de cada paso)
 
 ### 1. Supabase — transferir el proyecto (sin corte)
 Con el desarrollador dentro de las dos organizaciones: proyecto `a3veterinaria` →
