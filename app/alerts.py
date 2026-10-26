@@ -114,10 +114,28 @@ def _version() -> str:
     return f"{etiqueta} ({rama})" if rama else etiqueta
 
 
+def _guardar_evento(contexto: str, exc: BaseException, detalle: str, texto: str) -> None:
+    """La línea del panel de sistema (tabla system_events), con el MISMO texto que va al
+    Telegram de avisos: ahí está el rastro completo para reparar. Nunca rompe."""
+    try:
+        from app import sistema
+        from app.services import system_db
+
+        system_db.registrar("error", sistema.componente_de(contexto, exc), "error",
+                            f"{type(exc).__name__}: {str(exc)[:250]}", f"{contexto} · {detalle}"[:300],
+                            {"rastro": _rastro(exc)[-2:], "texto": texto[:4000]})
+    except Exception:  # noqa: BLE001
+        logger.debug("system_events: no se pudo registrar el error", exc_info=True)
+
+
 def notify_error(contexto: str, exc: BaseException, detalle: str = "") -> bool:
     """Avisa de un error. Devuelve si el mensaje salió."""
-    from app.config import ADMIN_TELEGRAM_CHAT_ID, ALERT_TELEGRAM_BOT_TOKEN, APP_ENV
+    from app.config import ADMIN_TELEGRAM_CHAT_ID, ALERT_TELEGRAM_BOT_TOKEN
 
+    lineas = _texto_aviso(contexto, exc, detalle)
+    # El panel de sistema registra TODAS las ocurrencias, haya o no bot de avisos y antes
+    # del anti-spam de Telegram.
+    _guardar_evento(contexto, exc, detalle, chr(10).join(lineas))
     if not (ADMIN_TELEGRAM_CHAT_ID and ALERT_TELEGRAM_BOT_TOKEN):
         return False
 
@@ -125,10 +143,22 @@ def notify_error(contexto: str, exc: BaseException, detalle: str = "") -> bool:
     repetidos = _registrar(firma)
     if repetidos is None:
         return False
+    if repetidos:
+        lineas.append(f"⚠ se repitió {repetidos} vez/veces más desde el último aviso")
 
+    try:
+        _enviar(ADMIN_TELEGRAM_CHAT_ID, ALERT_TELEGRAM_BOT_TOKEN, chr(10).join(lineas))
+        return True
+    except Exception:  # noqa: BLE001 — el avisador jamás rompe lo que estaba pasando
+        logger.exception("No se pudo avisar del error por Telegram")
+        return False
+
+
+def _texto_aviso(contexto: str, exc: BaseException, detalle: str) -> list[str]:
+    """Las líneas del aviso: tipo, causa raíz, dónde falló, contexto, versión y hora."""
     from datetime import datetime
 
-    from app.config import APP_TIMEZONE
+    from app.config import APP_ENV, APP_TIMEZONE
 
     lineas = [
         f"🔴 A3 · {contexto}",
@@ -152,12 +182,4 @@ def notify_error(contexto: str, exc: BaseException, detalle: str = "") -> bool:
         lineas.append(f"Contexto: {detalle[:200]}")
     lineas.append(f"Versión: {_version()} · {APP_ENV}")
     lineas.append(datetime.now(APP_TIMEZONE).strftime("%d/%m %H:%M:%S"))
-    if repetidos:
-        lineas.append(f"⚠ se repitió {repetidos} vez/veces más desde el último aviso")
-
-    try:
-        _enviar(ADMIN_TELEGRAM_CHAT_ID, ALERT_TELEGRAM_BOT_TOKEN, chr(10).join(lineas))
-        return True
-    except Exception:  # noqa: BLE001 — el avisador jamás rompe lo que estaba pasando
-        logger.exception("No se pudo avisar del error por Telegram")
-        return False
+    return lineas

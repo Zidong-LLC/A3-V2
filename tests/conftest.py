@@ -35,6 +35,9 @@ def pytest_configure(config):
     # La API interna es fail-closed: sin token queda cerrada (503). Los tests la
     # ejercitan con token para probar el camino real, no un bypass.
     os.environ.setdefault("PLATFORM_API_TOKEN",        "test-platform-token")
+    # Panel de sistema (/sistema): credenciales propias, fijas para los tests.
+    os.environ.setdefault("SISTEMA_USER",              "dev")
+    os.environ.setdefault("SISTEMA_PASSWORD",          "test-sistema")
     # Debounce de ráfagas APAGADO en tests: los webhooks responden síncrono e inmediato.
     os.environ.setdefault("MESSAGE_DEBOUNCE_SECONDS",  "0")
     # El .env real trae ANARVET_ENABLED=true: fijarlo acá evita que /health y el sync

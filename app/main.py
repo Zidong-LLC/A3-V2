@@ -14,6 +14,7 @@ from app.results_delivery import deliver_pending
 from app.health import check_all, check_liveness
 from app.services import telegram, chatwoot
 from app.services.db import get_or_create_session
+from app.services import system_db
 from app.services.debounce import MessageDebouncer
 import app.pricing  # registra el provider de tramos de descuento en rules
 from app.platform_api import platform_api
@@ -25,6 +26,7 @@ from app.dashboard_agenda import dashboard_agenda
 from app.dashboard_import import dashboard_import
 from app.dashboard_users import dashboard_users
 from app.dashboard_maestros import dashboard_maestros
+from app.dashboard_sistema import dashboard_sistema
 from app import access
 from app.portal import portal_bp
 from app.text import money, short_datetime
@@ -56,6 +58,7 @@ app.register_blueprint(dashboard_agenda)
 app.register_blueprint(dashboard_import)
 app.register_blueprint(dashboard_users)
 app.register_blueprint(dashboard_maestros)
+app.register_blueprint(dashboard_sistema)
 access.registrar(app)
 app.register_blueprint(portal_bp)
 
@@ -153,14 +156,24 @@ def telegram_webhook():
     return jsonify({"ok": True})
 
 
+def _registrar_turno(canal: str, chat_id: str, inicio: float, ok: bool, respondido: bool) -> None:
+    # Métrica del panel de sistema: cuántos turnos, cuánto tardan, cuántos fallan.
+    system_db.registrar("turn", "bot", "info" if ok else "error", "turno", details={
+        "channel": canal, "ms": int((time.monotonic() - inicio) * 1000), "ok": ok, "respondido": respondido,
+    }, chat_id=chat_id)
+
+
 def _process_telegram(chat_id: str, user_text: str) -> None:
+    inicio = time.monotonic()
     try:
         reply = process_turn(chat_id, user_text, on_progress=_make_progress_callback(telegram, chat_id), channel="telegram")
     except Exception as e:
         app.logger.error("Error processing turn for %s: %s", chat_id, e, exc_info=True)
         # El cliente se quedó sin respuesta: es el fallo que hay que ver enseguida.
         notify_error("turno de Telegram", e, f"chat {chat_id}")
+        _registrar_turno("telegram", chat_id, inicio, ok=False, respondido=False)
         return
+    _registrar_turno("telegram", chat_id, inicio, ok=True, respondido=bool(reply))
 
     # reply None: sesión bloqueada (cliente final). No se responde.
     if not reply:
@@ -214,12 +227,15 @@ def chatwoot_webhook():
 
 
 def _process_chatwoot(conversation_id: str, content: str, canal: str = "chatwoot") -> None:
+    inicio = time.monotonic()
     try:
         reply = process_turn(conversation_id, content, on_progress=_make_progress_callback(chatwoot, conversation_id), channel=canal)
     except Exception as e:
         app.logger.error("Error en process_turn chatwoot %s: %s", conversation_id, e, exc_info=True)
         notify_error(f"turno de {canal}", e, f"conversación {conversation_id}")
+        _registrar_turno(canal, conversation_id, inicio, ok=False, respondido=False)
         return
+    _registrar_turno(canal, conversation_id, inicio, ok=True, respondido=bool(reply))
 
     app.logger.info("chatwoot_webhook: conv=%s reply=%r", conversation_id, (reply or "")[:120])
 

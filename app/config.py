@@ -127,3 +127,15 @@ PDF_TIMEOUT_MS = int(os.environ.get("PDF_TIMEOUT_MS") or "20000")
 # usar el Chromium del entorno.
 PDF_CHROME_CHANNEL = os.environ.get("PDF_CHROME_CHANNEL", "")
 PDF_EXECUTABLE_PATH = os.environ.get("PDF_EXECUTABLE_PATH", "")
+# Admin key de OpenAI (permiso api.usage.read): solo para que el panel de sistema muestre el
+# gasto real del mes. Sin ella el panel muestra tokens pero no dólares.
+OPENAI_ADMIN_KEY = os.environ.get("OPENAI_ADMIN_KEY", "")
+# Panel de sistema (/sistema): acceso APARTE de la plataforma, solo para el responsable
+# técnico. Sin SISTEMA_PASSWORD el panel queda cerrado.
+SISTEMA_USER = os.environ.get("SISTEMA_USER", "desarrollador")
+SISTEMA_PASSWORD = os.environ.get("SISTEMA_PASSWORD", "")
+# Lecturas de estado y plan de los servicios que se traspasan al cliente (panel de sistema).
+# Todas opcionales: sin la clave, el panel dice «sin acceso» y sigue.
+RENDER_API_KEY = os.environ.get("RENDER_API_KEY", "")
+RENDER_SERVICE_ID = os.environ.get("RENDER_SERVICE_ID", "")
+SUPABASE_ACCESS_TOKEN = os.environ.get("SUPABASE_ACCESS_TOKEN", "")

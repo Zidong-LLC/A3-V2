@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Sistema · A3 plataforma</title>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='os-kit.css') }}?v=9">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=23">
+  <style>
+    body.crm-theme { display: grid; place-items: center; padding: 24px; }
+    .sys-login { width: min(380px, 100%); display: grid; gap: 12px; }
+    .sys-login label { display: grid; gap: 4px; font-size: 12px; font-weight: 600; }
+    .sys-login h1 { margin: 0; font-size: 20px; }
+    .sys-login p { margin: 0; color: var(--text-dim); font-size: 13px; }
+  </style>
+</head>
+<body class="crm-theme">
+  <form method="post" class="card sys-login" autocomplete="off">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <h1>Sistema · A3 plataforma</h1>
+    <p>Acceso del responsable técnico. No es la plataforma de A3.</p>
+    {% if error %}<section class="approval-notice error">{{ error }}</section>{% endif %}
+    <label>Usuario<input class="cell-input" name="username" required autofocus></label>
+    <label>Clave<input class="cell-input" name="password" type="password" required></label>
+    <button type="submit" class="primary-btn">Entrar</button>
+  </form>
+</body>
+</html>

@@ -29,6 +29,7 @@ conexión a Anarvet cada pocos segundos, con un usuario que nos dieron de solo
 lectura para un sync esporádico.
 """
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 from app.config import ALEGRA_ENABLED, ANARVET_ENABLED, APP_ENV, OPENAI_API_KEY, PDF_ENABLED
 from app.services import alegra, anarvet, db, pdf
@@ -65,19 +66,17 @@ def check_liveness() -> tuple[dict, int]:
 
 def check_all() -> tuple[dict, int]:
     """Devuelve (payload, http_status). 503 solo si cae una dependencia crítica."""
-    checks = {"supabase": _timed(db.ping)}
+    # Las tres dependencias de red a la vez: en serie sumaban ~3,5 s (Alegra ~1,7 s y
+    # Anarvet ~1,4 s); así el completo tarda lo que la más lenta.
+    with ThreadPoolExecutor(max_workers=3) as hilos:
+        supabase_f = hilos.submit(_timed, db.ping)
+        alegra_f = hilos.submit(_timed, alegra.ping) if ALEGRA_ENABLED else None
+        anarvet_f = hilos.submit(_timed, anarvet.ping) if ANARVET_ENABLED else None
+    checks = {"supabase": supabase_f.result()}
 
     checks["openai"] = {"status": "ok" if OPENAI_API_KEY else "not_configured"}
-
-    if ALEGRA_ENABLED:
-        checks["alegra"] = _timed(alegra.ping)
-    else:
-        checks["alegra"] = {"status": "disabled"}
-
-    if ANARVET_ENABLED:
-        checks["anarvet"] = _timed(anarvet.ping)
-    else:
-        checks["anarvet"] = {"status": "disabled"}
+    checks["alegra"] = alegra_f.result() if alegra_f else {"status": "disabled"}
+    checks["anarvet"] = anarvet_f.result() if anarvet_f else {"status": "disabled"}
 
     # Solo hace falta para PUBLICAR un informe al portal; ver e imprimir no depende de esto.
     # Degrada, nunca tumba: que no se pueda armar un PDF no puede callar el bot.

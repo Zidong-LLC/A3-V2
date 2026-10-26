@@ -20,8 +20,18 @@ con login real (8 pantallas), 5 perfiles × 17 pantallas del panel.
   - [ ] Mensaje de contingencia cuando `process_turn` falla (hoy el cliente no recibe nada)
   - [ ] Candado por chat en el debounce (dos turnos simultáneos pisan la sesión; pueden duplicar la orden)
   - [ ] Adjunto/audio sin texto: hoy se ignora en silencio; contestar un texto fijo
-  - [ ] Barrido de pedidos abandonados: limpiar `_pedido_profiles/_pedido_ordenes` de la sesión al
-        cerrar (si no, el pedido siguiente del mismo chat puede facturar perfiles del viejo)
+  - [x] Barrido de pedidos abandonados (ERR-186, OK 26/10): cierra con lo confirmado, avisa al
+        cliente, limpia la sesión; cron cada 15 min `POST /api/platform/pedidos/barrido`
+- [x] **Panel de sistema (OK 26/10) — HECHO:** acceso APARTE de la plataforma (`/sistema/login`
+      con `SISTEMA_USER`/`SISTEMA_PASSWORD`, sin menú del CRM; el admin de A3 no entra),
+      `/sistema` y `/api/sistema/estado`: estado en vivo de 7 servicios (incluye Chatwoot y
+      Telegram), errores por componente y por día (tabla `system_events`, migración 035 aplicada),
+      conversaciones/turnos/fallidos/escaladas, tokens por llamada al modelo, gasto del mes
+      (OpenAI real con `OPENAI_ADMIN_KEY`; el resto cargado a mano en `system_costs`).
+      Suite 1642. Falta: crear la Admin key de OpenAI y cargarla en Render.
+- [x] Mensajes en paralelo (C): el usuario decidió NO tocarlo (26/10).
+- [ ] **Traspaso de cuentas al cliente (OK 26/10):** runbook `docs/runbooks/traspaso-cuentas-cliente.md`
+      con el checklist para A3 y el orden (Supabase → OpenAI → Render → Chatwoot → Telegram → GitHub)
   - [ ] Handoff en Chatwoot: verificar en vivo que la escalada pase la conversación a «open»
 - [ ] Después del deploy: `python tools/scripts/verificar_produccion.py https://a3-plataforma.onrender.com`,
       prueba en vivo del runbook (paso 6) y correr el sync de Anarvet (el espejo quedó en 07/09)

@@ -42,7 +42,9 @@ def test_ninguna_plantilla_escribe_su_propio_menu():
 
 
 def test_todas_incluyen_el_menu_compartido():
-    sin_menu = [p.name for p in PLANTILLAS if "_sidebar.html" not in p.read_text(encoding="utf-8")]
+    # El panel de sistema (/sistema) es un acceso APARTE del CRM, a propósito sin su menú.
+    sin_menu = [p.name for p in PLANTILLAS
+                if p.name != "dashboard_sistema.html" and "_sidebar.html" not in p.read_text(encoding="utf-8")]
     assert sin_menu == []
 
 

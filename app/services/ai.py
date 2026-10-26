@@ -1,13 +1,37 @@
 import json
+import time
 from openai import OpenAI
 from app.config import OPENAI_API_KEY, OPENAI_MODEL
 from app.prompt import SYSTEM_PROMPT
 from app.schema import RESPONSE_SCHEMA
+from app.services import system_db
 
 # Sin `timeout`, el SDK espera hasta 600 s por intento (x3 intentos): un cuelgue de OpenAI
 # dejaba al cliente mirando el chat media hora. 60 s alcanza de sobra para un turno
 # (auditoría de salida a producción, 2026-10-25).
 _client = OpenAI(api_key=OPENAI_API_KEY, timeout=60.0, max_retries=2)
+
+def _entero(valor) -> int:
+    return valor if isinstance(valor, int) else 0
+
+
+def _completar(messages: list[dict], response_format: dict, temperature: float, uso: str) -> dict:
+    """Una llamada al modelo. Registra tokens y duración para el panel de sistema."""
+    inicio = time.monotonic()
+    response = _client.chat.completions.create(
+        model=OPENAI_MODEL,
+        messages=messages,
+        response_format=response_format,
+        temperature=temperature,
+    )
+    usage = getattr(response, "usage", None)
+    system_db.registrar("llm", "openai", "info", uso, details={
+        "model": OPENAI_MODEL, "ms": int((time.monotonic() - inicio) * 1000),
+        "prompt_tokens": _entero(getattr(usage, "prompt_tokens", 0)),
+        "completion_tokens": _entero(getattr(usage, "completion_tokens", 0)),
+    })
+    return json.loads(response.choices[0].message.content)
+
 
 _ROUTE_FIELD_INTERPRET_SYSTEM = (
     "Eres parte del equipo de A3 Laboratorio Veterinario (Bogotá, Colombia), tomando los datos "
@@ -35,13 +59,7 @@ def interpret_route_field(question: str, user_message: str) -> dict:
         {"role": "system", "content": _ROUTE_FIELD_INTERPRET_SYSTEM},
         {"role": "user", "content": f"Pedí: \"{question}\"\nEl usuario respondió: \"{user_message}\""},
     ]
-    response = _client.chat.completions.create(
-        model=OPENAI_MODEL,
-        messages=messages,
-        response_format={"type": "json_object"},
-        temperature=0.3,
-    )
-    return json.loads(response.choices[0].message.content)
+    return _completar(messages, {"type": "json_object"}, 0.3, "dato de la orden")
 
 
 
@@ -61,13 +79,7 @@ def extract_client_identifier(user_message: str) -> dict:
         {"role": "system", "content": _CLIENT_ID_EXTRACT_SYSTEM},
         {"role": "user", "content": user_message},
     ]
-    response = _client.chat.completions.create(
-        model=OPENAI_MODEL,
-        messages=messages,
-        response_format={"type": "json_object"},
-        temperature=0,
-    )
-    return json.loads(response.choices[0].message.content)
+    return _completar(messages, {"type": "json_object"}, 0, "identificar cliente")
 
 
 def generate_turn(
@@ -136,11 +148,4 @@ def generate_turn(
 
     messages.append({"role": "user", "content": user_message})
 
-    response = _client.chat.completions.create(
-        model=OPENAI_MODEL,
-        messages=messages,
-        response_format={"type": "json_schema", "json_schema": RESPONSE_SCHEMA},
-        temperature=0.3,
-    )
-
-    return json.loads(response.choices[0].message.content)
+    return _completar(messages, {"type": "json_schema", "json_schema": RESPONSE_SCHEMA}, 0.3, "turno")

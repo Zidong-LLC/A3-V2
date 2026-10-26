@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#7a0d20">
+  <meta http-equiv="refresh" content="120">
+  <meta name="robots" content="noindex">
+  <title>Sistema · A3 plataforma</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='os-kit.css') }}?v=9">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=23">
+  <link rel="stylesheet" href="{{ url_for('static', filename='portal.css') }}?v=10">
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js" defer></script>
+  <style>
+    .sys-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; padding: 12px; }
+    .sys-svc { border: 1px solid rgba(255,255,255,.08); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+    .sys-svc strong { text-transform: capitalize; }
+    .sys-ok { color: #22c55e; } .sys-error { color: #ef4444; } .sys-slow { color: #f59e0b; } .sys-off { color: #9ca3af; }
+    .sys-mini { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 0 12px 12px; font-size: 13px; }
+    .sys-mini span { color: rgba(230,230,238,.62); }
+    .costos-form input { width: 100%; }
+    .sys-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 14px; }
+    .kpi-grid.six { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .sys-app { max-width: 1280px; margin: 0 auto; padding: 8px; }
+    .sys-app .crm-main { margin: 0; }
+    .sys-salir { font-size: 13px; }
+    @media (max-width: 900px) { .kpi-grid.six { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  </style>
+</head>
+<body class="crm-theme">
+  <div class="sys-app">
+    <main class="crm-main os-scene">
+      <header class="top-header">
+        <div>
+          <p class="hello-label">Sistema · A3 plataforma · responsable técnico</p>
+          <h1>Estado, fallas, uso y gasto</h1>
+        </div>
+        <div class="header-actions"><a class="ghost-btn sys-salir" href="{{ url_for('dashboard_sistema.logout') }}"><i data-lucide="log-out"></i>Salir</a></div>
+      </header>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+          <section class="approval-notice os-spring-in {{ 'error' if category == 'error' else 'ok' }}">{{ message }}</section>
+        {% endfor %}
+      {% endwith %}
+
+      <section class="card">
+        <div class="card-head"><div><h3>Servicios ahora</h3><p>Se vuelve a medir con cada carga (la página se refresca sola cada 2 minutos).</p></div></div>
+        {% if salud.error %}<p class="muted-text" style="padding:12px">{{ salud.error }}</p>{% endif %}
+        <div class="sys-grid">
+          {% for nombre, chk in salud.items() if nombre != 'error' %}
+          {% set st = chk.status %}
+          <div class="sys-svc">
+            <strong>{{ nombre }}</strong>
+            <span class="{{ 'sys-ok' if st == 'ok' else ('sys-error' if st == 'error' else ('sys-slow' if st == 'slow' else 'sys-off')) }}">
+              {{ {'ok':'Funciona','error':'Falla','slow':'Lento','disabled':'Apagado','not_configured':'Sin configurar'}.get(st, st) }}
+              {% if chk.latency_ms is defined %}· {{ chk.latency_ms }} ms{% endif %}
+            </span>
+            {% if chk.error %}<small class="muted-text">{{ chk.error }}</small>{% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </section>
+
+      <section class="kpi-grid six">
+        <article class="kpi-card"><div class="kpi-head"><span>Conversaciones ({{ dias }} días)</span><i data-lucide="message-circle"></i></div>
+          <strong>{{ conversaciones.conversaciones_7d }}</strong><p class="delta">{{ conversaciones.activas_24h }} activas en las últimas 24 h</p></article>
+        <article class="kpi-card"><div class="kpi-head"><span>Turnos del bot</span><i data-lucide="bot"></i></div>
+          <strong>{{ turnos.total }}</strong><p class="delta">{{ turnos.chats }} chats · p50 {{ turnos.p50_s }} s · p95 {{ turnos.p95_s }} s</p></article>
+        <article class="kpi-card{% if turnos.fallidos %} kpi-alert{% endif %}"><div class="kpi-head"><span>Turnos fallidos</span><i data-lucide="alert-triangle"></i></div>
+          <strong>{{ turnos.fallidos }}</strong><p class="delta">el cliente se quedó sin respuesta</p></article>
+        <article class="kpi-card{% if errores.total %} kpi-alert{% endif %}"><div class="kpi-head"><span>Errores ({{ dias }} días)</span><i data-lucide="bug"></i></div>
+          <strong>{{ errores.total }}</strong><p class="delta">{% for c, n in errores.por_componente.items() %}{{ c }} {{ n }}{{ ' · ' if not loop.last }}{% endfor %}{% if not errores.total %}sin errores registrados{% endif %}</p></article>
+        <article class="kpi-card"><div class="kpi-head"><span>Órdenes ({{ dias }} días)</span><i data-lucide="clipboard-list"></i></div>
+          <strong>{{ conversaciones.ordenes_7d }}</strong><p class="delta">{% for c, n in conversaciones.ordenes_por_canal.items() %}{{ c }} {{ n }}{{ ' · ' if not loop.last }}{% endfor %}</p></article>
+        <article class="kpi-card"><div class="kpi-head"><span>Gasto del mes</span><i data-lucide="wallet"></i></div>
+          <strong>USD {{ '%.2f' % total_mes }}</strong><p class="delta">{% if openai.disponible %}OpenAI real USD {{ '%.2f' % openai.usd }}{% else %}OpenAI: {{ openai.motivo }}{% endif %}</p></article>
+      </section>
+
+      <div class="sys-two">
+        <section class="card">
+          <div class="card-head"><div><h3>Qué está pasando en el chat</h3><p>Últimos {{ dias }} días.</p></div></div>
+          <div class="sys-mini">
+            <span>Por canal:</span>{% for c, n in conversaciones.por_canal.items() %}<b>{{ c }} {{ n }}</b>{% endfor %}
+          </div>
+          <div class="sys-mini">
+            <span>Fase de las activas (24 h):</span>{% for f, n in conversaciones.por_fase.items() %}<b>{{ f }} {{ n }}</b>{% else %}<b>ninguna</b>{% endfor %}
+          </div>
+          <div class="sys-mini">
+            <span>Escaladas a una persona:</span>{% for a, n in conversaciones.escaladas.items() %}<b>{{ a }} {{ n }}</b>{% else %}<b>0</b>{% endfor %}
+            <span>· Bloqueadas (cliente final):</span><b>{{ conversaciones.bloqueadas }}</b>
+          </div>
+          <div class="sys-mini">
+            <span>Mensajes:</span><b>{{ conversaciones.mensajes_7d }}</b><span>({{ conversaciones.mensajes_cliente_7d }} de clientes)</span>
+            {% for d, n in conversaciones.mensajes_por_dia.items() %}<b>{{ d }}: {{ n }}</b>{% endfor %}
+          </div>
+          <div class="sys-mini">
+            <span>Turnos por canal:</span>{% for c, n in turnos.por_canal.items() %}<b>{{ c }} {{ n }}</b>{% else %}<b>0</b>{% endfor %}
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-head"><div><h3>Modelo (OpenAI)</h3><p>Cada llamada al modelo queda registrada con sus tokens.</p></div></div>
+          <div class="sys-mini">
+            <span>Llamadas:</span><b>{{ llm.llamadas }}</b>
+            <span>Tokens entrada:</span><b>{{ '{:,}'.format(llm.tokens_entrada).replace(',', '.') }}</b>
+            <span>Tokens salida:</span><b>{{ '{:,}'.format(llm.tokens_salida).replace(',', '.') }}</b>
+          </div>
+          <div class="sys-mini">
+            <span>Tokens por día:</span>{% for d, n in llm.tokens_por_dia.items() %}<b>{{ d }}: {{ '{:,}'.format(n).replace(',', '.') }}</b>{% else %}<b>sin llamadas</b>{% endfor %}
+          </div>
+        </section>
+      </div>
+
+      <section class="card">
+        <div class="card-head"><div><h3>Errores y alertas</h3><p>Todo lo que llega al Telegram de avisos, sin el anti-spam: cada ocurrencia cuenta.</p></div></div>
+        <div class="sys-mini"><span>Por día:</span>{% for d, n in errores.por_dia.items() %}<b>{{ d }}: {{ n }}</b>{% else %}<b>ninguno</b>{% endfor %}</div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Cuándo</th><th>Componente</th><th>Error</th><th>Contexto</th><th>Dónde</th></tr></thead>
+          <tbody>
+          {% for e in errores.ultimos %}
+            <tr>
+              <td>{{ (e.created_at or '')[:16] | replace('T', ' ') }}</td>
+              <td><span class="status-badge status-error_pending_assignment">{{ e.component }}</span></td>
+              <td>{{ e.message }}</td>
+              <td class="muted-text">{{ e.context }}</td>
+              <td class="muted-text"><small>{{ (e.details or {}).get('rastro', []) | join(' ← ') }}</small>{% if (e.details or {}).get('texto') %}<details><summary>ver aviso completo</summary><pre style="white-space:pre-wrap;font-size:11px;margin:6px 0 0">{{ e.details.texto }}</pre></details>{% endif %}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="5" class="muted-text">Sin errores en los últimos {{ dias }} días.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><div><h3>Servicios que se traspasan al cliente</h3><p>Estado, plan y gasto del mes de cada uno. OpenAI, Render y Supabase se leen por API cuando hay clave; el VPS de Chatwoot se carga a mano.</p></div></div>
+        <form method="post" action="{{ url_for('dashboard_sistema.guardar_costos') }}" class="costos-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="table-wrap"><table>
+            <thead><tr><th>Servicio</th><th>Estado</th><th>Detalle</th><th>USD / mes</th><th>Fuente</th></tr></thead>
+            <tbody>
+              {% for f in traspaso %}
+              <tr>
+                <td><strong>{{ f.nombre }}</strong></td>
+                <td><span class="status-badge {{ 'status-processed' if f.estado in ('activo', 'ACTIVE_HEALTHY') else ('status-error_pending_assignment' if f.estado in ('falla', 'suspendido', 'sin acceso', 'revisar') else '') }}">{{ f.estado }}</span></td>
+                <td class="muted-text">{{ f.detalle }}</td>
+                <td>{% if f.manual %}<input class="cell-input" name="usd_{{ f.clave }}" value="{{ '%.2f' % f.usd }}" inputmode="decimal" style="max-width:110px"><input type="hidden" name="nota_{{ f.clave }}" value="{{ f.nota }}">{% else %}<strong>{{ '%.2f' % f.usd }}</strong>{% endif %}</td>
+                <td class="muted-text">{{ f.fuente }}</td>
+              </tr>
+              {% endfor %}
+              <tr><td><strong>Total del mes</strong></td><td></td><td></td><td><strong>USD {{ '%.2f' % total_mes }}</strong></td><td></td></tr>
+            </tbody>
+          </table></div>
+          <div style="padding: 0 12px 12px"><button type="submit" class="primary-btn"><i data-lucide="save"></i>Guardar lo cargado a mano</button></div>
+        </form>
+      </section>
+    </main>
+  </div>
+  <script>window.addEventListener('DOMContentLoaded', function () { if (window.lucide) lucide.createIcons(); });</script>
+  <script src="{{ url_for('static', filename='os-fx.js') }}?v=9" defer></script>
+</body>
+</html>

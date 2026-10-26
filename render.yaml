@@ -58,6 +58,18 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
+      - key: OPENAI_ADMIN_KEY
+        sync: false             # solo para el gasto del mes en el panel de sistema
+      - key: SISTEMA_USER
+        sync: false             # acceso al panel de sistema (/sistema), aparte de la plataforma
+      - key: SISTEMA_PASSWORD
+        sync: false
+      - key: RENDER_API_KEY
+        sync: false             # opcional: estado y plan de Render en /sistema
+      - key: RENDER_SERVICE_ID
+        sync: false             # opcional: srv-… de este servicio
+      - key: SUPABASE_ACCESS_TOKEN
+        sync: false             # opcional: estado y plan de Supabase en /sistema
       - key: FLASK_SECRET_KEY
         generateValue: true     # Render genera un secreto nuevo y fuerte
       - key: DASHBOARD_ADMIN_USER

@@ -149,6 +149,17 @@ cadena completa antes de retirar el canal anterior. El payload de Chatwoot ident
 | El PDF falla | El tag de la imagen no coincide con la versión de playwright |
 | Build en verde pero revienta al usar el PDF | Runtime nativo en vez de Docker |
 
+## Panel de sistema (`/sistema`)
+
+Acceso **aparte de la plataforma**, solo para el responsable técnico: `https://<servicio>/sistema`
+con `SISTEMA_USER` / `SISTEMA_PASSWORD` (variables propias; sin la clave el panel queda
+cerrado). No aparece en el menú del CRM y los usuarios de A3 no lo ven. Muestra el estado en
+vivo de cada servicio, errores por componente (todo lo que llega al Telegram de avisos, sin
+anti-spam), conversaciones y turnos del bot, tokens del modelo y gasto del mes.
+`OPENAI_ADMIN_KEY` (opcional, Admin key con permiso `api.usage.read`) habilita el gasto real
+de OpenAI; los costos fijos (Render, VPS, Alegra…) se cargan a mano en el mismo panel.
+El JSON está en `GET /api/sistema/estado` con la sesión del panel o con `X-Platform-Token`.
+
 ## Avisos de error a Telegram
 
 Con `ADMIN_TELEGRAM_CHAT_ID` configurado, un error que deja a un cliente sin respuesta
