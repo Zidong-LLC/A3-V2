@@ -208,6 +208,19 @@ def platform_update_request_status(request_id: str):
     return jsonify({"ok": True, "request": updated})
 
 
+@platform_api.post("/api/platform/pedidos/barrido")
+@_auth_required
+def platform_pedidos_barrido():
+    """Cierra los pedidos abandonados (más de una hora sin actividad), limpia la sesión y
+    avisa al cliente. Pensado para el cron de Render cada 15 minutos: el disparo
+    oportunista al inicio de un turno queda como respaldo, pero depende de que alguien
+    escriba. 200 con los conteos; 503 si la base no respondió."""
+    from app import pedidos_abandonados
+
+    resultado = pedidos_abandonados.cerrar_abandonados()
+    return jsonify(resultado), (503 if resultado.get("error") else 200)
+
+
 @platform_api.post("/api/platform/anarvet/sync")
 @_auth_required
 def platform_anarvet_sync():

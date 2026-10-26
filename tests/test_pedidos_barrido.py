@@ -21,8 +21,16 @@ PEDIDO_VIEJO = {"id": "ped-1", "pedido_number": "P-2026-001", "status": "abierto
 
 
 @pytest.fixture(autouse=True)
-def sin_memoria_de_barrido():
-    """El limitador es estado de módulo: se limpia entre tests."""
+def sin_memoria_de_barrido(monkeypatch):
+    """El limitador es estado de módulo: se limpia entre tests. Desde el anexo del
+    2026-10-26 el barrido también limpia la sesión y avisa al cliente: acá se anulan
+    (se prueban en test_pedidos_abandonados.py)."""
+    from app import pedidos_abandonados
+
+    monkeypatch.setattr(agent.db, "limpiar_pedido_de_sesion", lambda chat: True)
+    monkeypatch.setattr(agent.db, "save_message", lambda *a, **k: None)
+    monkeypatch.setattr(pedidos_abandonados.telegram, "send_message", lambda *a, **k: None)
+    monkeypatch.setattr(pedidos_abandonados.chatwoot, "send_message", lambda *a, **k: None)
     agent._ultimo_barrido.clear()
     yield
     agent._ultimo_barrido.clear()

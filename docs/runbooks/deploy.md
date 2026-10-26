@@ -112,6 +112,16 @@ curl -fsS -X POST https://<servicio>.onrender.com/api/platform/anarvet/sync \
 
 Sugerido: cada hora en horario laboral (`0 7-19 * * 1-6`, hora de Bogotá).
 
+Y un segundo Cron Job para los **pedidos abandonados** (anexo 2026-10-26 de la decisión
+011): cierra los que llevan más de una hora sin actividad, limpia la sesión y le avisa al
+cliente por su canal. Sin este cron solo corre cuando alguien escribe.
+
+```bash
+curl -fsS -X POST https://<servicio>.onrender.com/api/platform/pedidos/barrido      -H "X-Platform-Token: $PLATFORM_API_TOKEN"
+```
+
+Sugerido: cada 15 minutos (`*/15 * * * *`).
+
 ## 6. Prueba en vivo (la puerta final)
 
 - [ ] Mandar un mensaje por Telegram y que el bot conteste

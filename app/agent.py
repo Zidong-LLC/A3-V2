@@ -5,7 +5,7 @@ import contextvars
 from typing import Callable
 from datetime import datetime
 
-from app import billing, catalog, state
+from app import billing, catalog, pedidos_abandonados, state
 from app.text import (
     tokenize as _tokenize, as_text_items as _as_text_items, money as _money, catalog_item_key as _catalog_item_key,
     strip_price_text as _strip_price_text, ACCENT_TRANSLATION as _ACCENT_TRANSLATION,
@@ -2333,6 +2333,12 @@ def _finalize_request(chat_id: str, session: dict, ai_response: dict, started_fr
         ai_response["reply"] = f"{ai_response['reply']}\n\n{prompt}"
         if pedido_id:
             campos = ai_response.setdefault("captured_fields", {})
+            if campos.get("_pedido_id") and campos["_pedido_id"] != pedido_id:
+                # Pedido NUEVO después de uno que se cerró por inactividad: lo acumulado
+                # (perfiles y fichas) era del viejo y no puede ir a este resumen ni a su
+                # factura (anexo 2026-10-26 de la decisión 011).
+                for clave in ("_pedido_profiles", "_pedido_ordenes"):
+                    campos.pop(clave, None)
             campos["_pedido_id"] = pedido_id
             # La oferta es una pregunta CERRADA pendiente (ERR-134): el próximo turno tiene
             # que resolverla (otra orden / cerrar) o repreguntarla — nunca improvisar.
@@ -2635,26 +2641,12 @@ def _sweep_stale_pedidos() -> None:
         return
     _ultimo_barrido.append(ahora)
     del _ultimo_barrido[:-1]
+    # El cierre, la limpieza de la sesión y el aviso al cliente viven en
+    # `pedidos_abandonados` (anexo 2026-10-26); el cron de Render llama a lo mismo.
     try:
-        pendientes = db.list_stale_pedidos(_PEDIDO_STALE_HOURS)
+        pedidos_abandonados.cerrar_abandonados(_PEDIDO_STALE_HOURS)
     except Exception as exc:  # noqa: BLE001
         logger.warning("pedidos: falló el barrido de abandonados: %s", exc)
-        return
-    for pedido in pendientes:
-        pedido_id = pedido.get("id")
-        try:
-            ordenes = db.list_pedido_requests(pedido_id)
-            db.close_pedido(pedido_id, pedido.get("payment_method"))
-            # Se avisa SIEMPRE, con o sin factura: operaciones tiene que saber que este
-            # pedido se cerró solo, porque el cliente nunca confirmó la forma de pago.
-            logger.warning(
-                "pedidos: %s (%s) cerrado por inactividad tras %sh con %s orden(es) — "
-                "revisar con operaciones: el cliente no confirmó el cierre",
-                pedido.get("pedido_number") or pedido_id, pedido.get("external_chat_id"),
-                _PEDIDO_STALE_HOURS, len(ordenes),
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("pedidos: no se pudo cerrar el abandonado %s: %s", pedido_id, exc)
 
 
 def _pedido_summary(ordenes: list[dict], fields: dict, payment_method: str) -> str:

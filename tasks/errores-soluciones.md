@@ -4902,3 +4902,21 @@ conversaciones" teniendolas todas delante.
   «Pendientes con OK» — mensaje de contingencia si falla la IA, candado por chat, adjuntos sin
   texto, limpieza de `_pedido_*` tras el barrido (una factura podría arrastrar perfiles del
   pedido viejo), valor de `FSM_ENFORCE` en producción, handoff en Chatwoot (status pending).
+
+## ERR-186 — El pedido cerrado por inactividad dejaba sus análisis en la sesión (y el cliente no se enteraba)
+
+- **Fecha:** 2026-10-26 · **Estado:** RESUELTO (con OK del usuario, anexo de la decisión 011)
+- **Sintoma (hallazgo de la auditoría del 25/10, no reportado por un cliente):** el barrido
+  cerraba el pedido abandonado en la base pero `_pedido_profiles` y `_pedido_ordenes` seguían
+  en `telegram_sessions.captured_fields`. Si el mismo cliente volvía días después y abría otra
+  orden, el pedido nuevo arrastraba esos perfiles: resumen y borrador de factura con análisis
+  que no eran de esta vez. Además el cliente nunca sabía que su pedido se había cerrado.
+- **Causa raiz:** `_sweep_stale_pedidos` solo tocaba la tabla `pedidos`; la limpieza de la
+  sesión vive en el cierre explícito (`fields.pop("_pedido_*")`) y el barrido no pasaba por ahí.
+- **Solucion:** `app/pedidos_abandonados.py` cierra, limpia la sesión (`db.limpiar_pedido_de_sesion`)
+  y avisa al cliente por su canal («como pasó más de una hora sin respuesta cerré tu pedido con
+  las N órdenes que ya confirmaste; esas recogidas quedan programadas…»), guardando el aviso en
+  el historial. Red extra en `_finalize_request`: si la sesión apunta a OTRO pedido, lo acumulado
+  se descarta. Cron de Render cada 15 min (`POST /api/platform/pedidos/barrido`) para que el
+  cierre no dependa de que alguien escriba.
+- **Verificacion:** 8 tests nuevos (`tests/test_pedidos_abandonados.py`) + los 6 del barrido.

@@ -98,6 +98,26 @@ def clear_pending_result_delivery(chat_id: str) -> None:
     _client.table("telegram_sessions").update({"captured_fields": fields}).eq("external_chat_id", chat_id).execute()
 
 
+PEDIDO_SESSION_KEYS = ("_pedido_id", "_pedido_profiles", "_pedido_ordenes",
+                       "_pedido_awaiting_payment", "_pedido_offer_pending")
+
+
+def limpiar_pedido_de_sesion(chat_id: str) -> bool:
+    """Saca de la sesión los datos del pedido (perfiles acumulados, fichas, marcas) cuando
+    el pedido se cerró por inactividad: el pedido siguiente del mismo chat arranca limpio.
+    Devuelve si había algo que limpiar."""
+    result = _client.table("telegram_sessions").select("captured_fields").eq("external_chat_id", chat_id).execute()
+    if not result.data:
+        return False
+    fields = result.data[0].get("captured_fields") or {}
+    if not any(k in fields for k in PEDIDO_SESSION_KEYS):
+        return False
+    for clave in PEDIDO_SESSION_KEYS:
+        fields.pop(clave, None)
+    _client.table("telegram_sessions").update({"captured_fields": fields}).eq("external_chat_id", chat_id).execute()
+    return True
+
+
 def link_client_to_session(chat_id: str, client_id: str) -> None:
     _client.table("telegram_sessions").update({"client_id": client_id}).eq("external_chat_id", chat_id).execute()
 

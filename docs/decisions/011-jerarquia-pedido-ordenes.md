@@ -177,3 +177,20 @@ aparecen en ningún listado. Mínimo a cubrir cuando se trabaje esa fase:
 estado propio (`abierto`/`cerrado`/`facturado`), su propia forma de pago y su propio número
 para la factura. Sin entidad, esos datos se duplicarían en cada fila y no habría dónde colgar
 el `alegra_invoice_id` del pedido.
+
+## Anexo 2026-10-26 — Cierre por inactividad: qué pasa con el cliente y con la sesión
+
+Decisión del usuario (26/10): el barrido **cierra el pedido con las órdenes que el cliente
+ya confirmó** (esas recogidas siguen en pie: el motorizado ya fue avisado), **le avisa al
+cliente** por su canal («como pasó más de una hora sin respuesta cerré tu pedido con las N
+órdenes que ya confirmaste…») y **limpia de la sesión** los datos del pedido
+(`_pedido_id`, `_pedido_profiles`, `_pedido_ordenes`, `_pedido_awaiting_payment`,
+`_pedido_offer_pending`). Sin esa limpieza, el pedido siguiente del mismo chat arrastraba
+al resumen y al borrador de factura análisis del pedido viejo (hallazgo de la auditoría
+del 25/10). Como red extra, al abrir un pedido nuevo en un chat cuya sesión todavía apunta
+a otro pedido, lo acumulado se descarta.
+
+El reloj: un cron de Render cada 15 minutos (`POST /api/platform/pedidos/barrido`); el
+disparo oportunista al inicio de un turno queda de respaldo. Código: `app/pedidos_abandonados.py`.
+No se factura al cerrar por inactividad (igual que antes): la factura la pide operaciones
+desde el panel cuando revisa el pedido.
