@@ -197,8 +197,9 @@ projects:
                   envVarKey: PLATFORM_API_TOKEN
 
           # ───────────────────────── Chatwoot (bandeja de mensajes) ─────────────────────────
-          # Imagen oficial, versión FIJA (la misma que corre hoy en el VPS). Para actualizar
-          # Chatwoot: cambiar el tag en web y worker, y redeploy.
+          # Imagen oficial, versión FIJA (la misma que corría en el VPS). Para actualizar
+          # Chatwoot: cambiar el tag en web y worker, y redeploy. La configuración común de web y
+          # worker vive en el grupo `chatwoot-config` (abajo): se carga UNA vez y la ven los dos.
           - type: keyvalue
             name: chatwoot-redis
             region: virginia
@@ -219,8 +220,80 @@ projects:
             # Crea la base, la extensión vector y corre las migraciones ANTES de cada deploy.
             preDeployCommand: bundle exec rails db:chatwoot_prepare
             envVars:
+              - fromGroup: chatwoot-config
               - key: PORT
                 value: "3000"
+              - key: WEB_CONCURRENCY
+                value: "1"
+              - key: RAILS_MAX_THREADS
+                value: "5"
+              - key: REDIS_URL
+                fromService:
+                  type: keyvalue
+                  name: chatwoot-redis
+                  property: connectionString
+              - key: POSTGRES_HOST
+                fromDatabase:
+                  name: chatwoot-db
+                  property: host
+              - key: POSTGRES_PORT
+                fromDatabase:
+                  name: chatwoot-db
+                  property: port
+              - key: POSTGRES_DATABASE
+                fromDatabase:
+                  name: chatwoot-db
+                  property: database
+              - key: POSTGRES_USERNAME
+                fromDatabase:
+                  name: chatwoot-db
+                  property: user
+              - key: POSTGRES_PASSWORD
+                fromDatabase:
+                  name: chatwoot-db
+                  property: password
+
+          - type: worker
+            name: chatwoot-worker
+            runtime: image
+            image:
+              url: docker.io/chatwoot/chatwoot:v4.11.0
+            region: virginia
+            plan: standard
+            autoDeploy: false
+            dockerCommand: bundle exec sidekiq -C config/sidekiq.yml
+            envVars:
+              - fromGroup: chatwoot-config
+              - key: REDIS_URL
+                fromService:
+                  type: keyvalue
+                  name: chatwoot-redis
+                  property: connectionString
+              - key: POSTGRES_HOST
+                fromDatabase:
+                  name: chatwoot-db
+                  property: host
+              - key: POSTGRES_PORT
+                fromDatabase:
+                  name: chatwoot-db
+                  property: port
+              - key: POSTGRES_DATABASE
+                fromDatabase:
+                  name: chatwoot-db
+                  property: database
+              - key: POSTGRES_USERNAME
+                fromDatabase:
+                  name: chatwoot-db
+                  property: user
+              - key: POSTGRES_PASSWORD
+                fromDatabase:
+                  name: chatwoot-db
+                  property: password
+
+        envVarGroups:
+          # Configuración compartida por chatwoot-web y chatwoot-worker.
+          - name: chatwoot-config
+            envVars:
               - key: RAILS_ENV
                 value: production
               - key: NODE_ENV
@@ -235,48 +308,20 @@ projects:
                 value: es
               - key: FORCE_SSL
                 value: "true"
-              - key: WEB_CONCURRENCY
-                value: "1"
-              - key: RAILS_MAX_THREADS
-                value: "5"
+              - key: SECRET_KEY_BASE
+                generateValue: true
               # TRUE solo para el primer ingreso (crear la cuenta de A3); después, false.
               - key: ENABLE_ACCOUNT_SIGNUP
                 sync: false
-              # https://chatwoot-web.onrender.com o el dominio propio (chat.<dominio>)
+              # https://chatwoot-web-xxxx.onrender.com o el dominio propio (chat.<dominio>)
               - key: FRONTEND_URL
                 sync: false
-              - key: SECRET_KEY_BASE
-                generateValue: true
-              - key: REDIS_URL
-                fromService:
-                  type: keyvalue
-                  name: chatwoot-redis
-                  property: connectionString
-              - key: POSTGRES_HOST
-                fromDatabase:
-                  name: chatwoot-db
-                  property: host
-              - key: POSTGRES_PORT
-                fromDatabase:
-                  name: chatwoot-db
-                  property: port
-              - key: POSTGRES_DATABASE
-                fromDatabase:
-                  name: chatwoot-db
-                  property: database
-              - key: POSTGRES_USERNAME
-                fromDatabase:
-                  name: chatwoot-db
-                  property: user
-              - key: POSTGRES_PASSWORD
-                fromDatabase:
-                  name: chatwoot-db
-                  property: password
               # Adjuntos del chat (fotos, PDFs): Render no conserva el disco entre deploys, así
-              # que van a un almacenamiento S3-compatible. Sirve el Storage de Supabase
-              # (Settings → Storage → S3 access keys) o Cloudflare R2.
+              # que van al Storage de Supabase en modo S3 (bucket `chatwoot`).
               - key: ACTIVE_STORAGE_SERVICE
                 value: s3_compatible
+              - key: STORAGE_FORCE_PATH_STYLE
+                value: "true"
               - key: STORAGE_BUCKET_NAME
                 sync: false
               - key: STORAGE_ACCESS_KEY_ID
@@ -287,9 +332,11 @@ projects:
                 sync: false
               - key: STORAGE_ENDPOINT
                 sync: false
-              - key: STORAGE_FORCE_PATH_STYLE
-                value: "true"
               # Correo saliente (invitaciones y recuperación de clave): SMTP de A3 o Brevo.
+              - key: SMTP_AUTHENTICATION
+                value: plain
+              - key: SMTP_ENABLE_STARTTLS_AUTO
+                value: "true"
               - key: MAILER_SENDER_EMAIL
                 sync: false
               - key: SMTP_ADDRESS
@@ -300,97 +347,6 @@ projects:
                 sync: false
               - key: SMTP_PASSWORD
                 sync: false
-              - key: SMTP_AUTHENTICATION
-                value: plain
-              - key: SMTP_ENABLE_STARTTLS_AUTO
-                value: "true"
-
-          - type: worker
-            name: chatwoot-worker
-            runtime: image
-            image:
-              url: docker.io/chatwoot/chatwoot:v4.11.0
-            region: virginia
-            plan: standard
-            autoDeploy: false
-            dockerCommand: bundle exec sidekiq -C config/sidekiq.yml
-            envVars:
-              - key: RAILS_ENV
-                value: production
-              - key: NODE_ENV
-                value: production
-              - key: INSTALLATION_ENV
-                value: render
-              - key: RAILS_LOG_TO_STDOUT
-                value: "true"
-              - key: LOG_LEVEL
-                value: info
-              - key: DEFAULT_LOCALE
-                value: es
-              # Las mismas credenciales que la web, copiadas de ella: se cargan UNA vez.
-              - key: SECRET_KEY_BASE
-                fromService:
-                  type: web
-                  name: chatwoot-web
-                  envVarKey: SECRET_KEY_BASE
-              - key: FRONTEND_URL
-                fromService:
-                  type: web
-                  name: chatwoot-web
-                  envVarKey: FRONTEND_URL
-              - key: REDIS_URL
-                fromService:
-                  type: keyvalue
-                  name: chatwoot-redis
-                  property: connectionString
-              - key: POSTGRES_HOST
-                fromDatabase:
-                  name: chatwoot-db
-                  property: host
-              - key: POSTGRES_PORT
-                fromDatabase:
-                  name: chatwoot-db
-                  property: port
-              - key: POSTGRES_DATABASE
-                fromDatabase:
-                  name: chatwoot-db
-                  property: database
-              - key: POSTGRES_USERNAME
-                fromDatabase:
-                  name: chatwoot-db
-                  property: user
-              - key: POSTGRES_PASSWORD
-                fromDatabase:
-                  name: chatwoot-db
-                  property: password
-              - key: ACTIVE_STORAGE_SERVICE
-                value: s3_compatible
-              - key: STORAGE_BUCKET_NAME
-                fromService: { type: web, name: chatwoot-web, envVarKey: STORAGE_BUCKET_NAME }
-              - key: STORAGE_ACCESS_KEY_ID
-                fromService: { type: web, name: chatwoot-web, envVarKey: STORAGE_ACCESS_KEY_ID }
-              - key: STORAGE_SECRET_ACCESS_KEY
-                fromService: { type: web, name: chatwoot-web, envVarKey: STORAGE_SECRET_ACCESS_KEY }
-              - key: STORAGE_REGION
-                fromService: { type: web, name: chatwoot-web, envVarKey: STORAGE_REGION }
-              - key: STORAGE_ENDPOINT
-                fromService: { type: web, name: chatwoot-web, envVarKey: STORAGE_ENDPOINT }
-              - key: STORAGE_FORCE_PATH_STYLE
-                value: "true"
-              - key: MAILER_SENDER_EMAIL
-                fromService: { type: web, name: chatwoot-web, envVarKey: MAILER_SENDER_EMAIL }
-              - key: SMTP_ADDRESS
-                fromService: { type: web, name: chatwoot-web, envVarKey: SMTP_ADDRESS }
-              - key: SMTP_PORT
-                fromService: { type: web, name: chatwoot-web, envVarKey: SMTP_PORT }
-              - key: SMTP_USERNAME
-                fromService: { type: web, name: chatwoot-web, envVarKey: SMTP_USERNAME }
-              - key: SMTP_PASSWORD
-                fromService: { type: web, name: chatwoot-web, envVarKey: SMTP_PASSWORD }
-              - key: SMTP_AUTHENTICATION
-                value: plain
-              - key: SMTP_ENABLE_STARTTLS_AUTO
-                value: "true"
 
         databases:
           - name: chatwoot-db
