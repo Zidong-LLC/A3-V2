@@ -41,8 +41,9 @@ Sin el `?token=`, el webhook responde 403 y el bot queda mudo.
 Render → **New → Blueprint** → conectar el repo `Zidong-LLC/A3-V2` → elegir la rama.
 Render lee `render.yaml` y arma el **proyecto «A3 Laboratorio» / entorno «produccion»**
 completo (desde el 2026-10-27): la plataforma (Docker, plan Standard, health check en
-`/health`, auto-deploy apagado), los dos crons (Anarvet y pedidos abandonados) y Chatwoot
-(web, worker, Postgres y Redis). Todo en la región **virginia**, la de Supabase.
+`/health`, auto-deploy apagado) y los dos crons (Anarvet y pedidos abandonados). Chatwoot
+(web, worker, Postgres y Redis) se suma después pegando `deploy/chatwoot-render.yaml` en el
+blueprint y sincronizando (paso 4 del traspaso). Todo en la región **virginia**, la de Supabase.
 
 Va a pedir las 27 credenciales marcadas `sync: false`. Salen del `.env` local, tal cual.
 Dos las genera Render solo (`FLASK_SECRET_KEY`, `PLATFORM_API_TOKEN`) — mejor así.
