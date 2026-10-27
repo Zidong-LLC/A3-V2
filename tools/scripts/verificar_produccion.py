@@ -1,6 +1,6 @@
 """Chequeo de SOLO LECTURA del cableado de producción, para correr después de cada deploy.
 
-    python tools/scripts/verificar_produccion.py https://a3-plataforma.onrender.com
+    python tools/scripts/verificar_produccion.py https://a3-plataforma-5km4.onrender.com
 
 Verifica: /health (el liviano), /health/detalle con el token de la plataforma, que el
 Agent Bot de Chatwoot apunte a ESA URL con ?token=, que el bot esté asociado a los

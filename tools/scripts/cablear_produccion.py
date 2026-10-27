@@ -9,8 +9,8 @@ Sin el token el webhook responde 403 y el bot queda mudo.
 
 Por defecto solo MUESTRA lo que haría (no toca nada). Con --aplicar, lo hace.
 
-    python tools/scripts/cablear_produccion.py https://a3-plataforma.onrender.com
-    python tools/scripts/cablear_produccion.py https://a3-plataforma.onrender.com --aplicar
+    python tools/scripts/cablear_produccion.py https://a3-plataforma-5km4.onrender.com
+    python tools/scripts/cablear_produccion.py https://a3-plataforma-5km4.onrender.com --aplicar
 """
 import argparse
 import json
