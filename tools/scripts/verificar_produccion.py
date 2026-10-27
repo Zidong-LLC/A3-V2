@@ -64,10 +64,15 @@ def main() -> int:
     bot = next((b for b in bots if b.get("name") == "A3"), bots[0] if bots else {})
     check("Agent Bot apunta a esta URL con ?token=", bot.get("outgoing_url") == esperada,
           (bot.get("outgoing_url") or "sin bot").split("?")[0])
-    for inbox, nombre in ((os.environ.get("CHATWOOT_INBOX_ID", "1"), "Telegram"), ("3", "WhatsApp")):
-        status, cuerpo = _get(f"{chatwoot}/api/v1/accounts/{cuenta}/inboxes/{inbox}/agent_bot", cabeceras)
+    # Todos los inboxes de la cuenta (Telegram, WhatsApp…) tienen que tener el bot asociado.
+    status, cuerpo = _get(f"{chatwoot}/api/v1/accounts/{cuenta}/inboxes", cabeceras)
+    inboxes = (json.loads(cuerpo).get("payload") or []) if status == 200 else []
+    check("La cuenta de Chatwoot tiene inboxes", bool(inboxes), ", ".join(i.get("name", "?") for i in inboxes))
+    for inbox in inboxes:
+        status, cuerpo = _get(f"{chatwoot}/api/v1/accounts/{cuenta}/inboxes/{inbox['id']}/agent_bot", cabeceras)
         asociado = (json.loads(cuerpo).get("agent_bot") or {}) if status == 200 else {}
-        check(f"Bot asociado al inbox {inbox} ({nombre})", asociado.get("id") == bot.get("id"), asociado.get("name") or "ninguno")
+        check(f"Bot asociado al inbox {inbox['id']} ({inbox.get('name')}, {inbox.get('channel_type', '').replace('Channel::', '')})",
+              asociado.get("id") == bot.get("id"), asociado.get("name") or "ninguno")
 
     tg = os.environ.get("TELEGRAM_BOT_TOKEN", "")
     status, cuerpo = _get(f"https://api.telegram.org/bot{tg}/getWebhookInfo")
