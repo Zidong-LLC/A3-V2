@@ -197,12 +197,17 @@ def estado_supabase() -> dict:
     def leer():
         h = {"Authorization": f"Bearer {SUPABASE_ACCESS_TOKEN}"}
         proyecto = _get_json(f"https://api.supabase.com/v1/projects/{ref}", h)
-        org = _get_json(f"https://api.supabase.com/v1/organizations/{proyecto.get('organization_slug')}", h)
-        addons = _get_json(f"https://api.supabase.com/v1/projects/{ref}/billing/addons", h)
-        extras = sum(float(((a.get("variant") or {}).get("price") or {}).get("amount") or 0)
-                     for a in (addons.get("selected_addons") or []))
-        plan = str(org.get("plan") or "?").lower()
-        return {"disponible": True, "plan": plan, "organizacion": org.get("name") or "",
+        # El plan y el nombre de la organización solo los ve un Owner/Admin: con un rol
+        # menor el proyecto igual se reporta (estado y región), sin el gasto.
+        try:
+            org = _get_json(f"https://api.supabase.com/v1/organizations/{proyecto.get('organization_slug')}", h)
+            addons = _get_json(f"https://api.supabase.com/v1/projects/{ref}/billing/addons", h)
+            extras = sum(float(((a.get("variant") or {}).get("price") or {}).get("amount") or 0)
+                         for a in (addons.get("selected_addons") or []))
+            plan, nombre_org = str(org.get("plan") or "?").lower(), org.get("name") or ""
+        except Exception:  # noqa: BLE001 — sin permiso para ver la organización
+            plan, nombre_org, extras = "sin permiso (rol de la cuenta)", proyecto.get("organization_slug") or "", 0
+        return {"disponible": True, "plan": plan, "organizacion": nombre_org,
                 "estado": proyecto.get("status") or "?", "region": proyecto.get("region") or "",
                 "usd": PRECIO_PLAN_SUPABASE.get(plan, 0) + extras}
     try:
