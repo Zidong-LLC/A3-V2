@@ -39,8 +39,10 @@ Sin el `?token=`, el webhook responde 403 y el bot queda mudo.
 ## 1. Crear el servicio
 
 Render → **New → Blueprint** → conectar el repo `Zidong-LLC/A3-V2` → elegir la rama.
-Render lee `render.yaml` y arma el servicio: Docker, plan Standard (2 GB), health check
-en `/health`, y **auto-deploy apagado** (producción no se actualiza sola).
+Render lee `render.yaml` y arma el **proyecto «A3 Laboratorio» / entorno «produccion»**
+completo (desde el 2026-10-27): la plataforma (Docker, plan Standard, health check en
+`/health`, auto-deploy apagado), los dos crons (Anarvet y pedidos abandonados) y Chatwoot
+(web, worker, Postgres y Redis). Todo en la región **virginia**, la de Supabase.
 
 Va a pedir las 27 credenciales marcadas `sync: false`. Salen del `.env` local, tal cual.
 Dos las genera Render solo (`FLASK_SECRET_KEY`, `PLATFORM_API_TOKEN`) — mejor así.
@@ -102,6 +104,10 @@ Chatwoot). `verify_chatwoot_telegram_agent.py` es el de la sesión LOCAL con ngr
 REESCRIBE la URL del bot, no usarlo contra producción.
 
 ## 5. Programar el sync de Anarvet
+
+**Desde el 2026-10-27 los dos crons vienen en el blueprint** (`a3-cron-anarvet` y
+`a3-cron-pedidos`): no hay que crearlos a mano. Lo de abajo queda como referencia de qué
+hacen y para crearlos a mano en un servicio que no venga del blueprint.
 
 Render → **New → Cron Job**, mismo repo y entorno:
 

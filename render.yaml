@@ -1,127 +1,396 @@
-# Blueprint de Render para la plataforma A3.
+# Blueprint de Render: TODO el proyecto A3 en un solo lugar (decisión del usuario, 2026-10-27).
 #
-# Con este archivo, Render crea el servicio con la configuración correcta en vez de
-# depender de que alguien recuerde los flags. Las variables marcadas `sync: false` NO
-# viajan en el repo: Render las pide al crear el servicio (son las credenciales).
+# Un proyecto «A3 Laboratorio» con un entorno «produccion» que contiene:
+#   - a3-plataforma         la plataforma, el portal y el bot (este repositorio, Docker)
+#   - a3-cron-anarvet       sync del espejo de Anarvet (cada hora en horario laboral)
+#   - a3-cron-pedidos       cierre de pedidos abandonados (cada 15 minutos)
+#   - chatwoot-web          la bandeja de mensajes (imagen oficial de Chatwoot)
+#   - chatwoot-worker       los trabajos de fondo de Chatwoot (Sidekiq)
+#   - chatwoot-redis        Redis de Chatwoot (Render Key Value)
+#   - chatwoot-db           Postgres de Chatwoot (Render Postgres, con la extensión vector)
 #
-# Uso: en Render → New → Blueprint → conectar el repo → elegir la rama → completar
-# las variables que pida. El runbook completo está en docs/runbooks/deploy.md
-services:
-  - type: web
-    name: a3-plataforma
-    runtime: docker
-    dockerfilePath: ./Dockerfile
-    region: oregon
-    plan: standard          # 2 GB de RAM: Chromium usa 150-300 MB al render de un PDF
-    healthCheckPath: /health
-    autoDeploy: false       # el deploy se dispara a mano; producción no se toca sola
-    envVars:
-      # ── Ajustes fijos (no son secretos, van versionados a propósito) ──
-      - key: APP_ENV
-        value: production
-      - key: APP_TIMEZONE
-        value: America/Bogota
-      - key: CUTOFF_TIME
-        value: "17:30"
-      - key: OPENAI_MODEL
-        value: gpt-5.4-mini
-      - key: MESSAGE_DEBOUNCE_SECONDS
-        value: "5"
-      - key: MESSAGE_DEBOUNCE_MAX_WAIT
-        value: "20"
-      - key: FSM_ENFORCE
-        value: "false"
+# Uso: en el workspace de Render del cliente → New → Blueprint → conectar el repo → Render lee
+# este archivo y crea todo. Las variables `sync: false` NO viajan en el repo: Render las pide
+# al crear (son credenciales). Runbooks: docs/runbooks/deploy.md y traspaso-cuentas-cliente.md.
+#
+# Región «virginia» para todo: Supabase está en us-east-1 y así cada consulta viaja menos.
+# Costo aproximado del entorno: plataforma 25 + Chatwoot (web 25 + worker 25 + db 6 + redis 10)
+# + crons ~2 = ~USD 93/mes. Los planes usan los nombres «legacy» (starter/standard/basic-256mb),
+# que Render sigue aceptando.
 
-      # ── Guardrails de seguridad: se despliegan APAGADOS, a propósito ──
-      # ALEGRA_PRODUCTION=false ⇒ solo borradores, NUNCA emisión a la DIAN.
-      - key: ALEGRA_PRODUCTION
-        value: "false"
-      # PORTAL_DEMO_MODE=false ⇒ el portal exige nombre + NIT reales.
-      - key: PORTAL_DEMO_MODE
-        value: "false"
-      # Interruptores de las integraciones: `sync: false` a propósito. Si llevaran un
-      # valor acá, CADA deploy pisaría lo que el operador configuró en el panel — y una
-      # integración que se apagó a mano para contener un incidente volvería a encenderse
-      # sola. Render las pregunta una vez y después respeta el panel.
-      # En el PRIMER deploy van en "false" y se encienden de a una (ver runbook).
-      - key: PDF_ENABLED
-        sync: false
-      - key: ANARVET_ENABLED
-        sync: false
-      - key: ALEGRA_ENABLED
-        sync: false
+projects:
+  - name: A3 Laboratorio
+    environments:
+      - name: produccion
 
-      # ── Credenciales: Render las pide al crear el servicio ──
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
-      - key: OPENAI_ADMIN_KEY
-        sync: false             # solo para el gasto del mes en el panel de sistema
-      - key: SISTEMA_USER
-        sync: false             # acceso al panel de sistema (/sistema), aparte de la plataforma
-      - key: SISTEMA_PASSWORD
-        sync: false
-      - key: RENDER_API_KEY
-        sync: false             # opcional: estado y plan de Render en /sistema
-      - key: RENDER_SERVICE_ID
-        sync: false             # opcional: srv-… de este servicio
-      - key: SUPABASE_ACCESS_TOKEN
-        sync: false             # opcional: estado y plan de Supabase en /sistema
-      - key: FLASK_SECRET_KEY
-        generateValue: true     # Render genera un secreto nuevo y fuerte
-      - key: DASHBOARD_ADMIN_USER
-        sync: false
-      - key: DASHBOARD_ADMIN_PASSWORD
-        sync: false
-      - key: PLATFORM_API_TOKEN
-        generateValue: true     # sin él, /api/platform/* queda abierta a internet
-      - key: TELEGRAM_BOT_TOKEN
-        sync: false
-      # Avisos de error al responsable técnico, por un bot PROPIO (no el de clientes).
-      - key: ALERT_TELEGRAM_BOT_TOKEN
-        sync: false
-      - key: ADMIN_TELEGRAM_CHAT_ID
-        sync: false
-      - key: TELEGRAM_WEBHOOK_SECRET
-        sync: false
-      - key: TELEGRAM_WEBHOOK_URL
-        sync: false
-      - key: CHATWOOT_URL
-        sync: false
-      - key: CHATWOOT_ACCOUNT_ID
-        sync: false
-      - key: CHATWOOT_API_TOKEN
-        sync: false
-      - key: CHATWOOT_AGENT_BOT_TOKEN
-        sync: false
-      - key: CHATWOOT_INBOX_ID
-        sync: false
-      - key: CHATWOOT_TEAM_CONTABILIDAD
-        sync: false
-      - key: CHATWOOT_TEAM_OPERACIONES
-        sync: false
-      - key: CHATWOOT_WEBHOOK_SECRET
-        sync: false             # el mismo que va en la URL del Agent Bot (?token=...)
-      - key: ALEGRA_EMAIL
-        sync: false
-      - key: ALEGRA_API_TOKEN
-        sync: false
-      - key: ALEGRA_BASE_URL
-        sync: false
-      - key: ALEGRA_COUNTRY
-        sync: false
-      - key: ANARVET_DB_HOST
-        sync: false
-      - key: ANARVET_DB_PORT
-        sync: false
-      - key: ANARVET_DB_NAME
-        sync: false
-      - key: ANARVET_DB_USER
-        sync: false
-      - key: ANARVET_DB_PASSWORD
-        sync: false
-      - key: ANARVET_SSLMODE
-        sync: false
+        services:
+          # ───────────────────────── Plataforma A3 (este repo) ─────────────────────────
+          - type: web
+            name: a3-plataforma
+            runtime: docker
+            dockerfilePath: ./Dockerfile
+            region: virginia
+            plan: standard          # 2 GB de RAM: Chromium usa 150-300 MB al render de un PDF
+            healthCheckPath: /health
+            autoDeploy: false       # el deploy se dispara a mano; producción no se toca sola
+            envVars:
+              # ── Ajustes fijos (no son secretos, van versionados a propósito) ──
+              - key: APP_ENV
+                value: production
+              - key: APP_TIMEZONE
+                value: America/Bogota
+              - key: CUTOFF_TIME
+                value: "17:30"
+              - key: OPENAI_MODEL
+                value: gpt-5.4-mini
+              - key: MESSAGE_DEBOUNCE_SECONDS
+                value: "5"
+              - key: MESSAGE_DEBOUNCE_MAX_WAIT
+                value: "20"
+              - key: FSM_ENFORCE
+                value: "false"
+
+              # ── Guardrails de seguridad: se despliegan APAGADOS, a propósito ──
+              # ALEGRA_PRODUCTION=false ⇒ solo borradores, NUNCA emisión a la DIAN.
+              - key: ALEGRA_PRODUCTION
+                value: "false"
+              # PORTAL_DEMO_MODE=false ⇒ el portal exige nombre + NIT reales.
+              - key: PORTAL_DEMO_MODE
+                value: "false"
+              # Interruptores de las integraciones: `sync: false` a propósito. Si llevaran un
+              # valor acá, CADA deploy pisaría lo que el operador configuró en el panel — y una
+              # integración que se apagó a mano para contener un incidente volvería a encenderse
+              # sola. Render las pregunta una vez y después respeta el panel.
+              # En el PRIMER deploy van en "false" y se encienden de a una (ver runbook).
+              - key: PDF_ENABLED
+                sync: false
+              - key: ANARVET_ENABLED
+                sync: false
+              - key: ALEGRA_ENABLED
+                sync: false
+
+              # ── Credenciales: Render las pide al crear el servicio ──
+              - key: SUPABASE_URL
+                sync: false
+              - key: SUPABASE_SERVICE_ROLE_KEY
+                sync: false
+              - key: OPENAI_API_KEY
+                sync: false
+              - key: OPENAI_ADMIN_KEY
+                sync: false             # solo para el gasto del mes en el panel de sistema
+              - key: SISTEMA_USER
+                sync: false             # acceso al panel de sistema (/sistema), aparte de la plataforma
+              - key: SISTEMA_PASSWORD
+                sync: false
+              - key: RENDER_API_KEY
+                sync: false             # opcional: estado y plan de Render en /sistema
+              - key: RENDER_SERVICE_ID
+                sync: false             # opcional: srv-… de este servicio
+              - key: SUPABASE_ACCESS_TOKEN
+                sync: false             # opcional: estado y plan de Supabase en /sistema
+              - key: FLASK_SECRET_KEY
+                generateValue: true     # Render genera un secreto nuevo y fuerte
+              - key: DASHBOARD_ADMIN_USER
+                sync: false
+              - key: DASHBOARD_ADMIN_PASSWORD
+                sync: false
+              - key: PLATFORM_API_TOKEN
+                generateValue: true     # sin él, /api/platform/* queda abierta a internet
+              - key: TELEGRAM_BOT_TOKEN
+                sync: false
+              # Avisos de error al responsable técnico, por un bot PROPIO (no el de clientes).
+              - key: ALERT_TELEGRAM_BOT_TOKEN
+                sync: false
+              - key: ADMIN_TELEGRAM_CHAT_ID
+                sync: false
+              - key: TELEGRAM_WEBHOOK_SECRET
+                sync: false
+              - key: TELEGRAM_WEBHOOK_URL
+                sync: false
+              - key: CHATWOOT_URL
+                sync: false             # https://chatwoot-web.onrender.com (o el dominio propio)
+              - key: CHATWOOT_ACCOUNT_ID
+                sync: false
+              - key: CHATWOOT_API_TOKEN
+                sync: false
+              - key: CHATWOOT_AGENT_BOT_TOKEN
+                sync: false
+              - key: CHATWOOT_INBOX_ID
+                sync: false
+              - key: CHATWOOT_TEAM_CONTABILIDAD
+                sync: false
+              - key: CHATWOOT_TEAM_OPERACIONES
+                sync: false
+              - key: CHATWOOT_WEBHOOK_SECRET
+                sync: false             # el mismo que va en la URL del Agent Bot (?token=...)
+              - key: ALEGRA_EMAIL
+                sync: false
+              - key: ALEGRA_API_TOKEN
+                sync: false
+              - key: ALEGRA_BASE_URL
+                sync: false
+              - key: ALEGRA_COUNTRY
+                sync: false
+              - key: ANARVET_DB_HOST
+                sync: false
+              - key: ANARVET_DB_PORT
+                sync: false
+              - key: ANARVET_DB_NAME
+                sync: false
+              - key: ANARVET_DB_USER
+                sync: false
+              - key: ANARVET_DB_PASSWORD
+                sync: false
+              - key: ANARVET_SSLMODE
+                sync: false
+
+          # ───────────────────────── Crons de la plataforma ─────────────────────────
+          # Horarios en UTC (Bogotá = UTC-5): 12-23 UTC = 7:00-18:00 de Bogotá, lunes a sábado.
+          - type: cron
+            name: a3-cron-anarvet
+            runtime: image
+            image:
+              url: docker.io/curlimages/curl:8.10.1
+            region: virginia
+            plan: starter
+            schedule: "0 12-23 * * 1-6"
+            dockerCommand: >-
+              /bin/sh -c 'curl -fsS -X POST "https://$A3_HOST/api/platform/anarvet/sync"
+              -H "X-Platform-Token: $PLATFORM_API_TOKEN"'
+            envVars:
+              - key: A3_HOST
+                fromService:
+                  type: web
+                  name: a3-plataforma
+                  property: host
+              - key: PLATFORM_API_TOKEN
+                fromService:
+                  type: web
+                  name: a3-plataforma
+                  envVarKey: PLATFORM_API_TOKEN
+
+          - type: cron
+            name: a3-cron-pedidos
+            runtime: image
+            image:
+              url: docker.io/curlimages/curl:8.10.1
+            region: virginia
+            plan: starter
+            schedule: "*/15 * * * *"
+            dockerCommand: >-
+              /bin/sh -c 'curl -fsS -X POST "https://$A3_HOST/api/platform/pedidos/barrido"
+              -H "X-Platform-Token: $PLATFORM_API_TOKEN"'
+            envVars:
+              - key: A3_HOST
+                fromService:
+                  type: web
+                  name: a3-plataforma
+                  property: host
+              - key: PLATFORM_API_TOKEN
+                fromService:
+                  type: web
+                  name: a3-plataforma
+                  envVarKey: PLATFORM_API_TOKEN
+
+          # ───────────────────────── Chatwoot (bandeja de mensajes) ─────────────────────────
+          # Imagen oficial, versión FIJA (la misma que corre hoy en el VPS). Para actualizar
+          # Chatwoot: cambiar el tag en web y worker, y redeploy.
+          - type: keyvalue
+            name: chatwoot-redis
+            region: virginia
+            plan: starter           # 256 MB, persistente (el gratis pierde la cola al reiniciar)
+            maxmemoryPolicy: noeviction
+            ipAllowList: []         # solo conexiones internas del entorno
+
+          - type: web
+            name: chatwoot-web
+            runtime: image
+            image:
+              url: docker.io/chatwoot/chatwoot:v4.11.0
+            region: virginia
+            plan: standard          # Rails: ~1 GB en uso normal
+            healthCheckPath: /api
+            autoDeploy: false
+            dockerCommand: bundle exec rails s -p 3000 -b 0.0.0.0
+            # Crea la base, la extensión vector y corre las migraciones ANTES de cada deploy.
+            preDeployCommand: bundle exec rails db:chatwoot_prepare
+            envVars:
+              - key: PORT
+                value: "3000"
+              - key: RAILS_ENV
+                value: production
+              - key: NODE_ENV
+                value: production
+              - key: INSTALLATION_ENV
+                value: render
+              - key: RAILS_LOG_TO_STDOUT
+                value: "true"
+              - key: LOG_LEVEL
+                value: info
+              - key: DEFAULT_LOCALE
+                value: es
+              - key: FORCE_SSL
+                value: "true"
+              - key: WEB_CONCURRENCY
+                value: "1"
+              - key: RAILS_MAX_THREADS
+                value: "5"
+              # TRUE solo para el primer ingreso (crear la cuenta de A3); después, false.
+              - key: ENABLE_ACCOUNT_SIGNUP
+                sync: false
+              # https://chatwoot-web.onrender.com o el dominio propio (chat.<dominio>)
+              - key: FRONTEND_URL
+                sync: false
+              - key: SECRET_KEY_BASE
+                generateValue: true
+              - key: REDIS_URL
+                fromService:
+                  type: keyvalue
+                  name: chatwoot-redis
+                  property: connectionString
+              - key: POSTGRES_HOST
+                fromDatabase:
+                  name: chatwoot-db
+                  property: host
+              - key: POSTGRES_PORT
+                fromDatabase:
+                  name: chatwoot-db
+                  property: port
+              - key: POSTGRES_DATABASE
+                fromDatabase:
+                  name: chatwoot-db
+                  property: database
+              - key: POSTGRES_USERNAME
+                fromDatabase:
+                  name: chatwoot-db
+                  property: user
+              - key: POSTGRES_PASSWORD
+                fromDatabase:
+                  name: chatwoot-db
+                  property: password
+              # Adjuntos del chat (fotos, PDFs): Render no conserva el disco entre deploys, así
+              # que van a un almacenamiento S3-compatible. Sirve el Storage de Supabase
+              # (Settings → Storage → S3 access keys) o Cloudflare R2.
+              - key: ACTIVE_STORAGE_SERVICE
+                value: s3_compatible
+              - key: STORAGE_BUCKET_NAME
+                sync: false
+              - key: STORAGE_ACCESS_KEY_ID
+                sync: false
+              - key: STORAGE_SECRET_ACCESS_KEY
+                sync: false
+              - key: STORAGE_REGION
+                sync: false
+              - key: STORAGE_ENDPOINT
+                sync: false
+              - key: STORAGE_FORCE_PATH_STYLE
+                value: "true"
+              # Correo saliente (invitaciones y recuperación de clave): SMTP de A3 o Brevo.
+              - key: MAILER_SENDER_EMAIL
+                sync: false
+              - key: SMTP_ADDRESS
+                sync: false
+              - key: SMTP_PORT
+                sync: false
+              - key: SMTP_USERNAME
+                sync: false
+              - key: SMTP_PASSWORD
+                sync: false
+              - key: SMTP_AUTHENTICATION
+                value: plain
+              - key: SMTP_ENABLE_STARTTLS_AUTO
+                value: "true"
+
+          - type: worker
+            name: chatwoot-worker
+            runtime: image
+            image:
+              url: docker.io/chatwoot/chatwoot:v4.11.0
+            region: virginia
+            plan: standard
+            autoDeploy: false
+            dockerCommand: bundle exec sidekiq -C config/sidekiq.yml
+            envVars:
+              - key: RAILS_ENV
+                value: production
+              - key: NODE_ENV
+                value: production
+              - key: INSTALLATION_ENV
+                value: render
+              - key: RAILS_LOG_TO_STDOUT
+                value: "true"
+              - key: LOG_LEVEL
+                value: info
+              - key: DEFAULT_LOCALE
+                value: es
+              # Las mismas credenciales que la web, copiadas de ella: se cargan UNA vez.
+              - key: SECRET_KEY_BASE
+                fromService:
+                  type: web
+                  name: chatwoot-web
+                  envVarKey: SECRET_KEY_BASE
+              - key: FRONTEND_URL
+                fromService:
+                  type: web
+                  name: chatwoot-web
+                  envVarKey: FRONTEND_URL
+              - key: REDIS_URL
+                fromService:
+                  type: keyvalue
+                  name: chatwoot-redis
+                  property: connectionString
+              - key: POSTGRES_HOST
+                fromDatabase:
+                  name: chatwoot-db
+                  property: host
+              - key: POSTGRES_PORT
+                fromDatabase:
+                  name: chatwoot-db
+                  property: port
+              - key: POSTGRES_DATABASE
+                fromDatabase:
+                  name: chatwoot-db
+                  property: database
+              - key: POSTGRES_USERNAME
+                fromDatabase:
+                  name: chatwoot-db
+                  property: user
+              - key: POSTGRES_PASSWORD
+                fromDatabase:
+                  name: chatwoot-db
+                  property: password
+              - key: ACTIVE_STORAGE_SERVICE
+                value: s3_compatible
+              - key: STORAGE_BUCKET_NAME
+                fromService: { type: web, name: chatwoot-web, envVarKey: STORAGE_BUCKET_NAME }
+              - key: STORAGE_ACCESS_KEY_ID
+                fromService: { type: web, name: chatwoot-web, envVarKey: STORAGE_ACCESS_KEY_ID }
+              - key: STORAGE_SECRET_ACCESS_KEY
+                fromService: { type: web, name: chatwoot-web, envVarKey: STORAGE_SECRET_ACCESS_KEY }
+              - key: STORAGE_REGION
+                fromService: { type: web, name: chatwoot-web, envVarKey: STORAGE_REGION }
+              - key: STORAGE_ENDPOINT
+                fromService: { type: web, name: chatwoot-web, envVarKey: STORAGE_ENDPOINT }
+              - key: STORAGE_FORCE_PATH_STYLE
+                value: "true"
+              - key: MAILER_SENDER_EMAIL
+                fromService: { type: web, name: chatwoot-web, envVarKey: MAILER_SENDER_EMAIL }
+              - key: SMTP_ADDRESS
+                fromService: { type: web, name: chatwoot-web, envVarKey: SMTP_ADDRESS }
+              - key: SMTP_PORT
+                fromService: { type: web, name: chatwoot-web, envVarKey: SMTP_PORT }
+              - key: SMTP_USERNAME
+                fromService: { type: web, name: chatwoot-web, envVarKey: SMTP_USERNAME }
+              - key: SMTP_PASSWORD
+                fromService: { type: web, name: chatwoot-web, envVarKey: SMTP_PASSWORD }
+              - key: SMTP_AUTHENTICATION
+                value: plain
+              - key: SMTP_ENABLE_STARTTLS_AUTO
+                value: "true"
+
+        databases:
+          - name: chatwoot-db
+            region: virginia
+            plan: basic-256mb       # el chat de A3 es chico; se sube de plan sin corte
+            postgresMajorVersion: "16"
+            ipAllowList: []         # solo conexiones internas del entorno

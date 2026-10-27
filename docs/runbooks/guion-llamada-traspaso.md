@@ -41,13 +41,16 @@ crédito de 50 dólares y el panel les muestra cuánto se consume.»*
    (`api.usage.read`) → igual: que la guarde y te la pase por canal seguro.
 - Anotá: ☐ API key recibida · ☐ Admin key recibida.
 
-### 4. Servidor para Chatwoot (bandeja de mensajes) — 7 min · ~USD 12–24/mes
-Decile: *«Es la bandeja donde el personal ve los chats de Telegram y WhatsApp y donde entra
-una persona cuando el bot deriva. Va en un servidor chico aparte.»*
-1. Opción simple: **digitalocean.com** → cuenta con el correo de A3 → tarjeta → *Team → Invite*
-   tu correo como **Owner**. (Alternativa: hetzner.com, más barato; mismo procedimiento.)
-2. **No crear ningún servidor**: lo creo yo desde su cuenta, para que la factura sea de ellos.
-- Anotá: ☐ proveedor elegido · ☐ invitación recibida.
+### 4. Correo para Chatwoot (bandeja de mensajes) — 5 min · sin cuenta nueva
+Decile: *«La bandeja donde el personal ve los chats va dentro del mismo Render; no hay que
+crear nada más, suma unos 66 dólares al mes a esa cuenta. Solo necesito un correo de A3 para
+que mande invitaciones y recuperación de clave.»*
+1. Si usan **Google Workspace**: desde una cuenta de A3 (p. ej. notificaciones@dominio) →
+   *Cuenta de Google → Seguridad → Verificación en 2 pasos → Contraseñas de aplicaciones* →
+   crear una y pasártela por canal seguro.
+2. Si no tienen Google Workspace: crear cuenta gratis en **brevo.com** con el correo de A3 e
+   invitarte, o pasarte las credenciales SMTP.
+- Anotá: ☐ correo remitente · ☐ contraseña de aplicación o acceso a Brevo.
 
 ### 5. WhatsApp y dominio — 8 min · sin costo nuevo
 1. **business.facebook.com** → *Configuración del negocio → Usuarios → Personas → Agregar*:
@@ -69,14 +72,14 @@ una persona cuando el bot deriva. Va en un servidor chico aparte.»*
 - ☐ Invitación Owner en la organización de Supabase (plan Pro)
 - ☐ Invitación Admin en el workspace de Render (con tarjeta cargada)
 - ☐ API key y Admin key de OpenAI (con crédito cargado)
-- ☐ Invitación en DigitalOcean/Hetzner (con tarjeta)
+- ☐ Correo remitente y clave SMTP para Chatwoot
 - ☐ Acceso administrador al Business Manager de A3 (WhatsApp)
 - ☐ Acceso al DNS o la persona que lo maneja
 - ☐ Usuario de Telegram del futuro dueño del bot
 
 ## Después de la llamada (vos)
 
-1. Aceptá las invitaciones (Supabase, Render, el VPS).
+1. Aceptá las invitaciones (Supabase y Render).
 2. Guardá las dos claves de OpenAI en el `.env` como `OPENAI_API_KEY` y `OPENAI_ADMIN_KEY`.
 3. Avisame y seguimos con el paso 1 del runbook `traspaso-cuentas-cliente.md`
    (transferir el proyecto de Supabase); el deploy en el Render del cliente va ese mismo día.

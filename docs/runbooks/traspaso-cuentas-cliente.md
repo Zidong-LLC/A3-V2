@@ -12,7 +12,7 @@
 | Supabase (base + PDFs) | Org «LABERIT» (del desarrollador) | Org del cliente, plan Pro | **Transferir el proyecto** entre organizaciones (sin copiar datos) |
 | Render (servidor) | Cuenta del desarrollador | Workspace del cliente, plan Standard | **Crear el servicio de nuevo** con `render.yaml` (Render no traspasa servicios) |
 | OpenAI (IA del bot) | Cuenta del desarrollador | Org del cliente con facturación | Nueva API key en la cuenta del cliente; se cambia la variable en Render |
-| Chatwoot (bandeja, Telegram, WhatsApp) | EasyPanel/VPS del desarrollador | VPS + EasyPanel del cliente | **Instalación nueva**; se recrean inboxes, equipos, agentes y el bot |
+| Chatwoot (bandeja, Telegram, WhatsApp) | EasyPanel/VPS del desarrollador | **El mismo Render del cliente** (proyecto «A3 Laboratorio», lo crea el blueprint) | Instalación nueva en Render; se recrean inboxes, equipos, agentes y el bot |
 | WhatsApp Business (Meta) | Número de A3, nombre verificado | Igual (ya es de A3) | Reconectar el número al Chatwoot nuevo |
 | Telegram, bot de clientes | Creado por el desarrollador | Transferido al cliente | BotFather → Transfer Ownership (el token sigue sirviendo) |
 | Telegram, bot de avisos | Del desarrollador | Se queda (avisa al desarrollador) | Nada |
@@ -32,9 +32,10 @@
    Generar dos claves y pasarlas por un canal seguro (no por WhatsApp ni correo abierto):
    una **API key** del proyecto y una **Admin key** con permiso `api.usage.read` (para que el
    panel de sistema muestre el gasto).
-4. **VPS para Chatwoot:** contratar un servidor (2 vCPU, 4 GB RAM, 40 GB) e instalar EasyPanel,
-   o darle acceso al desarrollador para que lo haga. Un subdominio para Chatwoot
-   (`chat.<dominio>`).
+4. **Chatwoot va en Render** (decisión 27/10): no hay que crear ninguna cuenta más. El blueprint
+   crea la web, el worker, Postgres y Redis de Chatwoot dentro del mismo proyecto (~USD 66/mes
+   más). Hace falta un **correo SMTP** para que Chatwoot mande invitaciones y recuperación de
+   clave: una contraseña de aplicación de una cuenta de Google Workspace de A3, o Brevo (gratis).
 5. **Meta (WhatsApp):** confirmar que el número y la cuenta de WhatsApp Business están en el
    **Business Manager de A3** y dar acceso de administrador al desarrollador para reconectar el
    número al Chatwoot nuevo.
@@ -55,7 +56,7 @@ en las actuales. El ritmo lo marcan los pasos del cliente (crear cuentas y dar a
 | 4 | Apuntar el Agent Bot de Chatwoot a la URL nueva y crear los 2 crons (Anarvet y pedidos) | Yo (Chatwoot) / vos (crons en Render) | Segundos | El bot contesta por Telegram y WhatsApp; `verificar_produccion.py` TODO OK |
 | 5 | Prueba en vivo (runbook de deploy, paso 6) y sync de Anarvet | Los dos | — | Orden de prueba creada y borrada; PDF recibido; escalada visible en Chatwoot |
 | 6 | Dominio propio (`plataforma.<dominio>`, `portal.<dominio>`) en Render + DNS del cliente | Vos / cliente (DNS) | — | La URL definitiva responde con HTTPS; bot y crons apuntan al dominio |
-| 7 | Chatwoot nuevo en el VPS del cliente: instalar, recrear equipos/agentes/bot/inboxes, reconectar WhatsApp, re-vincular motorizados, cambiar las 8 variables `CHATWOOT_*` | Yo (instalación y configuración), cliente (acceso Meta) | Minutos por inbox | Un mensaje por Telegram y uno por WhatsApp entran al Chatwoot nuevo y el bot responde |
+| 7 | Chatwoot nuevo **en Render** (lo crea el mismo blueprint): primer ingreso, recrear equipos/agentes/bot/inboxes, reconectar WhatsApp, re-vincular motorizados, cambiar las 8 variables `CHATWOOT_*` | Yo (configuración), cliente (acceso Meta y SMTP) | Minutos por inbox | Un mensaje por Telegram y uno por WhatsApp entran al Chatwoot nuevo y el bot responde |
 | 8 | Transferir el bot de Telegram (BotFather) y el repositorio (o dar acceso) | Vos | — | — |
 | 9 | Una semana después sin fallas: suspender/borrar lo viejo (Render viejo, Chatwoot viejo) | Vos | — | Panel de sistema sin errores de esos componentes |
 
@@ -80,9 +81,10 @@ funcionando con el Render nuevo).
 >    Organization → Admin keys* una clave de administración con permiso de lectura de uso.
 >    Me las pasan por un canal seguro (no por WhatsApp ni por correo abierto; un gestor de
 >    contraseñas o un mensaje que se autodestruye).
-> 4. **Servidor para Chatwoot (la bandeja de mensajes):** contratar un servidor pequeño
->    (2 CPU, 4 GB de RAM, ~USD 10–20/mes; por ejemplo en Hetzner o DigitalOcean) y
->    pasarme el acceso, o darme acceso para contratarlo yo con su tarjeta.
+> 4. **Correo para la bandeja de mensajes (Chatwoot):** la bandeja va dentro del mismo Render
+>    (no hay que crear nada más; suma unos USD 66/mes a esa cuenta). Solo necesito un correo
+>    de A3 desde el que pueda mandar invitaciones y recuperación de clave: si usan Google
+>    Workspace, una «contraseña de aplicación» de una cuenta como notificaciones@[dominio].
 > 5. **WhatsApp y dominio:** confirmar que el número de WhatsApp Business está en el
 >    *Business Manager* de A3 y darme acceso de administrador ahí; y acceso al DNS del
 >    dominio de A3 (o que creen los registros que les pase) para que la plataforma quede en
@@ -122,9 +124,13 @@ Guardar la Admin key como `OPENAI_ADMIN_KEY` (la usa el panel de sistema).
 6. Dominio propio: *Settings → Custom Domains* en Render + registros DNS en el dominio de A3.
    Después, cambiar la URL del Agent Bot al dominio para que no dependa de Render.
 
-### 4. Chatwoot — instalación nueva (el paso más largo; corte de minutos por inbox)
-1. En el EasyPanel del cliente: plantilla Chatwoot (Postgres + Redis + Sidekiq), subdominio con
-   HTTPS, cuenta de administrador para A3.
+### 4. Chatwoot — instalación nueva en Render (el paso más largo; corte de minutos por inbox)
+1. El blueprint ya creó `chatwoot-web`, `chatwoot-worker`, `chatwoot-redis` y `chatwoot-db` en
+   el proyecto. Antes del primer deploy cargar en `chatwoot-web`: `FRONTEND_URL`
+   (`https://chatwoot-web.onrender.com` o `https://chat.<dominio>`), `ENABLE_ACCOUNT_SIGNUP=true`
+   (solo para crear la primera cuenta; después `false`), las claves S3 del Storage de Supabase
+   (Supabase → Settings → Storage → S3 access keys; bucket `chatwoot`) y el SMTP de A3.
+   Desplegar web y worker; entrar, crear la cuenta de A3 y apagar el signup.
 2. Recrear: la cuenta, los **equipos** Contabilidad y Operaciones, los **agentes** (personal de
    A3), el **Agent Bot** «A3» (webhook) apuntando a Render con `?token=`, y el **token de API**.
 3. Inbox de **Telegram** con el token del bot: Chatwoot registra solo el webhook de Telegram
