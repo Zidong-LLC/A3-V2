@@ -152,14 +152,16 @@ projects:
             plan: starter
             schedule: "0 12-23 * * 1-6"
             dockerCommand: >-
-              /bin/sh -c 'curl -fsS -X POST "https://$A3_HOST/api/platform/anarvet/sync"
+              /bin/sh -c 'curl -fsS -X POST "http://$A3_HOSTPORT/api/platform/anarvet/sync"
               -H "X-Platform-Token: $PLATFORM_API_TOKEN"'
             envVars:
-              - key: A3_HOST
+              # Por la red privada de Render (host:puerto internos): no sale a internet y no
+              # depende del sufijo que Render le ponga a la URL pública.
+              - key: A3_HOSTPORT
                 fromService:
                   type: web
                   name: a3-plataforma
-                  property: host
+                  property: hostport
               - key: PLATFORM_API_TOKEN
                 fromService:
                   type: web
@@ -175,14 +177,16 @@ projects:
             plan: starter
             schedule: "*/15 * * * *"
             dockerCommand: >-
-              /bin/sh -c 'curl -fsS -X POST "https://$A3_HOST/api/platform/pedidos/barrido"
+              /bin/sh -c 'curl -fsS -X POST "http://$A3_HOSTPORT/api/platform/pedidos/barrido"
               -H "X-Platform-Token: $PLATFORM_API_TOKEN"'
             envVars:
-              - key: A3_HOST
+              # Por la red privada de Render (host:puerto internos): no sale a internet y no
+              # depende del sufijo que Render le ponga a la URL pública.
+              - key: A3_HOSTPORT
                 fromService:
                   type: web
                   name: a3-plataforma
-                  property: host
+                  property: hostport
               - key: PLATFORM_API_TOKEN
                 fromService:
                   type: web
