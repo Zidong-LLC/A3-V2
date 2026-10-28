@@ -159,6 +159,14 @@ def sync_results(desde: str | None = None, hasta: str | None = None) -> dict:
             logger.error("anarvet_sync: upsert del lote %s falló: %s", i // _BATCH_SIZE, exc)
             resultado["errors"].append(f"lote {i // _BATCH_SIZE}: {exc}")
 
+    # Las pantallas del espejo leen la vista materializada (migración 037): sin refrescarla,
+    # lo recién sincronizado no aparecería hasta el próximo sync (ERR-187).
+    if resultado["synced"]:
+        try:
+            db.refrescar_anarvet_informes()
+        except Exception as exc:  # noqa: BLE001 — sin la migración aplicada no hay qué refrescar
+            logger.warning("anarvet_sync: no se pudo refrescar anarvet_informes_mat: %s", exc)
+
     resultado["client_codes_seen"] = len(client_codes)
     try:
         existentes = {r["cod_cliente"] for r in db.list_anarvet_client_map()}

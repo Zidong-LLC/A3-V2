@@ -15,9 +15,14 @@ def _result(rid="r1", patient="Firulais", exam="Hemograma", order="A3-00042"):
     }
 
 
-def _results_turn(patient=None):
+def _results_turn(patient=None, verificado=CLIENT):
+    """Turno de resultados. Por defecto el chat ya verificó nombre + NIT (ERR-187): los
+    tests de la verificación están en tests/test_resultados_verificacion.py."""
+    fields = {"patient_name": patient} if patient else {}
+    if verificado:
+        fields["_resultados_verificado"] = verificado
     return {
-        "intent": "results", "captured_fields": {"patient_name": patient} if patient else {},
+        "intent": "results", "captured_fields": fields,
         "pending_intents": [], "reply": "", "phase": "fase_6_cierre",
     }
 

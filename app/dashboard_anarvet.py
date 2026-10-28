@@ -6,6 +6,7 @@ del resultado. Blueprint separado (misma razón que dashboard_results): usa la M
 sesión del dashboard y no toca app/dashboard.py. Solo LECTURA del espejo local:
 nunca le pega a Anarvet — para traer datos nuevos está el botón de sync.
 """
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 from functools import wraps
@@ -16,6 +17,8 @@ from flask import (Blueprint, abort, jsonify, redirect, render_template, request
 from app import anarvet_map
 from app.config import ANARVET_ENABLED, APP_TIMEZONE
 from app.services import db
+
+logger = logging.getLogger(__name__)
 
 dashboard_anarvet = Blueprint("dashboard_anarvet", __name__)
 
@@ -75,7 +78,14 @@ def clientes_page():
         mapa_f = hilos.submit(db.list_anarvet_client_map)
         clientes_f = hilos.submit(db.list_clients_with_assignment)
         informes_f = hilos.submit(db.count_anarvet_informes_por_cliente)
-    mapa, informes_por_cod = mapa_f.result(), informes_f.result()
+    mapa = mapa_f.result()
+    # Los conteos solo ordenan la lista: si fallan, la pantalla sigue sirviendo para emparejar
+    # (antes un timeout del conteo tiraba un 500 y no se podía emparejar nada, ERR-187).
+    try:
+        informes_por_cod, conteos_ok = informes_f.result(), True
+    except Exception:  # noqa: BLE001
+        logger.warning("anarvet: no se pudieron contar los informes por cliente", exc_info=True)
+        informes_por_cod, conteos_ok = {}, False
     clientes = [c for c in clientes_f.result()
                 if c.get("is_active") and (c.get("clinic_name") or "").strip()]
 
@@ -117,6 +127,7 @@ def clientes_page():
         clientes=clientes,
         nombres_clientes=nombres_clientes,
         automaticos_disponibles=len(plan["automaticos"]),
+        conteos_ok=conteos_ok,
         total_informes=sum(informes_por_cod.values()),
         informes_con_dueno=sum(
             n for cod, n in informes_por_cod.items()

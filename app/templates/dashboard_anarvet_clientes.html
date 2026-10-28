@@ -37,8 +37,10 @@
           <h3>Por qué importa</h3>
           <p>
             Un informe sin cliente asignado no tiene dueño: no se puede publicar en el portal
-            ni contar como suyo. Hoy <strong>{{ informes_con_dueno }} de {{ total_informes }}</strong>
-            informes tienen dueño.
+            ni contar como suyo.
+            {% if conteos_ok %}Hoy <strong>{{ informes_con_dueno }} de {{ total_informes }}</strong>
+            informes tienen dueño.{% else %}<strong>Ahora no se pudo contar los informes</strong>: la lista
+            sirve igual para emparejar, pero sin el orden por cantidad de informes.{% endif %}
           </p>
         </div>
         <p class="approval-notice" id="automatch-flag" hidden></p>

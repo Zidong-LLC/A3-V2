@@ -7,6 +7,7 @@ filas de ese NIT — nunca busca libre (anti enumeración). La sesión Flask usa
 claves portal_* para no colisionar con las del dashboard.
 """
 import re
+import threading
 import time
 from collections import deque
 from functools import wraps
@@ -14,7 +15,8 @@ from functools import wraps
 from flask import current_app, abort, redirect, render_template, request, session, url_for
 
 from app.portal import portal_bp
-from app.services.db import client_name_matches, find_clients_by_tax_id, get_client_by_id
+from app.services.db import find_clients_by_tax_id, get_client_by_id
+from app.verificacion_cliente import nombre_concuerda
 from app.config import PORTAL_DEMO_MODE, PORTAL_DEMO_CLIENT_ID
 
 _SESSION_KEYS = ("portal_user_id", "portal_client_id", "portal_email", "portal_clinic_name")
@@ -26,6 +28,7 @@ _GENERIC_ERROR = "El nombre y el NIT no coinciden con un cliente registrado. Ver
 _MAX_ATTEMPTS = 10
 _WINDOW_SECONDS = 300
 _login_attempts: dict[str, deque] = {}
+_attempts_lock = threading.Lock()
 
 
 def _start_demo_session():
@@ -55,21 +58,29 @@ def client_required(view_func):
 
 
 def _rate_limited(ip: str) -> bool:
+    # Con lock: gunicorn atiende con 8 hilos y dos `popleft` a la vez sobre el mismo deque
+    # tiraban IndexError (un 500 en el login). Las IPs sin intentos vigentes se borran
+    # para que el diccionario no crezca para siempre (ERR-187).
     now = time.monotonic()
-    attempts = _login_attempts.setdefault(ip, deque())
-    while attempts and now - attempts[0] > _WINDOW_SECONDS:
-        attempts.popleft()
-    if len(attempts) >= _MAX_ATTEMPTS:
-        return True
-    attempts.append(now)
-    return False
+    with _attempts_lock:
+        for vieja in [k for k, v in _login_attempts.items() if not v or now - v[-1] > _WINDOW_SECONDS]:
+            del _login_attempts[vieja]
+        attempts = _login_attempts.setdefault(ip, deque())
+        while attempts and now - attempts[0] > _WINDOW_SECONDS:
+            attempts.popleft()
+        if len(attempts) >= _MAX_ATTEMPTS:
+            return True
+        attempts.append(now)
+        return False
 
 
 def _find_sedes(nit: str, name: str) -> list[dict]:
     """Sedes activas cuyo NIT coincide (con las variantes que db ya normaliza)
     y cuyo nombre matchea lo tipeado. El nombre filtra SOLO dentro del NIT."""
     rows = find_clients_by_tax_id(nit)
-    return [row for row in rows if client_name_matches(name, row.get("clinic_name"))]
+    # Una palabra PROPIA del nombre, no cualquier pedazo: con el NIT (que es semipúblico) y
+    # 'veterinaria' se entraba a cualquier sede (ERR-187). Misma regla que el bot.
+    return [row for row in rows if nombre_concuerda(name, row.get("clinic_name"))]
 
 
 def _start_client_session(client: dict, nit: str) -> None:

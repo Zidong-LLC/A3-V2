@@ -107,10 +107,10 @@ def test_setup_webhook_exige_el_secreto_de_telegram(monkeypatch):
 # ── La detección de WhatsApp en el payload ───────────────────────────────────
 
 def test_un_inbox_whatsapp_marca_el_canal_whatsapp(monkeypatch):
-    monkeypatch.setattr("app.main.CHATWOOT_WEBHOOK_SECRET", "")
+    monkeypatch.setattr("app.main.CHATWOOT_WEBHOOK_SECRET", "s")
     client = _get_test_client()
     with patch("app.main._debouncer.submit") as sub:
-        client.post("/chatwoot/webhook", json={
+        client.post("/chatwoot/webhook?token=s", json={
             "event": "message_created", "message_type": "incoming", "content": "hola",
             "conversation": {"id": 7, "channel": "Channel::Whatsapp"}})
     # el canal viaja en el closure del flush: se verifica ejecutándolo
@@ -121,10 +121,10 @@ def test_un_inbox_whatsapp_marca_el_canal_whatsapp(monkeypatch):
 
 
 def test_un_inbox_web_queda_como_chatwoot(monkeypatch):
-    monkeypatch.setattr("app.main.CHATWOOT_WEBHOOK_SECRET", "")
+    monkeypatch.setattr("app.main.CHATWOOT_WEBHOOK_SECRET", "s")
     client = _get_test_client()
     with patch("app.main._debouncer.submit") as sub:
-        client.post("/chatwoot/webhook", json={
+        client.post("/chatwoot/webhook?token=s", json={
             "event": "message_created", "message_type": "incoming", "content": "hola",
             "conversation": {"id": 7, "channel": "Channel::WebWidget"}})
     flush = sub.call_args.args[2]

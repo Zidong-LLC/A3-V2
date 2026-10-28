@@ -35,6 +35,7 @@ from app.detectors import (
     _followup_wants_new_analysis,
     _wants_another_service_order,
     _explicitly_wants_another_order,
+    CANCELA_TOKENS as _CANCELA_TOKENS,
     _reply_asks_for_route_field,
     _SOCIAL_PHRASES,
     _OFF_TOPIC_SMALL_TALK_TOKENS,
@@ -184,6 +185,7 @@ from app.orders import (
     _route_closure_summary as _route_closure_summary,
     _analysis_settled_response as _analysis_settled_response,
     _add_tests_to_order as _add_tests_to_order,
+    _texto_agrego as _texto_agrego,
     _area_options_for_profile_addition as _area_options_for_profile_addition,
     _clear_field_for_correction as _clear_field_for_correction,
     _format_category_profile_menu as _format_category_profile_menu,
@@ -593,11 +595,10 @@ def _capture_test_menu_selection(session: dict, fields: dict, selected: list[dic
     fields.pop("_test_menu_options", None)
     fields.pop("_test_menu_adds_to_profile", None)
     if fields.pop("_mixed_request_text", ""):
-        _add_tests_to_order(fields, selected, "add")
+        nuevos = _add_tests_to_order(fields, selected, "add")
         fields.pop("_pending_ambiguous_items", None)
         fields.pop("_pending_offer_count", None)
-        return _analysis_settled_response(
-            session, fields, f"Listo, agrego {_format_test_items(selected)}.")
+        return _analysis_settled_response(session, fields, _texto_agrego(selected, nuevos))
 
     fields["selected_tests"] = [t["code"] for t in selected]
     fields["removed_tests"] = []
@@ -628,8 +629,8 @@ def _capture_menu_addition_to_profile(session: dict, fields: dict, selected: lis
     fields.pop("_awaiting_additional_test", None)
     fields.pop("_correction_pending", None)
     fields["_profile_customizing"] = False
-    _add_tests_to_order(fields, selected, "add")
-    return _analysis_settled_response(session, fields, f"Listo, agrego {_format_test_items(selected)}.")
+    nuevos = _add_tests_to_order(fields, selected, "add")
+    return _analysis_settled_response(session, fields, _texto_agrego(selected, nuevos))
 
 
 # Enforcers de catálogo/identificación → app/enforcers/catalogo.py (importados arriba).
@@ -1724,7 +1725,9 @@ def _avoid_repeated_question(session: dict, ai_response: dict, history: list[dic
     # Si en este turno se capturó un dato de ruta NUEVO, hubo progreso: aunque el reply
     # repita la pregunta del campo pendiente, no es un bucle. No reescribir, para no pisar
     # el reconocimiento del dato que el cliente adelantó fuera de orden (R25).
-    if any(fields.get(f) and fields.get(f) != prev_fields.get(f) for f in _ROUTE_REQUIRED_FIELDS):
+    nuevos = [f for f in _ROUTE_REQUIRED_FIELDS if fields.get(f) and fields.get(f) != prev_fields.get(f)]
+    if nuevos:
+        _acusar_dato_fuera_de_orden(ai_response, history, nuevos)
         return ai_response
 
     # Mientras se arma o personaliza un perfil, repetir "¿agregás otro análisis?"
@@ -1754,6 +1757,28 @@ def _avoid_repeated_question(session: dict, ai_response: dict, history: list[dic
                 ai_response["reply"] = _rephrased_repeated_question(ai_response["reply"])
             break
     return ai_response
+
+
+_ETIQUETA_CAMPO = {
+    "observations": "la observación", "owner_name": "el propietario", "patient_age": "la edad",
+    "breed": "la raza", "sex": "el sexo", "species": "la especie", "requesting_doctor": "el médico",
+    "patient_name": "el paciente", "sample_taken_date": "la fecha de toma", "exam_type": "el análisis",
+    "pickup_address": "la dirección", "payment_method": "la forma de pago",
+}
+
+
+def _acusar_dato_fuera_de_orden(ai_response: dict, history: list[dict], nuevos: list[str]) -> None:
+    """QA8 (ERR-187): a «¿Qué día tomaron la muestra?» el cliente respondió con una
+    observación; el bot la anotó pero contestó EXACTAMENTE lo mismo que antes y parecía no
+    haber leído. Solo si el texto repite el último mensaje del bot: se nombra lo anotado y se
+    vuelve a pedir lo pendiente."""
+    ultimo_bot = next((m.get("content") or "" for m in reversed(history) if m.get("role") == "bot"), "")
+    reply = ai_response.get("reply") or ""
+    if not ultimo_bot or reply.strip() != ultimo_bot.strip():
+        return
+    corte = reply.rfind("¿")
+    pregunta = reply[corte:] if corte != -1 else reply
+    ai_response["reply"] = f"Listo, anoto {' y '.join(_ETIQUETA_CAMPO.get(f, f) for f in nuevos)}. {pregunta}"
 
 
 def _repeats_last_bot_question(ai_response: dict, history: list[dict], fields: dict) -> bool:
@@ -2409,6 +2434,28 @@ def _merge_sin_borrar(prev_fields: dict, fields: dict) -> dict:
     return merged
 
 
+CANCELACION_REGISTRADA_REPLY = (
+    "La orden ya quedó registrada y el motorizado fue avisado, así que no la puedo anular "
+    "yo. Te comunico con el equipo de operaciones para cancelarla 🙌."
+)
+
+
+def _cancelacion_a_operaciones(prev_fields: dict, fields: dict) -> dict:
+    campos = _merge_sin_borrar(prev_fields, fields)
+    try:
+        db.close_pedido(campos.get("_pedido_id"))
+    except Exception:  # noqa: BLE001 — la derivación sale igual; el pedido lo ve operaciones
+        logger.warning("pedidos: no se pudo cerrar el pedido cancelado %s", campos.get("_pedido_id"))
+    for clave in ("_pedido_id", "_pedido_profiles", "_pedido_ordenes", "_pedido_offer_pending",
+                  "_pedido_offer_reasked", "_pedido_awaiting_payment"):
+        campos.pop(clave, None)
+    respuesta = _unknown_handoff_response(campos)
+    respuesta["reply"] = CANCELACION_REGISTRADA_REPLY
+    respuesta[_TURN_RESOLVED] = True
+    respuesta[_SKIP_REQUEST_CREATION] = True
+    return respuesta
+
+
 def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: dict,
                                user_message: str) -> dict:
     """Cierre del PEDIDO abierto, SEÑAL-PRIMERO (decisión 011).
@@ -2431,6 +2478,15 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
     # Pedir otra orden gana siempre: el pedido sigue abierto y se le cuelga una orden más.
     if signal == "another_order" or _explicitly_wants_another_order(user_message):
         return ai_response
+
+    # «Cancelá todo» con la orden YA registrada (decisión del usuario, 2026-10-28): el
+    # motorizado ya fue avisado, así que el bot no la anula ni pide el pago — y antes el
+    # modelo llegaba a contestar «cancelo el pedido» sin cancelar nada. Se cierra el pedido
+    # SIN facturar (el barrido no le escribe «queda programada») y se deriva a operaciones,
+    # que es quien puede anularla de verdad (ERR-187).
+    if prev_fields.get("_order_registered") and (
+            signal == "cancel" or set(_tokenize(user_message)) & _CANCELA_TOKENS):
+        return _cancelacion_a_operaciones(prev_fields, fields)
 
     # "Sí, confirmo" PELADO respondiendo a "¿otra orden... o cerramos el pedido?" es
     # ambiguo: no dice cuál de las dos. Antes caía al vacío (nadie lo atendía y el
@@ -3129,6 +3185,62 @@ def _candado_provenancia_tests(fields: dict, prev_captured: dict, user_message: 
         fields["selected_tests"] = kept or prev_captured.get("selected_tests")
 
 
+def _cumplir_promesa_de_area(ai_response: dict) -> None:
+    """Guion V (ERR-187): con la dirección pendiente, el cliente pidió «un análisis de orina» y
+    el bot prometió «te las muestro apenas confirmemos la dirección». En el turno en que la
+    dirección queda confirmada, la última pregunta se cambia por las opciones de esa área
+    (los demás datos se piden después, como siempre). Si el cliente ya eligió un análisis
+    por otra vía, la promesa se da por cumplida."""
+    fields = ai_response.get("captured_fields") or {}
+    pendiente = fields.get("_area_tras_direccion")
+    if not pendiente or fields.get("_address_confirmation_pending"):
+        return
+    fields.pop("_area_tras_direccion", None)
+    if fields.get("exam_type") or fields.get("selected_tests") or fields.get("_selected_profile_code"):
+        return
+    try:
+        area, tests = db.find_tests_by_area(pendiente, fields.get("species"), limit=10)
+    except Exception:  # sin catálogo queda la pregunta de siempre
+        return
+    reply = ai_response.get("reply") or ""
+    if not (area and tests) or str(area).lower() in reply.lower():
+        return  # otro paso del turno ya mostró esas opciones: no se repiten (guion V, modelo real)
+    _store_test_menu_options(fields, tests)
+    corte = reply.rfind("¿")
+    base = reply[:corte].strip() if corte != -1 else reply.strip()
+    ai_response["reply"] = f"{base}\n\n{_test_area_suggestion_reply(area, tests)}".strip()
+
+
+def _candado_provenancia_paciente(fields: dict, prev_captured: dict, user_message: str) -> None:
+    """Gemelo de `_candado_provenancia_tests` para los datos del ANIMAL (ERR-187): en la
+    orden siguiente, el modelo lee en el historial «Quedó registrado: C2 (Felino, Criolla,
+    Hembra, 3 años) · Propietario: Dueño A» y se los pone al paciente nuevo. En el estrés
+    del 28/10, C3 (un boxer macho de 4 años del dueño C) salió con raza, sexo, edad y dueño
+    de C2 sin que nadie los preguntara.
+
+    Se descarta un dato del animal que llega NUEVO en este turno, es IDÉNTICO al de la orden
+    anterior y no está en el mensaje del cliente — salvo que diga «el mismo» / «el de
+    siempre». Repetir los datos a propósito sigue siendo válido (memoria multi-orden: lo que
+    el cliente da explícitamente manda)."""
+    snap = prev_captured.get("_prev_order_snapshot") or {}
+    if not snap or _is_same_as_previous(user_message):
+        return
+    mensaje = set(_tokenize(user_message))
+    campos = list(_CAMPOS_PACIENTE)
+    paciente = str(fields.get("patient_name") or "").strip()
+    if paciente and paciente.lower() == str(snap.get("patient_name") or "").strip().lower():
+        if set(_tokenize(paciente)) <= mensaje:
+            return  # el cliente nombró al MISMO animal: sus datos siguen siendo suyos
+        # Nombre copiado del historial: con él, la orden heredada parecía completa y un
+        # «ya está, no tengo más» la volvía a registrar (C4 duplicada en el estrés).
+        campos += ["patient_name", "exam_type"]
+    for campo in campos:
+        valor = fields.get(campo)
+        if (valor and not prev_captured.get(campo) and str(valor) == str(snap.get(campo) or "")
+                and not set(_tokenize(str(valor))) <= mensaje):
+            fields.pop(campo, None)
+
+
 def process_turn(
     chat_id: str,
     user_message: str,
@@ -3185,7 +3297,7 @@ def process_turn(
     _campos_pedido = session.get("captured_fields") or {}
     if (_pedido_abierto and _campos_pedido.get("_order_registered")
             and _payment_method_from_text(user_message)):
-        db.save_message(chat_id, user_message, "user")
+        # El mensaje lo guarda `_persist_turn`; guardarlo también acá lo duplicaba (ERR-187).
         _cierre = _close_pedido_turn(session, dict(_campos_pedido),
                                      _payment_method_from_text(user_message))
         return _persist_turn(chat_id, user_message, _cierre)
@@ -3458,6 +3570,7 @@ def process_turn(
     # siempre". Lo demás se revierte en silencio. Los caminos determinísticos de más abajo
     # agregan por sus propias vías (mensaje + catálogo) y no pasan por este filtro.
     _candado_provenancia_tests(fields, prev_captured, user_message)
+    _candado_provenancia_paciente(fields, prev_captured, user_message)
 
     # ══ Etapa 4a — CATÁLOGO Y LATERALES post-modelo (refactor de comprensión,
     # 2026-08-24, ficha ABIERTO-003): los seis carriles pre-LLM que competían por las
@@ -4636,6 +4749,7 @@ def process_turn(
                 # SEGUNDA llamada al modelo del turno: mismo candado que la primera. Por acá,
                 # sin filtro, re-entraban los análisis de la orden anterior (ERR-114).
                 _candado_provenancia_tests(fields, prev_captured, user_message)
+                _candado_provenancia_paciente(fields, prev_captured, user_message)
 
     was_results = ai_response.get("intent") == "results"
     ai_response = _enforce_results_message(session, ai_response, user_message)
@@ -4750,10 +4864,15 @@ def process_turn(
             if _area_v and str(_area_v).lower() not in reply.lower():
                 reply = (f"Claro, para {str(_area_v).lower()} tenemos opciones y te las "
                          f"muestro apenas confirmemos la dirección.")
+                # La promesa se guarda para cumplirla (ERR-187): antes el pedido se perdía y
+                # tras confirmar la dirección llegaba un «¿Qué análisis o perfil desean?».
+                fields["_area_tras_direccion"] = user_message
             ai_response["reply"] = (
                 f"{reply} Antes de seguir, ¿me confirmas la dirección de retiro: "
                 f"{address_reask_needed}? Si no es esa, dime la correcta."
             ).strip()
+
+    _cumplir_promesa_de_area(ai_response)
 
     previous_phase = session.get("phase_current", "")
     ai_response = _enforce_confirmation_step(session, ai_response, fields, previous_phase, user_message)

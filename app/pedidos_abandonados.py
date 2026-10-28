@@ -11,11 +11,15 @@ de respaldo, el inicio de cualquier turno del bot (`agent._sweep_stale_pedidos`)
 Nunca lanza: un pedido que falla no frena a los demás.
 """
 import logging
+import threading
 
 from app.services import chatwoot, db, telegram
 
 logger = logging.getLogger(__name__)
 HORAS = 1
+# El cron y el turno de un cliente lo pueden disparar a la vez (es un solo proceso): sin
+# candado, los dos encontraban el mismo pedido y el cliente recibía el aviso dos veces (ERR-187).
+_EN_CURSO = threading.Lock()
 
 
 def texto_aviso(ordenes: int) -> str:
@@ -47,6 +51,15 @@ def _avisar(pedido: dict, ordenes: int) -> bool:
 
 def cerrar_abandonados(horas: int = HORAS) -> dict:
     """Cierra, limpia y avisa. Devuelve cuántos cerró, avisó y fallaron."""
+    if not _EN_CURSO.acquire(blocking=False):
+        return {"cerrados": 0, "avisados": 0, "fallidos": 0, "en_curso": True}
+    try:
+        return _cerrar(horas)
+    finally:
+        _EN_CURSO.release()
+
+
+def _cerrar(horas: int) -> dict:
     resultado = {"cerrados": 0, "avisados": 0, "fallidos": 0}
     try:
         pendientes = db.list_stale_pedidos(horas)

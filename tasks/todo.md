@@ -1710,3 +1710,72 @@ PENDIENTE de decisión del usuario:
 - No se hizo un POST real end-to-end: `db.create_request` avisa al motorizado por Chatwoot
   si el cliente tiene uno asignado (db.py:2341), y sería un mensaje real a una persona.
 - Deploy a Render: el usuario revisa local y decide.
+
+---
+
+## Pruebas finales antes de entregar al cliente (2026-10-28) — HECHO (detalle en ERR-187)
+
+Pedido del usuario: estrés + todos los tests que hagan falta antes de la entrega final.
+Línea base: suite **1649 passed, 4 skipped, 1 xfailed** (77 s).
+
+Reglas de la corrida (no negociables):
+- Nada escribe en Supabase, Alegra, Chatwoot ni Telegram reales. El arnés trae una **red de
+  seguridad de red**: bloquea toda escritura a Supabase y toda llamada externa no simulada;
+  si algo se escapa, la corrida falla ruidosamente en vez de tocar datos.
+- `process_turn` corre un barrido oportunista que **cierra pedidos reales y avisa a clientes
+  reales**: en el arnés va neutralizado.
+- Nada consume OpenAI sin OK explícito. No se toca ningún paso del flujo conversacional sin
+  avisar y esperar OK.
+
+Hallazgo previo: en la base no hay sesiones ni órdenes del bot desde el 20/10 y
+`system_events` está vacío → producción todavía no procesó un turno real de punta a punta.
+
+- [x] 0. Línea base de la suite
+- [x] 1. Auditorías de solo lectura (en curso): concurrencia/resiliencia y seguridad HTTP
+- [x] 2. Tests nuevos permanentes (pytest, mockeados): barrido de rutas sin sesión, IDOR del
+      portal, fuzz de webhooks (nunca 500) + lo que salga de las auditorías
+- [x] 3. Estrés del bot `tools/scripts/estres_bot.py` (sin tokens): 10/30/60 chats a la vez
+      con ráfagas, por el webhook real + debounce + `process_turn` real; IA simulada con
+      latencia realista y modo falla. Mide errores, 1 respuesta por ráfaga, aislamiento entre
+      chats, hilos vivos, pool de Supabase, alertas disparadas
+- [x] 4. Carga web `tools/scripts/estres_web.py`: servidor local con tope de 8 hilos (igual que
+      gunicorn en Render), personal + portal recorriendo pantallas en solo lectura; p50/p95 y
+      errores por pantalla, y `/health` bajo carga (riesgo de reinicio, ERR-182). Recorrido en
+      navegador (Playwright) buscando errores de JavaScript en cada pantalla
+- [x] 5. PDFs simultáneos: memoria pico frente a los 2 GB del plan
+- [x] 6. Integridad de datos (solo lectura): scripts de auditoría y cobertura existentes
+- [x] 7. Producción (con OK): `verificar_produccion.py` + recorrido de pantallas
+- [x] 8. (con OK, consume tokens) guiones con el modelo real
+- [ ] 9. Reparar lo que falle (bitácora ERR-187+), re-correr todo, informe final
+
+### Resultado (2026-10-28)
+
+- Suite 1649 → **1772 passed**. Guiones con modelo 33/35, multi-orden 17/20 (agosto 11/20).
+- Bot: 40 veterinarias a la vez sin una falla ni un cruce entre chats. Web: aguanta ~3
+  pedidos/s (≈45-60 personas reales); el cuello es que cada pestaña relee todo.
+- 13 arreglos de infraestructura/seguridad sin tocar el flujo (lista en ERR-187).
+- [x] **OK pendiente:** aplicar migración 037 (Resultados → Anarvet hoy se corta a los 8 s) — APLICADA + 038
+- [x] **OK pendiente:** 6 puntos del flujo/acceso (PDFs por nombre, login del portal,
+      confirmo_y_sigo, mensaje doble, guion V/QA8, candado del barrido) — HECHOS
+- [ ] **Recomendado:** prueba humana de punta a punta en producción (no hubo tráfico real
+      desde el 20/10); refactor para que cada pestaña del dashboard lea solo lo suyo
+- [x] Commit + push + deploy (OK del usuario 2026-10-28)
+
+## Arreglos con OK del usuario (2026-10-28, «si, soluciona todas esas cosas»)
+
+Decisiones del usuario: PDFs por chat solo si nombre de la clínica Y NIT concuerdan (si falta
+uno, se pide y se valida); la lista de sedes queda como hoy (nombre + dirección); duplicados de
+Mascolab NO se tocan (se consultan a A3: la doble versión PF/TR es correcta, lo duplicado es
+otro código para la MISMA versión).
+
+- [x] 1. Mensaje del cliente guardado dos veces al cerrar el pedido (agent.py:3188)
+- [x] 2. Candado en el barrido de pedidos abandonados (cron + turno → doble aviso)
+- [x] 3. "Listo, agrego X" cuando X ya estaba en la orden → decir que ya está incluido
+- [x] 4. Migración 037 en producción + verificar tiempos y el refresco desde el sync
+- [x] 5. Resultados por chat: exigir nombre + NIT concordantes antes de mandar un PDF (B15)
+- [x] 6. Portal: el nombre debe coincidir de verdad (no "veterinaria" + NIT)
+- [x] 7. confirmo_y_sigo: "confirmo, y sigo…" + "ya está" duplica la orden anterior
+- [x] 8. apurado_typos: "agreagar sodio y potasio" tras el perfil pierde los análisis
+- [x] 9. Guion V: cumplir la promesa de mostrar las opciones tras confirmar la dirección
+- [x] 10. QA8: acusar el dato que dio fuera de orden en vez de repetir idéntica la pregunta
+- [x] 11. Suite + re-verificación con modelo de lo tocado + bitácora + contrato del flujo (1818)

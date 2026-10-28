@@ -194,6 +194,12 @@
     if (!caja || !lista) return;
     var timer = null;
 
+    var esc = function (v) {
+      return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    };
+
     function pintar(filas) {
       lista.innerHTML = '';
       if (!filas.length) {
@@ -203,9 +209,10 @@
       filas.forEach(function (f) {
         var li = document.createElement('li');
         var a = document.createElement('a');
-        a.href = '/clientes/' + f.id;
-        a.innerHTML = '<strong>' + f.nombre + '</strong><span>' +
-          (f.nit ? 'NIT ' + f.nit : 'sin NIT') + (f.zona ? ' · ' + f.zona : '') +
+        a.href = '/clientes/' + encodeURIComponent(f.id);
+        // Escapado: el nombre lo edita el personal y llega por cargas CSV (ERR-187).
+        a.innerHTML = '<strong>' + esc(f.nombre) + '</strong><span>' +
+          (f.nit ? 'NIT ' + esc(f.nit) : 'sin NIT') + (f.zona ? ' · ' + esc(f.zona) : '') +
           (f.activo ? '' : ' · inactivo') + '</span>';
         li.appendChild(a);
         lista.appendChild(li);

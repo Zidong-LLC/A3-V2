@@ -597,6 +597,14 @@ def _wants_new_order_strict(text: str) -> bool:
     return bool(set(_tokenize(text)) & _ORDEN_OBJECT_TOKENS)
 
 
+# Imperativos de cancelar/anular. Sin 'cancelar' ni 'cancelamos': en Colombia también es
+# PAGAR («cancelamos contraentrega») y eso no es una cancelación.
+CANCELA_TOKENS = frozenset({"cancela", "cancelen", "cancelalo", "cancelala", "cancelalos",
+                            "anula", "anulen", "anular", "anulalo", "anulala"})
+_NO_ES_OTRA_ORDEN = ("otro dia", "otro momento", "otro rato", "otra vez", "otra ocasion",
+                     "otra semana", "otro mes")
+
+
 def _wants_another_service_order(text: str) -> bool:
     return _explicitly_wants_another_order(text)
 
@@ -606,9 +614,17 @@ def _explicitly_wants_another_order(text: str) -> bool:
     """Pide explícitamente OTRA orden. A diferencia de `_wants_another_service_order`,
     NO se conforma con un 'sí' suelto: se usa fuera de la fase terminal (cuando no venimos
     de la pregunta '¿necesitas otra orden?'), por eso exige señal fuerte de nueva orden."""
-    words = set(_tokenize(text))
-    if not words or "no" in words:
+    tokens = _tokenize(text)
+    words = set(tokens)
+    if not words or "no" in words or words & CANCELA_TOKENS:
         return False
+    # «cancelá todo el pedido, lo hacemos OTRO día» juntaba 'otro' + 'pedido' y abría otra
+    # orden (estrés 28/10, ERR-187). Las frases de tiempo no piden una orden nueva; se miran
+    # con los tokens EN ORDEN (L55).
+    plano = f" {' '.join(tokens)} "
+    for frase in _NO_ES_OTRA_ORDEN:
+        plano = plano.replace(f" {frase} ", " ")
+    words = set(plano.split())
     if words & _FOLLOWUP_NEW_TOKENS and (words & _FOLLOWUP_OBJECT_TOKENS or len(words) <= 3):
         return True
     return bool(words & _FOLLOWUP_CREATE_TOKENS) and bool(words & _FOLLOWUP_OBJECT_TOKENS)

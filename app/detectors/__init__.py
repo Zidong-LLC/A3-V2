@@ -133,6 +133,7 @@ from app.detectors.analisis import (  # noqa: F401
     _SOCIAL_PHRASES,
     _asks_for_area_options,
     _explicitly_wants_another_order,
+    CANCELA_TOKENS,
     _followup_wants_new_analysis,
     _is_final_user_text,
     _is_order_number_query,

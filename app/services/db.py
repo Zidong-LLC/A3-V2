@@ -34,6 +34,28 @@ _client.postgrest.session = _httpx.Client(
     limits=_httpx.Limits(max_connections=30, max_keepalive_connections=10),
 )
 
+# Storage (los PDF de resultados) traía el MISMO HTTP/2 compartido y quedó afuera del
+# arreglo de ERR-176: con varios chats pidiendo resultados y descargas del portal a la vez,
+# el corte a mitad de request dejaba al cliente sin su PDF (ERR-187). Se intercepta la
+# fábrica y no la instancia porque supabase-py puede volver a crear el cliente de Storage.
+_crear_storage = _client._init_storage_client
+
+
+def _storage_http1(*args, **kwargs):
+    from storage3.utils import SyncClient as _StorageHttp
+
+    storage = _crear_storage(*args, **kwargs)
+    vieja = storage.session
+    storage.session = storage._client = _StorageHttp(
+        base_url=vieja.base_url, headers=vieja.headers, timeout=vieja.timeout,
+        follow_redirects=True, http2=False,
+        limits=_httpx.Limits(max_connections=10, max_keepalive_connections=5),
+    )
+    return storage
+
+
+_client._init_storage_client = _storage_http1
+
 logger = logging.getLogger(__name__)
 
 
@@ -1238,7 +1260,9 @@ def list_cached_invoices(
                 # Nada puede coincidir: se fuerza el vacío en vez de devolver todo.
                 query = query.eq("alegra_invoice_id", "__sin_coincidencias__")
     field = order_field if order_field in _INVOICE_ORDER_FIELDS else "invoice_date"
-    query = query.order(field, desc=order_desc)
+    # Desempate por la clave: hay días con 125 facturas y, ordenando solo por fecha, una
+    # factura podía salir en dos páginas o en ninguna (ERR-187).
+    query = query.order(field, desc=order_desc).order("alegra_invoice_id")
     start = max(page - 1, 0) * per_page
     query = query.range(start, start + per_page - 1)
     result = query.execute()
@@ -1428,8 +1452,32 @@ def list_anarvet_informes(
 ) -> tuple[list[dict], int]:
     """Lista informes (vista anarvet_informes: un paciente en una fecha) con
     filtros y paginación del lado servidor. Devuelve (filas, total)."""
+    try:
+        return _listar_informes(_TABLA_INFORMES["nombre"], filters, page, per_page)
+    except Exception as exc:  # noqa: BLE001
+        if "PGRST103" in str(exc) and page > 1:
+            # Página más allá de la última (un enlace viejo): vacía, con el total real.
+            return [], _listar_informes(_TABLA_INFORMES["nombre"], filters, 1, 1)[1]
+        if _TABLA_INFORMES["nombre"] == "anarvet_informes" or "PGRST205" not in str(exc):
+            raise
+        # Migración 037 todavía sin aplicar: la vista de siempre (lenta, pero existe).
+        _TABLA_INFORMES["nombre"] = "anarvet_informes"
+        return _listar_informes("anarvet_informes", filters, page, per_page)
+
+
+# Los informes se leen de la vista MATERIALIZADA (migración 037): la vista común reagrupa
+# los ~270.000 analitos (7.800 informes) en cada consulta y Postgres la corta a los 8 s (ERR-187).
+_TABLA_INFORMES = {"nombre": "anarvet_informes_mat"}
+
+
+def refrescar_anarvet_informes() -> None:
+    """Recalcula la vista materializada; la llama el sync al terminar."""
+    _client.rpc("refrescar_anarvet_informes").execute()
+
+
+def _listar_informes(tabla: str, filters: dict | None, page: int, per_page: int) -> tuple[list[dict], int]:
     f = filters or {}
-    query = _client.table("anarvet_informes").select("*", count="exact")
+    query = _client.table(tabla).select("*", count="exact")
     if f.get("cod_cliente"):
         query = query.eq("cod_cliente", f["cod_cliente"])
     if f.get("date_from"):
@@ -1470,17 +1518,14 @@ def count_anarvet_informes_por_cliente() -> dict[str, int]:
     """Cuántos informes tiene cada `cod_cliente` de Anarvet.
 
     Sirve para priorizar el mapeo pendiente: resolver el código con 65 informes rinde
-    más que uno con 1. Se cuenta en memoria sobre la vista —son cientos de filas de una
-    sola columna— porque PostgREST no expone `GROUP BY`.
+    más que uno con 1. PostgREST no expone `GROUP BY`: lo agrupa una función de la base.
     """
-    from collections import Counter
-
-    # Paginado: con `.limit(20000)` a secas Supabase devolvía 1000 de 2.493 informes y los
-    # conteos salían por debajo (auditoría 2026-10-19). Orden por la clave del informe para
-    # que las páginas no se pisen.
-    filas = _paginado(lambda: _client.table("anarvet_informes").select("cod_cliente")
-                      .order("codigo").order("fecha_solicitud"), 20000)
-    return dict(Counter(str(f.get("cod_cliente") or "") for f in filas))
+    # Agrupado en la base (migración 037). Paginar la vista dejó de servir: con ~7.800
+    # informes cada página la recalcula y desde la décima Postgres la corta por statement
+    # timeout — la pantalla respondía 500 (ERR-187). Si la función todavía no existe, el
+    # error sube y la pantalla se muestra sin los conteos.
+    filas = _client.rpc("anarvet_informes_por_cliente").execute().data or []
+    return {str(f.get("cod_cliente") or ""): int(f.get("informes") or 0) for f in filas}
 
 
 def get_anarvet_informe(codigo: str, fecha_solicitud: str) -> list[dict]:
@@ -1992,13 +2037,10 @@ def list_territorial_zones(limit: int = 100) -> list[dict]:
 
 
 def list_territorial_neighborhoods(limit: int = 3000) -> list[dict]:
-    result = (
-        _client.table("territorial_neighborhoods")
-        .select("locality_code, locality_name, zone_number, courier_name, cantidad_barrios")
-        .limit(limit)
-        .execute()
-    )
-    return result.data or []
+    # Paginado: son 1.649 barrios y un `.limit(3000)` a secas devolvía 1000 (ERR-187).
+    return _paginado(lambda: _client.table("territorial_neighborhoods")
+                     .select("locality_code, locality_name, zone_number, courier_name, cantidad_barrios")
+                     .order("id"), limit)
 
 
 def upsert_courier_locality_coverage(

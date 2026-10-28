@@ -118,13 +118,15 @@
         neighborhoodResults.innerHTML = '';
         return;
       }
+      // Escapado: el nombre del motorizado lo carga Recepción (ERR-187).
+      const esc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
       neighborhoodResults.innerHTML = payload.rows.map((row) => `
         <button type="button" data-neighborhood-choice
-          data-neighborhood="${row.neighborhood_name}"
-          data-locality="${row.locality_name}"
-          data-zone="${row.zone_number}">
-          <strong>${row.neighborhood_name}</strong>
-          <span>${row.locality_name} · Zona ${row.zone_number} · ${row.courier_name}</span>
+          data-neighborhood="${esc(row.neighborhood_name)}"
+          data-locality="${esc(row.locality_name)}"
+          data-zone="${esc(row.zone_number)}">
+          <strong>${esc(row.neighborhood_name)}</strong>
+          <span>${esc(row.locality_name)} · Zona ${esc(row.zone_number)} · ${esc(row.courier_name)}</span>
         </button>
       `).join('');
       neighborhoodResults.hidden = false;

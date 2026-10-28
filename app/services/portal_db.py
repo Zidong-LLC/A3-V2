@@ -2,10 +2,19 @@
 y solicitudes por cliente. Solo I/O — el aislamiento por client_id lo hace
 cumplir la capa de vistas (app/portal/), que nunca acepta client_id del usuario.
 """
+import re
 import functools
 from datetime import datetime, timezone
 
 from app.services.db import _client
+
+_FECHA = re.compile(r"\d{4}-\d{2}-\d{2}")
+
+
+def _fecha(valor) -> str | None:
+    """Solo AAAA-MM-DD. Una fecha escrita a mano en la URL (`?date_from=x)(`) llegaba tal cual
+    a PostgREST, que respondía 400, y el portal mostraba un error 500 (ERR-187)."""
+    return valor if isinstance(valor, str) and _FECHA.fullmatch(valor) else None
 
 
 def _safe(factory):
@@ -76,9 +85,9 @@ def list_lab_results(
     # como resuelta por el resultado de otra.
     if filters.get("request_id"):
         query = query.eq("request_id", filters["request_id"])
-    if filters.get("date_from"):
+    if _fecha(filters.get("date_from")):
         query = query.gte("created_at", filters["date_from"])
-    if filters.get("date_to"):
+    if _fecha(filters.get("date_to")):
         query = query.lte("created_at", f"{filters['date_to']}T23:59:59")
     result = query.order("created_at", desc=True).limit(limit).execute()
     return result.data or []
@@ -176,9 +185,9 @@ def list_client_requests(
         query = query.ilike("order_number", f"%{filters['order_number']}%")
     if filters.get("status"):
         query = query.eq("status", filters["status"])
-    if filters.get("date_from"):
+    if _fecha(filters.get("date_from")):
         query = query.gte("requested_at", filters["date_from"])
-    if filters.get("date_to"):
+    if _fecha(filters.get("date_to")):
         query = query.lte("requested_at", f"{filters['date_to']}T23:59:59")
     result = query.order("requested_at", desc=True).limit(limit).execute()
     return result.data or []
@@ -210,23 +219,37 @@ def get_request_by_order_number(order_number: str) -> dict | None:
 
 
 def chat_for_client(client_id: str) -> tuple[str, str] | None:
-    """(chat_id, canal) de la sesión más reciente del cliente, para avisos de resultados.
+    """(chat_id, canal) al que avisar un resultado nuevo del cliente, o None.
 
-    Antes filtraba `channel = "telegram"`: un cliente que escribe por Chatwoot (web o
-    WhatsApp) no recibía NINGÚN aviso — era el tapón #2 de WhatsApp. El canal devuelto
-    decide el transporte del aviso; whatsapp viaja por Chatwoot."""
-    result = (
+    Solo a un chat que DEMOSTRÓ ser de la veterinaria (ERR-187): el que verificó nombre +
+    NIT para pedir resultados o, si no hay, el del último pedido que hizo por chat. Antes
+    iba a la sesión más reciente identificada con ese cliente: alcanzaba con decir el
+    nombre de una clínica para quedarse con sus avisos (paciente y número de orden).
+    Sin chat confiable no se avisa por chat; la notificación del portal sale igual.
+    El canal decide el transporte: whatsapp y chatwoot viajan por Chatwoot (tapón #2)."""
+    verificada = (
         _client.table("telegram_sessions")
         .select("external_chat_id, channel")
         .eq("client_id", client_id)
+        .eq("captured_fields->>_resultados_verificado", client_id)
         .order("updated_at", desc=True)
         .limit(1)
         .execute()
-    )
-    if not result.data:
-        return None
-    row = result.data[0]
-    return row["external_chat_id"], (row.get("channel") or "telegram")
+    ).data
+    if verificada:
+        return verificada[0]["external_chat_id"], (verificada[0].get("channel") or "telegram")
+    pedido = (
+        _client.table("pedidos")
+        .select("external_chat_id, entry_channel")
+        .eq("client_id", client_id)
+        .not_.is_("external_chat_id", "null")
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    ).data
+    if pedido:
+        return pedido[0]["external_chat_id"], (pedido[0].get("entry_channel") or "telegram")
+    return None
 
 @_safe(lambda: None)
 def unpublish_lab_result(result_id: str) -> dict | None:

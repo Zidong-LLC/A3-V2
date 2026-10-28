@@ -56,6 +56,7 @@ from app.orders import (
     _REPLACEMENT_TARGET_RE,
     _scan_ambiguous_terms, _menu_for_ambiguous_term,
     _add_tests_to_order,
+    _texto_agrego,
     _clear_inherited_analysis,
     _order_removable_items,
     _remove_order_items_by_code,
@@ -410,9 +411,9 @@ def _handle_extra_analysis_answer(session: dict, fields: dict, user_message: str
     elif analysis_terms:
         result = catalog.resolve_tests(user_message, db.list_catalog_tests(limit=5000), fields.get("species"))
         if result.status == catalog.EXACT:
-            _add_tests_to_order(fields, result.tests, "add")
+            nuevos = _add_tests_to_order(fields, result.tests, "add")
             fields.pop("_awaiting_additional_test", None)
-            intro = f"Listo, agrego {_format_test_items(result.tests)}."
+            intro = _texto_agrego(result.tests, nuevos)
             # Pedido MIXTO análisis + PERFIL en la misma frase ('el 1101 y el perfil 701'):
             # el análisis resolvía y el turno retornaba acá, así que el perfil se perdía en
             # silencio (sim con datos reales: el 701 nunca llegó al resumen).
@@ -1010,5 +1011,12 @@ def _enforce_catalog_profile_code_selection(session: dict, ai_response: dict, us
         intro = f"Listo, parto del {name} ({_money(fields.get('_selected_profile_price'))})."
         return _selected_profile_addition_response(session, fields, user_message, intro)
 
+    # El perfil vino con análisis NOMBRADOS en la misma frase y sin un verbo que se
+    # reconozca ('perfl 152 y agreagar sodio y potasio', typo real del estrés 28/10). Si el
+    # modelo ya los había anotado, el `selected_tests = None` de arriba los borraba y nadie
+    # volvía a mirar el mensaje: $24.000 de menos, intermitente. Como pedido mixto, la
+    # selección del perfil re-lee del CATÁLOGO lo inequívoco de la frase (ERR-076, ERR-187).
+    if len(catalog.split_items(user_message)) > 1:
+        fields["_mixed_request_text"] = user_message
     return _capture_profile_menu_selection(session, fields, profiles[0])
 

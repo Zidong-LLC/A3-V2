@@ -79,6 +79,12 @@ FLAGS_IDENTIFICACION = frozenset({
     "_escalated_unfound_client",
     # Perfiles que la clínica más pide, precargados al identificarla (A3, 06/05).
     "_client_favorite_profiles",
+    # Resultados por chat (ERR-187): el cliente que demostró nombre + NIT en este chat, el
+    # dato que se le pidió y cuántas veces respondió mal.
+    "_resultados_verificado", "_resultados_pide", "_resultados_intentos",
+    # Guion V (ERR-187): el área que el cliente pidió con la dirección pendiente; se le
+    # muestran las opciones cuando el flujo llega a pedir el análisis.
+    "_area_tras_direccion",
 })
 FLAGS_ANALISIS = frozenset({
     "_selected_profile_code", "_selected_profile_name", "_selected_profile_price",

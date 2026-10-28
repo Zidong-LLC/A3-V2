@@ -817,3 +817,17 @@ a resolver. El usuario lo había apagado él mismo mientras se terminan los camb
 **Regla.** Ante un servicio de producción apagado, primero decir lo que se ve y preguntar si
 es intencional, sin presentarlo como incidente. El estado vigente queda en la memoria
 `project_produccion_render`.
+
+## 2026-10-28 — Una lista de "escrituras simuladas" se desactualiza sola: la red va en el transporte
+
+**Qué pasó.** Los arneses de QA simulan las escrituras parcheando funciones de `db` una por
+una. Cada función nueva que se agrega después queda afuera sin que nadie lo note: el barrido
+de pedidos abandonados (ERR-186) cerraba pedidos reales y avisaba a clientes reales desde el
+estrés; `validate_flows.py` no simulaba la factura y con `ALEGRA_ENABLED=true` iba a la cuenta
+real de Alegra; `record_custom_profile_use` modificaba perfiles reales de clientes. Se
+detectó al poner `red_segura.py`: 962 escrituras bloqueadas en una sola tarde.
+
+**Regla.** Todo arnés que corra contra la base real activa `tools/scripts/red_segura.py`
+ANTES de importar la app, y al final mira `red_segura.bloqueos`. La lista de parches es para
+que el flujo funcione; la red es para que nada salga si la lista quedó vieja. Una corrida con
+bloqueos inesperados no se da por buena hasta saber quién intentó salir.

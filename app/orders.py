@@ -262,6 +262,7 @@ def _add_tests_to_order(fields: dict, rows: list[dict], action: str) -> None:
         if len(base_rows) == 1:
             selected = [str(base_rows[0].get("code") or base_rows[0].get("name"))]
 
+    cambiados = []
     for row in rows:
         code = str(row.get("code") or row.get("name"))
         if action == "remove":
@@ -275,6 +276,7 @@ def _add_tests_to_order(fields: dict, rows: list[dict], action: str) -> None:
         else:
             if code not in selected:
                 selected.append(code)
+                cambiados.append(row)
             if code in removed:
                 removed.remove(code)
 
@@ -282,6 +284,19 @@ def _add_tests_to_order(fields: dict, rows: list[dict], action: str) -> None:
     fields["removed_tests"] = removed if fields.get("_selected_profile_code") else []
     if not fields.get("_selected_profile_code") and selected:
         fields["exam_type"] = f"Perfil personalizado ({len(selected)} análisis)"
+    return cambiados
+
+
+def _texto_agrego(pedidos: list[dict], nuevos: list[dict]) -> str:
+    """'Listo, agrego X.' solo con lo que de verdad se sumó. Repetir 'hemograma' con el
+    hemograma ya en la orden respondía 'Listo, agrego…' sin sumar nada (ERR-187)."""
+    codigos_nuevos = {str(r.get("code") or r.get("name")) for r in nuevos}
+    repetidos = [r for r in pedidos if str(r.get("code") or r.get("name")) not in codigos_nuevos]
+    partes = [f"Listo, agrego {_format_test_items(nuevos)}."] if nuevos else []
+    if repetidos:
+        partes.append(f"{_format_test_items(repetidos)} "
+                      + ("ya está incluido" if len(repetidos) == 1 else "ya están incluidos") + " en la orden.")
+    return " ".join(partes)
 
 
 

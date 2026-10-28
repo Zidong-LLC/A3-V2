@@ -11,6 +11,7 @@ Uso:  python tools/scripts/validate_flows.py
 """
 import copy as _copy
 import re
+import unicodedata
 import sys
 from pathlib import Path
 from unittest.mock import patch
@@ -19,6 +20,11 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8")
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+# Red de seguridad (2026-10-28): este script no simula la factura y con ALEGRA_ENABLED=true
+# un pedido cerrado iba a la cuenta REAL de Alegra. Toda escritura se corta en el transporte.
+import red_segura  # noqa: E402
+red_segura.activar(permitir_openai=True)
 
 CLIENT = {
     "id": "client-001", "clinic_name": "Veterinaria San Roque", "tax_id": "900123456",
@@ -163,7 +169,10 @@ def _reset(chat_id):
 
 
 def _norm(text):
-    return re.sub(r"[^a-z0-9]", "", (text or "").lower())
+    # Sin tildes ANTES de filtrar: antes 'uroanálisis' quedaba 'uroanlisis' y el chequeo del
+    # guion V marcaba rojo una respuesta que sí atendía el pedido (ERR-187).
+    plano = unicodedata.normalize("NFKD", (text or "").lower()).encode("ascii", "ignore").decode()
+    return re.sub(r"[^a-z0-9]", "", plano)
 
 
 def _match_client(query):

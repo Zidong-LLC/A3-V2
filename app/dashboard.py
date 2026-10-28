@@ -2009,15 +2009,24 @@ def api_anarvet_automatch():
     }), (207 if errores else 200)
 
 
+def _todas_las_facturas(filters: dict, tope: int = 10000) -> tuple[list[dict], int]:
+    """El export pide TODAS: Supabase corta cada request en 1000 filas y con
+    `per_page=10000` el CSV salía con 1000 de 1200 facturas, sin aviso (ERR-187)."""
+    filas, pagina = [], 1
+    while True:
+        lote, total = db.list_cached_invoices(filters, page=pagina, per_page=1000)
+        filas.extend(lote)
+        if len(lote) < 1000 or len(filas) >= min(total, tope):
+            return filas[:tope], total
+        pagina += 1
+
+
 @dashboard.get("/api/dashboard/invoices/export")
 @_login_required
 def api_export_invoices():
     fmt = (request.args.get("format") or "csv").lower()
     filters = _parse_invoice_filters(request.args)
-    rows, _total = _safe_fetch(
-        lambda: db.list_cached_invoices(filters, page=1, per_page=10000),
-        ([], 0),
-    )
+    rows, _total = _safe_fetch(lambda: _todas_las_facturas(filters), ([], 0))
     columns = [
         ("number", "Numero"), ("invoice_date", "Fecha"), ("client_name", "Cliente"),
         ("client_nit", "NIT"), ("document_type", "Tipo documento"), ("subtotal", "Neto"),

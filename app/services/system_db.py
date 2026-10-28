@@ -9,10 +9,11 @@ import os
 import threading
 from datetime import datetime, timedelta, timezone
 
-from app.services.db import _client
+from app.services.db import _client, _paginado
 
 log = logging.getLogger(__name__)
 _ACTIVO = os.environ.get("APP_ENV", "") != "test"
+# Supabase corta cada request en 1000 filas: las lecturas del panel van paginadas (ERR-187).
 LIMITE = 5000
 
 
@@ -38,25 +39,26 @@ def _desde(dias: int) -> str:
 
 def eventos(kind: str, dias: int = 7, limit: int = LIMITE) -> list[dict]:
     """Eventos de un tipo, del más nuevo al más viejo."""
-    return (_client.table("system_events").select("created_at, component, level, message, context, details, chat_id")
-            .eq("kind", kind).gte("created_at", _desde(dias))
-            .order("created_at", desc=True).limit(limit).execute().data or [])
+    return _paginado(lambda: _client.table("system_events")
+                     .select("created_at, component, level, message, context, details, chat_id")
+                     .eq("kind", kind).gte("created_at", _desde(dias))
+                     .order("created_at", desc=True).order("id"), limit)
 
 
 def sesiones_recientes(dias: int = 7) -> list[dict]:
-    return (_client.table("telegram_sessions")
-            .select("external_chat_id, channel, phase_current, requires_handoff, handoff_area, updated_at, captured_fields")
-            .gte("updated_at", _desde(dias)).order("updated_at", desc=True).limit(LIMITE).execute().data or [])
+    return _paginado(lambda: _client.table("telegram_sessions")
+                     .select("external_chat_id, channel, phase_current, requires_handoff, handoff_area, updated_at, captured_fields")
+                     .gte("updated_at", _desde(dias)).order("updated_at", desc=True).order("id"), LIMITE)
 
 
 def mensajes_recientes(dias: int = 7) -> list[dict]:
-    return (_client.table("conversation_messages").select("external_chat_id, role, created_at")
-            .gte("created_at", _desde(dias)).order("created_at", desc=True).limit(LIMITE).execute().data or [])
+    return _paginado(lambda: _client.table("conversation_messages").select("external_chat_id, role, created_at")
+                     .gte("created_at", _desde(dias)).order("created_at", desc=True).order("id"), LIMITE)
 
 
 def solicitudes_recientes(dias: int = 7) -> list[dict]:
-    return (_client.table("requests").select("created_at, entry_channel, status")
-            .gte("created_at", _desde(dias)).order("created_at", desc=True).limit(LIMITE).execute().data or [])
+    return _paginado(lambda: _client.table("requests").select("created_at, entry_channel, status")
+                     .gte("created_at", _desde(dias)).order("created_at", desc=True).order("id"), LIMITE)
 
 
 def costos() -> list[dict]:

@@ -44,7 +44,11 @@ app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 # La cookie de sesión no viaja en pedidos armados por otro sitio (CSRF) y, fuera de
 # desarrollo, solo por HTTPS (auditoría 2026-10-19).
 app.config.update(SESSION_COOKIE_SAMESITE="Lax", SESSION_COOKIE_HTTPONLY=True,
-                  SESSION_COOKIE_SECURE=APP_ENV != "development")
+                  SESSION_COOKIE_SECURE=APP_ENV != "development",
+                  # Tope por pedido (413 si se pasa). Sin él, 8 subidas gigantes SIN sesión
+                  # ocupaban los 8 hilos y llenaban el disco (ERR-187). 64 MB alcanza para
+                  # la carga de varios PDF de resultados juntos (10 MB cada uno como máximo).
+                  MAX_CONTENT_LENGTH=64 * 1024 * 1024)
 # Formato de dinero colombiano en las plantillas ({{ total | money }} -> $18.000).
 # `app.text.money` es una utilidad de formato pura, no lógica de negocio.
 app.jinja_env.filters["money"] = money
@@ -109,6 +113,11 @@ def _security_headers(resp):
         resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     return resp
 
+def _como_dict(valor) -> dict:
+    """Los webhooks llegan de afuera: lo que no sea un objeto JSON se trata como vacío."""
+    return valor if isinstance(valor, dict) else {}
+
+
 def _secreto_ok(recibido: str, esperado: str) -> bool:
     """Comparación en tiempo constante. Un secreto sin configurar no deja pasar a nadie."""
     return bool(esperado) and hmac.compare_digest(recibido.encode(), esperado.encode())
@@ -142,13 +151,16 @@ def telegram_webhook():
     if not _secreto_ok(token, TELEGRAM_WEBHOOK_SECRET):
         abort(403)
 
-    data = request.get_json(force=True, silent=True) or {}
-    message = data.get("message") or data.get("edited_message")
+    data = _como_dict(request.get_json(force=True, silent=True))
+    message = _como_dict(data.get("message") or data.get("edited_message"))
+    chat = _como_dict(message.get("chat"))
 
-    if not message or "text" not in message:
+    # Un payload raro (lista, sin chat, texto que no es texto) se descarta con 200: un 500
+    # hace que Telegram reintente el mismo update sin fin y dispara un aviso por cada uno.
+    if not isinstance(message.get("text"), str) or chat.get("id") is None:
         return jsonify({"ok": True})
 
-    chat_id = str(message["chat"]["id"])
+    chat_id = str(chat["id"])
     user_text = message["text"]
 
     _debouncer.submit(f"telegram:{chat_id}", user_text,
@@ -197,9 +209,11 @@ def _process_telegram(chat_id: str, user_text: str) -> None:
 def chatwoot_webhook():
     # Chatwoot no firma los webhooks de agent bot: el secreto viaja en la URL
     # (?token=...) y se configura en el webhook del bot. Tapón #3 de WhatsApp.
-    if CHATWOOT_WEBHOOK_SECRET and not _secreto_ok(request.args.get("token", ""), CHATWOOT_WEBHOOK_SECRET):
+    # Sin secreto configurado NO pasa nadie, igual que Telegram: antes quedaba abierto y
+    # cualquiera podía inventar mensajes, crear órdenes y gastar tokens (ERR-187).
+    if not _secreto_ok(request.args.get("token", ""), CHATWOOT_WEBHOOK_SECRET):
         abort(403)
-    data = request.get_json(force=True, silent=True) or {}
+    data = _como_dict(request.get_json(force=True, silent=True))
 
     if data.get("event") != "message_created":
         return jsonify({"ok": True})
@@ -209,15 +223,15 @@ def chatwoot_webhook():
         return jsonify({"ok": True})
 
     content = str(data.get("content") or "").strip()
-    conversation_raw_id = (data.get("conversation") or {}).get("id")
-    conversation_id = str(conversation_raw_id or "")
+    conversacion = _como_dict(data.get("conversation"))
+    conversation_id = str(conversacion.get("id") or "")
     if not content or not conversation_id:
         return jsonify({"ok": True})
 
     # El transporte siempre es Chatwoot; el canal de ORIGEN distingue WhatsApp del chat
     # web para que requests.entry_channel no mienta (migración 031). El payload trae el
     # tipo del inbox en conversation.channel (p. ej. "Channel::Whatsapp").
-    canal_inbox = str((data.get("conversation") or {}).get("channel") or "").lower()
+    canal_inbox = str(conversacion.get("channel") or "").lower()
     canal = "whatsapp" if "whatsapp" in canal_inbox else "chatwoot"
 
     app.logger.info("chatwoot_webhook: conv=%s canal=%s content=%r", conversation_id, canal, content[:80])

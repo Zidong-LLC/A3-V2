@@ -663,7 +663,7 @@ def test_cargar_otro_paciente_no_cierra_el_pedido():
 
 # ── 3. El pago se pregunta UNA vez, al final ────────────────────────────────────
 
-@pytest.mark.parametrize("signal", ["farewell", "negate", "cancel"])
+@pytest.mark.parametrize("signal", ["farewell", "negate"])
 def test_terminar_de_cargar_dispara_la_pregunta_del_pago(signal):
     """El cliente da por terminada la carga de mil formas; la señal del modelo es la fuente.
     `_order_registered` en la fixture porque el cierre EXIGE la orden en curso registrada
@@ -674,6 +674,23 @@ def test_terminar_de_cargar_dispara_la_pregunta_del_pago(signal):
     out = agent._enforce_open_pedido_close(SESSION, ai, prev, "eso sería todo")
     assert out["reply"] == PEDIDO_CLOSING_QUESTION
     assert out["captured_fields"]["_pedido_awaiting_payment"] is True
+
+
+@pytest.mark.parametrize("signal,mensaje", [("cancel", "eso sería todo"),
+                                            ("unclear", "Sabés qué, cancelá todo el pedido, lo hacemos otro día.")])
+def test_cancelar_con_la_orden_registrada_deriva_a_operaciones_sin_cobrar(monkeypatch, signal, mensaje):
+    """Decisión del usuario (2026-10-28, ERR-187): con la orden ya registrada y el motorizado
+    avisado, «cancelá todo» no pide el pago ni promete anular nada: cierra el pedido SIN
+    factura y deriva a operaciones. Antes 'cancel' llevaba a la pregunta del pago."""
+    cerrados = []
+    monkeypatch.setattr(agent.db, "close_pedido", lambda pid, payment_method=None: cerrados.append(pid))
+    prev = {"_pedido_id": "ped-1", "_order_registered": True}
+    ai = _resp(dict(ORDEN_COMPLETA), user_intent_signal=signal)
+    out = agent._enforce_open_pedido_close(SESSION, ai, prev, mensaje)
+    assert out["requires_handoff"] is True and out["handoff_area"] == "operaciones"
+    assert "operaciones" in out["reply"] and PEDIDO_CLOSING_QUESTION not in out["reply"]
+    assert cerrados == ["ped-1"]
+    assert "_pedido_id" not in out["captured_fields"]
 
 
 def test_un_pago_arrastrado_NO_cierra_ni_factura_el_pedido():

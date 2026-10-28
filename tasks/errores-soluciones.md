@@ -4920,3 +4920,118 @@ conversaciones" teniendolas todas delante.
   se descarta. Cron de Render cada 15 min (`POST /api/platform/pedidos/barrido`) para que el
   cierre no dependa de que alguien escriba.
 - **Verificacion:** 8 tests nuevos (`tests/test_pedidos_abandonados.py`) + los 6 del barrido.
+
+## ERR-187 — Estrés y auditoría final antes de entregar al cliente (2026-10-28)
+
+- **Fecha:** 2026-10-28 · **Estado:** RESUELTO lo de infraestructura/seguridad · **PENDIENTE DE OK:**
+  migración 037 y 6 puntos del flujo/acceso (lista al final)
+- **Pedido del usuario:** estrés + todos los tests que falten antes de la entrega final.
+  Decisiones: carga hasta 40 usuarios sobre la base real en SOLO LECTURA; en producción solo
+  chequeos de lectura; con modelo real: guiones + estrés multi-orden (~US$10-20 de los US$50).
+- **Herramientas nuevas (quedan para cada entrega futura):**
+  - `tools/scripts/red_segura.py`: corta en el transporte toda escritura a Supabase y toda
+    llamada externa no simulada. Nació de dos escapes encontrados HOY en los arneses viejos:
+    `validate_flows.py` no simulaba la factura (con ALEGRA_ENABLED=true un pedido cerrado iba
+    a la cuenta REAL de Alegra) y `qa_estres_multiorden.py` no simulaba el barrido de pedidos
+    abandonados (cierra pedidos reales y avisa a clientes reales). En la corrida bloqueó 362 +
+    600 escrituras: métricas a `system_events` y 51 PATCH a `client_custom_profiles` reales.
+  - `estres_bot.py` (+ `estres_bot_simulacion.py`): N veterinarias reales pidiendo recogidas
+    a la vez por el webhook real con debounce de producción; modelo simulado (normal, lento,
+    caído). Verifica pedido cerrado, aislamiento entre chats, ráfagas y /health.
+  - `estres_web.py`: personal + portal con sesiones reales y el tope de 8 hilos de gunicorn.
+  - `qa_consola_navegador.py`: cada pantalla en Chromium, falla ante errores de JavaScript.
+- **Resultados:**
+  - Suite: 1649 → **1772 passed** (123 tests nuevos, incluye barrido de las ~110 rutas sin
+    credenciales, validado en rojo con una ruta abierta a propósito).
+  - Guiones con modelo real: **33/35**. Estrés multi-orden: **17/20** (agosto: 11/20).
+  - Bot sin tokens: 10/25/40 veterinarias a la vez → 100% de pedidos cerrados, 0 turnos
+    fallidos, 0 cruces entre chats, 0 ráfagas mal agrupadas, /health ≤1 s. Código propio
+    ~0,6 s por turno (el resto es OpenAI). OpenAI lento (15-40 s): 25/25. OpenAI caído: cada
+    turno fallido deja al cliente sin respuesta (decisión del 26/10, sin contingencia).
+  - Web: 10 usuarios virtuales (~3 pedidos/s ≈ 45-60 personas reales) sin errores; con 20 se
+    satura y /health pasa los 5 s de Render. Cuello: cada pestaña del dashboard relee TODO
+    (24-27 consultas, 1,63 MB, ~0,3 s de CPU). Subir a 16 hilos EMPEORA (medido).
+  - PDF: los renders van de a uno (semáforo); 4 a la vez → el último espera 4,5 s.
+  - Producción (solo lectura): `verificar_produccion.py` TODO OK; webhook de Chatwoot exige
+    secreto (403 sin token). En la base no hay sesiones ni órdenes del bot desde el 20/10:
+    falta una conversación real de punta a punta en producción.
+- **Arreglado (sin tocar pasos del flujo):**
+  - Exportar facturas salía con 1000 de 1200 (corte de PostgREST) → paginado; y la lista de
+    facturas ordenaba solo por fecha (125 facturas el mismo día) → desempate por clave.
+  - Motorizados recibía 1000 de 1649 barrios → paginado. Panel /sistema: sus 4 lecturas
+    también cortaban en 1000 → paginadas.
+  - Storage (PDF de resultados) seguía en HTTP/2 compartido (el patrón de ERR-176) → HTTP/1.1.
+  - Webhook de Chatwoot quedaba ABIERTO si faltaba el secreto → cerrado (producción lo tiene).
+    Payloads malformados en Telegram/Chatwoot daban 500 (Telegram reintenta sin fin) → 200.
+  - Sin `MAX_CONTENT_LENGTH`: 8 subidas gigantes sin sesión ocupaban los 8 hilos → 64 MB.
+  - XSS almacenado (Recepción → Administrador) en el mapa de motorizados, el buscador de
+    Resultados y los barrios del alta de cliente → escapado.
+  - La caché de razas guardaba el fallo hasta el próximo deploy → reintenta.
+  - Límite de intentos del portal sin lock (IndexError → 500) y sin limpieza → con lock.
+  - Fechas inválidas en filtros del portal terminaban en 500 → se ignoran.
+  - **Resultados → Anarvet y Anarvet → Clientes se caen por statement timeout** (la vista
+    reagrupa 271.453 analitos, crece ~100.000/mes; Postgres corta a los 8 s). Hoy: la
+    pantalla de clientes ya no da 500 (empareja sin conteos) y el código lee una vista
+    materializada si existe. **Falta aplicar la migración 037** (vista materializada +
+    refresco al final del sync + conteo agrupado) — necesita OK: es la base de producción.
+- **Pendientes que necesitan OK (tocan el flujo o el modelo de acceso):**
+  1. ALTA — el bot entrega PDFs de resultados a quien diga el nombre de una clínica (la
+     identificación por nombre no verifica nada; con un nombre parcial lista clínicas).
+  2. ALTA — al portal se entra con el NIT + una palabra genérica ("veterinaria").
+  3. confirmo_y_sigo: "confirmo, y sigo con la siguiente orden" + "ya está" duplica la orden
+     anterior (sobrecobro; mitigado porque A3 revisa los borradores). apurado_typos: "agreagar
+     sodio y potasio" tras el perfil pierde los análisis (intermitente). Ambos de ERR-126.
+  4. Cierre determinístico del pedido guarda dos veces el mensaje del cliente (agent.py:3188).
+  5. Guion V: promete "te muestro las opciones de orina apenas confirmemos la dirección" y no
+     las muestra. QA8: repite idéntica la pregunta de la fecha tras una observación.
+     Repetir un análisis ya incluido responde "Listo, agrego…" (sin duplicar el cobro).
+  6. Barrido de pedidos sin candado (cron + turno a la vez → doble aviso al cliente).
+- **Datos (solo lectura, para decidir con A3):** 4 pares de análisis Mascolab duplicados con
+  el mismo nombre y precio (2457=2461 Chlamydophila psittaci, 2459=2462 Dirofilaria repens, y
+  sus «-1» de Tiempo Real): por nombre el bot elige siempre el primero. 164 clientes sin NIT;
+  1 médico triplicado (adryvete / Adriana Marcela Higuera); 1 médico sin nombre; Infinito Vet
+  con NIT «1». `qa_cobertura_catalogo.py` usa el modelo: quedó bloqueado, no se corrió.
+- **Gasto de OpenAI:** la API de costos marcaba US$4,44 en el mes al terminar (puede sumar
+  algo de hoy con demora).
+- **Tests:** `tests/test_endurecimiento_estres.py` (122), `test_anarvet_clientes_page.py` (+1),
+  `test_paginado_supabase.py` (conteo por RPC), webhooks ajustados al secreto obligatorio.
+- **Segunda tanda (2026-10-28, OK del usuario: «si, soluciona todas esas cosas»):**
+  - **Migración 037 APLICADA** + 038 (margen del refresco a 600 s). Vista materializada de
+    7.802 informes: Resultados → Anarvet página 1 pasó de cortarse a los 8 s a ~1,1 s; el
+    conteo por cliente 0,7 s; el refresco desde el sync tarda 25,5 s. Cerrada a anon. Una
+    página fuera de rango ya no da 500.
+  - **Resultados por chat (decisión del usuario):** el PDF sale solo si el nombre de la
+    clínica Y el NIT escritos en el chat concuerdan; si falta uno se pide y se valida (3
+    intentos). Regla en `app/verificacion_cliente.py`, validada contra los 858 clientes
+    activos (0 sin reconocer en 4 formas de escribir el nombre; 0 NIT sin reconocer). El
+    aviso automático de resultado va al chat verificado o al de su último pedido.
+  - **Portal:** la misma regla de nombre — NIT + «veterinaria» ya no entra.
+  - **confirmo_y_sigo:** `_candado_provenancia_paciente` (el modelo copiaba del historial los
+    datos del animal anterior y re-registraba la orden ante «ya está»).
+  - **apurado_typos:** causa raíz reproducida SIN modelo — si el modelo ya anotaba sodio y
+    potasio, `_enforce_catalog_profile_code_selection` los borraba al fijar el perfil por
+    código ($24.000 en vez de $48.000). Ahora se trata como pedido mixto (ERR-076).
+  - Guion V (la promesa de las opciones se cumple al confirmar la dirección), QA8 (se nombra
+    el dato dado fuera de orden), «ya está incluido», mensaje doble del cierre, candado del
+    barrido.
+  - **Duplicados de Mascolab:** NO se tocan (decisión del usuario): la doble versión PF/TR es
+    correcta; 2457/2461 y 2459/2462 son dos códigos para la MISMA versión → consultar a A3.
+  - **Nuevo hallazgo, preparado sin aplicar:** `db/migrations/039_cerrar_clave_anonima.sql`
+    (24 tablas sin RLS + 7 políticas abiertas: la clave anónima podía leer/escribir todo).
+  - **Tests:** `test_resultados_verificacion.py` (28), `test_candado_paciente_multiorden.py` (6),
+    `test_perfil_con_agregados_sin_verbo.py` (2, validado en rojo), `test_err187_flujo.py` (7).
+  - **Re-verificación con el modelo real (OK del usuario):** guiones 33/35 → los dos rojos
+    eran del arnés (QA9: el modelo anotó «nit 900123456» y el mock no quita letras — repetido
+    da OK; V: el verificador borraba las letras con tilde), pero V destapó un bug real del
+    arreglo: el menú de orina salía DOS veces → corregido; V y QA9 en verde. Multi-orden:
+    apurado_typos y confirmo_y_sigo pasaron a OK.
+  - **cancela_el_pedido destapó otro bug real:** «cancelá todo el pedido, lo hacemos OTRO día»
+    → 'otro' + 'pedido' abría otra orden (detector por bolsa de palabras, L55). Veto por
+    imperativos de cancelar/anular y frases de tiempo. Y por **decisión del usuario**, cancelar
+    con la orden YA registrada cierra el pedido sin factura y deriva a operaciones (antes
+    pedía el pago, o el modelo decía «cancelo el pedido» sin cancelar nada). Verificado con el
+    modelo real en las dos variantes (antes y después de registrar). El verificador de esa
+    persona todavía espera «1 factura»: expectativa vieja, no bug.
+  - **Migración 039 APLICADA** (OK del usuario): anon/authenticated con 0 permisos en
+    `public`; `verificar_produccion.py` TODO OK después.
+  - Suite final: **1818 passed**.

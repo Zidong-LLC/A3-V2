@@ -86,6 +86,21 @@ def test_cuenta_cuantos_informes_desbloquea_cada_uno():
     assert "4 de 82" in html   # informes con dueño / total (4 del cliente ya mapeado)
 
 
+def test_si_el_conteo_de_informes_falla_la_pantalla_sigue_sirviendo_para_emparejar():
+    """Con 7.800 informes (271.000 analitos) el conteo daba statement timeout y la pantalla entera respondía
+    500 (ERR-187): los conteos solo ordenan, emparejar tiene que seguir siendo posible."""
+    c = _client_logueado()
+    with patch.object(danarvet.db, "list_anarvet_client_map", return_value=list(MAPA)), \
+         patch.object(danarvet.db, "list_clients_with_assignment", return_value=list(CLIENTES)), \
+         patch.object(danarvet.db, "count_anarvet_informes_por_cliente",
+                      side_effect=RuntimeError("canceling statement due to statement timeout")):
+        resp = c.get("/resultados/anarvet/clientes")
+    html = resp.get_data(as_text=True)
+    assert resp.status_code == 200
+    assert "Necesitan una decisión (1)" in html
+    assert "no se pudo contar los informes" in html
+
+
 def test_el_automatch_solo_aplica_lo_inequivoco():
     """La regla de privacidad: con dos candidatos no se elige. Un mapeo errado le muestra
     los resultados de un paciente a la veterinaria equivocada."""

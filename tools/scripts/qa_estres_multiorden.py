@@ -25,6 +25,10 @@ if hasattr(sys.stdout, "reconfigure"):
 RAIZ = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(RAIZ))
 sys.path.insert(0, str(RAIZ / "tools" / "scripts"))
+# Red de seguridad (2026-10-28): el barrido de pedidos abandonados no está en _WRITE_PATCHES
+# y cierra pedidos reales y avisa a clientes reales. Toda escritura se corta en el transporte.
+import red_segura  # noqa: E402
+red_segura.activar(permitir_openai=True)
 
 from replay_chatwoot_qa import _WRITE_PATCHES, _state, _reset  # noqa: E402
 from sim_cliente import _cliente_simulado  # noqa: E402

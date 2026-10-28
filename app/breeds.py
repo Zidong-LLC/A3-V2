@@ -60,12 +60,12 @@ def _load() -> tuple[dict[str, str], dict[str, frozenset[str]], frozenset[str]]:
 
     La ambigüedad se DERIVA: una raza con más de una especie no infiere. Igual que
     `species.py` deriva `RECOVERABLE_SPECIES` de `ANIMAL_DOMAIN`, acá nada se marca a mano.
+
+    Si la lectura falla, LANZA: `lru_cache` no guarda las excepciones, así el turno
+    siguiente reintenta. Antes devolvía vacío y ese vacío quedaba cacheado: un timeout
+    justo después de un deploy dejaba al bot sin razas hasta el deploy siguiente (ERR-187).
     """
-    try:
-        rows = _fetch_rows()
-    except Exception:  # la raza es un dato descriptivo: no vale tumbar el turno por él
-        logger.exception("No se pudo cargar catalog_breeds; el agente sigue sin catálogo de razas")
-        return {}, {}, frozenset()
+    rows = _fetch_rows()
 
     canonical: dict[str, str] = {}
     species: dict[str, set[str]] = {}
@@ -104,7 +104,11 @@ def resolve_breed(text: str | None) -> BreedMatch:
     key = catalog_item_key(text)
     if not key:
         return _NO_MATCH
-    canonical, species_by_key, species_words = _load()
+    try:
+        canonical, species_by_key, species_words = _load()
+    except Exception:  # la raza es un dato descriptivo: no vale tumbar el turno por él
+        logger.exception("No se pudo cargar catalog_breeds; este turno sigue sin catálogo de razas")
+        return _NO_MATCH
     if not canonical:
         return _NO_MATCH
 

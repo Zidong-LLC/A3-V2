@@ -751,6 +751,12 @@
       }).addTo(map);
       var points = window.__COVERAGE_MAP_POINTS__ || [];
       var legendEl = document.getElementById('courier-coverage-legend');
+      // Escapado: el nombre y el color del motorizado los carga Recepción (ERR-187).
+      var esc = function (v) {
+        return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      };
       var seen = {};
       points.forEach(function (p) {
         var color = p.is_assigned ? p.color : '#475569';
@@ -759,15 +765,15 @@
           radius: r, fillColor: color, color: '#fff',
           weight: 1.5, opacity: 1, fillOpacity: p.is_assigned ? 0.82 : 0.35
         }).bindPopup(
-          '<strong>' + p.locality_name + '</strong><br>' +
-          (p.is_assigned ? p.courier_name : 'Sin asignar') + '<br>' +
+          '<strong>' + esc(p.locality_name) + '</strong><br>' +
+          (p.is_assigned ? esc(p.courier_name) : 'Sin asignar') + '<br>' +
           (p.clients_count || 0) + ' clientes'
         ).addTo(map);
         if (p.is_assigned && !seen[p.courier_name]) seen[p.courier_name] = p.color;
       });
       if (legendEl) {
         var html = Object.keys(seen).map(function (n) {
-          return '<span><b style="background:' + seen[n] + '"></b>' + n + '</span>';
+          return '<span><b style="background:' + esc(seen[n]) + '"></b>' + esc(n) + '</span>';
         }).join('');
         html += '<span><b style="background:#475569"></b>Sin asignar</span>';
         legendEl.innerHTML = html;

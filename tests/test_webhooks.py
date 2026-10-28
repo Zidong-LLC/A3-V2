@@ -9,10 +9,10 @@ def _client():
 
 
 def test_chatwoot_webhook_ignores_empty_non_text_payloads(monkeypatch):
-    monkeypatch.setattr("app.main.CHATWOOT_WEBHOOK_SECRET", "")
+    monkeypatch.setattr("app.main.CHATWOOT_WEBHOOK_SECRET", "s")
     with patch("app.main.process_turn") as mock_process:
         response = _client().post(
-            "/chatwoot/webhook",
+            "/chatwoot/webhook?token=s",
             json={
                 "event": "message_created",
                 "message_type": "incoming",
@@ -27,7 +27,7 @@ def test_chatwoot_webhook_ignores_empty_non_text_payloads(monkeypatch):
 
 
 def test_chatwoot_webhook_replies_and_assigns_handoff_team(monkeypatch):
-    monkeypatch.setattr("app.main.CHATWOOT_WEBHOOK_SECRET", "")
+    monkeypatch.setattr("app.main.CHATWOOT_WEBHOOK_SECRET", "s")
     session = {"requires_handoff": True, "handoff_area": "contabilidad"}
 
     with patch("app.main.process_turn", return_value="Te comunico con contabilidad") as mock_process, \
@@ -35,7 +35,7 @@ def test_chatwoot_webhook_replies_and_assigns_handoff_team(monkeypatch):
          patch("app.main.chatwoot.assign_team") as mock_assign, \
          patch("app.main.get_or_create_session", return_value=session):
         response = _client().post(
-            "/chatwoot/webhook",
+            "/chatwoot/webhook?token=s",
             json={
                 "event": "message_created",
                 "message_type": "incoming",
@@ -55,10 +55,10 @@ def test_chatwoot_webhook_replies_and_assigns_handoff_team(monkeypatch):
 
 
 def test_chatwoot_webhook_ignores_private_notes(monkeypatch):
-    monkeypatch.setattr("app.main.CHATWOOT_WEBHOOK_SECRET", "")
+    monkeypatch.setattr("app.main.CHATWOOT_WEBHOOK_SECRET", "s")
     with patch("app.main.process_turn") as mock_process:
         response = _client().post(
-            "/chatwoot/webhook",
+            "/chatwoot/webhook?token=s",
             json={
                 "event": "message_created",
                 "message_type": "incoming",

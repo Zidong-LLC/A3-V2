@@ -92,6 +92,9 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
   cliente simulado sobre datos reales · fecha de toma de muestra autorizada por el usuario
   el 2026-08-25 (posición y no-bloqueo elegidos por él), tests en
   `tests/test_fecha_toma_muestra.py`.
+- **Ajuste 2026-10-28 (ERR-187, OK del usuario):** si el cliente responde OTRO dato que el pedido
+  (QA8: una observación cuando se preguntaba la fecha) y el texto del bot saldría idéntico al anterior,
+  se nombra lo anotado («Listo, anoto la observación. ¿Qué día…?») — `_acusar_dato_fuera_de_orden`.
 
 ### B4b · Raza reconocida contra el catálogo (aporta la especie)
 - **Qué hace:** normaliza la grafía de la raza contra `catalog_breeds` (323 razas del cliente)
@@ -109,6 +112,9 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
   ("¿esa dirección está bien?"). Acepta confirmaciones coloquiales ("sí", "esa", "sisi").
 - **Dónde:** `_confirms_address`, `_address_confirmation_pending`.
 - **Estado:** ✅ APROBADO (usuario, 2026-06-22)
+- **Ajuste 2026-10-28 (ERR-187, OK del usuario):** si con la dirección pendiente el cliente pide un área
+  («un análisis de orina»), la promesa «te las muestro apenas confirmemos la dirección» se cumple: al
+  confirmarla salen las opciones de esa área (`_area_tras_direccion`, `_cumplir_promesa_de_area`).
 
 ### B6 · Selección de análisis — perfil de catálogo por código/nombre
 - **Qué hace:** si el usuario nombra un perfil del catálogo (p. ej. "perfil 152"), lo
@@ -116,6 +122,8 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
 - **Dónde:** `_enforce_catalog_profile_code_selection`, `_capture_profile_menu_selection`,
   `_store_selected_profile_fields`.
 - **Estado:** ✅ APROBADO (usuario, 2026-06-22) — andaba bien; falta re-verificar en el último test.
+- **Ajuste 2026-10-28 (ERR-187, OK del usuario):** «perfl 152 y agreagar sodio y potasio» (sin verbo
+  reconocible) ya no pierde los análisis nombrados: se tratan como pedido mixto y se re-leen del catálogo.
 
 ### B7 · Selección de análisis — recomendación de perfiles por especie
 - **Qué hace:** si el cliente no sabe qué pedir, pide recomendación, o responde algo vago que
@@ -176,6 +184,8 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
   Ajuste del perfil por código autorizado por el usuario el 2026-08-12; verificado con
   cliente simulado sobre datos reales (orden A3-2026-901: perfil $55.000 + análisis $14.000).
   Tests: `tests/test_profile_by_code_in_offer.py`.
+- **Ajuste 2026-10-28 (ERR-187, OK del usuario):** pedir un análisis que YA está en la orden responde
+  «… ya está incluido en la orden» en vez de «Listo, agrego…» (nunca se duplicó el cobro).
 
 ### B10 · Resumen de la orden y confirmación (fase_4_confirmacion)
 - **Qué hace:** con la orden completa, muestra SIEMPRE un resumen determinístico
@@ -233,6 +243,9 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
     `_enforce_confirmation_step`, y la Sección 7.0 `_awaiting_additional_test`).
   - **Decisión (usuario, 2026-06-22):** revertir los 3 cambios y dejar el cierre como
     estaba (resumen → confirmación → cierre). Re-implementar B11 después, mínimo y avisando.
+- **Ajuste 2026-10-28 (ERR-187, OK del usuario):** el cierre determinístico del pedido guardaba dos veces
+  el mensaje del cliente; y el barrido de pedidos abandonados tiene candado (cron + turno a la vez
+  avisaban dos veces).
 
 ### B14 · Multi-orden (otra orden en la misma conversación)
 - **Qué hace:** tras registrar una orden, si el usuario pide "otra orden", arrastra datos
@@ -241,6 +254,14 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
 - **Dónde:** `_begin_followup_order`, `_prev_order_snapshot`, `_restart_identification_for_new_client`,
   bloques de fase terminal en `process_turn`.
 - **Estado:** ✅ APROBADO (usuario, 2026-06-22) — andaba bien; falta re-verificar en el último test.
+- **Ajuste 2026-10-28 (ERR-187, OK del usuario):** el modelo copiaba del historial los datos del animal
+  anterior al paciente nuevo, y ante «ya está, no tengo más» re-registraba la orden anterior.
+  `_candado_provenancia_paciente`: un dato del animal idéntico al de la orden anterior, nuevo en el turno
+  y ausente del mensaje se descarta (salvo «el mismo»/«el de siempre» o que el cliente nombre al MISMO
+  paciente). Lo que el cliente da explícitamente sigue mandando (memoria multi-orden).
+- **Ajuste 2026-10-28 (ERR-187, decisión del usuario):** «cancelá todo» con la orden YA registrada
+  cierra el pedido SIN factura y deriva a operaciones (`_cancelacion_a_operaciones`); antes de
+  registrar se descarta como siempre. «lo hacemos otro día» ya no se lee como «otra orden».
 
 ### B15 · Opción 2 · Consultar resultados
 - **Qué hace:** busca en los resultados publicados de la plataforma los del cliente que
@@ -256,6 +277,10 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
 - **Estado:** ⏳ POR CONFIRMAR (aprobación del usuario) — reescrito el 2026-08-28 con OK
   explícito. Validado E2E el 2026-08-31 contra datos reales: el cliente pidió su resultado,
   el bot lo encontró y el PDF salió por el chat (ERR-170); falta la prueba por Telegram real.
+- **Ajuste 2026-10-28 (ERR-187, decisión del usuario):** los PDF solo salen si en el chat el nombre de
+  la clínica Y el NIT concuerdan; si dio uno solo, se le pide el otro y tiene que ser el correcto (3
+  intentos). Se mira lo que ESCRIBIÓ el usuario (`app/verificacion_cliente.py`). El aviso automático de
+  «resultado disponible» va solo al chat que verificó o al de su último pedido (`chat_for_client`).
 
 ### B16 · Opción 3 · Pagos → Contabilidad
 - **Qué hace:** deriva siempre a Contabilidad.
