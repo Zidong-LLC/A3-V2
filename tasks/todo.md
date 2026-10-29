@@ -1809,7 +1809,8 @@ otro código para la MISMA versión).
       estados REALES de las dos sesiones (24 casos) y suite completa
 - [x] Espera antes de contestar 5/20 → 8/30 s (render.yaml; aplicar en Render con el deploy)
 - [ ] Push + deploy (esperando OK) y verificar con un «Hola» real
-- [ ] Preguntas cerradas con opciones numeradas (pedido del usuario): agregar otro análisis,
+- [x] Preguntas cerradas con opciones numeradas (pedido del usuario): agregar otro análisis,
       observación, otra orden/cerrar, forma de pago, datos heredados — mecanismo único
+      (`app/opciones_cerradas.py`, 19 tests; 16 asserts de texto exacto pasados a startswith)
 - [ ] Inventario de marcas de estado con un solo lugar donde muere cada una (post-lanzamiento)
 - [ ] Al derivar, abrir la conversación en Chatwoot (hoy queda en «Pendiente») — esperando OK

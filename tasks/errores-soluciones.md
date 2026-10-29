@@ -5235,5 +5235,9 @@ conversaciones" teniendolas todas delante.
 - **Lección (tasks/lessons.md 29/10):** una lista de tokens compartida no puede tener palabras
   que cambian de significado según la pregunta previa («no»); el contexto lo da el estado.
   Los tests de cierre usan estados reales, no inventados.
-- **Pendiente relacionado:** preguntas cerradas con opciones numeradas (pedido del usuario,
-  29/10) y el inventario de marcas de estado con un solo lugar donde muere cada una.
+- **Anexo (mismo día, pedido de A3):** preguntas cerradas con **opciones numeradas**
+  (`app/opciones_cerradas.py`): un «2» no tiene ambigüedad y ataca de raíz el problema del «no».
+  Mecanismo único (anexa «1. … 2. …» en `_persist_turn`, traduce el número al entrar), cinco
+  preguntas cubiertas, 19 tests. «Eso es todo» a la oferta cierra lea lo que lea el modelo (antes,
+  con señal `unclear`, el bloque «recién cerrada la orden» lo derivaba a un asesor).
+- **Pendiente relacionado:** inventario de marcas de estado con un solo lugar donde muere cada una.

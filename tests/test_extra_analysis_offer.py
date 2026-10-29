@@ -62,7 +62,7 @@ def test_answer_decline_closes_the_offer():
         assert out["phase"] == agent.CONFIRMATION_PHASE
         assert "¿Confirmas estos datos?" in out["reply"]
     else:
-        assert out["reply"] == agent.PAYMENT_METHOD_QUESTION
+        assert out["reply"].startswith(agent.PAYMENT_METHOD_QUESTION)
 
 
 def test_answer_payment_method_returns_none_to_let_pipeline_capture():

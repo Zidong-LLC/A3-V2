@@ -672,7 +672,7 @@ def test_terminar_de_cargar_dispara_la_pregunta_del_pago(signal):
     prev = {"_pedido_id": "ped-1", "_order_registered": True}
     ai = _resp(dict(ORDEN_COMPLETA), user_intent_signal=signal)
     out = agent._enforce_open_pedido_close(SESSION, ai, prev, "eso sería todo")
-    assert out["reply"] == PEDIDO_CLOSING_QUESTION
+    assert out["reply"].startswith(PEDIDO_CLOSING_QUESTION)
     assert out["captured_fields"]["_pedido_awaiting_payment"] is True
 
 
@@ -960,7 +960,7 @@ def test_oferta_pendiente_repregunta_cerrado_en_vez_de_reabrir_captura():
     # ERR-135: la red vive ahora en su propio enforcer al FINAL del pipeline.
     ai = _resp(dict(prev), user_intent_signal=None, reply="¿Qué análisis o perfil desean?")
     out = agent._enforce_pedido_offer_pending_guard(prev, ai)
-    assert out["reply"] == PEDIDO_OFFER_REASK
+    assert out["reply"].startswith(PEDIDO_OFFER_REASK)
     assert out.get(agent._SKIP_REQUEST_CREATION) is True
 
     # Con un paciente NUEVO capturado (el cliente arrancó otra orden), la red CEDE.
@@ -981,7 +981,7 @@ def test_farewell_con_oferta_pendiente_cierra_normal():
     prev = {"_pedido_id": "ped-1", "_order_registered": True, "_pedido_offer_pending": True}
     ai = _resp(dict(prev), user_intent_signal="farewell", reply="(del modelo)")
     out = agent._enforce_open_pedido_close(SESSION, ai, prev, "no, esa es la última")
-    assert out["reply"] == PEDIDO_CLOSING_QUESTION
+    assert out["reply"].startswith(PEDIDO_CLOSING_QUESTION)
     assert "_pedido_offer_pending" not in out["captured_fields"]
 
 
@@ -991,7 +991,7 @@ def test_forma_de_pago_con_oferta_pendiente_resuelve_el_cierre():
     prev = {"_pedido_id": "ped-1", "_order_registered": True, "_pedido_offer_pending": True}
     ai = _resp(dict(prev), user_intent_signal=None, reply="(del modelo)")
     out = agent._enforce_open_pedido_close(SESSION, ai, prev, "forma de pago")
-    assert out["reply"] == PEDIDO_CLOSING_QUESTION
+    assert out["reply"].startswith(PEDIDO_CLOSING_QUESTION)
     # A mitad de captura (sin _order_registered), 'el pago' no dispara nada.
     prev2 = {"_pedido_id": "ped-1"}
     ai2 = _resp(dict(prev2), user_intent_signal=None, reply="sigo")
@@ -1010,7 +1010,7 @@ def test_guard_de_oferta_pisa_cualquier_pregunta_de_captura_final():
           "reply": "Perdona, creo que no te entendí bien. ¿Cuál es el médico solicitante?",
           "user_intent_signal": "provides_requested_data"}
     out = agent._enforce_pedido_offer_pending_guard(prev, ai)
-    assert out["reply"] == PEDIDO_OFFER_REASK
+    assert out["reply"].startswith(PEDIDO_OFFER_REASK)
 
     # La pregunta del PAGO es la dirección correcta: pasa intacta.
     ai2 = {"intent": "route_scheduling", "captured_fields": dict(prev),

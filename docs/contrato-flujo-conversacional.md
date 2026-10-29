@@ -254,6 +254,15 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
   salta a otra rama. Frente al resumen, «no más análisis» re-muestra el resumen (no borra el paquete);
   los códigos que captura el modelo sin rótulo reciben «Perfil personalizado (N análisis)».
   Tests con los estados reales: `tests/test_prueba_real_whatsapp_20261029.py`.
+- **Ajuste 2026-10-29 (pedido de A3, OK del usuario): preguntas cerradas con opciones numeradas.**
+  Las cinco preguntas cerradas del flujo de la orden salen con «1. … 2. …» debajo y el número se
+  traduce al texto que el flujo ya entiende ANTES de interpretar (`app/opciones_cerradas.py`, un
+  solo mecanismo, sin lógica por pregunta): ¿agregamos otro análisis? · ¿observación o sin
+  observaciones? · ¿otra orden o cerramos el pedido? (y su repregunta) · ¿contraentrega o pago en
+  línea? · «Mantengo estos datos… ¿confirmas o cambias alguno?». Con un menú de análisis/perfiles
+  pendiente no se numeran (los números son del menú). La marca `_opciones_cerradas` vive un turno.
+  «Eso es todo» a la oferta cierra y pide el pago lea lo que lea el modelo.
+  Tests: `tests/test_opciones_cerradas.py`.
 
 ### B14 · Multi-orden (otra orden en la misma conversación)
 - **Qué hace:** tras registrar una orden, si el usuario pide "otra orden", arrastra datos

@@ -24,14 +24,14 @@ POST_CIERRE_CON_PEDIDO = dict(
 def test_no_pelado_con_senal_negativa_cierra_y_pide_el_pago():
     """'No' + negate a la oferta → pregunta de cierre (antes: '¿qué dato quieres corregir?')."""
     reply, persisted = _run_turn("No", "negate", POST_CIERRE_CON_PEDIDO, phase="fase_6_cierre")
-    assert reply == agent.PEDIDO_CLOSING_QUESTION
+    assert reply.startswith(agent.PEDIDO_CLOSING_QUESTION)
     assert persisted["captured_fields"].get("_pedido_awaiting_payment")
 
 
 def test_no_pelado_sin_senal_clara_repregunta():
     """'No' + unclear: no se adivina ni se deriva a un asesor — se repregunta una vez."""
     reply, _ = _run_turn("No", "unclear", POST_CIERRE_CON_PEDIDO, phase="fase_6_cierre")
-    assert reply == agent.PEDIDO_OFFER_REASK
+    assert reply.startswith(agent.PEDIDO_OFFER_REASK)
 
 
 def test_affirm_pelado_con_oferta_de_pedido_repregunta():
@@ -39,14 +39,14 @@ def test_affirm_pelado_con_oferta_de_pedido_repregunta():
     desambiguando (antes: '¿Cuál es el médico solicitante?' del first-missing)."""
     reply, _ = _run_turn("sí, confirmo", "affirm", POST_CIERRE_CON_PEDIDO,
                          phase="fase_6_cierre")
-    assert reply == agent.PEDIDO_OFFER_REASK
+    assert reply.startswith(agent.PEDIDO_OFFER_REASK)
 
 
 def test_affirm_pelado_red_de_tokens_sin_senal():
     """'dale' con señal unclear entra por la red (_is_affirmative_text + bare)."""
     reply, _ = _run_turn("dale", "unclear", POST_CIERRE_CON_PEDIDO,
                          phase="fase_6_cierre")
-    assert reply == agent.PEDIDO_OFFER_REASK
+    assert reply.startswith(agent.PEDIDO_OFFER_REASK)
 
 
 def test_otra_orden_sigue_ganando_a_la_oferta():

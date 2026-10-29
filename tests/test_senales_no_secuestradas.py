@@ -56,7 +56,7 @@ def test_no_asi_esta_bien_cierra_el_pedido_aunque_el_modelo_marque_affirm():
           "reply": "¿Qué análisis o perfil desean?", "user_intent_signal": "affirm"}
     with patch.object(agent, "PEDIDOS_ENABLED", True):
         out = agent._enforce_open_pedido_close({"client_id": "c1"}, ai, prev, "No, así está bien.")
-    assert out["reply"] == PEDIDO_CLOSING_QUESTION
+    assert out["reply"].startswith(PEDIDO_CLOSING_QUESTION)
 
     # A mitad de captura (orden NO registrada), "ya está, el dueño es Juan" NO cierra.
     prev2 = {"_pedido_id": "ped-1"}

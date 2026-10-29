@@ -119,20 +119,20 @@ def turno(msg, signal, captured, phase, history, ai_fields=None, reply=None, cha
                                         ("No gracias", "negate"), ("no mas analisis", "negate")])
 def test_no_con_senal_clara_pasa_al_pago(msg, signal):
     reply, f, _ = turno(msg, signal, CHAT1_TRAS_REGISTRAR, "fase_6_cierre", HIST1)
-    assert reply == agent.PEDIDO_CLOSING_QUESTION
+    assert reply.startswith(agent.PEDIDO_CLOSING_QUESTION)
     assert f.get("_pedido_awaiting_payment") and not f.get("_pedido_offer_pending")
 
 
 @pytest.mark.parametrize("signal", ["unclear", "correction", "affirm"])
 def test_no_pelado_sin_senal_clara_repregunta_una_vez(signal):
     reply, f, _ = turno("No", signal, CHAT1_TRAS_REGISTRAR, "fase_6_cierre", HIST1)
-    assert reply == agent.PEDIDO_OFFER_REASK
+    assert reply.startswith(agent.PEDIDO_OFFER_REASK)
     assert f.get("_pedido_offer_reasked") and f.get("_pedido_offer_pending")
 
 
 def test_segundo_no_pelado_cierra_y_pide_el_pago():
     reply, f, _ = turno("No", "unclear", dict(CHAT1_TRAS_REGISTRAR, _pedido_offer_reasked=True), "fase_6_cierre", HIST1)
-    assert reply == agent.PEDIDO_CLOSING_QUESTION
+    assert reply.startswith(agent.PEDIDO_CLOSING_QUESTION)
     assert f.get("_pedido_awaiting_payment")
 
 

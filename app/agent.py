@@ -5,7 +5,7 @@ import contextvars
 from typing import Callable
 from datetime import datetime
 
-from app import billing, catalog, pedidos_abandonados, state
+from app import billing, catalog, opciones_cerradas, pedidos_abandonados, state
 from app.text import (
     tokenize as _tokenize, as_text_items as _as_text_items, money as _money, catalog_item_key as _catalog_item_key,
     strip_price_text as _strip_price_text, ACCENT_TRANSLATION as _ACCENT_TRANSLATION,
@@ -2955,6 +2955,9 @@ def _observe_state_health(fields: dict, new_phase: str = "") -> None:
 
 
 def _persist_turn(chat_id: str, user_message: str, ai_response: dict) -> str:
+    # Preguntas cerradas con opciones numeradas (pedido de A3, 29/10): se anexan acá, en la
+    # ÚNICA salida que persiste, para que historial, sesión y lo enviado digan lo mismo.
+    ai_response = opciones_cerradas.agregar(ai_response)
     db.save_message(chat_id, user_message, "user")
     db.save_message(chat_id, ai_response["reply"], "bot")
     fields = ai_response.get("captured_fields", {})
@@ -3302,6 +3305,9 @@ def process_turn(
     prev_fields = session.get("captured_fields") or {}
     if prev_fields.get("_blocked"):
         return None
+    # «2» a una pregunta cerrada con opciones numeradas → el texto que el flujo entiende.
+    # Va antes de cualquier lectura del mensaje; la marca se borra en el mismo acto.
+    user_message = opciones_cerradas.traducir(prev_fields, user_message)
 
     # ERR-088: el escalado por "no encuentro tu registro" SÍ se puede deshacer, pero solo
     # con un identificador que exista en la base. Cualquier otro mensaje mantiene el
@@ -3969,6 +3975,19 @@ def process_turn(
                 resp_no = _base_route_response(reply_no, campos_no)
                 resp_no[_SKIP_REQUEST_CREATION] = True
                 return _persist_turn(chat_id, user_message, resp_no)
+            # "Eso es todo" / "no más órdenes" a la misma oferta: cierra y pide el pago lea lo
+            # que lea el modelo — la opción numerada «2» llega con este texto, y con señal
+            # `unclear` el bloque de derivación de abajo se lo llevaba a un asesor.
+            if (_pedido_abierto and prev_captured.get("_pedido_offer_pending")
+                    and _says_thats_all(user_message)
+                    and not _explicitly_wants_another_order(user_message)):
+                campos_fin = dict(prev_captured)
+                campos_fin.pop("_pedido_offer_pending", None)
+                campos_fin.pop("_pedido_offer_reasked", None)
+                campos_fin["_pedido_awaiting_payment"] = True
+                resp_fin = _base_route_response(PEDIDO_CLOSING_QUESTION, campos_fin)
+                resp_fin[_SKIP_REQUEST_CREATION] = True
+                return _persist_turn(chat_id, user_message, resp_fin)
             _close_words = {"cierra", "cerrar", "cerramos", "cierralo", "ciérralo", "cerrada", "cerrado"}
             _wants_other = (signal == "another_order" or _explicitly_wants_another_order(user_message)
                             or _wants_another_service_order(user_message))

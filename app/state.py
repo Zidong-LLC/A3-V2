@@ -121,6 +121,9 @@ FLAGS_CIERRE = frozenset({
     # Consulta de resultados por chat (paso 3.4a): ids de los PDF que main.py entrega
     # después de responder. Vive un solo turno: se limpia apenas se intenta el envío.
     "_deliver_results",
+    # Preguntas cerradas con opciones numeradas (29/10): qué significa cada número de la
+    # ÚLTIMA pregunta. Vive un solo turno (se borra al traducir la respuesta).
+    "_opciones_cerradas",
 })
 KNOWN_FLAGS = FLAGS_IDENTIFICACION | FLAGS_ANALISIS | FLAGS_DIRECCION | FLAGS_CIERRE
 
@@ -133,7 +136,7 @@ BUSINESS_FIELDS = frozenset({
 })
 
 # Flags que NUNCA se arrastran al turno siguiente (se recomputan cada turno).
-_NO_CARRY = frozenset({"_pending_intents", "_deliver_results"})
+_NO_CARRY = frozenset({"_pending_intents", "_deliver_results", "_opciones_cerradas"})
 
 # Menús mutuamente excluyentes: mostrar uno limpia el otro (evita menús pegados).
 _MENU_FLAGS = ("_test_menu_options", "_profile_menu_options")

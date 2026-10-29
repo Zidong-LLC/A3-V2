@@ -382,7 +382,7 @@ def test_payment_question_does_not_override_add_analysis_request():
     # Sin ese pedido, el paso de pago sigue normal.
     ai2 = _route_resp(fields)
     out2 = agent._enforce_payment_step({"client_id": "c1"}, ai2, ai2["captured_fields"], "listo")
-    assert out2["reply"] == agent.PAYMENT_METHOD_QUESTION
+    assert out2["reply"].startswith(agent.PAYMENT_METHOD_QUESTION)
 
 
 def test_reference_phrase_captured_as_doctor_is_discarded():
@@ -425,7 +425,7 @@ def test_step_push_yields_to_correction_signal():
     ai2 = _route_resp(fields)
     ai2["user_intent_signal"] = "provides_requested_data"
     out2 = agent._enforce_payment_step({"client_id": "c1"}, ai2, ai2["captured_fields"], "ok")
-    assert out2["reply"] == agent.PAYMENT_METHOD_QUESTION
+    assert out2["reply"].startswith(agent.PAYMENT_METHOD_QUESTION)
 
 
 def test_change_client_mid_order_keeps_the_order():
