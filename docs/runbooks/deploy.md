@@ -194,3 +194,18 @@ contener un incidente volvería a encenderse sola en el deploy siguiente.
 
 > Esto se descubrió en el despliegue del 01/09: un Manual Deploy devolvió las tres
 > integraciones a `disabled` porque el blueprint las traía en `false`.
+
+## Nota 2026-10-29 — el push no despliega solo
+
+El servicio `a3-plataforma` del Render del cliente tiene el autodeploy apagado. Después del
+`git push` hay que disparar el deploy:
+
+```bash
+curl -s -X POST "https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys" \
+  -H "Authorization: Bearer $RENDER_API_KEY" -H "Content-Type: application/json" \
+  -d '{"clearCache": "do_not_clear"}'
+```
+
+y mirar `GET https://api.render.com/v1/services/$RENDER_SERVICE_ID/deploys?limit=1` hasta que el
+estado sea `live` (unos 2-3 minutos). Los crons y Chatwoot se actualizan con «Manual sync» del
+blueprint en el dashboard de Render.
