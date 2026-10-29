@@ -1,0 +1,16 @@
+<div class="approval-notice os-spring-in {{ 'error' if alert.level == 'error' else 'ok' }}">
+  <strong>{{ alert.title }}:</strong> {{ alert.detail }}
+  {% if alert.accion %}<a href="{{ alert.accion.url }}">{{ alert.accion.texto }}</a>{% endif %}
+  {% if alert.clientes %}
+  <details style="margin-top:6px">
+    <summary>Ver los {{ alert.clientes | length }} cliente(s) activos sin motorizado propio en esas zonas</summary>
+    <ul style="margin:6px 0 0;padding-left:18px">
+      {% for c in alert.clientes %}
+      <li><a href="/clientes/{{ c.id }}">{{ c.nombre }}</a> · {{ c.zona }}</li>
+      {% endfor %}
+    </ul>
+  </details>
+  {% elif alert.clientes is defined %}
+  <p style="margin:6px 0 0">Todos los clientes activos de esas zonas ya tienen motorizado propio; falta solo asignar la zona.</p>
+  {% endif %}
+</div>

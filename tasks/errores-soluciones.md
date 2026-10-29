@@ -5092,3 +5092,22 @@ conversaciones" teniendolas todas delante.
   conserva el del 31/03 con el celular real 3124130857 y el del 27/05 queda de BAJA (el
   teléfono es único en `clients`, se le quitó al dado de baja). Todo en `audit_log`
   (usuario «limpieza-duplicados»).
+
+## ERR-190 — «Cobertura pendiente» no decía qué zonas ni qué clientes
+
+- **Fecha:** 2026-10-29 · **Estado:** RESUELTO (commit local; falta push + deploy)
+- **Reporte del usuario (captura del Centro Operativo):** «¿por qué estaría mostrando esto? ¿y
+  no podría hacer nada para saber qué clientes son?» — la alerta decía solo «5 localidad(es)
+  con clientes sin motorizado».
+- **Causa:** la alerta (`_build_motorizados_context`) contaba las zonas con clientes y sin
+  motorizado en la cobertura, pero no guardaba cuáles ni qué clientes caían en ellas. Las 5
+  eran municipios: Soacha (40), Sibaté (4), Cota (2), Funza (1) y Mosquera (1). La mayoría de
+  esos clientes ya tienen motorizado PROPIO (César, Marlon, Gerardo); los que de verdad no
+  tienen ninguno son 14 activos (11 de Soacha, 2 de Sibaté, 1 de Cota). No servía enlazar a
+  `/clientes?motorizado=no` (390 clientes, casi todos de Bogotá, cubiertos por su localidad).
+- **Solución:** `_alerta_cobertura` nombra las zonas con su cantidad de clientes y lista los
+  clientes activos sin motorizado propio, cada uno con enlace a su ficha (donde se le asigna),
+  más el acceso «Asignar la zona en Motorizados». Plantilla `_alerta_operativa.html`, usada en
+  Operación y en Motorizados; las demás alertas se ven igual que antes.
+- **Tests:** `tests/test_alerta_cobertura.py` (5). Verificado con la base real en solo lectura:
+  `/operacion` y `/motorizados` muestran las 5 zonas y los 14 enlaces. Suite 1829 passed.

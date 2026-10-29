@@ -791,7 +791,8 @@ def _build_sample_process_lanes_with_orders(samples: list[dict], events: list[di
 
 
 def _agregar_municipios(clients, coverage_by_code, courier_index, localities_by_courier, clients_by_courier,
-                        localities_rows, coverage_map_points, municipios_leidos=None) -> None:
+                        localities_rows, coverage_map_points, municipios_leidos=None,
+                        clientes_por_zona: dict | None = None) -> None:
     """Municipios cercanos como localidades más (cierre v1): fila en la cobertura, punto en
     el mapa y conteo de clientes por su campo municipio (o por la dirección si su zona no
     es de Bogotá). Sin la tabla 034 no agrega nada y la pantalla queda como antes."""
@@ -807,6 +808,8 @@ def _agregar_municipios(clients, coverage_by_code, courier_index, localities_by_
             encontrado = municipios.coincide(client.get("address"), activos)
         if encontrado:
             por_municipio[encontrado["code"]] += 1
+            if clientes_por_zona is not None:
+                clientes_por_zona.setdefault(encontrado["code"], []).append(client)
     for m in activos:
         code = m["code"]
         row = coverage_by_code.get(code) or {}
@@ -829,6 +832,27 @@ def _agregar_municipios(clients, coverage_by_code, courier_index, localities_by_
                 "color": _courier_color(courier_id, courier_name), "is_assigned": bool(courier_id),
                 "clients_count": por_municipio.get(code, 0),
             })
+
+
+def _alerta_cobertura(localities_rows: list[dict], clientes_por_zona: dict[str, list[dict]]) -> dict:
+    """«Cobertura pendiente» con nombre y apellido: qué zonas no tienen motorizado y qué
+    clientes activos de ahí tampoco tienen uno propio, cada uno con enlace a su ficha. Antes
+    decía «5 localidad(es) con clientes sin motorizado» y no había forma de saber cuáles
+    (reporte del usuario, 2026-10-29)."""
+    riesgo = sorted((r for r in localities_rows if r["clients_count"] and not r["is_assigned"]),
+                    key=lambda r: -r["clients_count"])
+    nombres = [f"{r['locality_name']} ({r['clients_count']} cliente{'s' if r['clients_count'] != 1 else ''})"
+               for r in riesgo]
+    zonas = nombres[0] if len(nombres) == 1 else ", ".join(nombres[:-1]) + " y " + nombres[-1]
+    sin_motorizado = [
+        {"id": c.get("id"), "nombre": c.get("clinic_name") or "Cliente", "zona": r["locality_name"]}
+        for r in riesgo for c in clientes_por_zona.get(r["locality_code"], [])
+        if c.get("is_active", True) and not (_assignment_from_client(c) or {}).get("courier_id")
+    ]
+    return {"level": "warning", "title": "Cobertura pendiente",
+            "detail": f"{zonas} no tiene{'n' if len(riesgo) > 1 else ''} motorizado asignado a la zona.",
+            "clientes": sin_motorizado,
+            "accion": {"texto": "Asignar la zona en Motorizados", "url": "/motorizados"}}
 
 
 def _build_motorizados_context(clients: list[dict]) -> dict:
@@ -909,10 +933,12 @@ def _build_motorizados_context(clients: list[dict]) -> dict:
             localities_by_courier.setdefault(courier_id, []).append(row["locality_name"])
 
     clients_by_locality = Counter()
+    clientes_por_zona: dict[str, list[dict]] = {}  # para que la alerta diga QUIÉNES son
     for client in clients:
         locality = _resolve_locality(client.get("zone"))
         if locality:
             clients_by_locality[locality["code"]] += 1
+            clientes_por_zona.setdefault(locality["code"], []).append(client)
 
     localities_rows = []
     coverage_map_points = []
@@ -955,7 +981,8 @@ def _build_motorizados_context(clients: list[dict]) -> dict:
         })
 
     _agregar_municipios(clients, coverage_by_code, courier_index, localities_by_courier, clients_by_courier,
-                        localities_rows, coverage_map_points, municipios_leidos=leido["municipios"])
+                        localities_rows, coverage_map_points, municipios_leidos=leido["municipios"],
+                        clientes_por_zona=clientes_por_zona)
 
     couriers_rows = []
     for courier in couriers_options:
@@ -983,7 +1010,7 @@ def _build_motorizados_context(clients: list[dict]) -> dict:
     busiest = max(couriers_rows, key=lambda row: row["clients_count_from_coverage"], default={})
     alerts = []
     if risk_localities:
-        alerts.append({"level": "warning", "title": "Cobertura pendiente", "detail": f"{risk_localities} localidad(es) con clientes sin motorizado."})
+        alerts.append(_alerta_cobertura(localities_rows, clientes_por_zona))
     if any(not _normalize_phone(row["phone"]) for row in couriers_rows):
         alerts.append({"level": "warning", "title": "Telefonos incompletos", "detail": "Hay motorizados activos sin telefono operativo."})
 
