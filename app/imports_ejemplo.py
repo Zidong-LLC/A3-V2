@@ -130,7 +130,9 @@ _COMO_USAR = {
 _PASOS = ("1. Deja esta hoja como está o reemplaza las filas por tus datos (los encabezados no se cambian).",
           "2. En la plataforma: Herramientas → Cargas por archivo → elige el archivo → «Ver qué va a pasar».",
           "3. Revisa el plan (qué se crea, qué se actualiza, qué queda igual) y recién ahí «Aplicar estos cambios».",
-          "Acepta también CSV con coma o punto y coma; las columnas se reconocen por su nombre y en cualquier orden.")
+          "Acepta también CSV con coma o punto y coma; las columnas se reconocen por su nombre y en cualquier orden.",
+          "Una lista SIN encabezado (el código y al lado el precio desde la primera fila) también se reconoce; "
+          "y si el código viene pegado al nombre («1101 - Cuadro Hemático»), se separa solo.")
 
 
 def _estilizar(hoja, encabezados: list[str]) -> None:

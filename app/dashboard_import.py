@@ -96,6 +96,10 @@ def previsualizar():
     if not filas:
         flash("No se encontraron filas con datos en el archivo", "error")
         return redirect(url_for("dashboard_import.cargas_page"))
+    # «1101 - Cuadro Hemático | 14.000»: el código viene pegado al nombre. Se separa en su
+    # propia columna antes de detectar, para precios y portafolio.
+    for con_codigo in ("precios", "portafolio"):
+        encabezados, filas = archivo.separar_codigo_del_nombre(encabezados, filas, con_codigo)
     # El tipo elegido manda solo si el archivo trae lo que ese tipo necesita; si no, se
     # detecta por las columnas (un archivo de clientes cargado como «precios» por dejar
     # el desplegable como venía no puede terminar en «faltan Código y Precio»).

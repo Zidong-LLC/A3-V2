@@ -116,7 +116,34 @@ def leer_tabla(data: bytes, nombre: str = "") -> tuple[list[str], list[list[str]
     if not brutas:
         return [], []
     inicio = _fila_encabezado(brutas)
+    if _puntaje_encabezado(brutas[inicio]) < 2:
+        # Sin encabezado («1101 | 14000» desde la primera fila): se reconocen las columnas por
+        # lo que traen y todas las filas son datos.
+        from app.imports_contenido import encabezado_por_contenido
+        inventado = encabezado_por_contenido(brutas)
+        if inventado:
+            return inventado, brutas
     return brutas[inicio], brutas[inicio + 1:]
+
+
+def separar_codigo_del_nombre(encabezados: list[str], filas: list[list[str]], tipo: str) -> tuple[list[str], list[list[str]]]:
+    """Si no hay columna de código pero los nombres lo traen adelante («1101 - Cuadro
+    Hemático»), se parte en dos columnas: «codigo» y el nombre limpio. Así la carga de
+    precios/portafolio lo reconoce igual que una lista con el código aparte."""
+    from app.imports_contenido import nombres_traen_codigo, separar_codigo
+    mapa = mapa_automatico(encabezados, tipo)
+    if "code" in mapa or "name" not in mapa or "code" not in CAMPOS.get(tipo, ()):
+        return encabezados, filas
+    col = mapa["name"]
+    if not nombres_traen_codigo([f[col] if col < len(f) else "" for f in filas]):
+        return encabezados, filas
+    nuevas = []
+    for f in filas:
+        codigo, nombre = separar_codigo(f[col] if col < len(f) else "")
+        fila = list(f) + [""] * (len(encabezados) - len(f))
+        fila[col] = nombre
+        nuevas.append([codigo] + fila)
+    return ["codigo"] + list(encabezados), nuevas
 
 
 def mapa_automatico(encabezados: list[str], tipo: str) -> dict[str, int]:

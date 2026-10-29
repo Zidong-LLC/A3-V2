@@ -1845,4 +1845,6 @@ zona y factura electrónica se ignoraban.
 - [x] Solo nombre y teléfono en «detectar» → pregunta clientes o motorizados, no adivina
 - [x] Plantillas en Excel con desplegables (especie, tipo, sí/no, motorizados reales) y hoja «Cómo usar»; CSV con ?formato=csv
 - [x] Exportación del catálogo completo (portafolio) que vuelve a entrar sin cambios
+- [x] Pregunta del cliente: lista sin encabezado («1101 | 14000») se reconoce por el contenido; «Vlr»/«precio
+      público» son precio; «1101 - Cuadro Hemático» separa el código (`app/imports_contenido.py`, 10 tests)
 - [ ] Push + deploy (esperando OK)
