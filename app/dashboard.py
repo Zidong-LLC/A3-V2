@@ -21,7 +21,7 @@ from app.config import (
     DASHBOARD_ADMIN_USER,
     DISCOUNT_TIERS,
 )
-from app import billing_charts, client_filters
+from app import billing_charts, client_filters, facturas_panel, panel_laboratorio
 from app import access, municipios
 from app import permissions as P
 from app.services import audit_db, db, alegra, maestros_db
@@ -1003,8 +1003,10 @@ def _build_motorizados_context(clients: list[dict]) -> dict:
             "localities_text": ", ".join(assigned_localities) if assigned_localities else "Sin zonas asignadas",
         })
 
-    assigned_localities = sum(1 for row in localities_rows if row["is_assigned"] and not row.get("es_municipio"))
-    clients_in_catalog = sum(clients_by_locality.values())
+    # Las 20 localidades de Bogotá Y los municipios: antes los municipios no contaban y la
+    # pantalla decía «100% · 0 pendientes» al lado de «5 localidades con riesgo» (ERR-191).
+    assigned_localities = sum(1 for row in localities_rows if row["is_assigned"])
+    clients_in_catalog = sum(row["clients_count"] for row in localities_rows)
     clients_assigned = sum(row["clients_count"] for row in localities_rows if row["is_assigned"])
     risk_localities = sum(1 for row in localities_rows if row["clients_count"] and not row["is_assigned"])
     busiest = max(couriers_rows, key=lambda row: row["clients_count_from_coverage"], default={})
@@ -1022,9 +1024,10 @@ def _build_motorizados_context(clients: list[dict]) -> dict:
         "couriers_rows": sorted(couriers_rows, key=lambda row: (row.get("source") != "db", row["name"])),
         "localities_rows": sorted(localities_rows, key=lambda row: (bool(row.get("es_municipio")), row["locality_name"])),
         "motorizados_summary": {
-            "coverage_rate": round((assigned_localities / len(BOGOTA_LOCALITIES)) * 100) if BOGOTA_LOCALITIES else 0,
+            "coverage_rate": round((assigned_localities / len(localities_rows)) * 100) if localities_rows else 0,
             "assigned_localities": assigned_localities,
-            "total_localities": len(BOGOTA_LOCALITIES),
+            "total_localities": len(localities_rows),
+            "clients_total": len(clients),
             "clients_in_assigned_localities": clients_assigned,
             "clients_in_catalog_localities": clients_in_catalog,
             "clients_in_unassigned_localities": max(clients_in_catalog - clients_assigned, 0),
@@ -1328,8 +1331,9 @@ def _invoice_event_index() -> dict:
     return index
 
 
-def _sync_invoices_from_alegra(max_pages: int = 60, per_page: int = 30) -> dict:
-    """Lee facturas de Alegra (solo lectura) y refresca el cache. No emite ni envía nada."""
+def _sync_invoices_from_alegra(max_pages: int = 60, per_page: int = 30, desde: str | None = None) -> dict:
+    """Lee facturas de Alegra (solo lectura) y refresca el cache. No emite ni envía nada.
+    Va de la más nueva a la más vieja; con `desde` (AAAA-MM-DD) para al pasar esa fecha."""
     event_index = _invoice_event_index()
     synced = 0
     errors: list[str] = []
@@ -1352,6 +1356,8 @@ def _sync_invoices_from_alegra(max_pages: int = 60, per_page: int = 30) -> dict:
         if rows:
             synced += db.upsert_invoices_cache(rows)
         if len(batch) < per_page:
+            break
+        if desde and min(str(f.get("date") or "9999") for f in batch) < desde:
             break
     return {"synced": synced, "errors": errors}
 
@@ -1409,7 +1415,7 @@ def _build_invoices_context(page: int = 1, filters: dict | None = None, order_fi
     leido = _leer_en_paralelo(
         pagina=(lambda: db.list_cached_invoices(filters, page=page, per_page=INVOICES_PER_PAGE,
                                                 order_field=order_field, order_desc=order_desc), ([], 0)),
-        metricas=(lambda: db.list_all_cached_invoices("total, invoice_date, client_name"), []),
+        metricas=(lambda: facturas_panel.recientes("total, invoice_date, client_name"), []),
     )
     (rows, total), metrics_rows = leido["pagina"], leido["metricas"]
     pages = max((total + INVOICES_PER_PAGE - 1) // INVOICES_PER_PAGE, 1)
@@ -1543,7 +1549,7 @@ def build_dashboard_context(billing_period: str = "auto") -> dict:
         request_events=(lambda: db.fetch_rows("request_events", "id, request_id, event_type, event_payload, created_at", 4000, order="created_at"), []),
         pending_reviews=(lambda: db.list_pending_client_reviews(limit=300), []),
         custom_profiles=(lambda: db.list_custom_profiles(limit=100), []),
-        billing_rows=(lambda: db.list_all_cached_invoices("total, balance, invoice_date, client_name"), []),
+        billing_rows=(lambda: facturas_panel.recientes("total, balance, invoice_date, client_name"), []),
     )
     for critica in ("clients", "requests", "sessions"):
         if isinstance(leido[critica], _Fallo):
@@ -1951,6 +1957,7 @@ def api_sync_invoices():
         result = _sync_invoices_from_alegra()
     except Exception as exc:
         return jsonify({"error": f"Sync falló: {exc}"}), 503
+    facturas_panel.invalidar()
     status = 200 if not result["errors"] else 207
     return jsonify({"ok": not result["errors"], **result}), status
 
@@ -3048,6 +3055,8 @@ def _render_dashboard(active_tab: str):
     summary = _empty_context()["summary"]
     summary.update(loaded.get("summary", {}))
     context["summary"] = summary
+    if active_tab == "dashboard":
+        context["actividad_lab"] = panel_laboratorio.resumen(_leer_en_paralelo)
     if active_tab == "pedidos":
         # Solo se consulta en su pestaña: son dos queries y no hacen falta en el resto.
         pedidos = db.list_pedidos_for_dashboard()

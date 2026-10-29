@@ -233,10 +233,13 @@ def platform_anarvet_sync():
     Respuestas: 200 todo bien · 207 sincronizó con errores parciales · 400 rango inválido ·
     503 Anarvet caído o deshabilitado. Un cron sabe leer esos códigos.
     """
+    from app import facturas_panel
     from app.config import ANARVET_ENABLED
 
+    # Mismo cron horario para el otro espejo externo: las facturas de Alegra (ERR-191).
+    facturas = facturas_panel.sincronizar_en_segundo_plano()
     if not ANARVET_ENABLED:
-        return jsonify({"error": "anarvet_disabled"}), 503
+        return jsonify({"error": "anarvet_disabled", "facturas": facturas}), 503
 
     from app import anarvet_sync
 
@@ -250,4 +253,4 @@ def platform_anarvet_sync():
         return jsonify({"error": "anarvet_unavailable", "detail": str(exc)[:200]}), 503
 
     errores = resultado.get("errors") or []
-    return jsonify({"ok": not errores, **resultado}), (207 if errores else 200)
+    return jsonify({"ok": not errores, **resultado, "facturas": facturas}), (207 if errores else 200)

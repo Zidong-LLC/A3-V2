@@ -51,6 +51,17 @@ def pytest_configure(config):
 
 
 @pytest.fixture(autouse=True)
+def _sin_sync_real_de_facturas(monkeypatch):
+    """El .env real trae ALEGRA_ENABLED=true: sin esto, un test que pega al endpoint del
+    cron lanzaba un hilo que leía la cuenta REAL de Alegra (ERR-191). Sus propios tests
+    usan la función guardada al importar (antes de este parche)."""
+    from app import facturas_panel
+
+    monkeypatch.setattr(facturas_panel, "sincronizar_en_segundo_plano", lambda *a, **k: "apagada_en_tests")
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _sin_intentos_de_ingreso_previos():
     """El límite de claves equivocadas vive en memoria del proceso: sin limpiarlo, los
     logins fallidos de un test bloquearían el login de otro."""

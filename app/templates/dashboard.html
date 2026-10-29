@@ -74,9 +74,39 @@
             <article class="kpi-card os-lift-card" data-spotlight>
               <div class="kpi-head"><span>Facturacion del mes</span><i data-lucide="receipt"></i></div>
               <strong class="kpi-money">{{ context.exec_billing.month_total_fmt }}</strong>
-              <p class="delta">Desde cache Alegra</p>
+              <p class="delta">Alegra · {{ context.exec_billing.today_count }} factura(s) hoy</p>
             </article>
           </section>
+          {% set lab = context.actividad_lab %}
+          {% if lab %}
+          {% if not context.summary.active_requests and not context.exec_processed_week %}
+          <p class="muted-text" style="margin:10px 2px 0">Las tarjetas de arriba cuentan solo lo que entra por el bot y el portal{% if lab.ultima_conversacion %}: la última conversación del bot fue el {{ lab.ultima_conversacion }}{% endif %}. Lo que pasa en el laboratorio está abajo.</p>
+          {% endif %}
+          {% if lab.anarvet %}
+          <section class="kpi-grid four os-stagger" style="margin-top:10px">
+            <article class="kpi-card os-lift-card" data-spotlight>
+              <div class="kpi-head"><span>Informes de hoy</span><i data-lucide="flask-conical"></i></div>
+              <strong>{{ lab.informes_hoy if lab.informes_hoy is not none else '—' }}</strong>
+              <p class="delta">Laboratorio (Anarvet)</p>
+            </article>
+            <article class="kpi-card os-lift-card" data-spotlight>
+              <div class="kpi-head"><span>Informes (7 días)</span><i data-lucide="calendar-range"></i></div>
+              <strong>{{ lab.informes_semana if lab.informes_semana is not none else '—' }}</strong>
+              <p class="delta">Últimos 7 días</p>
+            </article>
+            <article class="kpi-card os-lift-card" data-spotlight>
+              <div class="kpi-head"><span>Informes del mes</span><i data-lucide="bar-chart-3"></i></div>
+              <strong>{{ lab.informes_mes if lab.informes_mes is not none else '—' }}</strong>
+              <p class="delta">Desde el 1 del mes</p>
+            </article>
+            <article class="kpi-card os-lift-card" data-spotlight>
+              <div class="kpi-head"><span>Último informe recibido</span><i data-lucide="clock"></i></div>
+              <strong style="font-size:22px">{{ lab.ultimo_informe or '—' }}</strong>
+              <p class="delta"><a href="/resultados/anarvet">Ver informes</a> · se actualiza cada hora</p>
+            </article>
+          </section>
+          {% endif %}
+          {% endif %}
         </div>
 
         {# ── Banner alertas ── #}
@@ -125,7 +155,7 @@
             </div>
 
             {% set chart = context.exec_billing_chart %}
-            {% if not chart or not chart.serie %}
+            {% if not chart or not chart.tope %}
             <p class="muted-text">Todavia no hay facturas sincronizadas para graficar.</p>
             {% else %}
             {% set crec = chart.crecimiento %}
@@ -216,9 +246,10 @@
         <div data-widget="trends" class="exec-widget">
           <article class="card">
             <div class="card-head simple"><h3>Tendencias</h3><span class="table-counter">30 días</span></div>
+            {% if context.exec_requests_daily and (context.exec_requests_daily | sum(attribute='count')) %}
             <div id="chart-requests-daily"></div>
+            {% else %}<p class="muted-text">Sin solicitudes del bot ni del portal en los últimos 30 días.</p>{% endif %}
             <div id="chart-tat-weekly"></div>
-            {% if not context.exec_requests_daily %}<p class="muted-text">Sin datos todavía.</p>{% endif %}
           </article>
         </div>
         <script type="application/json" id="exec-metrics-data">{{ {"daily": context.exec_requests_daily, "weekly": context.exec_tat_weekly} | tojson }}</script>
@@ -422,9 +453,9 @@
         {% elif active_tab == 'motorizados' %}
         <div class="card-head simple"><h3>Motorizados</h3></div>
         <section class="kpi-grid four motorizados-kpis os-stagger">
-          <article class="kpi-card os-lift-card" data-spotlight><div class="kpi-head"><span>Cobertura localidades</span><i data-lucide="map-pinned"></i></div><strong>{{ context.motorizados_summary.coverage_rate }}%</strong><p class="delta">{{ context.motorizados_summary.assigned_localities }} de {{ context.motorizados_summary.total_localities }} configuradas</p></article>
-          <article class="kpi-card os-lift-card" data-spotlight><div class="kpi-head"><span>Clientes cubiertos</span><i data-lucide="shield-check"></i></div><strong>{{ context.motorizados_summary.clients_in_assigned_localities }}</strong><p class="delta">{{ context.motorizados_summary.clients_in_catalog_localities }} clientes mapeados</p></article>
-          <article class="kpi-card os-lift-card" data-spotlight><div class="kpi-head"><span>Zonas pendientes</span><i data-lucide="triangle-alert"></i></div><strong>{{ context.motorizados_summary.clients_in_unassigned_localities }}</strong><p class="delta">{{ context.motorizados_summary.localities_with_clients_without_coverage }} localidades con riesgo</p></article>
+          <article class="kpi-card os-lift-card" data-spotlight><div class="kpi-head"><span>Cobertura de zonas</span><i data-lucide="map-pinned"></i></div><strong>{{ context.motorizados_summary.coverage_rate }}%</strong><p class="delta">{{ context.motorizados_summary.assigned_localities }} de {{ context.motorizados_summary.total_localities }} zonas con motorizado (localidades y municipios)</p></article>
+          <article class="kpi-card os-lift-card" data-spotlight><div class="kpi-head"><span>Clientes cubiertos</span><i data-lucide="shield-check"></i></div><strong>{{ context.motorizados_summary.clients_in_assigned_localities }}</strong><p class="delta">{{ context.motorizados_summary.clients_in_catalog_localities }} de {{ context.motorizados_summary.clients_total or context.motorizados_summary.clients_in_catalog_localities }} clientes ubicados en una zona</p></article>
+          <article class="kpi-card os-lift-card" data-spotlight><div class="kpi-head"><span>Clientes en zonas sin motorizado</span><i data-lucide="triangle-alert"></i></div><strong>{{ context.motorizados_summary.clients_in_unassigned_localities }}</strong><p class="delta">{{ context.motorizados_summary.localities_with_clients_without_coverage }} zona(s) sin motorizado asignado</p></article>
           <article class="kpi-card os-lift-card" data-spotlight><div class="kpi-head"><span>Mayor carga</span><i data-lucide="bike"></i></div><strong>{{ context.motorizados_summary.busiest_courier_name }}</strong><p class="delta">{{ context.motorizados_summary.busiest_courier_clients }} clientes</p></article>
         </section>
         {% for alert in context.motorizados_alerts %}{% include "_alerta_operativa.html" %}{% endfor %}

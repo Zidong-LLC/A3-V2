@@ -1779,3 +1779,20 @@ otro código para la MISMA versión).
 - [x] 9. Guion V: cumplir la promesa de mostrar las opciones tras confirmar la dirección
 - [x] 10. QA8: acusar el dato que dio fuera de orden en vez de repetir idéntica la pregunta
 - [x] 11. Suite + re-verificación con modelo de lo tocado + bitácora + contrato del flujo (1818)
+
+## Revisión pantalla por pantalla con datos reales (2026-10-29, pedido del usuario)
+
+> «Tengo que verlo yo físicamente… el panel tiene que mostrar datos reales, no todo en cero;
+> Pedidos y Solicitudes es confuso; la carga masiva tiene plantillas pobres».
+
+- [x] ERR-190 alerta «Cobertura pendiente» con zonas y clientes — pusheado y LIVE (a4e7062)
+- [x] Cron de Anarvet: primera corrida OK (15:01 UTC); espejo al día
+- [ ] ERR-191 panel en $0: cache de Alegra congelado el 26/08 (1200 facturas; Alegra tiene hasta hoy)
+  - [x] sync con `desde` + puesta al día de 13 meses (en curso)
+  - [x] métricas sobre 13 meses ordenados + 5 min en memoria (`app/facturas_panel.py`)
+  - [x] cron horario refresca 60 días en un hilo; conftest bloquea la sync real en tests
+  - [x] Motorizados: cobertura y pendientes cuentan municipios; «N de 861 ubicados»
+  - [ ] panel: actividad real del laboratorio (Anarvet) y estados vacíos que nunca se activan
+- [ ] 571 clientes sin zona (435 activos; 368 sin motorizado propio → el bot no puede asignarles) — DECIDIR
+- [ ] Pedidos vs Solicitudes (misma tabla `requests` con 3 nombres; portal y «Nueva Orden» sin pedido ni factura) — DECIDIR
+- [ ] Carga masiva: plantillas reales y detección de columnas (análisis en curso)

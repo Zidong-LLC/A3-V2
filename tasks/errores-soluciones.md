@@ -5111,3 +5111,32 @@ conversaciones" teniendolas todas delante.
   Operación y en Motorizados; las demás alertas se ven igual que antes.
 - **Tests:** `tests/test_alerta_cobertura.py` (5). Verificado con la base real en solo lectura:
   `/operacion` y `/motorizados` muestran las 5 zonas y los 14 enlaces. Suite 1829 passed.
+
+## ERR-191 — El Panel mostraba todo en 0 aunque A3 estaba trabajando
+
+- **Fecha:** 2026-10-29 · **Estado:** RESUELTO (commit local; push + deploy pendientes)
+- **Reporte del usuario:** «que el panel muestre datos reales, que estén pasando, no todo en
+  cero si no está pasando nada ahora».
+- **Causas (medidas con la base real, solo lectura):**
+  1. **Facturación en $0:** el cache de Alegra (`invoices_cache`) estaba congelado en el 26/08
+     (1.200 facturas, todas de agosto) mientras la cuenta real tiene facturas hasta HOY (la 28408
+     del 29/10). Solo se refrescaba con el botón de Facturación, con tope de 1.800. «Mes» daba
+     $0 y «Año» era solo agosto.
+  2. **Tarjetas del bot en 0:** el Panel cuenta solo órdenes del bot/portal (sin tráfico desde
+     el 20/10) y no miraba Anarvet, que es donde se ve el trabajo diario del laboratorio.
+  3. Los avisos «sin datos» del gráfico de facturación y de Tendencias nunca se activaban (las
+     series traen 12/30 puntos en 0): se veían barras planas.
+  4. **Motorizados se contradecía:** «Cobertura 100% · Zonas pendientes 0» al lado de «5
+     localidades con riesgo»: los municipios no entraban en la cuenta.
+- **Solución:** puesta al día del cache (13 meses, solo GET a Alegra); el cron horario de
+  Anarvet ahora también refresca las facturas de los últimos 60 días en un hilo
+  (`app/facturas_panel.py`); las métricas leen 13 meses ordenados con 5 min en memoria (un año
+  son ~15.000 filas); fila «Laboratorio (Anarvet)» en el Panel con informes de hoy / 7 días /
+  mes y último informe (`app/panel_laboratorio.py`), y un aviso que explica los ceros del bot
+  con la fecha de la última conversación; avisos vacíos corregidos; Motorizados cuenta las 25
+  zonas y muestra «N de 861 clientes ubicados en una zona».
+- **Protección de tests:** `conftest.py` impide que un test dispare la sync real (el `.env`
+  trae `ALEGRA_ENABLED=true`).
+- **Tests:** `tests/test_facturas_panel.py` (7), `tests/test_panel_datos_reales.py` (4). Suite 1840.
+- **Hallazgo abierto (decidir con el usuario):** 571 de 861 clientes no tienen zona (480 vacía,
+  132 «No aplica»); 368 activos sin motorizado propio → el bot no puede asignarles recogida.
