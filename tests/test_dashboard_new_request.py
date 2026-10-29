@@ -10,6 +10,18 @@ nunca del formulario (ERR-097).
 """
 from unittest.mock import patch
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _pedido_sin_red(monkeypatch):
+    """Las órdenes abren su pedido y su borrador (ERR-194): sin esto, create_pedido iba a la
+    base de verdad (fallaba en silencio) y con ALEGRA_ENABLED del .env se intentaba facturar."""
+    monkeypatch.setattr("app.pedido_directo.db.create_pedido",
+                        lambda *a, **k: {"id": "ped-1", "pedido_number": "P-2026-001"})
+    monkeypatch.setattr("app.pedido_directo.db.close_pedido", lambda *a, **k: None)
+    monkeypatch.setattr("app.pedido_directo.config.ALEGRA_ENABLED", False)
+
 CLIENTE = {
     "id": "cli-1", "clinic_name": "Emergencias Veterinarias", "tax_id": "900123456",
     "address": "Calle 27 sur 34-47", "phone": "3001234567",

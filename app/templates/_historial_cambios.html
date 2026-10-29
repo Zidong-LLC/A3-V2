@@ -8,7 +8,7 @@
     <tbody>
     {% for h in historial %}
       <tr>
-        <td>{{ (h.created_at or '')[:16] | replace('T', ' ') }}</td>
+        <td>{{ h.created_at | fecha_corta }}</td>
         <td>{{ h.username }}</td>
         <td>{{ _acciones.get(h.action, h.action) }}</td>
         <td class="muted-text">

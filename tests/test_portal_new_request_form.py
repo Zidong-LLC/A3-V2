@@ -6,6 +6,18 @@ que se igualó (2026-09-08): varios perfiles y los campos de paciente que faltab
 """
 from unittest.mock import patch
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _pedido_sin_red(monkeypatch):
+    """Las órdenes abren su pedido y su borrador (ERR-194): sin esto, create_pedido iba a la
+    base de verdad (fallaba en silencio) y con ALEGRA_ENABLED del .env se intentaba facturar."""
+    monkeypatch.setattr("app.pedido_directo.db.create_pedido",
+                        lambda *a, **k: {"id": "ped-1", "pedido_number": "P-2026-001"})
+    monkeypatch.setattr("app.pedido_directo.db.close_pedido", lambda *a, **k: None)
+    monkeypatch.setattr("app.pedido_directo.config.ALEGRA_ENABLED", False)
+
 CLIENT_ID = "11111111-1111-1111-1111-111111111111"
 CLIENTE = {"id": CLIENT_ID, "clinic_name": "Vet A", "address": "Calle 1", "phone": "300"}
 PERFIL_1 = {"code": "952", "name": "Perfil Prequirurgico", "price": 95000, "description": ""}

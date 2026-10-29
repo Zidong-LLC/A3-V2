@@ -22,14 +22,14 @@ from app.config import (
     DASHBOARD_ADMIN_USER,
     DISCOUNT_TIERS,
 )
-from app import billing_charts, client_filters, facturas_panel, panel_laboratorio
+from app import billing_charts, client_filters, facturar_pedido, facturas_panel, panel_laboratorio, pedido_directo, pedidos_vista
 from app import access, municipios
 from app import permissions as P
 from app.services import audit_db, db, alegra, maestros_db
 from app import anarvet_sync, dashboard_metrics, orders, pricing, rules, territory, billing, zone_routing
 from app.courier_notify import notify_assignment
 from app.alerts import notify_error
-from app.text import celda_csv
+from app.text import celda_csv, short_datetime
 
 dashboard = Blueprint("dashboard", __name__)
 
@@ -1545,7 +1545,7 @@ def _build_executive_panel(requests_rows: list, request_events: list) -> dict:
             "label": label,
             "icon": icon,
             "clinic_name": so.get("clinic_name") or payload.get("clinic_name") or "—",
-            "created_at": str(ev.get("created_at") or "")[:16].replace("T", " "),
+            "created_at": short_datetime(ev.get("created_at")),  # hora de Bogotá, no UTC
         })
 
     return {
@@ -1869,25 +1869,37 @@ def new_request_page():
     fields["clinic_phone"] = client.get("phone")
     fields["observations"] = fields["observations"] or "sin observaciones"
 
-    created = db.create_request(
+    # Abre su propio pedido y deja el borrador de factura, como el bot (ERR-194).
+    created = pedido_directo.registrar(
+        client_id=client_id,
         chat_id=f"dashboard:{session.get('dashboard_username') or 'staff'}",
+        canal_pedido="manual",
         session={"client_id": client_id, "channel": "telegram"},
-        ai_response={"intent": "route_scheduling", "captured_fields": fields},
+        fields=fields,
     )
     if not created:
         return _render("No se pudo registrar la orden, intenta de nuevo.", form,
                        selected_test_codes)
 
     numero = created.get("order_number") or "sin número"
-    return redirect(url_for("dashboard.requests_page",
-                            notice=f"Orden {numero} registrada para {client.get('clinic_name')}",
-                            notice_type="ok"))
+    aviso = f"Orden {numero} registrada para {client.get('clinic_name')}"
+    if created.get("pedido_number"):
+        aviso += f" en el pedido {created['pedido_number']}"
+    factura = created.get("factura") or {}
+    if factura.get("invoice"):
+        aviso += f" · borrador de factura {factura['invoice']} en Alegra"
+    elif factura.get("warning"):
+        aviso += f" · {factura['warning']}"
+    return redirect(url_for("dashboard.pedidos_page", notice=aviso,
+                            notice_type="ok" if not factura.get("warning") else "error"))
 
 
 @dashboard.get("/solicitudes")
 @_login_required
 def requests_page():
-    return _render_dashboard("solicitudes")
+    """Solicitudes y Pedidos eran la misma tabla con dos nombres: ahora es una sola página
+    (ERR-194). La ruta vieja queda para enlaces guardados y avisos."""
+    return redirect(url_for("dashboard.pedidos_page", **request.args))
 
 
 @dashboard.get("/muestras")
@@ -2718,33 +2730,10 @@ def _cerrar_pedido(pedido_id: str, payment_method: str | None, facturar: bool):
     if not ALEGRA_ENABLED:
         resultado["warning"] = "Alegra está desactivado: el pedido quedó cerrado sin facturar."
         return jsonify(resultado)
-    try:
-        lineas = []
-        ordenes = {o["id"]: o for o in db.list_pedido_requests(pedido_id)}
-        for request_id, perfil in db.get_pedido_profiles(pedido_id, con_request_id=True):
-            paciente = (ordenes.get(request_id) or {}).get("patient_name")
-            lineas.extend(billing.build_invoice_lines(perfil, paciente))
-        if not lineas:
-            resultado["warning"] = "El pedido no tiene líneas facturables; quedó cerrado."
-            return jsonify(resultado)
-        cliente = db.get_client_by_id(pedido.get("client_id")) or {}
-        nit = cliente.get("tax_id")
-        if not nit:
-            resultado["warning"] = "El cliente no tiene NIT; el pedido quedó cerrado sin facturar."
-            return jsonify(resultado)
-        factura = billing.invoice_order(
-            nit, cliente.get("clinic_name") or "Cliente A3", lineas,
-            datetime.now(APP_TIMEZONE).date().isoformat(),
-            {k: v for k, v in {"email": cliente.get("email")}.items() if v},
-            client_row=cliente,  # la sede exacta: entre sedes con el mismo NIT puede cambiar
-        )
-        if factura and factura.get("invoice_id"):
-            db.mark_pedido_invoiced(pedido_id, str(factura["invoice_id"]))
-            resultado.update(status="facturado", invoice=factura.get("number") or factura["invoice_id"])
-        else:
-            resultado["warning"] = "Alegra no devolvió factura; el pedido quedó cerrado."
-    except Exception as exc:  # noqa: BLE001
-        resultado["warning"] = f"Cerrado, pero la factura falló: {str(exc)[:120]}"
+    factura = facturar_pedido.facturar(pedido)
+    resultado.update(status=factura["status"], invoice=factura["invoice"])
+    if factura["warning"]:
+        resultado["warning"] = factura["warning"]
     return jsonify(resultado)
 
 
@@ -3090,10 +3079,9 @@ def _render_dashboard(active_tab: str):
         context["actividad_lab"] = panel_laboratorio.resumen(_leer_en_paralelo)
     if active_tab == "pedidos":
         # Solo se consulta en su pestaña: son dos queries y no hacen falta en el resto.
-        pedidos = db.list_pedidos_for_dashboard()
-        context["pedidos"] = pedidos
-        context["pedidos_abiertos"] = sum(1 for p in pedidos if p.get("status") == "abierto")
-        context["pedidos_sin_facturar"] = sum(1 for p in pedidos if p.get("status") == "cerrado")
+        # Página única (ERR-194): cada pedido con sus órdenes editables adentro.
+        context["pedidos_vista"] = pedidos_vista.agrupar(
+            _safe_fetch(db.list_pedidos_for_dashboard, []), context.get("requests") or [])
     if active_tab == "clientes":
         # La búsqueda y los filtros corren ACÁ, sobre los 992 clientes, y recién después se
         # corta la página: hacerlo en el navegador solo miraba las 15 filas visibles y

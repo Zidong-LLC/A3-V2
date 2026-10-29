@@ -12,7 +12,7 @@
       <div class="portal-notif-body">
         <strong>{{ n.title }}</strong>
         {% if n.body %}<p>{{ n.body }}</p>{% endif %}
-        <small>{{ (n.created_at or '')[:16] | replace('T', ' ') }}</small>
+        <small>{{ n.created_at | fecha_corta }}</small>
       </div>
       <div class="portal-notif-actions">
         {% if n.result_id %}<a class="ghost-btn small" href="{{ url_for('portal.client_result_detail', result_id=n.result_id) }}">Ver resultado</a>{% endif %}

@@ -140,7 +140,7 @@ app/services/        — ai.py, db.py, telegram.py, chatwoot.py
 5. Identificar al cliente antes de registrar cualquier solicitud
 
 ### Alcance vigente (actualizado 2026-08-31)
-Dentro y FUNCIONANDO: dashboard operativo completo (11 secciones), portal de clientes,
+Dentro y FUNCIONANDO: dashboard operativo completo (10 secciones; Solicitudes y Pedidos se unieron el 29/10, ERR-194), portal de clientes,
 espejo de Anarvet (decisión 013), consulta de resultados por chat CON envío del PDF,
 avisos automáticos (motorizado por Chatwoot, cliente por su canal) y facturación en
 borradores por pedido. WhatsApp: el código está listo (migración 031, ERR-177); solo

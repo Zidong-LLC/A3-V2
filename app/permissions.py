@@ -49,12 +49,12 @@ _ENDPOINTS = {
     "dashboard_client.buscar_clientes": ("clientes", "solicitudes", "facturacion"),
     "dashboard.courier_suggestion": ("clientes", "solicitudes"),
     "dashboard.neighborhood_search": ("clientes", "solicitudes"),
-    "dashboard.requests_page": ("solicitudes",),
+    "dashboard.requests_page": ("solicitudes", "pedidos"),
     "dashboard.new_request_page": ("solicitudes",),
     "dashboard.update_request_status": ("solicitudes", "operacion"),
     "dashboard.update_request_operation": ("solicitudes", "operacion", "agenda"),
     "dashboard.service_order_print_page": ("solicitudes", "pedidos", "operacion"),
-    "dashboard.pedidos_page": ("pedidos",),
+    "dashboard.pedidos_page": ("pedidos", "solicitudes"),  # página única (ERR-194)
     "dashboard.close_pedido_manually": ("pedidos", "facturacion"),  # facturar exige facturación
     "dashboard.billing_page": ("facturacion",),
     "dashboard.api_list_invoices": ("facturacion",),

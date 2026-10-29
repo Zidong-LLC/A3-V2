@@ -116,7 +116,7 @@ def test_el_aviso_de_resultado_va_al_chat_verificado_o_al_del_ultimo_pedido():
 
         def tabla(nombre):
             q = MagicMock()
-            for m in ("select", "eq", "order", "limit", "not_", "is_"):
+            for m in ("select", "eq", "order", "limit", "not_", "is_", "in_"):
                 getattr(q, m).return_value = q
             q.not_ = q
             q.execute.return_value.data = sesiones if nombre == "telegram_sessions" else pedidos

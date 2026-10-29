@@ -123,7 +123,7 @@
           <tbody>
           {% for e in errores.ultimos %}
             <tr>
-              <td>{{ (e.created_at or '')[:16] | replace('T', ' ') }}</td>
+              <td>{{ e.created_at | fecha_corta }}</td>
               <td><span class="status-badge status-error_pending_assignment">{{ e.component }}</span></td>
               <td>{{ e.message }}</td>
               <td class="muted-text">{{ e.context }}</td>

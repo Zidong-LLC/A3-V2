@@ -539,7 +539,7 @@
     btn.addEventListener('click', async () => {
       const pedidoId = btn.dataset.pedidoClose;
       const flag = document.querySelector(`[data-pedido-flag="${pedidoId}"]`);
-      if (!window.confirm('Se cerrará el pedido y se intentará emitir su factura. ¿Continuar?')) return;
+      if (!window.confirm('Se cerrará el pedido y se armará su borrador de factura en Alegra (no se emite a la DIAN). ¿Continuar?')) return;
       btn.disabled = true;
       if (flag) flag.textContent = 'Procesando…';
       try {

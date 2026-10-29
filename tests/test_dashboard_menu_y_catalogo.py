@@ -9,7 +9,9 @@ import re
 from unittest.mock import patch
 
 PLANTILLAS = sorted(pathlib.Path("app/templates").glob("dashboard*.html"))
-SECCIONES = ("Panel", "Operacion", "Clientes", "Solicitudes", "Pedidos", "Facturacion",
+# «Solicitudes» y «Pedidos» eran la misma tabla con dos nombres: desde el 29/10 son una sola
+# página, Pedidos, con cada orden adentro (ERR-194).
+SECCIONES = ("Panel", "Operacion", "Clientes", "Pedidos", "Facturacion",
              "Motorizados", "Agenda", "Muestras", "Resultados", "Cargas")
 
 
@@ -56,17 +58,19 @@ def test_el_menu_compartido_tiene_las_once_secciones():
     assert "Cerrar sesion" in parcial
 
 
-def test_cada_pantalla_muestra_las_once_secciones():
+def test_cada_pantalla_muestra_todas_las_secciones():
     client = _get_test_client()
     _login(client)
     with patch("app.dashboard.build_dashboard_context", return_value=_contexto()), \
          patch("app.dashboard.db.list_pedidos_for_dashboard", return_value=[]), \
          patch("app.dashboard_agenda.db.list_pickups_between", return_value=[]), \
          patch("app.dashboard_agenda.db.list_active_couriers", return_value=[]):
-        for ruta in ("/dashboard", "/clientes", "/solicitudes", "/pedidos", "/muestras", "/agenda"):
+        for ruta in ("/dashboard", "/clientes", "/pedidos", "/muestras", "/agenda"):
             cuerpo = client.get(ruta).get_data(as_text=True)
             faltan = [s for s in SECCIONES if f"<span>{s}</span>" not in cuerpo]
             assert faltan == [], f"a {ruta} le faltan {faltan}"
+            assert "<span>Solicitudes</span>" not in cuerpo
+        assert client.get("/solicitudes").headers["Location"].endswith("/pedidos")
 
 
 # ── Muestras: catálogo y perfiles ────────────────────────────────────────────

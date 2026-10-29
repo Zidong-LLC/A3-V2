@@ -5160,3 +5160,31 @@ conversaciones" teniendolas todas delante.
 - **Resultado con la base real:** ubicados 297 → **388**; activos sin zona 435 → 337; activos
   sin zona y sin motorizado propio 368 → **270** (esos los completa A3 desde el filtro).
 - **Tests:** `tests/test_zona_desde_ciudad.py` (15). Suite 1855.
+
+## ERR-194 — Pedidos y Solicitudes confundían; portal y «Nueva Orden» nunca se facturaban; horas en UTC
+
+- **Fecha:** 2026-10-29 · **Estado:** RESUELTO (commit local; push + deploy pendientes)
+- **Reporte del usuario:** «no entiendo qué es una cosa y qué es otra, si son cosas separadas
+  o si se puede unir en una sola página».
+- **Causa:** «Solicitud», «Orden» y «Orden de servicio» eran la MISMA fila de `requests` con
+  tres nombres, en dos pantallas sin un número en común; Solicitudes además mezclaba altas de
+  cliente nuevo y escalados. Solo el bot abría pedido: las órdenes del portal y de «Nueva
+  Orden» quedaban sueltas, fuera de Pedidos y sin factura (el texto de «Nueva Orden» prometía
+  «su factura»). Y `fecha_corta` solo recortaba el ISO: todas las horas salían en UTC (+5 h),
+  también en el portal del cliente.
+- **Decisiones del usuario (29/10):** una sola página «Pedidos»; las órdenes del portal y de
+  «Nueva Orden» generan su propio borrador en Alegra (nunca DIAN).
+- **Solución:** `app/pedidos_vista.py` + `_fila_orden.html`: cada pedido encabeza sus órdenes
+  con las celdas editables de Solicitudes (solo con gestión de Solicitudes); grupo «Órdenes
+  sin pedido»; `/solicitudes` redirige; menú con 10 secciones; permisos: la página se abre con
+  Pedidos o Solicitudes. `app/pedido_directo.py`: abre el pedido, crea la orden adentro, lo
+  cierra con la forma de pago y arma el borrador (`app/facturar_pedido.py`, extraído del botón
+  «Facturar»). `portal_db.chat_for_client` ignora pedidos que no nacieron en un chat (si no,
+  el aviso de resultados iba a «portal:…»). Horas en Bogotá en `short_datetime` y en 5
+  plantillas que recortaban a mano.
+- **Visto en vivo con la base real:** el primer pedido real por WhatsApp (29/10, P-2026-001)
+  quedó «Sin motorizado» porque la clienta no tiene zona y su dirección es solo «Cra 34 34-71
+  sur» → es el caso de ERR-193; A3 debe asignarlo a mano.
+- **Tests:** `test_pedidos_pagina_unica.py` (4), `test_pedido_directo.py` (7),
+  `test_fecha_hora_bogota.py` (8); actualizados el del menú y tres del portal/Nueva Orden
+  (ahora reemplazan create_pedido: antes iba a la red y fallaba en silencio). Suite 1874.

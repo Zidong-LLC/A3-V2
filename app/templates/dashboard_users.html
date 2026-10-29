@@ -76,7 +76,7 @@
               </select></td>
               <td><input type="checkbox" form="{{ fid }}" name="is_active" {{ 'checked' if u.is_active else '' }}></td>
               <td><input class="cell-input" form="{{ fid }}" name="password" type="password" minlength="{{ min_clave }}" autocomplete="new-password"></td>
-              <td>{{ (u.last_login_at or '')[:16] | replace('T', ' ') or '—' }}</td>
+              <td>{{ u.last_login_at | fecha_corta if u.last_login_at else '—' }}</td>
               <td><form id="{{ fid }}" method="post" action="{{ url_for('dashboard_users.editar_usuario', user_id=u.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button type="submit" class="ghost-btn small">Guardar</button>

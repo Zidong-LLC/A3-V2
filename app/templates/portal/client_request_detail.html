@@ -54,7 +54,7 @@
   <ul class="timeline">
     {% for event in timeline %}
     <li class="timeline-item">
-      <span class="timeline-date">{{ event.created_at[:16] | replace('T', ' ') }}</span>
+      <span class="timeline-date">{{ event.created_at | fecha_corta }}</span>
       <span class="timeline-label">
         {{ event.label }}{% if event.status_label %} — {{ event.status_label }}{% endif %}
       </span>

@@ -1,0 +1,24 @@
+{# Una ORDEN (una recogida, un paciente) dentro de la página de Pedidos. Mismas celdas
+   editables que tenía Solicitudes (mismas clases: el JS las guarda igual); sin permiso de
+   gestión de Solicitudes se ven como texto. Variables: row, editable. #}
+<tr>
+  <td class="nowrap"><strong>{{ row.order_number or '-' }}</strong></td>
+  <td class="nowrap">{{ row.requested_at | fecha_corta }}</td>
+  <td>{{ row.clients.clinic_name if row.clients else '-' }}</td>
+  <td>{{ row.patient_name or '-' }}{% if row.species %} <small class="muted-text">({{ row.species }})</small>{% endif %}</td>
+  <td class="analisis-cell">{% set items = (row.exam_type or "").split(", ") | select | list %}{% if items | length > 1 %}<details class="analisis-lista"><summary>{{ items | length }} analisis</summary><ul>{% for item in items %}<li>{{ item }}</li>{% endfor %}</ul></details>{% elif items %}<span>{{ items[0] }}</span>{% else %}<span class="muted-text">-</span>{% endif %}</td>
+  {% if editable %}
+  <td><input class="cell-input request-address-input" data-request-id="{{ row.id }}" value="{{ row.pickup_address or '' }}" placeholder="Direccion de recogida"><small class="save-flag"></small></td>
+  <td><input class="cell-input request-sample-count-input" data-request-id="{{ row.id }}" type="number" min="0" max="999" value="{{ row.sample_count or 0 }}"></td>
+  <td><select class="cell-select request-courier-select" data-request-id="{{ row.id }}"><option value="">Sin asignar</option>{% for courier in context.couriers_options %}<option value="{{ courier.id }}" {{ 'selected' if row.assigned_courier_id == courier.id else '' }}>{{ courier.name }}</option>{% endfor %}</select><small class="save-flag"></small></td>
+  <td><select class="cell-select request-status-select" data-request-id="{{ row.id }}">{% for option in context.request_status_options %}<option value="{{ option.value }}" {{ 'selected' if row.status == option.value else '' }}>{{ option.label }}</option>{% endfor %}</select><small class="save-flag"></small></td>
+  <td>{% if row.overdue_pickup %}<span class="status-badge status-cancelled" title="La fecha programada ya paso y la muestra sigue sin recogerse">⚠ Atrasada</span> {% endif %}<input class="cell-input request-date-input" data-request-id="{{ row.id }}" type="date" value="{{ row.scheduled_pickup_date[:10] if row.scheduled_pickup_date else '' }}"><small class="save-flag"></small></td>
+  {% else %}
+  <td>{{ row.pickup_address or '-' }}</td>
+  <td>{{ row.sample_count or 0 }}</td>
+  <td>{{ row.couriers.name if row.couriers else 'Sin asignar' }}</td>
+  <td><span class="status-badge">{% for option in context.request_status_options if option.value == row.status %}{{ option.label }}{% else %}{{ row.status }}{% endfor %}</span></td>
+  <td>{% if row.overdue_pickup %}<span class="status-badge status-cancelled">⚠ Atrasada</span> {% endif %}{{ row.scheduled_pickup_date[:10] if row.scheduled_pickup_date else '-' }}</td>
+  {% endif %}
+  <td><a class="ghost-btn small" href="{{ url_for('dashboard.service_order_print_page', request_id=row.id) }}" target="_blank" rel="noopener">Hoja</a></td>
+</tr>

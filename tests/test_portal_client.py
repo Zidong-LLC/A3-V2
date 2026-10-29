@@ -1,6 +1,18 @@
 """Portal Web (rol cliente): aislamiento por client_id y flujo de solicitudes."""
 from unittest.mock import patch
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _pedido_sin_red(monkeypatch):
+    """Las órdenes abren su pedido y su borrador (ERR-194): sin esto, create_pedido iba a la
+    base de verdad (fallaba en silencio) y con ALEGRA_ENABLED del .env se intentaba facturar."""
+    monkeypatch.setattr("app.pedido_directo.db.create_pedido",
+                        lambda *a, **k: {"id": "ped-1", "pedido_number": "P-2026-001"})
+    monkeypatch.setattr("app.pedido_directo.db.close_pedido", lambda *a, **k: None)
+    monkeypatch.setattr("app.pedido_directo.config.ALEGRA_ENABLED", False)
+
 CLIENT_A = "11111111-1111-1111-1111-111111111111"
 CLIENT_B = "22222222-2222-2222-2222-222222222222"
 RESULT_ID = "33333333-3333-3333-3333-333333333333"

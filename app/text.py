@@ -5,6 +5,7 @@ puras y testeables, reutilizables por `agent.py`, `catalog.py`, `state.py`. Es l
 la que dependen los detectores de intención y la resolución de catálogo.
 """
 import re
+from datetime import datetime
 
 # Traducción de acentos para comparaciones insensibles a tildes.
 ACCENT_TRANSLATION = str.maketrans("áéíóúüñ", "aeiouun")
@@ -29,12 +30,21 @@ def money(value: int | None) -> str:
 
 
 def short_datetime(value) -> str:
-    """Fecha legible para las tablas: '2026-08-28T16:22:03+00:00' -> '28/08 16:22'.
+    """Fecha legible para las tablas: '2026-08-28T16:22:03+00:00' -> '28/08 11:22'.
     Antes se recortaba a mano en la plantilla y salía el ISO crudo, partido en dos
-    líneas dentro de la celda."""
+    líneas dentro de la celda. Supabase guarda en UTC: se pasa a la hora de Bogotá (antes
+    se mostraba la hora UTC, 5 horas adelantada; ERR-194). Sin zona horaria se deja tal cual."""
     texto = str(value or "")
     if len(texto) < 16:
         return texto or "-"
+    try:
+        momento = datetime.fromisoformat(texto.replace("Z", "+00:00"))
+    except ValueError:
+        momento = None
+    if momento is not None and momento.tzinfo is not None:
+        from app.config import APP_TIMEZONE  # local: config carga el .env al importarse
+
+        return momento.astimezone(APP_TIMEZONE).strftime("%d/%m %H:%M")
     return f"{texto[8:10]}/{texto[5:7]} {texto[11:16]}"
 
 

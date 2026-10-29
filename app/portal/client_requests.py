@@ -5,6 +5,7 @@ El client_id sale SIEMPRE de la sesión; nunca de query/form.
 """
 from flask import abort, flash, redirect, render_template, request, session, url_for
 
+from app import pedido_directo
 from app.portal import portal_bp
 from app.portal.auth import client_required
 from app.services import db, portal_db
@@ -207,10 +208,13 @@ def client_new_request():
         fields["clinic_name"] = (client or {}).get("clinic_name")
         fields["clinic_phone"] = (client or {}).get("phone")
 
-        created = db.create_request(
+        # Abre su propio pedido y deja el borrador de factura, como el bot (ERR-194).
+        created = pedido_directo.registrar(
+            client_id=session["portal_client_id"],
             chat_id=f"portal:{session['portal_client_id']}",
+            canal_pedido="portal",
             session={"client_id": session["portal_client_id"], "channel": "portal"},
-            ai_response={"intent": "route_scheduling", "captured_fields": fields},
+            fields=fields,
         )
         if not created:
             flash("No se pudo registrar la solicitud, intente de nuevo", "error")

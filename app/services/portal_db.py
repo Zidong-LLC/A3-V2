@@ -218,6 +218,9 @@ def get_request_by_order_number(order_number: str) -> dict | None:
     return result.data[0] if result.data else None
 
 
+CANALES_DE_CHAT = ("telegram", "chatwoot", "whatsapp")
+
+
 def chat_for_client(client_id: str) -> tuple[str, str] | None:
     """(chat_id, canal) al que avisar un resultado nuevo del cliente, o None.
 
@@ -238,11 +241,14 @@ def chat_for_client(client_id: str) -> tuple[str, str] | None:
     ).data
     if verificada:
         return verificada[0]["external_chat_id"], (verificada[0].get("channel") or "telegram")
+    # Solo pedidos que nacieron en un CHAT: los del portal y los de «Nueva Orden» también
+    # abren pedido (ERR-194) y su external_chat_id («portal:…») no es un chat al que escribir.
     pedido = (
         _client.table("pedidos")
         .select("external_chat_id, entry_channel")
         .eq("client_id", client_id)
         .not_.is_("external_chat_id", "null")
+        .in_("entry_channel", list(CANALES_DE_CHAT))
         .order("created_at", desc=True)
         .limit(1)
         .execute()
