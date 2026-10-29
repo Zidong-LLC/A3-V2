@@ -73,6 +73,10 @@ def db_mock(monkeypatch):
     monkeypatch.setattr(anarvet_sync.db, "register_anarvet_client_codes",
                         lambda codes: registro["codes"].update(codes) or len(codes))
     monkeypatch.setattr(anarvet_sync.db, "list_anarvet_client_map", lambda status=None: [])
+    # Espejo vacío: todo es nuevo. Los tests de «sin cambios» lo redefinen (ERR-196).
+    monkeypatch.setattr(anarvet_sync.db, "estado_anarvet_results", lambda keys: {})
+    registro["refrescos"] = []
+    monkeypatch.setattr(anarvet_sync.db, "refrescar_anarvet_informes", lambda: registro["refrescos"].append(1))
     return registro
 
 
@@ -212,3 +216,42 @@ def test_endpoint_assign_manual_y_none(client_dashboard, monkeypatch):
     res = client_dashboard.post("/api/dashboard/anarvet/clients/04/assign", json={"client_id": "no-existe"})
     assert res.status_code == 404
     assert llamadas == [("04", "uuid-ok", "manual"), ("99", None, "none")]
+
+
+# --------------------------- solo lo que cambió (ERR-196) ---------------------------
+
+def test_sync_no_reescribe_los_analitos_que_el_espejo_ya_tiene_iguales(monkeypatch, db_mock):
+    """Caída del 29/10: el solapamiento de 2 días traía ~11.700 analitos por hora y el
+    upsert los reescribía todos, y encima refrescaba la vista completa. Si el espejo ya
+    tiene el mismo resultado y la misma fecha de validación, no se escribe ni se refresca."""
+    report = [_fila_reporte(), _fila_reporte(analito_cod="081", resultado="5.1")]
+    monkeypatch.setattr(anarvet_sync.anarvet, "fetch_report", lambda d, h: report)
+    claves = [_row_to_mirror(r)["dedup_key"] for r in report]
+    monkeypatch.setattr(anarvet_sync.db, "estado_anarvet_results",
+                        lambda keys: {claves[0]: ("8.94", "2026-08-19"), claves[1]: ("5.1", "2026-08-19")})
+    out = sync_results("2026-08-18", "2026-08-19")
+    assert out["synced"] == 0 and out["unchanged"] == 2 and out["errors"] == []
+    assert db_mock["upserts"] == [] and db_mock["refrescos"] == []
+
+
+def test_sync_escribe_solo_el_analito_revalidado_y_refresca(monkeypatch, db_mock):
+    report = [_fila_reporte(), _fila_reporte(analito_cod="081", resultado="5.1")]
+    monkeypatch.setattr(anarvet_sync.anarvet, "fetch_report", lambda d, h: report)
+    claves = [_row_to_mirror(r)["dedup_key"] for r in report]
+    # El primero está igual; el segundo cambió de resultado (re-validación).
+    monkeypatch.setattr(anarvet_sync.db, "estado_anarvet_results",
+                        lambda keys: {claves[0]: ("8.94", "2026-08-19"), claves[1]: ("4.9", "2026-08-19")})
+    out = sync_results("2026-08-18", "2026-08-19")
+    assert out["synced"] == 1 and out["unchanged"] == 1
+    assert [f["analito_cod"] for f in db_mock["upserts"][0]] == ["081"]
+    assert db_mock["refrescos"] == [1]
+
+
+def test_si_no_se_puede_leer_el_espejo_se_escribe_todo(monkeypatch, db_mock):
+    report = [_fila_reporte(), _fila_reporte(analito_cod="081")]
+    monkeypatch.setattr(anarvet_sync.anarvet, "fetch_report", lambda d, h: report)
+    def falla(keys):
+        raise RuntimeError("base caída")
+    monkeypatch.setattr(anarvet_sync.db, "estado_anarvet_results", falla)
+    out = sync_results("2026-08-18", "2026-08-19")
+    assert out["synced"] == 2 and out["unchanged"] == 0 and out["errors"] == []

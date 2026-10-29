@@ -101,6 +101,25 @@ def _desde_incremental(hoy) -> str:
     return str(min(base - timedelta(days=_SOLAPAMIENTO_DIAS), hoy))
 
 
+def _solo_cambiados(filas: list[dict], resultado: dict) -> list[dict]:
+    """Deja solo los analitos nuevos o con otro resultado/fecha de validación.
+
+    El solapamiento de 2 días vuelve a traer ~11.700 analitos por corrida y el upsert
+    los reescribía TODOS aunque fueran idénticos: filas muertas, WAL, y el refresco
+    completo de la vista materializada cada hora. Eso saturó la base el 29/10
+    (ERR-196). Si el espejo no se puede leer, se escribe todo como antes."""
+    try:
+        estado = db.estado_anarvet_results([f["dedup_key"] for f in filas])
+    except Exception as exc:  # noqa: BLE001 — sin comparación, el sync sigue completo
+        logger.warning("anarvet_sync: no se pudo leer el estado del espejo (%s); se escribe todo", exc)
+        return filas
+    if not isinstance(estado, dict):
+        return filas
+    cambiados = [f for f in filas if estado.get(f["dedup_key"]) != (f.get("resultado"), f.get("fec_val"))]
+    resultado["unchanged"] = len(filas) - len(cambiados)
+    return cambiados
+
+
 def sync_results(desde: str | None = None, hasta: str | None = None) -> dict:
     """Trae el reporte del rango (default: últimos DEFAULT_SYNC_DAYS días) y hace
     upsert en el espejo. Lanza ValueError si el rango es inválido (el endpoint lo
@@ -120,6 +139,7 @@ def sync_results(desde: str | None = None, hasta: str | None = None) -> dict:
 
     resultado = {
         "synced": 0,
+        "unchanged": 0,
         "skipped": 0,
         "collapsed": 0,
         "client_codes_seen": 0,
@@ -150,7 +170,7 @@ def sync_results(desde: str | None = None, hasta: str | None = None) -> dict:
         if cod:
             client_codes.setdefault(cod, mapped.get("nombre_cliente"))
 
-    filas = list(unicos.values())
+    filas = _solo_cambiados(list(unicos.values()), resultado)
     for i in range(0, len(filas), _BATCH_SIZE):
         lote = filas[i : i + _BATCH_SIZE]
         try:
@@ -177,8 +197,9 @@ def sync_results(desde: str | None = None, hasta: str | None = None) -> dict:
         resultado["errors"].append(f"registro de clientes: {exc}")
 
     logger.info(
-        "anarvet_sync %s..%s: %s filas, %s colapsadas, %s códigos de cliente (%s nuevos), %s errores",
-        desde, hasta, resultado["synced"], resultado["collapsed"],
+        "anarvet_sync %s..%s: %s filas escritas, %s sin cambios, %s colapsadas, %s códigos de cliente "
+        "(%s nuevos), %s errores",
+        desde, hasta, resultado["synced"], resultado["unchanged"], resultado["collapsed"],
         resultado["client_codes_seen"], resultado["new_client_codes"], len(resultado["errors"]),
     )
     return resultado

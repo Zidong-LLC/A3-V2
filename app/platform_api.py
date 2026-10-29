@@ -233,11 +233,19 @@ def platform_anarvet_sync():
     Respuestas: 200 todo bien · 207 sincronizó con errores parciales · 400 rango inválido ·
     503 Anarvet caído o deshabilitado. Un cron sabe leer esos códigos.
     """
+    from datetime import datetime
+
     from app import facturas_panel
-    from app.config import ANARVET_ENABLED
+    from app.config import ANARVET_ENABLED, APP_TIMEZONE
 
     # Mismo cron horario para el otro espejo externo: las facturas de Alegra (ERR-191).
-    facturas = facturas_panel.sincronizar_en_segundo_plano()
+    # Cada hora alcanza con la última semana (~300 facturas); los 60 días completos
+    # (pagos y anulaciones viejas, ~2.500 facturas) van UNA vez por día, en la primera
+    # corrida de la mañana. Reescribir 2.500 facturas por hora fue parte de lo que saturó
+    # la base el 29/10 (ERR-196).
+    primera_del_dia = datetime.now(APP_TIMEZONE).hour < 8
+    facturas = facturas_panel.sincronizar_en_segundo_plano(
+        dias=facturas_panel.DIAS_A_REFRESCAR if primera_del_dia else 7)
     if not ANARVET_ENABLED:
         return jsonify({"error": "anarvet_disabled", "facturas": facturas}), 503
 

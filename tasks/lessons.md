@@ -847,3 +847,18 @@ Con señal clara avanza; sin señal clara repregunta UNA vez; a la segunda toma 
 probable (patrón ya existente para el «sí» pelado). Una lista de tokens compartida no puede
 contener palabras que cambian de significado según la pregunta previa («no»): el contexto
 lo da el estado, no la palabra.
+
+## 2026-10-29 — El primer día real de un cron se mide, no se da por bueno
+
+**Qué pasó.** Los crons de Render fallaban en silencio desde el 27/10 (exit 127). Los arreglé a
+la mañana y a las 12:09 les sumé la sync de Alegra. A la tarde la base de Supabase (cómputo Nano,
+0,5 GB) se saturó: refresco completo de la vista materializada de Anarvet cada hora aunque no
+hubiera informes nuevos, reescritura de 11.700 analitos idénticos por hora, 2.500 facturas
+reescritas por hora y el panel de sistema releyendo 30.000 filas cada 2 minutos. Plataforma y
+bot caídos 80 minutos (ERR-196).
+
+**Regla.** Cuando algo pasa a correr solo (cron, hilo, autorrefresco), el primer día se mira con
+números: filas leídas y escritas, segundos, tuplas muertas, y el tamaño del cómputo que lo
+recibe. Un proceso periódico escribe solo lo que cambió y refresca solo si escribió. Y antes de
+poner una base en producción, mirar en qué cómputo está: «plan Pro» no quiere decir que el
+proyecto no esté en Nano.

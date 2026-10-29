@@ -157,8 +157,8 @@ def test_motorizados_reciben_todos_los_barrios_no_mil():
 def test_panel_de_sistema_no_se_corta_en_mil_eventos():
     from app.services import system_db
 
-    with patch.object(system_db, "_client", _tabla_falsa(2300)):
-        assert len(system_db.eventos("turn")) == 2300
+    with patch.object(system_db, "_client", _tabla_falsa(1500)):
+        assert len(system_db.eventos("turn")) == 1500
 
 
 def test_exportar_facturas_trae_todas_y_no_mil(monkeypatch):

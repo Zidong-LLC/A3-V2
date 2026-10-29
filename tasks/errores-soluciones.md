@@ -5241,3 +5241,36 @@ conversaciones" teniendolas todas delante.
   preguntas cubiertas, 19 tests. «Eso es todo» a la oferta cierra lea lo que lea el modelo (antes,
   con señal `unclear`, el bloque «recién cerrada la orden» lo derivaba a un asesor).
 - **Pendiente relacionado:** inventario de marcas de estado con un solo lugar donde muere cada una.
+
+## ERR-196 — Supabase saturado: plataforma y bot caídos 80 minutos (primer día real de los crons)
+
+- **Fecha:** 2026-10-29 15:35–16:54 (Bogotá) · **Estado:** MITIGADO (reinicio) + fixes en commit local;
+  push + deploy pendientes de OK; cómputo Micro pendiente del usuario
+- **Síntoma:** `/health` de la plataforma 502; Render marcaba la instancia «unhealthy» y la reiniciaba
+  cada 16 min (20:35, 20:51, 21:08, 21:24 UTC); el bot no contestaba. Supabase: `db` y `rest`
+  UNHEALTHY, cada consulta REST cortada a los 15 s, `select 1` con «connection timeout»; el pooler sano,
+  Postgres vivo (pg_stat_activity con 12 conexiones, sin bloqueos ni consultas largas). Sin incidente
+  general de Supabase. Proyecto en cómputo **Nano** (0,5 GB, sin añadido) pese al plan Pro.
+- **Causa raíz (mapeo del código + medición):** hoy a las 11:17 (ERR-189) los crons empezaron a correr por
+  primera vez en producción y a las 12:09 (ERR-191) se sumó la sync de Alegra al mismo cron horario.
+  Cada hora: (1) `REFRESH MATERIALIZED VIEW CONCURRENTLY` de `anarvet_informes_mat` SIEMPRE (recalcula
+  271.000 analitos, 25 s a minutos, ordenamientos a disco con 0,5 GB); (2) upsert de ~11.700 analitos con
+  JSON crudo aunque no hayan cambiado (~9 MB/h, ~140.000 tuplas muertas/día); (3) reescritura de las
+  ~2.500 facturas de 60 días y borrado del caché (la siguiente carga del panel relee 15.000–30.000
+  filas). Encima, el panel `/sistema` abierto leía hasta 30.000 filas cada 2 min. La corrida de las
+  15:00 disparó (1)+(2)+(3) y a las 15:35 la base dejó de responder. El `/health` de Render consulta
+  Supabase: con la base lenta, Render mata la instancia y agrava el cuadro.
+- **Mitigación:** `POST /v1/projects/{ref}/restart` (Management API) → recuperado a las 16:54. La
+  herramienta no permitió aplicar el añadido de cómputo (transacción) ni suspender el cron (recurso
+  compartido): el usuario sube el cómputo a Micro desde el panel de Supabase.
+- **Fixes (commit local):** `anarvet_sync._solo_cambiados` + `db.estado_anarvet_results`: solo se
+  escriben los analitos nuevos o re-validados y la vista se refresca solo si hubo escrituras;
+  `platform_api`: Alegra 7 días por hora y 60 días una vez al día (antes de las 8); panel `/sistema`
+  refresco 300 s y tope 2.000 filas por lectura.
+- **Tests:** 3 nuevos en `tests/test_anarvet_sync.py` (sin cambios → 0 escrituras y 0 refrescos;
+  re-validado → 1 escritura + refresco; base caída → se escribe todo). Suite completa en verde.
+- **Pendiente (estructura, pedido del usuario):** listas largas de a 100 con «cargar más»
+  (Facturación 10.000 filas por búsqueda, Cartera 5.000), caché de 60 s para `build_dashboard_context`
+  (15.000–18.000 filas por pestaña), y que `/health` no dependa de Supabase para la liveness.
+- **Lección:** un cron que corre por primera vez en producción se mide el primer día (filas, segundos,
+  tuplas muertas) antes de darlo por bueno; y una vista materializada no se refresca «por si acaso».

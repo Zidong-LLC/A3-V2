@@ -1815,3 +1815,13 @@ otro código para la MISMA versión).
       (`app/opciones_cerradas.py`, 19 tests; 16 asserts de texto exacto pasados a startswith)
 - [ ] Inventario de marcas de estado con un solo lugar donde muere cada una (post-lanzamiento)
 - [ ] Al derivar, abrir la conversación en Chatwoot (hoy queda en «Pendiente») — esperando OK
+
+## Caída de Supabase 29/10 15:35–16:54 (ERR-196)
+
+- [x] Diagnóstico con la Management API (db/rest UNHEALTHY, Nano, sin incidente general) y reinicio
+- [x] Mapeo de cargas (agente): refresco de la matview cada hora, upserts idénticos, Alegra 60 días/h, /sistema
+- [x] Fix: Anarvet escribe solo lo que cambió y refresca solo si escribió; Alegra 7 d/h y 60 d/día; /sistema liviano
+- [ ] Usuario: subir el cómputo a Micro en Supabase (Project Settings → Compute and Disk)
+- [ ] Push + deploy de los fixes (esperando OK)
+- [ ] Listas largas de a 100 con «cargar más» (Facturación, Cartera, informes); caché 60 s del contexto del dashboard
+- [ ] `/health` de Render sin depender de Supabase (liveness) — hoy amplifica la caída

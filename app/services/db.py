@@ -1417,6 +1417,21 @@ def upsert_anarvet_results(rows: list[dict]) -> int:
     return len(rows)
 
 
+def estado_anarvet_results(keys: list[str]) -> dict[str, tuple]:
+    """Lo que el espejo YA tiene de cada clave: {dedup_key: (resultado, fec_val)}.
+
+    El sync compara contra esto para no reescribir lo que no cambió: un upsert de
+    11.700 analitos por hora, casi todos iguales, dejaba ~140.000 filas muertas por día
+    y disparaba el refresco completo de la vista (ERR-196, caída del 29/10)."""
+    estado: dict[str, tuple] = {}
+    for i in range(0, len(keys), 200):
+        result = (_client.table("anarvet_results").select("dedup_key, resultado, fec_val")
+                  .in_("dedup_key", keys[i:i + 200]).execute())
+        for r in result.data or []:
+            estado[r["dedup_key"]] = (r.get("resultado"), r.get("fec_val"))
+    return estado
+
+
 def register_anarvet_client_codes(codes: dict[str, str | None]) -> int:
     """Registra cod_cliente nuevos como 'pending' SIN pisar mapeos existentes
     (ignore_duplicates: un código ya mapeado no vuelve a pending). codes es

@@ -14,7 +14,9 @@ from app.services.db import _client, _paginado
 log = logging.getLogger(__name__)
 _ACTIVO = os.environ.get("APP_ENV", "") != "test"
 # Supabase corta cada request en 1000 filas: las lecturas del panel van paginadas (ERR-187).
-LIMITE = 5000
+# 2000 por lectura: con 5000 x 6 lecturas cada 2 min, el panel abierto era una de las
+# cargas que saturó la base el 29/10 (ERR-196).
+LIMITE = 2000
 
 
 def _insertar(fila: dict) -> None:
