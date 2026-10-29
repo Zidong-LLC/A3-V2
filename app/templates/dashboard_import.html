@@ -56,7 +56,10 @@
             <button type="submit" class="primary-btn"><i data-lucide="search"></i>Ver qué va a pasar</button>
           </div>
         </form>
-        <p class="muted-text" style="padding:0 12px 12px">Plantillas:
+        <p class="muted-text" style="padding:0 12px 4px">Ejemplos en Excel (20 filas, listos para subir y ver el plan):
+          {% for clave, nombre in tipos.items() %}<a href="{{ url_for('dashboard_import.ejemplo', tipo=clave) }}"><i data-lucide="file-spreadsheet" style="width:14px;height:14px;vertical-align:-2px"></i> {{ nombre }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
+        </p>
+        <p class="muted-text" style="padding:0 12px 12px">Plantillas vacías (CSV):
           {% for clave, nombre in tipos.items() %}<a href="{{ url_for('dashboard_import.plantilla', tipo=clave) }}">{{ nombre }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
           &nbsp;|&nbsp; Exportar la lista actual:
           {% for clave in ['clientes', 'precios', 'motorizados'] if clave in tipos %}<a href="{{ url_for('dashboard_import.exportar', tipo=clave) }}">{{ tipos[clave] }}</a>{% if not loop.last %} · {% endif %}{% endfor %}

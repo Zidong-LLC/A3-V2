@@ -175,6 +175,19 @@ def plantilla(tipo):
     return _csv(imports_exportar.plantilla(tipo), f"plantilla-{tipo}.csv")
 
 
+@dashboard_import.get("/cargas/ejemplo/<tipo>")
+@_login_required
+def ejemplo(tipo):
+    """Excel de ejemplo con 20 filas (pedido del usuario, 29/10): se puede subir tal cual."""
+    if tipo not in TIPOS:
+        return redirect(url_for("dashboard_import.cargas_page"))
+    from app import imports_ejemplo
+
+    return Response(imports_ejemplo.ejemplo_xlsx(tipo),
+                    mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="ejemplo-{tipo}.xlsx"'})
+
+
 @dashboard_import.get("/cargas/exportar/<tipo>")
 @_login_required
 def exportar(tipo):

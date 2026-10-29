@@ -1795,7 +1795,8 @@ otro código para la MISMA versión).
   - [ ] panel: actividad real del laboratorio (Anarvet) y estados vacíos que nunca se activan
 - [ ] 571 clientes sin zona (435 activos; 368 sin motorizado propio → el bot no puede asignarles) — DECIDIR
 - [ ] Pedidos vs Solicitudes (misma tabla `requests` con 3 nombres; portal y «Nueva Orden» sin pedido ni factura) — DECIDIR
-- [ ] Carga masiva: plantillas reales y detección de columnas (análisis en curso)
+- [x] Carga masiva: ejemplos en Excel con 20 filas por tipo (clientes, precios, portafolio, motorizados),
+      encabezado A3, hoja «Cómo usar», descarga desde la pantalla (`app/imports_ejemplo.py`, 29/10)
 
 ## Primera prueba humana por WhatsApp en producción (2026-10-29)
 
