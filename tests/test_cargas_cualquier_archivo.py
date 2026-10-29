@@ -124,7 +124,7 @@ def test_perfil_sin_permiso_de_precios_no_puede_cargar_precios(client):
 
 
 def test_plantilla_y_exportacion_se_abren_en_excel(client):
-    r = client.get("/cargas/plantilla/clientes")
+    r = client.get("/cargas/plantilla/clientes?formato=csv")  # la plantilla por defecto ya es Excel
     texto = r.get_data(as_text=True)
     assert texto.startswith("﻿nombre;nit;") and "attachment" in r.headers["Content-Disposition"]
     with patch("app.imports_exportar.db.list_couriers", return_value=[{"id": "m1", "name": "Javier", "is_active": True}]), \

@@ -49,7 +49,7 @@ def test_iguales_nunca_es_negativo_con_sedes_que_comparten_nit():
 
 
 def test_aplicar_clientes_solo_toca_las_columnas_de_la_carga():
-    plan = {"crear": [{"clinic_name": "Nueva", "phone": "1", "electronic_invoice": False}],
+    plan = {"crear": [{"clinic_name": "Nueva", "phone": "1", "is_active": False, "billing_type": "credit"}],
             "actualizar": [{"id": "c1", "clinic_name": "Vieja", "antes": {"phone": "0"},
                             "cambios": {"phone": "300", "is_active": False, "billing_type": "credit"}}]}
     with patch("app.services.db.create_client", return_value={"id": "n1"}) as crear, \

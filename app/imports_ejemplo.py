@@ -91,16 +91,22 @@ def _correo(nombre: str, i: int) -> str:
     return f"facturacion{i}@{(palabra[0] if palabra else 'clinica').replace('.', '')}.co"
 
 
+_MUNICIPIOS = {"Soacha", "Chía", "Cajicá", "Mosquera", "Funza", "La Calera"}
+
+
 def _clientes() -> list[list]:
     filas = []
     for i, nombre in enumerate(_NOMBRES, start=1):
-        filas.append([nombre, _nit(i), _telefono(i), _CALLES[i - 1], _LOCALIDADES[i - 1],
-                      _correo(nombre, i), _MOTORIZADOS_A3[i % len(_MOTORIZADOS_A3)]])
+        lugar = _LOCALIDADES[i - 1]
+        zona, municipio = ("", lugar) if lugar in _MUNICIPIOS else (lugar, "Bogotá")
+        filas.append([nombre, _nit(i), _telefono(i), _CALLES[i - 1], zona, municipio,
+                      _correo(nombre, i), "si" if i % 3 else "no", _MOTORIZADOS_A3[i % len(_MOTORIZADOS_A3)]])
     return filas
 
 
 EJEMPLOS = {
-    "clientes": (["nombre", "nit", "telefono", "direccion", "municipio", "correo", "motorizado"], _clientes),
+    "clientes": (["nombre", "nit", "telefono", "direccion", "zona", "municipio", "correo", "factura electronica", "motorizado"],
+                 _clientes),
     "precios": (["codigo", "nombre", "precio"], lambda: [list(f) for f in PRECIOS_REALES]),
     "portafolio": (["codigo", "nombre", "precio", "tipo", "categoria", "especie", "muestra"],
                    lambda: [list(f) for f in _PORTAFOLIO]),
@@ -109,8 +115,9 @@ EJEMPLOS = {
 
 _COMO_USAR = {
     "clientes": ("Un cliente por fila. Con el NIT se cruza contra la base: si ya existe, solo se completan los datos "
-                 "vacíos (o se actualizan, si marcas la casilla). El motorizado se asigna por su nombre tal como está en "
-                 "la plataforma; si no existe, la fila se carga igual pero sin motorizado."),
+                 "vacíos (o se actualizan, si marcas la casilla). Sedes con el mismo NIT: se reconocen por el nombre. "
+                 "Zona = localidad de Bogotá (con ella el bot asigna motorizado); municipio para los de afuera. "
+                 "Factura electrónica: si/no. El motorizado se asigna por su nombre tal como está en la plataforma."),
     "precios": ("Un código por fila con su precio nuevo. Los códigos tienen que existir en el catálogo; la carga "
                 "muestra antes/después y solo cambia los que difieren. Este ejemplo trae los precios actuales: subirlo "
                 "da «sin cambios»."),
@@ -126,15 +133,9 @@ _PASOS = ("1. Deja esta hoja como está o reemplaza las filas por tus datos (los
           "Acepta también CSV con coma o punto y coma; las columnas se reconocen por su nombre y en cualquier orden.")
 
 
-def ejemplo_xlsx(tipo: str) -> bytes:
-    """El libro de ejemplo del tipo: hoja de datos (la que lee la carga) + hoja «Cómo usar»."""
-    encabezados, filas = EJEMPLOS[tipo]
-    libro = Workbook()
-    hoja = libro.active
-    hoja.title = tipo.capitalize()
-    hoja.append(encabezados)
-    for fila in filas():
-        hoja.append(fila)
+def _estilizar(hoja, encabezados: list[str]) -> None:
+    """Encabezado con los colores de A3, filas alternadas, precios con formato, anchos,
+    encabezado fijo y filtro. Lo comparten el ejemplo y la plantilla."""
     cabecera = Font(bold=True, color="FFFFFF")
     relleno = PatternFill("solid", fgColor=_VINO)
     for celda in hoja[1]:
@@ -153,14 +154,29 @@ def ejemplo_xlsx(tipo: str) -> bytes:
     hoja.freeze_panes = "A2"
     hoja.auto_filter.ref = hoja.dimensions
 
+
+def _hoja_como_usar(libro, tipo: str, titulo: str) -> None:
     ayuda = libro.create_sheet("Cómo usar")
     ayuda.column_dimensions["A"].width = 110
-    titulo = ayuda.cell(row=1, column=1, value=f"Carga masiva · {tipo} · ejemplo con {len(filas())} filas")
-    titulo.font = Font(bold=True, size=13, color=_VINO)
+    celda = ayuda.cell(row=1, column=1, value=f"Carga masiva · {tipo} · {titulo}")
+    celda.font = Font(bold=True, size=13, color=_VINO)
     ayuda.cell(row=3, column=1, value=_COMO_USAR[tipo]).alignment = Alignment(wrap_text=True, vertical="top")
     ayuda.row_dimensions[3].height = 60
     for n, paso in enumerate(_PASOS, start=5):
         ayuda.cell(row=n, column=1, value=paso).alignment = Alignment(wrap_text=True)
+
+
+def ejemplo_xlsx(tipo: str) -> bytes:
+    """El libro de ejemplo del tipo: hoja de datos (la que lee la carga) + hoja «Cómo usar»."""
+    encabezados, filas = EJEMPLOS[tipo]
+    libro = Workbook()
+    hoja = libro.active
+    hoja.title = tipo.capitalize()
+    hoja.append(encabezados)
+    for fila in filas():
+        hoja.append(fila)
+    _estilizar(hoja, encabezados)
+    _hoja_como_usar(libro, tipo, f"ejemplo con {len(filas())} filas")
     salida = io.BytesIO()
     libro.save(salida)
     return salida.getvalue()

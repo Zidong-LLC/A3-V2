@@ -59,10 +59,12 @@
         <p class="muted-text" style="padding:0 12px 4px">Ejemplos en Excel (20 filas, listos para subir y ver el plan):
           {% for clave, nombre in tipos.items() %}<a href="{{ url_for('dashboard_import.ejemplo', tipo=clave) }}"><i data-lucide="file-spreadsheet" style="width:14px;height:14px;vertical-align:-2px"></i> {{ nombre }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
         </p>
-        <p class="muted-text" style="padding:0 12px 12px">Plantillas vacías (CSV):
+        <p class="muted-text" style="padding:0 12px 4px">Plantillas en Excel (encabezados listos y desplegables para especie, tipo, sí/no y motorizado):
           {% for clave, nombre in tipos.items() %}<a href="{{ url_for('dashboard_import.plantilla', tipo=clave) }}">{{ nombre }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
-          &nbsp;|&nbsp; Exportar la lista actual:
-          {% for clave in ['clientes', 'precios', 'motorizados'] if clave in tipos %}<a href="{{ url_for('dashboard_import.exportar', tipo=clave) }}">{{ tipos[clave] }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
+          <span style="opacity:.7">(en CSV: {% for clave, nombre in tipos.items() %}<a href="{{ url_for('dashboard_import.plantilla', tipo=clave, formato='csv') }}">{{ nombre|lower }}</a>{% if not loop.last %}, {% endif %}{% endfor %})</span>
+        </p>
+        <p class="muted-text" style="padding:0 12px 12px">Exportar la lista actual para corregirla y volver a subirla:
+          {% for clave in ['clientes', 'precios', 'portafolio', 'motorizados'] if clave in tipos %}<a href="{{ url_for('dashboard_import.exportar', tipo=clave) }}">{{ 'Catálogo completo' if clave == 'portafolio' else tipos[clave] }}</a>{% if not loop.last %} · {% endif %}{% endfor %}
         </p>
         {% else %}
         <p class="muted-text" style="padding:12px">Tu perfil no tiene cargas habilitadas: cargar precios, clientes o motorizados exige poder modificarlos.</p>

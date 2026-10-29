@@ -23,15 +23,44 @@ ALIAS = {
     "category": ("categoria", "area", "grupo"),
     "species": ("especie", "especies"),
     "sample": ("muestra", "tipo de muestra"),
-    "tax_id": ("nit", "identificacion", "cedula", "documento", "nit/cc", "rut"),
+    "tax_id": ("nit", "n.i.t.", "n.i.t", "identificacion", "cedula", "documento", "nit/cc", "rut"),
     "phone": ("telefono", "celular", "movil", "telefono 1", "tel", "cel", "whatsapp"),
     "address": ("direccion", "domicilio"),
+    # Zona/localidad: con ella el bot asigna motorizado (ERR-193: 571 clientes sin zona).
+    "zone": ("zona", "localidad", "barrio", "sector"),
     "city": ("ciudad", "municipio"),
     "email": ("correo", "email", "e-mail", "correo electronico"),
+    # Decide a nombre de quién se factura (clients.electronic_invoice, app/billing.py).
+    "electronic_invoice": ("factura electronica", "facturacion electronica", "electronica", "factura"),
     "courier": ("motorizado", "mensajero", "domiciliario", "courier"),
 }
 
-CAMPOS_CLIENTE = ("tax_id", "phone", "address", "city", "email")
+CAMPOS_CLIENTE = ("tax_id", "phone", "address", "zone", "city", "email", "electronic_invoice")
+_SI = {"si", "sí", "s", "true", "1", "x", "verdadero"}
+_NO = {"no", "n", "false", "0", "falso"}
+
+
+def si_no(valor) -> bool | None:
+    """«sí/no» de una celda a booleano. None si no se entiende (se ignora la celda)."""
+    limpio = norm(valor)
+    return True if limpio in _SI else False if limpio in _NO else None
+
+
+def _valor_cliente(campo: str, valor) -> object:
+    """El valor de una celda como lo guarda la tabla: texto, o booleano para la factura."""
+    if campo == "electronic_invoice":
+        return si_no(valor)
+    return (valor or "").strip()
+
+
+def _vacio(actual: dict, campo: str) -> bool:
+    tiene = actual.get(campo)
+    return tiene is None or (isinstance(tiene, str) and not tiene.strip())
+
+
+def _distinto(actual: dict, campo: str, valor) -> bool:
+    tiene = actual.get(campo)
+    return valor != (tiene.strip() if isinstance(tiene, str) else tiene)
 PRECIO_MAXIMO = 20_000_000  # el análisis más caro del catálogo vale 1,2 millones
 # Especie como la guarda el catálogo: el agente ofrece a cada mascota lo de su especie y
 # lo de «ambos». Un «Perro» guardado tal cual dejaba el análisis invisible para todos.
@@ -209,23 +238,33 @@ def plan_clientes(filas: list[dict], clientes: list[dict], nombre_coincide, actu
         if not nombre and not nit:
             errores.append(f"Fila {numero}: sin nombre ni NIT")
             continue
-        if (nit or norm(nombre)) in vistos:  # dos veces en la lista = dos altas del mismo
+        # Dos veces en la lista = dos altas del mismo. La clave lleva NIT y nombre: las
+        # SEDES comparten NIT con otro nombre (122 NIT para 261 clientes en el padrón) y
+        # antes la segunda sede del archivo salía como «repetida».
+        clave = (nit, norm(nombre)) if nit and nombre else (nit or norm(nombre))
+        if clave in vistos:
             errores.append(f"Fila {numero}: «{nombre or nit}» viene repetido en el archivo")
             continue
-        vistos.add(nit or norm(nombre))
+        vistos.add(clave)
 
         candidatos = por_nit.get(nit) or []
         if len(candidatos) > 1:
-            # Sedes que comparten NIT (caso Club Animals / ERR-157). El correo es un dato
-            # del NIT —ahí llega la factura electrónica—, así que completa TODAS las sedes
-            # que no lo tengan. Teléfono y dirección son de cada sede: esos no se comparten.
-            correo, antes = (fila.get("email") or "").strip(), len(completar)
-            for sede in candidatos:
-                if correo and not (sede.get("email") or "").strip():
-                    completar.append({"id": sede["id"], "clinic_name": sede.get("clinic_name"),
-                                      "cambios": {"email": correo}})
-            iguales += len(completar) == antes
-            continue
+            # Sedes que comparten NIT (caso Club Animals / ERR-157). Si la fila NOMBRA una de
+            # las sedes, es esa y se trata como un cliente más (se completa o actualiza).
+            por_nombre = [c for c in candidatos if nombre and nombre_coincide(nombre, c.get("clinic_name"))]
+            if len(por_nombre) == 1:
+                candidatos = por_nombre
+            else:
+                # Sin sede reconocible: el correo es un dato del NIT —ahí llega la factura
+                # electrónica—, así que completa TODAS las sedes que no lo tengan. Teléfono y
+                # dirección son de cada sede: esos no se tocan.
+                correo, antes = (fila.get("email") or "").strip(), len(completar)
+                for sede in candidatos:
+                    if correo and not (sede.get("email") or "").strip():
+                        completar.append({"id": sede["id"], "clinic_name": sede.get("clinic_name"),
+                                          "cambios": {"email": correo}})
+                iguales += len(completar) == antes
+                continue
         if not candidatos and nombre:
             candidatos = [c for c in clientes if nombre_coincide(nombre, c.get("clinic_name"))]
         if len(candidatos) > 1:
@@ -239,20 +278,18 @@ def plan_clientes(filas: list[dict], clientes: list[dict], nombre_coincide, actu
             if not courier_id:
                 avisos.append(f"Fila {numero}: el motorizado «{fila['courier']}» no existe; no se asigna")
 
+        valores = {c: _valor_cliente(c, fila.get(c)) for c in CAMPOS_CLIENTE}
+        valores = {c: v for c, v in valores.items() if v not in (None, "")}
         if not candidatos:
-            nuevo = {"clinic_name": nombre or f"Sin nombre ({nit})",
-                     **{c: (fila.get(c) or "").strip() for c in CAMPOS_CLIENTE if fila.get(c)}}
+            nuevo = {"clinic_name": nombre or f"Sin nombre ({nit})", **valores}
             if courier_id:
                 nuevo["courier_id"] = courier_id
             nuevos.append(nuevo)
             continue
 
         actual = candidatos[0]
-        faltantes = {campo: (fila.get(campo) or "").strip()
-                     for campo in CAMPOS_CLIENTE
-                     if (fila.get(campo) or "").strip() and (
-                         (fila.get(campo) or "").strip() != (actual.get(campo) or "").strip() if actualizar
-                         else not (actual.get(campo) or "").strip())}
+        faltantes = {campo: valor for campo, valor in valores.items()
+                     if (_distinto(actual, campo, valor) if actualizar else _vacio(actual, campo))}
         if courier_id and asignaciones.get(actual["id"]) != courier_id:
             faltantes["courier_id"] = courier_id
         if faltantes:

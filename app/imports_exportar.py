@@ -45,9 +45,19 @@ def exportar(tipo: str) -> str:
         return _a_texto(["nombre", "telefono", "activo"],
                         [[c.get("name"), c.get("phone"), "si" if c.get("is_active") else "no"]
                          for c in db.list_couriers()])
+    if tipo == "portafolio":
+        # El catálogo completo con las mismas columnas que la carga de portafolio: se corrige
+        # en Excel y se vuelve a subir (los códigos existentes quedan «sin cambios»).
+        filas = [[t.get("code"), t.get("name"), t.get("price"), "analisis", t.get("category"), t.get("species"), t.get("sample")]
+                 for t in db.list_catalog_tests(limit=5000)]
+        filas += [[p.get("code"), p.get("name"), p.get("price"), "perfil", p.get("category"), p.get("species"), ""]
+                  for p in db.list_catalog_profiles(limit=5000)]
+        return _a_texto(["codigo", "nombre", "precio", "tipo", "categoria", "especie", "muestra"], filas)
     nombres = {c["id"]: c.get("name") for c in db.list_couriers()}
     asignados = maestros_db.asignaciones()
-    filas = [[c.get("clinic_name"), c.get("tax_id"), c.get("phone"), c.get("address"), c.get("city"),
-              c.get("email"), nombres.get(asignados.get(c["id"]), ""), "si" if c.get("is_active") else "no"]
+    filas = [[c.get("clinic_name"), c.get("tax_id"), c.get("phone"), c.get("address"), c.get("zone"), c.get("city"),
+              c.get("email"), "si" if c.get("electronic_invoice") else "no",
+              nombres.get(asignados.get(c["id"]), ""), "si" if c.get("is_active") else "no"]
              for c in db.list_clients_basic()]
-    return _a_texto(["nombre", "nit", "telefono", "direccion", "municipio", "correo", "motorizado", "activo"], filas)
+    return _a_texto(["nombre", "nit", "telefono", "direccion", "zona", "municipio", "correo", "factura electronica",
+                     "motorizado", "activo"], filas)

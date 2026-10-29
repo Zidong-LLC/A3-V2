@@ -102,6 +102,12 @@ def previsualizar():
     elegido = tipo
     if tipo == "auto" or archivo.faltantes(archivo.mapa_automatico(encabezados, tipo), tipo):
         detectado = archivo.detectar_tipo(encabezados, list(_tipos_permitidos()))
+        # Solo nombre y teléfono calza con motorizados Y con clientes: no se adivina (una
+        # lista de clientes aplicada como motorizados crea motorizados). Se pregunta.
+        if tipo == "auto" and detectado == "motorizados" and \
+                set(archivo.mapa_automatico(encabezados, "clientes")) <= {"name", "phone"}:
+            flash("El archivo trae solo nombre y teléfono: elige si son clientes o motorizados y vuelve a subirlo", "error")
+            return redirect(url_for("dashboard_import.cargas_page"))
         if detectado:
             tipo = detectado
         elif tipo == "auto":
@@ -170,9 +176,21 @@ def aplicar():
 @dashboard_import.get("/cargas/plantilla/<tipo>")
 @_login_required
 def plantilla(tipo):
+    """Plantilla en Excel con desplegables y hoja «Cómo usar» (pedido del usuario, 29/10);
+    `?formato=csv` conserva la plantilla de una fila para quien no tenga Excel."""
     if tipo not in TIPOS:
         return redirect(url_for("dashboard_import.cargas_page"))
-    return _csv(imports_exportar.plantilla(tipo), f"plantilla-{tipo}.csv")
+    if request.args.get("formato") == "csv":
+        return _csv(imports_exportar.plantilla(tipo), f"plantilla-{tipo}.csv")
+    from app import imports_plantillas
+
+    motorizados: list[str] = []
+    if tipo == "clientes":
+        try:
+            motorizados = [c.get("name") for c in db.list_active_couriers()]
+        except Exception:  # noqa: BLE001 — sin la lista, la plantilla sale sin ese desplegable
+            motorizados = []
+    return _xlsx(imports_plantillas.plantilla_xlsx(tipo, motorizados), f"plantilla-{tipo}.xlsx")
 
 
 @dashboard_import.get("/cargas/ejemplo/<tipo>")
@@ -183,19 +201,21 @@ def ejemplo(tipo):
         return redirect(url_for("dashboard_import.cargas_page"))
     from app import imports_ejemplo
 
-    return Response(imports_ejemplo.ejemplo_xlsx(tipo),
-                    mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    headers={"Content-Disposition": f'attachment; filename="ejemplo-{tipo}.xlsx"'})
+    return _xlsx(imports_ejemplo.ejemplo_xlsx(tipo), f"ejemplo-{tipo}.xlsx")
 
 
 @dashboard_import.get("/cargas/exportar/<tipo>")
 @_login_required
 def exportar(tipo):
-    if tipo not in ("clientes", "precios", "motorizados") or \
-            not P.puede(access.perfil_actual(), P.MODULO_DE_CARGA[tipo], P.CONSULTA):
+    if tipo not in TIPOS or not P.puede(access.perfil_actual(), P.MODULO_DE_CARGA[tipo], P.CONSULTA):
         flash("Tu perfil no puede exportar esa lista", "error")
         return redirect(url_for("dashboard_import.cargas_page"))
     return _csv(imports_exportar.exportar(tipo), f"{tipo}-a3.csv")
+
+
+def _xlsx(contenido: bytes, nombre: str) -> Response:
+    return Response(contenido, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="{nombre}"'})
 
 
 def _csv(contenido: str, nombre: str) -> Response:

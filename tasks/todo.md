@@ -1831,3 +1831,18 @@ otro código para la MISMA versión).
 - [x] Formato de los mensajes largos (listas, líneas en blanco, opciones separadas) y «continuar» en
       vez de «cerrar» (`tests/test_formato_mensajes_whatsapp.py`)
 - [ ] «Programar rita» (error de tipeo en la opción del menú) derivó a un asesor: tolerar typos en el menú
+
+## Carga masiva en profundidad (29/10, pedido del usuario: «no detecta bien, templates pobres»)
+
+Diagnóstico con la base real (solo lectura): exportar funcionaba (861/438/9 filas); el cruce de
+clientes marcaba 140 filas por las sedes (122 NIT compartidos, 261 clientes); el lector fallaba con
+título arriba del encabezado y con datos en la 2.ª hoja; nombre+teléfono se leía como motorizados;
+zona y factura electrónica se ignoraban.
+
+- [x] Lectura: fila del encabezado por reconocimiento (títulos/notas arriba) y hoja con más columnas reconocidas
+- [x] Sedes: cruce por NIT + nombre; ida y vuelta del padrón real pasa de 140 filas marcadas a 1
+- [x] Zona/localidad y factura electrónica (sí/no) en la carga y en la exportación de clientes
+- [x] Solo nombre y teléfono en «detectar» → pregunta clientes o motorizados, no adivina
+- [x] Plantillas en Excel con desplegables (especie, tipo, sí/no, motorizados reales) y hoja «Cómo usar»; CSV con ?formato=csv
+- [x] Exportación del catálogo completo (portafolio) que vuelve a entrar sin cambios
+- [ ] Push + deploy (esperando OK)

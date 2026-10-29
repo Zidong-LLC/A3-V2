@@ -15,19 +15,50 @@ from app.imports import ALIAS, norm
 CAMPOS = {
     "precios": ("code", "price", "name"),
     "portafolio": ("code", "name", "price", "kind", "category", "species", "sample"),
-    "clientes": ("name", "tax_id", "phone", "address", "city", "email", "courier"),
+    "clientes": ("name", "tax_id", "phone", "address", "zone", "city", "email", "electronic_invoice", "courier"),
     "motorizados": ("name", "phone"),
 }
 OBLIGATORIOS = {"precios": ("code", "price"), "portafolio": ("code", "name", "price"),
                 "clientes": (), "motorizados": ("name",)}
 ETIQUETAS = {"code": "Código", "price": "Precio", "name": "Nombre", "kind": "Tipo (análisis/perfil)",
              "category": "Categoría", "species": "Especie", "sample": "Muestra", "tax_id": "NIT",
-             "phone": "Teléfono", "address": "Dirección", "city": "Municipio o ciudad",
-             "email": "Correo", "courier": "Motorizado"}
+             "phone": "Teléfono", "address": "Dirección", "zone": "Zona o localidad",
+             "city": "Municipio o ciudad", "email": "Correo",
+             "electronic_invoice": "Factura electrónica (sí/no)", "courier": "Motorizado"}
 _SEPARADORES = ",;\t|"
 # Columnas que solo trae ese tipo: «nombre;telefono» es de motorizados, no de clientes, y
 # «codigo;nombre;precio;especie» (la exportación de precios) no es portafolio nuevo.
-_PROPIAS = {"clientes": {"tax_id", "address", "city", "email"}, "portafolio": {"category", "sample"}}
+_PROPIAS = {"clientes": {"tax_id", "address", "zone", "city", "email", "electronic_invoice"},
+            "portafolio": {"category", "sample"}}
+_FILAS_A_MIRAR = 15  # un título o notas arriba del encabezado no pasan de unas pocas filas
+
+
+def _puntaje_encabezado(fila: list[str]) -> int:
+    """Cuántas celdas de la fila se reconocen como encabezado de algún dato."""
+    campos = {c for tipo in CAMPOS for c in CAMPOS[tipo]}
+    puntaje = 0
+    for bruto in fila:
+        limpio = norm(bruto)
+        if limpio and any(limpio in ALIAS.get(c, ()) or any(limpio.startswith(a) for a in ALIAS.get(c, ()))
+                          for c in campos):
+            puntaje += 1
+    return puntaje
+
+
+def _fila_encabezado(filas: list[list[str]]) -> int:
+    """Índice de la fila que mejor se parece a un encabezado entre las primeras.
+
+    La gente manda el archivo con un título («LISTA DE CLIENTES 2026»), notas o filas vacías
+    arriba, y antes eso se tomaba como encabezado: no se reconocía ninguna columna. Gana la
+    primera fila con 2 o más columnas reconocidas; sin ninguna, la primera fila, como antes."""
+    mejor, mejor_puntaje = 0, 0
+    for indice, fila in enumerate(filas[:_FILAS_A_MIRAR]):
+        puntaje = _puntaje_encabezado(fila)
+        if puntaje >= 2:
+            return indice
+        if puntaje > mejor_puntaje:
+            mejor, mejor_puntaje = indice, puntaje
+    return mejor
 
 
 def _texto(data: bytes) -> str:
@@ -52,13 +83,26 @@ def _celda(valor) -> str:
     return str(valor).strip()
 
 
+def _sin_vacias(brutas: list[list]) -> list[list[str]]:
+    return [[(c or "").strip() for c in f] for f in brutas if any((c or "").strip() for c in f)]
+
+
 def _leer_xlsx(data: bytes) -> list[list[str]]:
+    """Las filas de la hoja que mejor se reconoce. Un libro suele traer una portada o una hoja
+    de notas primero y los datos en la segunda: antes solo se leía la primera y no se
+    reconocía nada. Se elige la hoja cuyo encabezado reconoce más columnas."""
     from openpyxl import load_workbook
     libro = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
-    hoja = libro.worksheets[0]
-    filas = [[_celda(v) for v in fila] for fila in hoja.iter_rows(values_only=True)]
+    mejor, mejor_puntaje = [], -1
+    for hoja in libro.worksheets:
+        filas = _sin_vacias([[_celda(v) for v in fila] for fila in hoja.iter_rows(values_only=True)])
+        if not filas:
+            continue
+        puntaje = _puntaje_encabezado(filas[_fila_encabezado(filas)])
+        if puntaje > mejor_puntaje:
+            mejor, mejor_puntaje = filas, puntaje
     libro.close()
-    return filas
+    return mejor
 
 
 def leer_tabla(data: bytes, nombre: str = "") -> tuple[list[str], list[list[str]]]:
@@ -68,10 +112,11 @@ def leer_tabla(data: bytes, nombre: str = "") -> tuple[list[str], list[list[str]
     else:
         texto = _texto(data)
         brutas = list(csv.reader(io.StringIO(texto), delimiter=_separador(texto[:4096])))
-    brutas = [[(c or "").strip() for c in f] for f in brutas if any((c or "").strip() for c in f)]
+    brutas = _sin_vacias(brutas)
     if not brutas:
         return [], []
-    return brutas[0], brutas[1:]
+    inicio = _fila_encabezado(brutas)
+    return brutas[inicio], brutas[inicio + 1:]
 
 
 def mapa_automatico(encabezados: list[str], tipo: str) -> dict[str, int]:

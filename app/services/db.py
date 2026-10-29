@@ -2100,7 +2100,7 @@ def list_clients_basic(limit: int = 5000) -> list[dict]:
     while len(rows) < limit:
         batch = (
             _client.table("clients")
-            .select("id, clinic_name, tax_id, phone, address, city, email, is_active")
+            .select("id, clinic_name, tax_id, phone, address, zone, city, email, electronic_invoice, is_active")
             .order("clinic_name")
             .range(len(rows), min(len(rows) + PAGE, limit) - 1)
             .execute()
