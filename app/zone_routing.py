@@ -5,10 +5,29 @@ leídas de Supabase; devuelve el motorizado que cubre esa ubicación o None.
 Precedencia espejo del mapa del dashboard: la cobertura manual por localidad
 (courier_locality_coverage) pisa al motorizado base de la zona
 (territorial_zones). Sin geocoding: solo la cascada determinista de
-territory.suggest_zone_for_location (barrio → dirección → localidad → zona).
+territory.suggest_zone_for_location (barrio → dirección → localidad → zona) y, si
+no reconoce nada, la localidad escrita en el campo «ciudad».
 """
+from functools import lru_cache
+
 from app import municipios as municipios_mod
 from app import territory
+
+
+@lru_cache(maxsize=4096)
+def sugerencia_por_ciudad(city: str | None) -> dict:
+    """Muchos clientes traen la localidad en el campo «ciudad» y no en «zona»: «Timiza,
+    Kennedy», «Castilla», «Suba». Sin leerlo, 95 clientes quedaban sin zona y el bot no les
+    podía asignar motorizado (ERR-193). Acepta «Barrio, Localidad», un barrio o una
+    localidad; «Bogotá, D.C.» no ubica nada. En caché: el dashboard lo pide por cada cliente."""
+    partes = [p.strip() for p in str(city or "").split(",") if p.strip()]
+    if not partes:
+        return {"match_type": "none"}
+    localidad = partes[-1] if len(partes) > 1 else None
+    sugerencia = territory.suggest_zone_for_location(neighborhood=partes[0], locality=localidad)
+    if sugerencia.get("match_type") == "none":
+        sugerencia = territory.suggest_zone_for_location(locality=partes[-1])
+    return sugerencia
 
 
 def _courier_id_from_coverage(locality_code: str | None, coverage_rows: list[dict]) -> str | None:
@@ -49,6 +68,8 @@ def resolve_zone_courier(
     suggestion = territory.suggest_zone_for_location(
         locality=zone_text, zone=zone_text, address=address
     )
+    if suggestion.get("match_type") == "none":
+        suggestion = sugerencia_por_ciudad(city)
     if not municipio and suggestion.get("match_type") == "none":
         municipio = municipios_mod.coincide(address, municipios or [])
     if municipio:

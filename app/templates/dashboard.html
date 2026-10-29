@@ -430,6 +430,11 @@
                 <option value="no" {{ 'selected' if fv.fe == 'no' else '' }}>No</option>
                 <option value="sin_dato" {{ 'selected' if fv.fe == 'sin_dato' else '' }}>Sin dato</option>
               </select>
+              <select class="cell-select" name="zona" data-clients-submit title="Sin zona: el bot no le puede asignar motorizado automáticamente">
+                <option value="all">Zona: todas</option>
+                <option value="sin" {{ 'selected' if fv.zona == 'sin' else '' }}>Sin zona</option>
+                <option value="con" {{ 'selected' if fv.zona == 'con' else '' }}>Con zona</option>
+              </select>
               <button type="submit" class="primary-btn"><i data-lucide="search"></i>Buscar</button>
               {% if context.clients_filters %}
               <a class="ghost-btn" href="{{ url_for('dashboard.clients_page') }}">Limpiar</a>
@@ -454,7 +459,7 @@
         <div class="card-head simple"><h3>Motorizados</h3></div>
         <section class="kpi-grid four motorizados-kpis os-stagger">
           <article class="kpi-card os-lift-card" data-spotlight><div class="kpi-head"><span>Cobertura de zonas</span><i data-lucide="map-pinned"></i></div><strong>{{ context.motorizados_summary.coverage_rate }}%</strong><p class="delta">{{ context.motorizados_summary.assigned_localities }} de {{ context.motorizados_summary.total_localities }} zonas con motorizado (localidades y municipios)</p></article>
-          <article class="kpi-card os-lift-card" data-spotlight><div class="kpi-head"><span>Clientes cubiertos</span><i data-lucide="shield-check"></i></div><strong>{{ context.motorizados_summary.clients_in_assigned_localities }}</strong><p class="delta">{{ context.motorizados_summary.clients_in_catalog_localities }} de {{ context.motorizados_summary.clients_total or context.motorizados_summary.clients_in_catalog_localities }} clientes ubicados en una zona</p></article>
+          <article class="kpi-card os-lift-card" data-spotlight><div class="kpi-head"><span>Clientes cubiertos</span><i data-lucide="shield-check"></i></div><strong>{{ context.motorizados_summary.clients_in_assigned_localities }}</strong><p class="delta">{{ context.motorizados_summary.clients_in_catalog_localities }} de {{ context.motorizados_summary.clients_total or context.motorizados_summary.clients_in_catalog_localities }} clientes ubicados en una zona{% if context.motorizados_summary.clients_total and context.motorizados_summary.clients_total > context.motorizados_summary.clients_in_catalog_localities %} · <a href="/clientes?zona=sin&amp;estado=activo">ver los activos sin zona</a>{% endif %}</p></article>
           <article class="kpi-card os-lift-card" data-spotlight><div class="kpi-head"><span>Clientes en zonas sin motorizado</span><i data-lucide="triangle-alert"></i></div><strong>{{ context.motorizados_summary.clients_in_unassigned_localities }}</strong><p class="delta">{{ context.motorizados_summary.localities_with_clients_without_coverage }} zona(s) sin motorizado asignado</p></article>
           <article class="kpi-card os-lift-card" data-spotlight><div class="kpi-head"><span>Mayor carga</span><i data-lucide="bike"></i></div><strong>{{ context.motorizados_summary.busiest_courier_name }}</strong><p class="delta">{{ context.motorizados_summary.busiest_courier_clients }} clientes</p></article>
         </section>

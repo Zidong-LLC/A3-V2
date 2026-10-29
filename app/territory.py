@@ -19,7 +19,10 @@ ZONE_COURIERS = {
 DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "barrios_zonas_a3.csv"
 
 
+@lru_cache(maxsize=32768)
 def normalize_key(value: str | None) -> str:
+    # En caché: suggest_zone_for_location normaliza ~3000 barrios por consulta y el dashboard
+    # consulta por cada cliente; sin esto la pantalla de Motorizados tardaba ~8 s (ERR-193).
     text = str(value or "").strip().lower()
     text = "".join(ch for ch in unicodedata.normalize("NFD", text) if unicodedata.category(ch) != "Mn")
     return re.sub(r"[^a-z0-9]+", "_", text).strip("_")

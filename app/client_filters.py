@@ -32,12 +32,13 @@ def texto_busqueda(row: dict) -> str:
 
 
 def filtrar(rows: list[dict], q: str = "", tipo: str = "all", estado: str = "all",
-            motorizado: str = "all", fe: str = "all") -> list[dict]:
+            motorizado: str = "all", fe: str = "all", zona: str = "all") -> list[dict]:
     """Aplica búsqueda y filtros sobre la lista COMPLETA de clientes.
 
     Sin criterios devuelve la lista intacta. `estado` usa 'activo'/'inactivo',
     `motorizado` 'yes'/'no' y `fe` 'si'/'no'/'sin_dato', los mismos valores que ya
-    manejaban los desplegables."""
+    manejaban los desplegables. `zona` 'sin'/'con': si el cliente quedó ubicado en una
+    localidad o municipio (sin zona, el bot no le puede asignar motorizado; ERR-193)."""
     palabras = normalizar(q).split()
     filtradas = []
     for row in rows:
@@ -55,6 +56,8 @@ def filtrar(rows: list[dict], q: str = "", tipo: str = "all", estado: str = "all
                 continue
         if fe != "all" and str(row.get("electronic_invoicing_option") or "sin_dato") != fe:
             continue
+        if zona != "all" and ("sin" if row.get("sin_zona") else "con") != zona:
+            continue
         filtradas.append(row)
     return filtradas
 
@@ -69,5 +72,6 @@ def desde_args(args) -> dict:
         "estado": (args.get("estado") or "all").strip() or "all",
         "motorizado": (args.get("motorizado") or "all").strip() or "all",
         "fe": (args.get("fe") or "all").strip() or "all",
+        "zona": (args.get("zona") or "all").strip() or "all",
     }
     return {k: v for k, v in crudos.items() if v and v != "all"}

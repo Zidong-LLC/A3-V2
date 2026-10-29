@@ -5140,3 +5140,23 @@ conversaciones" teniendolas todas delante.
 - **Tests:** `tests/test_facturas_panel.py` (7), `tests/test_panel_datos_reales.py` (4). Suite 1840.
 - **Hallazgo abierto (decidir con el usuario):** 571 de 861 clientes no tienen zona (480 vacía,
   132 «No aplica»); 368 activos sin motorizado propio → el bot no puede asignarles recogida.
+
+## ERR-193 — 571 clientes sin zona: el bot no podía asignarles motorizado
+
+- **Fecha:** 2026-10-29 · **Estado:** PARCIAL a propósito (decisión del usuario: «ciudad +
+  lista para completar»); commit local, push + deploy pendientes
+- **Cómo se encontró:** revisando la pantalla de Motorizados con la base real (solo «249
+  clientes mapeados» de 861).
+- **Causa:** 480 clientes con zona vacía y 132 con «No aplica». La asignación automática del
+  bot (`zone_routing.resolve_zone_courier`) mira zona → barrio en la dirección → municipio;
+  muchos traen la localidad en el campo **ciudad** («Timiza, Kennedy», «Castilla», «Suba») y
+  nadie la leía. El dashboard era peor: miraba SOLO el campo zona.
+- **Solución:** `zone_routing.sugerencia_por_ciudad` («Barrio, Localidad», barrio o
+  localidad; «Bogotá, D.C.» no ubica) como último paso de la cascada del bot; el dashboard
+  usa la MISMA cascada (`_localidad_por_texto`) y respeta la prioridad del municipio en
+  «ciudad» (30 clientes contaban doble). Filtro «Sin zona» en Clientes y enlace «ver los
+  activos sin zona» desde Motorizados. `territory.normalize_key` en caché (la pantalla tardaba
+  7,9 s en frío; ahora 1,5 s).
+- **Resultado con la base real:** ubicados 297 → **388**; activos sin zona 435 → 337; activos
+  sin zona y sin motorizado propio 368 → **270** (esos los completa A3 desde el filtro).
+- **Tests:** `tests/test_zona_desde_ciudad.py` (15). Suite 1855.

@@ -9,6 +9,7 @@ import urllib.request
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timezone
+from functools import lru_cache
 
 from flask import Blueprint, Response, abort, jsonify, redirect, render_template, request, session, url_for
 
@@ -25,7 +26,7 @@ from app import billing_charts, client_filters, facturas_panel, panel_laboratori
 from app import access, municipios
 from app import permissions as P
 from app.services import audit_db, db, alegra, maestros_db
-from app import anarvet_sync, dashboard_metrics, orders, pricing, rules, territory, billing
+from app import anarvet_sync, dashboard_metrics, orders, pricing, rules, territory, billing, zone_routing
 from app.courier_notify import notify_assignment
 from app.alerts import notify_error
 from app.text import celda_csv
@@ -405,6 +406,25 @@ def _resolve_locality(zone: str | None) -> dict | None:
         for locality_tuple in territory.ZONE_LOCALITIES.get(zone_number, []):
             return {"code": locality_tuple[0], "name": locality_tuple[1]}
     return None
+
+
+@lru_cache(maxsize=8192)
+def _localidad_por_texto(zone: str | None, address: str | None, city: str | None) -> dict | None:
+    """Localidad de Bogotá con la MISMA cascada que usa el bot para asignar motorizado
+    (zone_routing): campo zona, barrio en la dirección y localidad escrita en «ciudad».
+    Antes el dashboard miraba solo «zona» y dejaba fuera del mapa a clientes que el bot sí
+    ubicaba (ERR-193). En caché: son ~3000 barrios por cliente en cada carga."""
+    directa = _resolve_locality(zone)
+    if directa:
+        return directa
+    sugerencia = territory.suggest_zone_for_location(locality=zone, zone=zone, address=address)
+    if sugerencia.get("match_type") == "none":
+        sugerencia = zone_routing.sugerencia_por_ciudad(city)
+    return BOGOTA_LOCALITIES_BY_CODE.get(sugerencia.get("locality_code") or "")
+
+
+def _localidad_cliente(client: dict) -> dict | None:
+    return _localidad_por_texto(client.get("zone"), client.get("address"), client.get("city"))
 
 
 def _resolve_zone_display(zone: str | None) -> str:
@@ -804,7 +824,7 @@ def _agregar_municipios(clients, coverage_by_code, courier_index, localities_by_
     por_municipio = Counter()
     for client in clients:
         encontrado = municipios.coincide(client.get("city"), activos)
-        if not encontrado and not _resolve_locality(client.get("zone")):
+        if not encontrado and not _localidad_cliente(client):
             encontrado = municipios.coincide(client.get("address"), activos)
         if encontrado:
             por_municipio[encontrado["code"]] += 1
@@ -934,8 +954,13 @@ def _build_motorizados_context(clients: list[dict]) -> dict:
 
     clients_by_locality = Counter()
     clientes_por_zona: dict[str, list[dict]] = {}  # para que la alerta diga QUIÉNES son
+    municipios_activos = [m for m in (leido["municipios"] or []) if m.get("is_active", True)]
     for client in clients:
-        locality = _resolve_locality(client.get("zone"))
+        # Igual que el bot: el municipio escrito en «ciudad» manda sobre un barrio homónimo de
+        # Bogotá en la dirección; sin esto 30 clientes contaban en los dos lados.
+        if municipios.coincide(client.get("city"), municipios_activos):
+            continue
+        locality = _localidad_cliente(client)
         if locality:
             clients_by_locality[locality["code"]] += 1
             clientes_por_zona.setdefault(locality["code"], []).append(client)
@@ -1036,6 +1061,9 @@ def _build_motorizados_context(clients: list[dict]) -> dict:
             "busiest_courier_clients": busiest.get("clients_count_from_coverage") or 0,
         },
         "motorizados_alerts": alerts,
+        # Quién quedó en alguna zona (localidad o municipio): el resto aparece en Clientes con
+        # el filtro «Sin zona» para que A3 complete la localidad o el barrio (ERR-193).
+        "clientes_ubicados": sorted({str(c.get("id")) for zona in clientes_por_zona.values() for c in zona}),
         "coverage_map_points": coverage_map_points,
         "territorial_zone_rows": territorial_zone_rows,
         "territorial_locality_rows": territorial_locality_rows,
@@ -1661,6 +1689,9 @@ def build_dashboard_context(billing_period: str = "auto") -> dict:
         "error": None,
     }
     context.update(motorizados_context)
+    ubicados = set(motorizados_context.get("clientes_ubicados") or [])
+    for fila in context.get("clients_rows") or []:
+        fila["sin_zona"] = str(fila.get("client_id")) not in ubicados
 
     # Panel Ejecutivo — métricas adicionales
     exec_data = _build_executive_panel(requests_rows, request_events)
@@ -3076,6 +3107,7 @@ def _render_dashboard(active_tab: str):
             estado=criterios.get("estado", "all"),
             motorizado=criterios.get("motorizado", "all"),
             fe=criterios.get("fe", "all"),
+            zona=criterios.get("zona", "all"),
         )
         per_page = 15
         try:
@@ -3097,6 +3129,7 @@ def _render_dashboard(active_tab: str):
             "estado": criterios.get("estado", "all"),
             "motorizado": criterios.get("motorizado", "all"),
             "fe": criterios.get("fe", "all"),
+            "zona": criterios.get("zona", "all"),
         }
     if active_tab == "facturacion":
         # Dos pestañas, y se arma SOLO la que se está viendo: cada una lee el cache de
