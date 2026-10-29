@@ -5035,3 +5035,60 @@ conversaciones" teniendolas todas delante.
   - **Migración 039 APLICADA** (OK del usuario): anon/authenticated con 0 permisos en
     `public`; `verificar_produccion.py` TODO OK después.
   - Suite final: **1818 passed**.
+
+## ERR-188 — Limpieza de clientes sin NIT (2026-10-29, pedido del usuario)
+
+- **Fecha:** 2026-10-29 · **Estado:** HECHO
+- **Pedido:** «tendríamos que borrar los clientes que no tienen NIT, creo que esos ya se fueron».
+- **Verificación antes de borrar (solo lectura):** 164 sin NIT (160 activos). **7 seguían
+  activos** en el espejo de Anarvet (5 con muestras en octubre, la última el 27/10) → se
+  conservan. Los otros 153 no tenían solicitudes, pedidos, muestras, resultados, informes de
+  Anarvet ni facturas a su nombre, y estaban TODOS en `data/conciliacion-20260831/
+  3-no-estan-en-la-lista.csv` (fuera de la lista de terceros de A3 del 31/08). Una excepción:
+  la Dra. Helen Dayana Villalobos Bonilla sí está en la lista v3, con NIT 1033803552 (en la
+  base tenía su NOMBRE en el campo NIT).
+- **Hecho (OK del usuario: «borrarlos con respaldo»):**
+  - Respaldo completo en `data/backups/clientes-sin-nit-20261029/respaldo.json` (fuera de git):
+    152 clientes, 152 fichas, 179 médicos, 66 remisiones históricas (planilla importada el
+    31/03), 2 asignaciones de motorizado.
+  - 152 borrados con `delete_client_completely` (la regla del dashboard), re-verificando la
+    historia de cada uno justo antes; 0 nombres compartidos con clientes que se quedan (la
+    función borra fichas por clave de nombre). Cada borrado quedó en `audit_log`
+    (usuario «limpieza-sin-nit»).
+  - NIT de la Dra. Helen corregido a 1033803552 (queda con sus otras sedes de ese NIT).
+- **Resultado:** 861 clientes; 11 sin NIT = 7 activos en Anarvet (pedirle los NIT a A3: Dra.
+  Paola Rey, Dra. Milena Rua, Dr. Diego Figueroa, Zoolomascotas Soacha, Pablo Alfonso Briceño
+  Gomez, Dra. Martha Patricia Rodriguez Jimenez, Clínica Veterinaria Animal House Yomasa) + 4
+  inactivos que ya estaban dados de baja.
+
+## ERR-189 — El buscador de sugerencias no encontraba 205 clientes y los crons nunca corrieron
+
+- **Fecha:** 2026-10-29 · **Estado:** buscador RESUELTO · crons CORREGIDOS en `render.yaml`
+  (falta aplicarlo en Render: push + «Manual sync» del blueprint)
+- **Reporte del usuario:** «busqué un cliente en la plataforma, sé que estaba y no me aparecía».
+- **Cómo se encontró:** `tools/scripts/qa_busqueda_clientes.py` (nuevo, solo lectura) prueba a los
+  861 clientes con 5 formas de buscarlos en los 4 buscadores. Tabla de Clientes, bot y portal
+  bien; **sugerencias (autocompletar de la ficha y buscador de veterinaria de Resultados): 205
+  clientes NO aparecían ni con su nombre exacto** (p. ej. «Veterinaria Soacha»).
+- **Causa raíz:** `db.search_clients_for_dashboard` consultaba solo la palabra MÁS LARGA
+  («veterinaria»), cortaba en 60 por orden alfabético y recién después filtraba por las
+  demás: los «Veterinaria A…» llenaban el cupo. Además `ilike` distingue tildes («canon» no
+  encontraba «Cañon») y un NIT con puntos no matcheaba.
+- **Solución:** la misma regla que la tabla (todas las palabras, cualquier orden, sin tildes)
+  sobre la lista completa; el nombre idéntico primero; NIT con puntos/guion por sus dígitos.
+  Tests: `tests/test_busqueda_sugerencias_clientes.py` (5).
+- **Crons (visto por el usuario en Render: «Failed run»):** `a3-cron-anarvet` y
+  `a3-cron-pedidos` fallaron en TODAS las corridas desde el 27/10 (exit 127,
+  `lastSuccessfulRunAt` vacío). Log: `/bin/sh: curl -fsS -X POST "http://$A3_HOSTPORT/…": not
+  found` — Render le pasa a `sh -c` el resto del comando con las comillas literales.
+  Reproducido localmente. Consecuencia: el espejo de Anarvet quedó en el 27/10 y el barrido
+  de pedidos solo corría de forma oportunista. Corregido en `render.yaml` con `${IFS}` (sin
+  comillas ni espacios dentro del script; la shell expande las variables).
+- **Resultado de la verificación exhaustiva:** de 656/861 a **861/861** clientes encontrables
+  por todas las vías. Los 3 últimos («cotas», «Vete La») eran palabras contenidas en muchos
+  nombres: ahora va primero quien las tiene como palabra ENTERA.
+- **Duplicado Vetalcol (OK del usuario: unificar):** mismo NIT 901925777 cargado el 31/03 (con
+  dirección, motorizado y ficha) y el 27/05 (sin dirección; el bot se quedaba con este). Se
+  conserva el del 31/03 con el celular real 3124130857 y el del 27/05 queda de BAJA (el
+  teléfono es único en `clients`, se le quitó al dado de baja). Todo en `audit_log`
+  (usuario «limpieza-duplicados»).

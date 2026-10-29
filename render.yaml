@@ -154,9 +154,11 @@ projects:
             region: virginia
             plan: starter
             schedule: "0 12-23 * * 1-6"
-            dockerCommand: >-
-              /bin/sh -c 'curl -fsS -X POST "http://$A3_HOSTPORT/api/platform/anarvet/sync"
-              -H "X-Platform-Token: $PLATFORM_API_TOKEN"'
+            # SIN comillas ni espacios dentro del script (ERR-189): Render le pasa a `sh -c` el
+            # resto del comando tal cual, con las comillas literales, y la shell buscaba un
+            # comando llamado «curl -fsS …» (exit 127 en TODAS las corridas desde el 27/10).
+            # `${IFS}` hace de espacio y la propia shell expande las variables.
+            dockerCommand: /bin/sh -c curl${IFS}-fsS${IFS}-X${IFS}POST${IFS}http://$A3_HOSTPORT/api/platform/anarvet/sync${IFS}-H${IFS}X-Platform-Token:$PLATFORM_API_TOKEN
             envVars:
               # Por la red privada de Render (host:puerto internos): no sale a internet y no
               # depende del sufijo que Render le ponga a la URL pública.
@@ -179,9 +181,11 @@ projects:
             region: virginia
             plan: starter
             schedule: "*/15 * * * *"
-            dockerCommand: >-
-              /bin/sh -c 'curl -fsS -X POST "http://$A3_HOSTPORT/api/platform/pedidos/barrido"
-              -H "X-Platform-Token: $PLATFORM_API_TOKEN"'
+            # SIN comillas ni espacios dentro del script (ERR-189): Render le pasa a `sh -c` el
+            # resto del comando tal cual, con las comillas literales, y la shell buscaba un
+            # comando llamado «curl -fsS …» (exit 127 en TODAS las corridas desde el 27/10).
+            # `${IFS}` hace de espacio y la propia shell expande las variables.
+            dockerCommand: /bin/sh -c curl${IFS}-fsS${IFS}-X${IFS}POST${IFS}http://$A3_HOSTPORT/api/platform/pedidos/barrido${IFS}-H${IFS}X-Platform-Token:$PLATFORM_API_TOKEN
             envVars:
               # Por la red privada de Render (host:puerto internos): no sale a internet y no
               # depende del sufijo que Render le ponga a la URL pública.

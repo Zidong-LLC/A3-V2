@@ -13,7 +13,7 @@
 >   solo lectura. No borrar ni modificar lo que ya existe en la cuenta.
 > - **A nombre de quién factura** lo decide `clients.electronic_invoice`: si es `false`, va a
 >   Consumidor Final con el nombre en las notas (`app/billing.py::invoice_target`).
-> - **La base ya existe y está completa** (Supabase, 1.013 clientes, catálogo con precios
+> - **La base ya existe y está completa** (Supabase, 861 clientes tras la limpieza del 29/10 —ERR-188—, catálogo con precios
 >   reales, 41.296 informes de Anarvet en el espejo). Verificar antes de asumir que falta un dato. Los
 >   datos transaccionales de prueba se limpiaron el 2026-08-27 (respaldo en `data/backups/`).
 >   Credenciales solo en `.env`.

@@ -2680,27 +2680,35 @@ def search_clients_for_dashboard(term: str, limit: int = 12) -> list[dict]:
     Una sola consulta con `or_`: el usuario escribe «alpes» o «900482» y la ficha aparece.
     Los activos primero, porque son los que se usan a diario.
     """
-    termino = re.sub(r"\s+", " ", (term or "").replace(",", " ").replace("%", " ")).strip()
+    from app.client_filters import normalizar
+
+    termino = normalizar(term)
     if len(termino) < 2:
         return []
-    # Se consulta por la palabra más larga y las demás se afinan acá. Con varias palabras,
-    # `ilike` de la frase entera exige el mismo orden ("pet animal" no encontraba
-    # "Animal Pets") y dos espacios seguidos no devolvían nada.
-    palabras = termino.split()
-    ancla = max(palabras, key=len)
-    filas = (
-        _client.table("clients")
-        .select("id, clinic_name, tax_id, zone, is_active")
-        .or_(f"clinic_name.ilike.%{ancla}%,tax_id.ilike.%{ancla}%")
-        .order("clinic_name")
-        .limit(max(limit * 3, 60))
-        .execute()
-        .data
-    ) or []
-    if len(palabras) > 1:
-        def coincide(fila: dict) -> bool:
-            texto = f"{fila.get('clinic_name') or ''} {fila.get('tax_id') or ''}".lower()
-            return all(palabra.lower() in texto for palabra in palabras)
-        filas = [fila for fila in filas if coincide(fila)]
-    filas.sort(key=lambda f: (not f.get("is_active"), (f.get("clinic_name") or "").lower()))
-    return filas[:limit]
+    # Misma regla que la tabla de Clientes: TODAS las palabras, en cualquier orden, sin
+    # tildes, sobre la lista COMPLETA. Antes se consultaba solo la palabra más larga, se
+    # cortaba en 60 por orden alfabético y recién después se afinaba: «Veterinaria Soacha»
+    # no aparecía ni escrito exacto (205 de 861 clientes), y «canon» no encontraba «Cañon»
+    # (ERR-189). Son ~900 filas de 4 columnas: una consulta, sin estado que invalidar.
+    # Un NIT escrito con puntos o guion («1.002.646.570») se compara solo con sus dígitos.
+    palabras = [re.sub(r"[^0-9]", "", p) if re.fullmatch(r"[0-9.\-]+", p) else p for p in termino.split()]
+    filas = _paginado(lambda: _client.table("clients")
+                      .select("id, clinic_name, tax_id, zone, is_active").order("id"), 5000)
+
+    def texto(fila: dict) -> str:
+        nit = str(fila.get("tax_id") or "")
+        return normalizar(f"{fila.get('clinic_name') or ''} {nit} {re.sub(r'[^0-9]', '', nit)}")
+
+    hits = [f for f in filas if all(p in texto(f) for p in palabras)]
+
+    def palabras_enteras(fila: dict) -> bool:
+        # «cotas» está DENTRO de cada «Mascotas»: primero quien la tiene como palabra entera.
+        return set(palabras) <= set(re.split(r"[^a-z0-9]+", texto(fila)))
+
+    # Activos primero; dentro de cada grupo, el nombre idéntico, el que tiene las palabras
+    # enteras y el que empieza igual, así el buscado nunca queda afuera de las sugerencias.
+    hits.sort(key=lambda f: (not f.get("is_active"), normalizar(f.get("clinic_name")) != termino,
+                             not palabras_enteras(f),
+                             not normalizar(f.get("clinic_name")).startswith(termino),
+                             normalizar(f.get("clinic_name"))))
+    return hits[:limit]
