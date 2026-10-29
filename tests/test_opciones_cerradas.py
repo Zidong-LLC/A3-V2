@@ -26,8 +26,8 @@ def _resp(reply, **fields):
 @pytest.mark.parametrize("pregunta,etiquetas", [
     (EXTRA_ANALYSIS_OFFER, ["1. Agregar otro análisis", "2. Dejarla así"]),
     (opciones_cerradas.OBSERVACION_PREGUNTA, ["1. Dejar una observación", "2. Sin observaciones"]),
-    (PEDIDO_CLOSING_PROMPT, ["1. Otra orden para otro paciente", "2. Cerrar el pedido y pasar al pago"]),
-    (PEDIDO_OFFER_REASK, ["1. Otra orden para otro paciente", "2. Cerrar el pedido y pasar al pago"]),
+    (PEDIDO_CLOSING_PROMPT, ["1. Otra orden para otro paciente", "2. Continuar con el pago"]),
+    (PEDIDO_OFFER_REASK, ["1. Otra orden para otro paciente", "2. Continuar con el pago"]),
     (PEDIDO_CLOSING_QUESTION, ["1. Contraentrega con el motorizado", "2. Pago en línea"]),
     (PAYMENT_METHOD_QUESTION, ["1. Contraentrega con el motorizado", "2. Pago en línea"]),
 ])
@@ -84,7 +84,7 @@ def test_sin_marca_un_numero_no_se_toca():
 
 
 def _hist_con_opciones():
-    bot = HIST1[-1]["content"] + "\n1. Otra orden para otro paciente\n2. Cerrar el pedido y pasar al pago"
+    bot = HIST1[-1]["content"] + "\n1. Otra orden para otro paciente\n2. Continuar con el pago"
     return HIST1[:-1] + [{"role": "bot", "content": bot}]
 
 
@@ -110,7 +110,7 @@ def test_1_a_la_oferta_del_pedido_arranca_otra_orden():
 def test_la_oferta_del_pedido_sale_numerada_al_registrar():
     """El propio mensaje de registro («¿Necesitas cargar otra orden…?») lleva las opciones."""
     out = opciones_cerradas.agregar(_resp("Quedó registrado:\n- Paciente: Roku\n\nNúmero de orden: A3-2026-003\n\n" + PEDIDO_CLOSING_PROMPT))
-    assert out["reply"].endswith("1. Otra orden para otro paciente\n2. Cerrar el pedido y pasar al pago")
+    assert out["reply"].endswith("1. Otra orden para otro paciente\n2. Continuar con el pago")
 
 
 def test_2_a_agregar_otro_analisis_sigue_con_la_observacion():

@@ -90,6 +90,16 @@ def format_test_items(rows: list[dict]) -> str:
     return ", ".join(f"{r['code']}-{r['name']} {_money(r.get('price'))}" for r in rows)
 
 
+def estimated_total_lines(totals: dict) -> str:
+    """Igual que `estimated_total_text`, pero una cifra por línea: es lo que se lee bien
+    en WhatsApp debajo de la lista de análisis (pedido de A3, 29/10)."""
+    if totals.get("discount"):
+        return (f"Subtotal {_money(totals['subtotal'])}\n"
+                f"Descuento por volumen -{_money(totals['discount'])}\n"
+                f"Valor estimado {_money(totals['total'])}")
+    return f"Valor estimado {_money(totals['total'])}"
+
+
 def estimated_total_text(totals: dict) -> str:
     """Texto del valor estimado. Si hay descuento por volumen, SIEMPRE se desglosa
     (subtotal → descuento → total): sin el desglose, el total parece un error de

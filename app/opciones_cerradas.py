@@ -30,7 +30,7 @@ REOFERTA_ESTABLES = "¿Confirmas o quieres cambiar alguno ("
 
 _OTRA_ORDEN_O_CIERRE = [
     ("Otra orden para otro paciente", "otra orden para otro paciente"),
-    ("Cerrar el pedido y pasar al pago", "no, eso es todo, cerramos el pedido"),
+    ("Continuar con el pago", "no, eso es todo, cerramos el pedido"),
 ]
 _FORMA_DE_PAGO = [
     ("Contraentrega con el motorizado", "contraentrega"),
@@ -92,7 +92,9 @@ def agregar(ai_response: dict) -> dict:
     if not opciones:
         return ai_response
     lineas = [f"{n}. {etiqueta}" for n, (etiqueta, _) in enumerate(opciones, start=1)]
-    ai_response["reply"] = reply.rstrip() + "\n" + "\n".join(lineas)
+    # Línea en blanco entre la pregunta y las opciones (pedido de A3, 29/10: «que se vea
+    # bien separadito»).
+    ai_response["reply"] = reply.rstrip() + "\n\n" + "\n".join(lineas)
     fields[CLAVE] = {str(n): texto for n, (_, texto) in enumerate(opciones, start=1)}
     return ai_response
 

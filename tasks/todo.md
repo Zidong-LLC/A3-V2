@@ -1825,3 +1825,9 @@ otro código para la MISMA versión).
 - [ ] Push + deploy de los fixes (esperando OK)
 - [ ] Listas largas de a 100 con «cargar más» (Facturación, Cartera, informes); caché 60 s del contexto del dashboard
 - [ ] `/health` de Render sin depender de Supabase (liveness) — hoy amplifica la caída
+
+## Último test por WhatsApp (29/10, 13:25 UTC-3): OK de punta a punta
+
+- [x] Formato de los mensajes largos (listas, líneas en blanco, opciones separadas) y «continuar» en
+      vez de «cerrar» (`tests/test_formato_mensajes_whatsapp.py`)
+- [ ] «Programar rita» (error de tipeo en la opción del menú) derivó a un asesor: tolerar typos en el menú

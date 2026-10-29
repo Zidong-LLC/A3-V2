@@ -263,6 +263,13 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
   pendiente no se numeran (los números son del menú). La marca `_opciones_cerradas` vive un turno.
   «Eso es todo» a la oferta cierra y pide el pago lea lo que lea el modelo.
   Tests: `tests/test_opciones_cerradas.py`.
+- **Ajuste 2026-10-29 (pedido de A3 tras el último test por WhatsApp, OK del usuario): formato de los
+  mensajes largos.** Los análisis registrados van uno por línea con el total en su propio bloque; el
+  resumen y el registro llevan línea en blanco antes de «Si quieres cambiar…», «¿Confirmas estos
+  datos?» y «Nuestro motorizado pasará…»; las opciones numeradas van separadas de la pregunta por una
+  línea en blanco; la oferta del pedido dice «¿Deseas cargar otra orden para otro paciente, o
+  continuamos con el pago?» (opción 2: «Continuar con el pago») y la pregunta del pago va en dos
+  líneas. Tests: `tests/test_formato_mensajes_whatsapp.py`.
 
 ### B14 · Multi-orden (otra orden en la misma conversación)
 - **Qué hace:** tras registrar una orden, si el usuario pide "otra orden", arrastra datos

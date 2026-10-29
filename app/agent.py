@@ -136,6 +136,7 @@ from app.flow import (
     base_route_response as _base_route_response,
     format_test_items as _format_test_items,
     estimated_total_text as _estimated_total_text,
+    estimated_total_lines as _estimated_total_lines,
     route_ready_for_payment as _route_ready_for_payment,
     missing_route_field as _missing_route_field,
     missing_route_field_question as _missing_route_field_question,
@@ -614,10 +615,12 @@ def _capture_test_menu_selection(session: dict, fields: dict, selected: list[dic
         fields.pop(key, None)
 
     # Mostrar el precio al lado de cada análisis (y el total si son varios), no solo el
-    # nombre. Con descuento por volumen, el desglose completo.
-    intro = f"Listo, registro {_format_test_items(selected)}."
+    # nombre. Con descuento por volumen, el desglose completo. Un análisis por línea y el
+    # total en su propio bloque: en WhatsApp el renglón corrido no se leía (A3, 29/10).
+    intro = "Listo, registro:\n" + "\n".join(
+        f"- {r['code']} {r['name']} {_money(r.get('price'))}" for r in selected)
     if len(selected) >= 2:
-        intro += f" {_estimated_total_text(calculate_custom_profile_total(selected))}"
+        intro += f"\n\n{_estimated_total_lines(calculate_custom_profile_total(selected))}"
     return _analysis_settled_response(session, fields, intro)
 
 

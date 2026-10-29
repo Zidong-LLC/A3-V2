@@ -117,22 +117,20 @@ CLOSING_PROMPT = (
 
 # Cierre cuando la orden va dentro de un PEDIDO abierto (decisión 011): el pedido admite más
 # órdenes y la forma de pago se pregunta una sola vez, al cerrarlo, para toda la factura.
-PEDIDO_CLOSING_PROMPT = (
-    "¿Necesitas cargar otra orden para otro paciente? Escríbeme: otra orden. "
-    "Si eso es todo, seguimos con la forma de pago y cerramos el pedido."
-)
+# Texto pedido por A3 (29/10): «continuar», no «cerrar»; las opciones numeradas van debajo.
+PEDIDO_CLOSING_PROMPT = "¿Deseas cargar otra orden para otro paciente, o continuamos con el pago?"
 
 # Último turno antes de cerrar: observación del PEDIDO (opcional) + forma de pago. Van
 # juntas a propósito — A3 pidió poder dejar una observación general (reunión 28/07), y
 # preguntarla en un turno aparte le agregaba un paso a quien no tiene nada que observar.
 PEDIDO_OFFER_REASK = (
     "Perdona, no me quedó claro: ¿cargamos otra orden para otro paciente, "
-    "o cerramos el pedido y pasamos al pago?"
+    "o continuamos con el pago?"
 )
 
 PEDIDO_CLOSING_QUESTION = (
-    "Listo. ¿Alguna observación para el pedido? Y decime cómo prefieres el pago: "
-    "contraentrega con el motorizado o pago en línea."
+    "Listo. Si quieres dejar una observación para el pedido, escribila." + chr(10)
+    + "¿Cómo prefieres el pago?"
 )
 
 # ── Pago ────────────────────────────────────────────────────────────────────────

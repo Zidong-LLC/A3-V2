@@ -186,7 +186,10 @@ def _route_confirmation_summary(fields: dict) -> str | None:
     # quieres, puedes... agregar otro análisis.") un "Sí" queda genuinamente ambiguo —¿confirma
     # o quiere agregar?— y ni una persona sabría cuál: en la prueba en vivo del 2026-08-14 el
     # "Si" del cliente se leyó como "sí, quiero agregar otro" y la orden no se registró.
+    # Líneas en blanco para que el resumen respire en WhatsApp (pedido de A3, 29/10).
+    lines.append("")
     lines.append("Si quieres cambiar algún dato o agregar otro análisis, decímelo.")
+    lines.append("")
     lines.append("¿Confirmas estos datos?")
     return "\n".join(lines)
 
@@ -210,6 +213,7 @@ def _route_closure_summary(fields: dict) -> str | None:
     lines = _order_summary_lines(fields, "Quedó registrado:")
     if lines is None:
         return None
+    lines.append("")
     lines.append("Nuestro motorizado pasará a recoger la muestra.")
     return "\n".join(lines)
 
@@ -238,7 +242,9 @@ def _analysis_settled_response(session: dict, fields: dict, intro: str) -> dict:
     # donde el modelo se confunde. Con una pregunta por vez, el "no" es inequívoco por contexto.
     if has_analysis and missing in (None, "observations", "payment_method"):
         fields["_offering_extra_analysis"] = True
-        return _base_route_response(f"{intro} {_extra_analysis_offer()}", fields)
+        # La oferta va en su propio párrafo: pegada al listado de análisis se leía como
+        # un bloque corrido (pedido de A3, 29/10).
+        return _base_route_response(f"{intro}\n\n{_extra_analysis_offer()}", fields)
     if missing:
         return _base_route_response(f"{intro} {_missing_route_field_question(missing)}", fields)
     confirmacion = _order_confirmation_response(fields, intro)
