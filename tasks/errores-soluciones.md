@@ -5188,3 +5188,52 @@ conversaciones" teniendolas todas delante.
 - **Tests:** `test_pedidos_pagina_unica.py` (4), `test_pedido_directo.py` (7),
   `test_fecha_hora_bogota.py` (8); actualizados el del menú y tres del portal/Nueva Orden
   (ahora reemplazan create_pedido: antes iba a la red y fallaba en silencio). Suite 1874.
+
+## ERR-195 — Primera prueba humana por WhatsApp: «No» a la oferta y «no más análisis» en bucle
+
+- **Fecha:** 2026-10-29 · **Estado:** RESUELTO (commit local; push + deploy pendientes de OK)
+- **Reporte del usuario:** «explicó mal el no y quedó como en un bucle raro»; después «todos
+  estos bugs ya no tendrían que pasar». Regla nueva del usuario: si una respuesta corta no se
+  entiende, el bot **repregunta** qué quiso decir, nunca adivina ni salta a otra rama.
+- **Síntoma 1 (chat 1, 10:26):** orden A3-2026-003 recién registrada → «¿otra orden… o
+  cerramos el pedido?» → «No» → *«Claro, ¿qué dato de la orden quieres corregir?»* → «Ninguno»
+  → menú de parasitología. Destrabado a mano (sesión a `_pedido_awaiting_payment`).
+- **Causa 1:** la rama de corrección post-cierre (`agent.py` «Paso 1», 24/08) corre ANTES del
+  cierre del pedido y usa `_is_correction_request`, cuya lista incluye **«no»** (ya señalado
+  en ERR-111 el 14/08, nunca sacado de raíz). Reproducido con los 6 tipos de señal del modelo:
+  caían «No», «No gracias» y hasta «no, eso es todo». Los tests del cierre no lo veían porque
+  su estado simulado no traía `_last_request_id`, que la sesión real siempre tiene.
+- **Síntoma 2 (chat 3, 10:45):** 2.ª orden con datos heredados, «en otra dirección recoger»,
+  luego «1701, 2057 y 1702» → el modelo contestó con los tres precios correctos, «no más
+  análisis» → *«¿Qué análisis o perfil desean?»*, «ninguno», «confirmada» → lo mismo.
+  Destrabado a mano (selección reconstruida con `_add_tests_to_order` + resumen).
+- **Causas 2 (replay con el estado real y el modelo real, escrituras bloqueadas):**
+  1. El modelo devolvió `selected_tests=['1701','2057','1702']` con `exam_type=None`; el carril
+     determinístico no corre cuando los códigos ya vienen del modelo y nadie ponía el rótulo
+     del paquete → la orden seguía «incompleta» y el bot re-preguntaba el análisis.
+  2. «no más análisis» frente al resumen entraba al handler de corrección en confirmación
+     (`_is_correction_request` por «no» + campo «análisis») → `_clear_field_for_correction`
+     borraba los tres códigos. `_replaces_offered_analysis` también lo leía como reemplazo.
+  3. `_correction_pending` quedaba prendida: la corrección de la dirección heredada de una
+     orden NUEVA (sin paciente) la prende aunque no haya resumen que re-mostrar.
+- **Solución (mínima, en el paso reportado):**
+  - `detectors/orden.py`: `_es_negacion_pelada` («no», «no gracias») y
+    `_sin_pedido_de_correccion` (sin campo ni verbo de corregir); frases «no más análisis»,
+    «ninguno más», etc. en `_THATS_ALL_PHRASES`.
+  - `agent.py`: la corrección post-cierre cede con la oferta pendiente si el mensaje no pide
+    corregir nada; «no» pelado con señal clara → pregunta de cierre/pago; sin señal clara →
+    `PEDIDO_OFFER_REASK` una vez y a la segunda cierra (`_respuesta_no_pelado_a_la_oferta`,
+    usada en el bloque terminal y en `_enforce_open_pedido_close`); frente al resumen,
+    «no más análisis» re-muestra el resumen; `_correction_pending` solo se prende si la orden
+    tiene paciente.
+  - `enforcers/orden.py`: con códigos del modelo sin rótulo, se validan contra el catálogo y
+    se pone «Perfil personalizado (N análisis)» / «código nombre», misma regla del menú.
+  - `detectors/analisis.py`: una negativa sin código ni señal de cambio no es reemplazo.
+- **Tests:** `tests/test_prueba_real_whatsapp_20261029.py` (24 casos con los ESTADOS REALES de
+  las dos sesiones, anonimizados, y catálogo fiel por código) y 2 casos + fixture con
+  `_last_request_id` en `test_pedido_offer_ambigua.py`. Suite completa en verde.
+- **Lección (tasks/lessons.md 29/10):** una lista de tokens compartida no puede tener palabras
+  que cambian de significado según la pregunta previa («no»); el contexto lo da el estado.
+  Los tests de cierre usan estados reales, no inventados.
+- **Pendiente relacionado:** preguntas cerradas con opciones numeradas (pedido del usuario,
+  29/10) y el inventario de marcas de estado con un solo lugar donde muere cada una.

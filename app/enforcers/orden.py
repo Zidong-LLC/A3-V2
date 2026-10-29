@@ -760,6 +760,22 @@ def _enforce_profile_exam_type_integrity(ai_response: dict) -> dict:
     fields = ai_response.get("captured_fields", {})
     code = fields.get("_selected_profile_code")
     name = fields.get("_selected_profile_name")
+    codigos_sueltos = _as_text_items(fields.get("selected_tests"))
+    if not code and codigos_sueltos and not fields.get("exam_type"):
+        # El MODELO capturó los códigos pero no el rótulo del paquete (prueba real por
+        # WhatsApp 2026-10-29: '1701, 2057 y 1702' quedó con selected_tests y exam_type
+        # vacío; la orden seguía "incompleta" y el bot volvía a preguntar el análisis).
+        # Validados contra el catálogo, el rótulo sale de la MISMA regla que el menú.
+        try:
+            rows = db.get_tests_by_codes(codigos_sueltos)
+        except Exception:  # noqa: BLE001 — sin catálogo no se inventa rótulo; sigue el flujo
+            rows = []
+        if rows and len(rows) == len(codigos_sueltos):
+            fields["selected_tests"] = [str(r.get("code")) for r in rows]
+            fields["removed_tests"] = []
+            fields["exam_type"] = (f"{rows[0].get('code')} {rows[0].get('name')}" if len(rows) == 1
+                                   else f"Perfil personalizado ({len(rows)} análisis)")
+        return ai_response
     if not code or not name:
         return ai_response
     exam = fields.get("exam_type")

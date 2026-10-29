@@ -1796,3 +1796,20 @@ otro código para la MISMA versión).
 - [ ] 571 clientes sin zona (435 activos; 368 sin motorizado propio → el bot no puede asignarles) — DECIDIR
 - [ ] Pedidos vs Solicitudes (misma tabla `requests` con 3 nombres; portal y «Nueva Orden» sin pedido ni factura) — DECIDIR
 - [ ] Carga masiva: plantillas reales y detección de columnas (análisis en curso)
+
+## Primera prueba humana por WhatsApp en producción (2026-10-29)
+
+> «Explicó mal el no y quedó como en un bucle raro… todos estos bugs ya no tendrían que
+> pasar». Regla nueva: si no se entiende una respuesta corta, el bot repregunta.
+
+- [x] WhatsApp conectado al Chatwoot nuevo (webhook de Meta verificado; «Hola» → bot en 7 s)
+- [x] Chat 1 destrabado a mano (pedido a «esperando pago») y chat 3 (selección reconstruida)
+- [x] ERR-195: «No» a la oferta → corrección; códigos del modelo sin rótulo; «no más análisis»
+      borraba el paquete; `_correction_pending` colgada en la orden nueva — con tests sobre los
+      estados REALES de las dos sesiones (24 casos) y suite completa
+- [x] Espera antes de contestar 5/20 → 8/30 s (render.yaml; aplicar en Render con el deploy)
+- [ ] Push + deploy (esperando OK) y verificar con un «Hola» real
+- [ ] Preguntas cerradas con opciones numeradas (pedido del usuario): agregar otro análisis,
+      observación, otra orden/cerrar, forma de pago, datos heredados — mecanismo único
+- [ ] Inventario de marcas de estado con un solo lugar donde muere cada una (post-lanzamiento)
+- [ ] Al derivar, abrir la conversación en Chatwoot (hoy queda en «Pendiente») — esperando OK

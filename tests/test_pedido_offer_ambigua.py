@@ -14,7 +14,24 @@ POST_CIERRE_CON_PEDIDO = dict(
     _pedido_id="ped-1",
     _pedido_offer_pending=True,
     payment_method=None,
+    # La sesión real SIEMPRE trae la última orden registrada: sin esto la rama de
+    # corrección post-cierre no se dispara en el test y el "no" pelado pasaba invisible
+    # (prueba real por WhatsApp 2026-10-29, ERR-195).
+    _last_request_id="req-1",
 )
+
+
+def test_no_pelado_con_senal_negativa_cierra_y_pide_el_pago():
+    """'No' + negate a la oferta → pregunta de cierre (antes: '¿qué dato quieres corregir?')."""
+    reply, persisted = _run_turn("No", "negate", POST_CIERRE_CON_PEDIDO, phase="fase_6_cierre")
+    assert reply == agent.PEDIDO_CLOSING_QUESTION
+    assert persisted["captured_fields"].get("_pedido_awaiting_payment")
+
+
+def test_no_pelado_sin_senal_clara_repregunta():
+    """'No' + unclear: no se adivina ni se deriva a un asesor — se repregunta una vez."""
+    reply, _ = _run_turn("No", "unclear", POST_CIERRE_CON_PEDIDO, phase="fase_6_cierre")
+    assert reply == agent.PEDIDO_OFFER_REASK
 
 
 def test_affirm_pelado_con_oferta_de_pedido_repregunta():

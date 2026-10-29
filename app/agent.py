@@ -110,6 +110,7 @@ from app.detectors import (
     _is_ambiguous_profile_change, _asks_for_armed_profiles,
     _confirms_address, _rejects_address, _says_no_owner,
     _CORRECTION_TOKENS,
+    _es_negacion_pelada, _sin_pedido_de_correccion,
     _CONFIRM_ORDER_TOKENS,
     _ORDER_REQUEST_TOKENS,
     _OPTION_CORRECTION_TOKENS,
@@ -2456,6 +2457,22 @@ def _cancelacion_a_operaciones(prev_fields: dict, fields: dict) -> dict:
     return respuesta
 
 
+def _respuesta_no_pelado_a_la_oferta(prev_fields: dict, fields: dict) -> tuple[str, dict]:
+    """"No" PELADO a "¿otra orden… o cerramos el pedido?" sin señal clara del modelo.
+
+    No se adivina (regla del usuario, prueba real por WhatsApp 2026-10-29): se repregunta UNA
+    vez, igual que el "sí" pelado, y a la segunda se toma la lectura más probable —eso es
+    todo— y se pasa al pago. Con señal clara (negate/farewell) no pasa por acá: cierra directo."""
+    campos = _merge_sin_borrar(prev_fields, fields)
+    if prev_fields.get("_pedido_offer_reasked"):
+        campos.pop("_pedido_offer_pending", None)
+        campos.pop("_pedido_offer_reasked", None)
+        campos["_pedido_awaiting_payment"] = True
+        return PEDIDO_CLOSING_QUESTION, campos
+    campos["_pedido_offer_reasked"] = True
+    return PEDIDO_OFFER_REASK, campos
+
+
 def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: dict,
                                user_message: str) -> dict:
     """Cierre del PEDIDO abierto, SEÑAL-PRIMERO (decisión 011).
@@ -2526,6 +2543,27 @@ def _enforce_open_pedido_close(session: dict, ai_response: dict, prev_fields: di
             "requires_handoff": False,
             "handoff_area": None,
             "captured_fields": _merge_sin_borrar(prev_fields, fields),
+            "message_mode": "flow_progress",
+            _SKIP_REQUEST_CREATION: True,
+        }
+
+    # "No" PELADO a la misma oferta (prueba real por WhatsApp 2026-10-29). Con señal clara
+    # (negate/farewell/cancel) lo resuelve el cierre de abajo: eso es todo → pago. Sin señal
+    # clara NO se adivina (regla del usuario): se repregunta UNA vez, igual que el "sí"
+    # pelado, y a la segunda se toma la lectura más probable y se pasa al pago.
+    if (prev_fields.get("_pedido_offer_pending") and _es_negacion_pelada(user_message)
+            and signal not in ("negate", "farewell", "cancel")):
+        reply_no, fields2 = _respuesta_no_pelado_a_la_oferta(prev_fields, fields)
+        return {
+            **ai_response,
+            _TURN_RESOLVED: True,
+            "reply": reply_no,
+            "phase": "fase_2_recogida_datos",
+            "intent": "route_scheduling",
+            "service_area": "route_scheduling",
+            "requires_handoff": False,
+            "handoff_area": None,
+            "captured_fields": fields2,
             "message_mode": "flow_progress",
             _SKIP_REQUEST_CREATION: True,
         }
@@ -3831,7 +3869,14 @@ def process_turn(
             and prev_captured.get("_last_request_id")
             and (signal == "correction" or _is_correction_request(user_message))
             and not _profile_codes_from_text(user_message)
-            and not _wants_to_change_client(user_message)):
+            and not _wants_to_change_client(user_message)
+            # Con la oferta "¿otra orden… o cerramos?" pendiente, "no" / "no gracias" / "no,
+            # eso es todo" son la RESPUESTA a la oferta, no una corrección (prueba real por
+            # WhatsApp 2026-10-29: contestaba "¿qué dato quieres corregir?" y el turno
+            # siguiente abría el menú de análisis). Sin campo ni verbo de corregir, el
+            # cierre del pedido decide — y si no entiende, repregunta.
+            and not (prev_captured.get("_pedido_offer_pending")
+                     and (_sin_pedido_de_correccion(user_message) or _says_thats_all(user_message)))):
         _pcc_field = _detect_correction_field(user_message)
         if _pcc_field:
             _snap_prev = prev_captured.get("_prev_order_snapshot") or {}
@@ -3914,6 +3959,16 @@ def process_turn(
                     chat_id, user_message,
                     _base_route_response(PEDIDO_OFFER_REASK, campos_oferta),
                 )
+            # "No" PELADO sin señal clara, misma oferta: repreguntar, no adivinar ni derivar
+            # (antes seguía de largo hasta "te asignaremos un asesor"). Con negate/farewell
+            # lo cierra el enforcer del pedido más abajo.
+            if (_pedido_abierto and prev_captured.get("_pedido_offer_pending")
+                    and _es_negacion_pelada(user_message)
+                    and signal not in ("negate", "farewell", "cancel")):
+                reply_no, campos_no = _respuesta_no_pelado_a_la_oferta(prev_captured, {})
+                resp_no = _base_route_response(reply_no, campos_no)
+                resp_no[_SKIP_REQUEST_CREATION] = True
+                return _persist_turn(chat_id, user_message, resp_no)
             _close_words = {"cierra", "cerrar", "cerramos", "cierralo", "ciérralo", "cerrada", "cerrado"}
             _wants_other = (signal == "another_order" or _explicitly_wants_another_order(user_message)
                             or _wants_another_service_order(user_message))
@@ -4063,7 +4118,20 @@ def process_turn(
                 chat_id, user_message,
                 _restart_identification_for_new_client(chat_id, session, prev_captured),
             )
+        # "No más análisis" / "ninguno más" frente al resumen (prueba real por WhatsApp
+        # 2026-10-29): no corrige nada — dice que no agrega. Leído como corrección del
+        # análisis, borraba el paquete recién cargado y volvía a "¿Qué análisis desean?".
+        # Se re-muestra el resumen y se vuelve a pedir el "sí" (sin adivinar).
+        if _says_thats_all(user_message) and not _profile_codes_from_text(user_message):
+            resumen_sin_mas = _route_confirmation_summary(prev_captured)
+            if resumen_sin_mas:
+                resp_sin_mas = _base_route_response(resumen_sin_mas, dict(prev_captured))
+                resp_sin_mas["phase"] = CONFIRMATION_PHASE
+                return _persist_turn(chat_id, user_message, resp_sin_mas)
         _corr_field_hint = _detect_correction_field(user_message)
+        # Se mide ANTES de limpiar el campo: "cambia el paciente" lo borra y la orden sigue
+        # existiendo. Sin paciente, es la reoferta de datos heredados de una orden NUEVA.
+        orden_con_paciente = bool(prev_captured.get("patient_name"))
         if ((signal == "correction" or _is_correction_request(user_message)
                 or _wants_to_change_analysis(user_message))
                 and not _profile_codes_from_text(user_message)
@@ -4107,7 +4175,12 @@ def process_turn(
                 ai_response = _base_route_response(CORRECTION_PROMPT, prev_captured)
             # Seguimos en confirmación para que el "sí" posterior cierre determinístico.
             ai_response["phase"] = CONFIRMATION_PHASE
-            ai_response["captured_fields"]["_correction_pending"] = True
+            # La marca existe para RE-MOSTRAR el resumen cuando llegue el dato corregido.
+            # En la reoferta de datos heredados de una orden nueva ("otra orden" → "en otra
+            # dirección") no hay resumen que re-mostrar, y la marca viva se arrastraba por
+            # toda la orden nueva (prueba real por WhatsApp 2026-10-29, ERR-195).
+            if orden_con_paciente:
+                ai_response["captured_fields"]["_correction_pending"] = True
             return _persist_turn(chat_id, user_message, ai_response)
 
     # 3.3 — change_client SEÑAL-PRIMERO (reorden C2): el atajo pre-LLM por tokens se

@@ -246,6 +246,14 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
 - **Ajuste 2026-10-28 (ERR-187, OK del usuario):** el cierre determinístico del pedido guardaba dos veces
   el mensaje del cliente; y el barrido de pedidos abandonados tiene candado (cron + turno a la vez
   avisaban dos veces).
+- **Ajuste 2026-10-29 (ERR-195, OK del usuario, primera prueba real por WhatsApp):** a la oferta
+  «¿otra orden… o cerramos el pedido?», un «no» / «no gracias» / «no, eso es todo» ya no cae en la
+  corrección post-cierre. Con señal clara (negate/farewell) → pregunta de cierre y pago; sin señal
+  clara → repregunta UNA vez (`PEDIDO_OFFER_REASK`, igual que el «sí» pelado) y a la segunda cierra.
+  **Regla del usuario:** si una respuesta corta no se entiende, el bot repregunta; nunca adivina ni
+  salta a otra rama. Frente al resumen, «no más análisis» re-muestra el resumen (no borra el paquete);
+  los códigos que captura el modelo sin rótulo reciben «Perfil personalizado (N análisis)».
+  Tests con los estados reales: `tests/test_prueba_real_whatsapp_20261029.py`.
 
 ### B14 · Multi-orden (otra orden en la misma conversación)
 - **Qué hace:** tras registrar una orden, si el usuario pide "otra orden", arrastra datos

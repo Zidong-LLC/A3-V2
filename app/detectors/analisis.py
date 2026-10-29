@@ -557,6 +557,14 @@ def _replaces_offered_analysis(text: str, inherited_code: str | None) -> bool:
     no lo reemplaza."""
     if _wants_partial_analysis_change(text):
         return False
+    # 'no más análisis' / 'no, ninguno más' es la RESPUESTA a "¿agregamos otro?", no un
+    # reemplazo (prueba real por WhatsApp 2026-10-29: leído como cambio de análisis, borraba
+    # los tres códigos recién cargados). Una negativa sin código ni señal de cambio no
+    # reemplaza nada.
+    tokens = set(_tokenize(text))
+    if (tokens & _NEGATIVE_TOKENS) and not _profile_codes_from_text(text) and not (
+            tokens & {"otro", "otra", "otros", "otras", "cambiar", "cambia", "cambie", "cambio", "nuevo", "nueva"}):
+        return False
     if _detect_correction_field(text) == "exam_type":
         return True
     heredado = str(inherited_code or "")

@@ -180,6 +180,9 @@ _THATS_ALL_PHRASES = (
     "asi esta bien", "asi estamos bien", "eso es todo", "eso seria todo", "seria todo",
     "es todo", "nada mas", "ya esta", "ya estamos", "dejalo asi", "asi dejalo",
     "no mas ordenes", "no cargo mas", "ninguna mas", "ninguna otra", "no tengo mas",
+    # Dicho frente al resumen o a "¿agregamos otro?": no agrega nada más (WhatsApp 29/10).
+    "no mas analisis", "sin mas analisis", "ningun otro analisis", "ningun analisis mas",
+    "no mas examenes", "sin mas examenes", "ningun otro examen", "no mas pruebas", "ninguno mas",
 )
 
 
@@ -249,3 +252,30 @@ def _is_same_as_previous(text: str) -> bool:
         if phrase in lower:
             return True
     return False
+
+
+# Negativa PELADA: lo que queda del mensaje cuando se le saca el "no" no dice nada.
+_BARE_NO_TOKENS = frozenset({"no", "nop", "nel", "negativo", "gracias", "ya", "señor", "senor", "señora", "senora"})
+
+
+def _es_negacion_pelada(text: str) -> bool:
+    """¿El mensaje es SOLO un "no" ("no", "no gracias", "nop")?
+
+    Misma lógica que `_is_bare_confirmation` (L65): se mide por lo que SOBRA. "No, eso es
+    todo" y "no, está mal la raza" NO son peladas — dicen algo más y lo lee el pipeline."""
+    tokens = set(_tokenize(text))
+    return bool(tokens & {"no", "nop", "nel", "negativo"}) and tokens <= _BARE_NO_TOKENS
+
+
+def _sin_pedido_de_correccion(text: str) -> bool:
+    """¿El mensaje NO pide corregir nada de la orden?
+
+    Nació del "No" a "¿otra orden… o cerramos el pedido?" (prueba real por WhatsApp,
+    2026-10-29): `_is_correction_request` lo daba por corrección porque "no" está en su lista,
+    y el bot preguntaba "¿qué dato quieres corregir?". Una corrección de verdad nombra el
+    campo ("la raza es X") o trae un verbo de corregir ("está mal", "cambia"); "no", "no
+    gracias" y "no, eso es todo" no traen ninguna de las dos cosas."""
+    tokens = set(_tokenize(text))
+    if not tokens or _detect_correction_field(text):
+        return False
+    return not (tokens & (_CORRECTION_TOKENS - {"no"}))

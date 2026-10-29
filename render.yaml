@@ -43,10 +43,13 @@ projects:
                 value: "17:30"
               - key: OPENAI_MODEL
                 value: gpt-5.4-mini
+              # Espera tras el último mensaje antes de contestar (el cliente que escribe en
+              # varias líneas seguidas recibe UNA respuesta). Subido de 5/20 a 8/30 el 29/10
+              # a pedido del usuario tras la primera prueba por WhatsApp.
               - key: MESSAGE_DEBOUNCE_SECONDS
-                value: "5"
+                value: "8"
               - key: MESSAGE_DEBOUNCE_MAX_WAIT
-                value: "20"
+                value: "30"
               - key: FSM_ENFORCE
                 value: "false"
 

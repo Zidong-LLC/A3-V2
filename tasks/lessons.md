@@ -831,3 +831,19 @@ detectó al poner `red_segura.py`: 962 escrituras bloqueadas en una sola tarde.
 ANTES de importar la app, y al final mira `red_segura.bloqueos`. La lista de parches es para
 que el flujo funcione; la red es para que nada salga si la lista quedó vieja. Una corrida con
 bloqueos inesperados no se da por buena hasta saber quién intentó salir.
+
+## 2026-10-29 — Un «no» pelado no es una corrección: si no se entiende, se repregunta
+
+**Qué pasó.** Primera prueba real por WhatsApp. A «¿otra orden para otro paciente? … si eso
+es todo, seguimos con la forma de pago» el cliente contestó «No» y el bot preguntó «¿qué dato
+de la orden quieres corregir?»; al «Ninguno» siguiente mostró el menú de parasitología. La
+rama de corrección post-cierre corre ANTES del cierre del pedido y la lista de palabras de
+corrección incluye «no» a secas, así que cualquier negativa (hasta «no, eso es todo») se la
+llevaba. Hubo que destrabar la sesión a mano.
+
+**Regla (del usuario).** Si una respuesta corta no se entiende, el bot repregunta qué quiso
+decir («¿cargamos otra orden o cerramos el pedido?»), nunca adivina ni salta a otra rama.
+Con señal clara avanza; sin señal clara repregunta UNA vez; a la segunda toma la lectura más
+probable (patrón ya existente para el «sí» pelado). Una lista de tokens compartida no puede
+contener palabras que cambian de significado según la pregunta previa («no»): el contexto
+lo da el estado, no la palabra.
