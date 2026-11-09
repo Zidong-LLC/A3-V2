@@ -95,6 +95,7 @@ def turno(msg, signal, captured, phase, history, ai_fields=None, reply=None, cha
     fdb.list_catalog_profiles_matching_category.return_value = []
     fdb.find_catalog_profile.return_value = None
     fdb.list_diagnostic_labels.return_value = []
+    fdb.find_diagnostic_label.return_value = None
     ai = _neutral_ai_response(signal)
     if ai_fields is not None:
         ai["captured_fields"] = dict(captured, **ai_fields)

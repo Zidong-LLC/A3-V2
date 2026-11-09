@@ -5,7 +5,7 @@ import contextvars
 from typing import Callable
 from datetime import datetime
 
-from app import billing, catalog, opciones_cerradas, pagos, pedidos_abandonados, state
+from app import billing, catalog, opciones_cerradas, pagos, pedidos_abandonados, propuesta_analisis, state
 from app.text import (
     tokenize as _tokenize, as_text_items as _as_text_items, money as _money, catalog_item_key as _catalog_item_key,
     strip_price_text as _strip_price_text, ACCENT_TRANSLATION as _ACCENT_TRANSLATION,
@@ -2460,6 +2460,37 @@ def _cancelacion_a_operaciones(prev_fields: dict, fields: dict) -> dict:
     return respuesta
 
 
+def _anclar_analisis_nombrado(session: dict, ai_response: dict) -> dict:
+    """Con el análisis todavía sin fijar, lo que el bot NOMBRA del catálogo queda anclado
+    (ERR-198, prueba real del 09/11). Si dice que lo registró, se registra de verdad y la
+    respuesta sale del código, con su oferta numerada. Si solo lo propone, queda guardado
+    como opción para que un «ese está bien» lo elija en el turno siguiente.
+
+    Antes el modelo contestaba «registro Cuadro Hemático…» sin guardar nada, y la orden
+    volvía a «¿Qué análisis o perfil desean?» en bucle."""
+    fields = ai_response.get("captured_fields")
+    if (not isinstance(fields, dict) or ai_response.get("intent") != "route_scheduling"
+            or ai_response.get("requires_handoff")
+            or fields.get("exam_type") or fields.get("_selected_profile_code")
+            or _as_text_items(fields.get("selected_tests"))
+            or fields.get("_test_menu_options") or fields.get("_profile_menu_options")
+            or _missing_route_field(session, fields) != "exam_type"):
+        return ai_response
+    reply = str(ai_response.get("reply") or "")
+    try:
+        nombrados = propuesta_analisis.nombrados(reply, db.list_catalog_tests(limit=5000))
+    except Exception:  # noqa: BLE001 — sin catálogo no se ancla nada; el turno sigue igual
+        return ai_response
+    if not nombrados or len(nombrados) > 6:
+        return ai_response
+    opciones = [{"code": str(t["code"]), "name": t.get("name"), "price": int(t.get("price") or 0)} for t in nombrados]
+    if propuesta_analisis.afirma_registro(reply) and propuesta_analisis.sin_nombres_repetidos(opciones):
+        logger.info("análisis anclado desde la respuesta del bot: %s", [o["code"] for o in opciones])
+        return _capture_test_menu_selection(session, fields, opciones)
+    _store_test_menu_options(fields, opciones)
+    return ai_response
+
+
 def _respuesta_no_pelado_a_la_oferta(prev_fields: dict, fields: dict) -> tuple[str, dict]:
     """"No" PELADO a "¿otra orden… o cerramos el pedido?" sin señal clara del modelo.
 
@@ -3451,6 +3482,12 @@ def process_turn(
     # entraba en bucle y terminaba guardando el texto genérico, ej. "Orina").
     if prev_captured.get("_test_menu_options"):
         _selected_tests = _select_tests_from_menu(user_message, prev_captured["_test_menu_options"])
+        # Una sola opción propuesta y el cliente la acepta («ese está bien», «dale»): es esa.
+        # Solo mientras el análisis sea lo que se está preguntando (ERR-198).
+        if (not _selected_tests and len(prev_captured["_test_menu_options"]) == 1
+                and propuesta_analisis.acepta_la_propuesta(user_message)
+                and _missing_route_field(session, prev_captured) == "exam_type"):
+            _selected_tests = list(prev_captured["_test_menu_options"])
         if _selected_tests:
             # Menú mostrado para AGREGAR a un perfil base ('qué análisis de orina tienen'
             # durante el ajuste): sumar al perfil, no reemplazarlo.
@@ -4944,6 +4981,7 @@ def process_turn(
     ai_response = _enforce_first_missing_after_progress(session, ai_response, prev_captured)
     ai_response = _enforce_pedido_offer_pending_guard(prev_captured, ai_response)
     ai_response = _resume_route_after_lateral_turn(session, ai_response)
+    ai_response = _anclar_analisis_nombrado(session, ai_response)
     fields = ai_response.get("captured_fields", fields)
 
     # ERR-046: la confirmación de dirección quedó pendiente y este turno no la resolvió.

@@ -1896,3 +1896,9 @@ Hecho:
 - [x] Wompi construido y apagado: `app/pagos.py`, `app/services/wompi.py`, migración 041, 13 tests
 - [ ] Wompi: cargar llaves de prueba en Render, aplicar la 041, configurar la URL de eventos y probar en sandbox
 - [ ] Wompi: mostrar el estado del pago en la pantalla de Pedidos
+
+### Prueba del usuario por WhatsApp (09/11, tarde)
+
+- [x] Privacidad con botones: funcionó en la prueba real (evidencia `asked` → `accepted «Sí 👍»`)
+- [x] ERR-198: propuesta del modelo sin anclar → bucle en el análisis; corregido y verificado con replay real
+- [ ] Push + deploy del fix (esperando OK) y seguir la prueba hasta el pago en línea con Wompi

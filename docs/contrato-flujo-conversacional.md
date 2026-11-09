@@ -201,6 +201,11 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
 - **Ajuste 2026-10-28 (ERR-187, OK del usuario):** pedir un análisis que YA está en la orden responde
   «… ya está incluido en la orden» en vez de «Listo, agrego…» (nunca se duplicó el cobro).
 
+> **Ajuste 2026-11-09 (ERR-198, pedido del usuario tras su prueba por WhatsApp):** mientras el análisis
+> sea el dato que falta, lo que el bot nombra del catálogo queda anclado. Si el modelo propone un
+> análisis, queda como opción y un «ese está bien» lo elige; si dice que lo registró, se registra de
+> verdad y la respuesta sale del código con la oferta numerada (`app/propuesta_analisis.py`).
+
 ### B10 · Resumen de la orden y confirmación (fase_4_confirmacion)
 - **Qué hace:** con la orden completa, muestra SIEMPRE un resumen determinístico
   (veterinaria, dirección, médico, paciente, propietario, análisis con precio,

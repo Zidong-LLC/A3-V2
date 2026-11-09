@@ -5287,3 +5287,24 @@ conversaciones" teniendolas todas delante.
 - **Solución:** `catalog._resolve_one` mira primero los códigos con guion en el texto crudo; el
   extractor de códigos y la carga masiva conservan el sufijo.
 - **Tests:** `tests/test_codigos_mascolab.py`.
+
+## ERR-198 — El bot dijo «registro Cuadro Hemático» sin guardarlo y volvió a preguntar el análisis
+
+- **Fecha:** 2026-11-09 · **Estado:** RESUELTO (commit local; push + deploy pendientes de OK)
+- **Reporte del usuario (prueba por WhatsApp):** «le dije con ese solo está bien… no me dio la opción de
+  número y pasó como en un bucle».
+- **Síntoma:** «Análisis de sangre» → el modelo propuso «Cuadro Hemático Completo $16.000» → «Ese está
+  bien» → *«Perfecto, registro Cuadro Hemático… ¿Quieres agregar otro análisis o lo dejamos así?»* →
+  «Con ese solo está bien» → *«¿Qué análisis o perfil desean?»*, en bucle.
+- **Causa (replay con el estado real y el modelo real):** los dos primeros turnos los contestó el modelo
+  solo. Propuso un análisis y después dijo haberlo registrado, pero devolvió `exam_type` y
+  `selected_tests` vacíos, y ningún carril del código lo ancló al catálogo. La pregunta de «agregar
+  otro» era texto del modelo, no la del código, así que tampoco llevaba opciones numeradas. Misma
+  familia que ERR-111: el bot afirma algo que el estado no tiene.
+- **Solución:** `app/propuesta_analisis.py` + `agent._anclar_analisis_nombrado` al final del pipeline,
+  solo mientras el análisis sea el dato que falta: si la respuesta nombra análisis del catálogo (nombre
+  completo) y dice que los registró, se registran de verdad y la respuesta sale del código con su
+  oferta numerada; si solo los propone, quedan guardados como opción. Y antes del modelo: una única
+  opción propuesta + «ese está bien» / «dale» la elige.
+- **Verificación:** replay con el modelo real de los cuatro mensajes: propuesta guardada → registro con
+  opciones 1 y 2 → observación numerada → resumen. `tests/test_propuesta_analisis.py` (22 casos).
