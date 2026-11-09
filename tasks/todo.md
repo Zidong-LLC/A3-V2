@@ -1911,3 +1911,4 @@ Hecho:
 - [x] Pago de prueba en sandbox aprobado de punta a punta: firma válida, estado `approved`, aviso al cliente y nota interna
 - [ ] Repetir un pedido corto para ver el link salir solo al cerrar
 - [ ] ERR-199: Alegra rechaza los borradores sin forma de pago — decidir qué valores mandar y arreglar
+- [x] Privacidad abierta a TODOS los contactos de WhatsApp (09/11 18:21 Bogotá): se quitó `WHATSAPP_PRIVACY_ONLY_NUMBERS` en Render. Wompi sigue en modo prueba.
