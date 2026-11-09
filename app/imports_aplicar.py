@@ -8,7 +8,7 @@ El plan vuelve del navegador en un campo oculto: acá solo pasan las columnas qu
 carga puede tocar y se revalidan precio, categoría y especie (auditoría 2026-10-19).
 """
 from app.imports import CAMPOS_CLIENTE, especie, norm, precio_valido
-from app.services import audit_db, db
+from app.services import audit_db, db, maestros_db
 
 _CAMPOS_ALTA = ("clinic_name",) + CAMPOS_CLIENTE
 _TABLAS = ("catalog_tests", "catalog_profiles")
@@ -130,11 +130,19 @@ def aplicar_clientes(plan: dict) -> tuple[int, int, list[str]]:
         client_id = cambio.get("id")
         bruto = dict(cambio.get("cambios") or {})
         courier_id = bruto.pop("courier_id", None)
-        datos = _solo(bruto, CAMPOS_CLIENTE)
+        datos = _solo(bruto, _CAMPOS_ALTA)
+        nombre = str(datos.pop("clinic_name", "") or "").strip()[:180]
+        if nombre:  # renombrar (casilla aparte); un nombre vacío nunca pisa al que hay
+            datos["clinic_name"] = nombre
         if not client_id:
             continue
         try:
             ok = db.update_client_profile(client_id, datos) if datos else True
+            if ok and nombre:
+                try:  # la ficha sigue al cliente; si falla, el cliente ya quedó renombrado
+                    maestros_db.renombrar_ficha(cambio.get("clinic_name"), nombre)
+                except Exception:  # noqa: BLE001
+                    fallidos.append(f"{nombre}: renombrado, pero su ficha de datos quedó con el nombre anterior")
             if courier_id:
                 db.upsert_client_assignment(client_id, courier_id, "carga_masiva")
             if ok:

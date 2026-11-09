@@ -38,6 +38,7 @@ def facturar(pedido: dict) -> dict:
             datetime.now(APP_TIMEZONE).date().isoformat(),
             {k: v for k, v in {"email": cliente.get("email")}.items() if v},
             client_row=cliente,  # la sede exacta: entre sedes con el mismo NIT puede cambiar
+            payment_method=pedido.get("payment_method"),
         )
         if factura and factura.get("invoice_id"):
             db.mark_pedido_invoiced(pedido_id, str(factura["invoice_id"]))

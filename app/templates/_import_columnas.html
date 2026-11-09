@@ -29,6 +29,7 @@
     </div>
     {% if mapeo.tipo == 'clientes' %}
     <label class="portal-check"><input type="checkbox" name="actualizar" {{ 'checked' if mapeo.actualizar else '' }}> Actualizar también los datos que cambiaron (no solo completar los vacíos)</label>
+    <label class="portal-check"><input type="checkbox" name="renombrar" {{ 'checked' if mapeo.renombrar else '' }}> Actualizar también los <strong>nombres</strong> (cruza por NIT; no cambia sedes que comparten NIT)</label>
     {% endif %}
     <div class="portal-upload-actions">
       <button type="submit" class="ghost-btn"><i data-lucide="refresh-cw"></i>Recalcular la vista previa</button>

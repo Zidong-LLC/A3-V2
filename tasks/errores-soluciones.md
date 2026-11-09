@@ -5317,7 +5317,8 @@ conversaciones" teniendolas todas delante.
 
 ## ERR-199 — Alegra rechaza el borrador del pedido: «La forma de pago es obligatoria»
 
-- **Fecha:** 2026-11-09 · **Estado:** ABIERTO (esperando OK del usuario: toca lo que se escribe en Alegra)
+- **Fecha:** 2026-11-09 · **Estado:** CORREGIDO en código (OK del usuario el 09/11). Falta desplegar y
+  verlo contra Alegra con un borrador real.
 - **Cómo se encontró:** revisando por qué no salió el link de Wompi en la prueba del usuario. El log del
   cierre del pedido de prueba dice: `cerrado sin factura (Alegra): POST /invoices -> HTTP 400
   {"message":"La forma de pago es obligatoria"}`.
@@ -5328,3 +5329,18 @@ conversaciones" teniendolas todas delante.
   también transferencia y crédito.
 - **Propuesta:** mandar la forma de pago en el borrador según lo que eligió el cliente (contraentrega →
   contado, efectivo; pago en línea → contado, transferencia) y que Contabilidad la ajuste al revisar.
+- **Decisión del usuario (09/11):** sí. Contraentrega es efectivo; «en línea» es el link de Wompi.
+- **Causa raíz:** `alegra.create_invoice` armaba el cuerpo sin forma de pago. La cuenta real tiene
+  facturación electrónica y la exige incluso en borrador.
+- **Solución:** `billing.invoice_payment(payment_method)` traduce lo que eligió el cliente y
+  `create_invoice(..., pago=)` lo manda. Los valores son los que la propia cuenta devuelve en sus
+  facturas (leídas en solo lectura): `paymentMethod` es contado/crédito y `paymentForm` es el medio.
+  Contraentrega → `CASH` + `CASH`; pago en línea → `CASH` + `DEBIT_TRANSFER`; sin dato (pedido
+  abandonado que se cierra solo) → `CASH` + `INSTRUMENT_NOT_DEFINED`. La forma de pago del pedido llega
+  por `facturar_pedido.facturar` y por los dos cierres del agente (en el cierre del pedido por chat la
+  forma de pago es un parámetro, no un dato del estado: se le pasa a la factura sin tocar el estado).
+  El guardrail de borrador no cambia.
+- **Ojo:** la documentación pública de Alegra describe los dos campos al revés de como los devuelve la
+  cuenta. Se siguió a la cuenta. Con contraentrega da igual (los dos son `CASH`); el caso a mirar en el
+  primer borrador real es el de pago en línea.
+- **Tests:** `tests/test_forma_de_pago_alegra.py` (15 casos).

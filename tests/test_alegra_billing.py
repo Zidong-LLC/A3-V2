@@ -80,7 +80,7 @@ def test_invoice_order_pasa_el_descuento_a_alegra(monkeypatch):
     monkeypatch.setattr(alegra, "get_or_create_item", lambda ref, name, price: {"id": f"i-{ref}"})
     captured = {}
 
-    def fake_create_invoice(contact_id, items, date, due_date=None, status=None, anotation=None):
+    def fake_create_invoice(contact_id, items, date, due_date=None, status=None, anotation=None, pago=None):
         captured["items"] = items
         return {"id": "55", "total": 41280}
 
@@ -289,7 +289,7 @@ def test_la_factura_a_consumidor_final_manda_la_nota_y_no_los_datos_del_cliente(
     def fake_get_or_create_item(reference, name, price):
         return {"id": "77"}
 
-    def fake_create_invoice(client_id, items, date, due_date=None, status=None, anotation=None):
+    def fake_create_invoice(client_id, items, date, due_date=None, status=None, anotation=None, pago=None):
         creado["factura"] = {"client": client_id, "anotation": anotation}
         return {"id": "900", "total": 38000}
 

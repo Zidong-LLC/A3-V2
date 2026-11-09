@@ -22,7 +22,7 @@ from app.config import (
     DASHBOARD_ADMIN_USER,
     DISCOUNT_TIERS,
 )
-from app import billing_charts, client_filters, facturar_pedido, facturas_panel, panel_laboratorio, pedido_directo, pedidos_vista
+from app import billing_charts, client_filters, facturar_pedido, facturas_panel, orden_manual, panel_laboratorio, pedido_directo, pedidos_vista
 from app import access, municipios
 from app import permissions as P
 from app.services import audit_db, db, alegra, maestros_db
@@ -1828,11 +1828,13 @@ def new_request_page():
         "tests": _safe_fetch(lambda: db.list_catalog_tests(limit=5000), []),
     }
     clients = _safe_fetch(lambda: db.list_clients_with_assignment(limit=5000), [])
+    couriers = [c for c in _safe_fetch(lambda: db.list_couriers(), []) if c.get("is_active", True)]
 
     def _render(error=None, form=None, selected=None):
         return render_template(
             "new_request.html", error=error, form=form or {}, catalog=catalog,
-            clients=clients, selected_test_codes=selected or [],
+            clients=clients, selected_test_codes=selected or [], couriers=couriers,
+            hoy=datetime.now(APP_TIMEZONE).date().isoformat(),
             selected_profile_codes=(form or {}).getlist("profile_codes") if hasattr(form, "getlist") else [],
             payment_options=orders.PAYMENT_METHOD_OPTIONS, active_tab="solicitudes",
         )
@@ -1860,29 +1862,55 @@ def new_request_page():
         selected_profile_codes = [form["profile_code"].strip()]
     fields.update(orders.resolve_catalog_selection(selected_profile_codes, selected_test_codes))
 
-    if not fields.get("patient_name") or not fields.get("exam_type"):
+    # Pedido de A3 (2026-11-09): contramuestra que no se factura y recolección ya hecha.
+    contramuestra = form.get("facturacion") == "contramuestra"
+    if not fields.get("patient_name") or not (fields.get("exam_type") or contramuestra):
         return _render("Indica el paciente y al menos un perfil o análisis del catálogo.",
                        form, selected_test_codes)
+    columnas = None
+    if form.get("recogida") == "recolectada":
+        asignado = _safe_fetch(lambda: maestros_db.courier_de_cliente(client_id), None)
+        elegido = (form.get("collected_courier_id") or "").strip()
+        columnas, error = orden_manual.recoleccion(form.get("collected_date"), elegido, asignado)
+        if elegido and elegido not in {str(c.get("id")) for c in couriers}:
+            error = "Elige el motorizado de la lista."
+        if error:
+            return _render(error, form, selected_test_codes)
 
     fields["pickup_address"] = fields["pickup_address"] or client.get("address")
     fields["clinic_name"] = client.get("clinic_name")
     fields["clinic_phone"] = client.get("phone")
     fields["observations"] = fields["observations"] or "sin observaciones"
+    if contramuestra:
+        fields = orden_manual.como_contramuestra(fields)
 
-    # Abre su propio pedido y deja el borrador de factura, como el bot (ERR-194).
+    # Abre su propio pedido y deja el borrador de factura, como el bot (ERR-194). La
+    # contramuestra no abre pedido: no se factura.
+    usuario = session.get("dashboard_username") or "staff"
     created = pedido_directo.registrar(
         client_id=client_id,
-        chat_id=f"dashboard:{session.get('dashboard_username') or 'staff'}",
+        chat_id=f"dashboard:{usuario}",
         canal_pedido="manual",
         session={"client_id": client_id, "channel": "telegram"},
         fields=fields,
+        facturar=not contramuestra, columnas=columnas, avisar_motorizado=not columnas,
     )
     if not created:
         return _render("No se pudo registrar la orden, intenta de nuevo.", form,
                        selected_test_codes)
 
     numero = created.get("order_number") or "sin número"
-    aviso = f"Orden {numero} registrada para {client.get('clinic_name')}"
+    aviso = f"{'Contramuestra' if contramuestra else 'Orden'} {numero} registrada para {client.get('clinic_name')}"
+    if contramuestra:
+        aviso += " · no se factura"
+    if columnas:
+        aviso += f" · ya recolectada el {columnas['scheduled_pickup_date']}"
+        try:  # la traza de quién registró la recolección; nunca frena la orden
+            db.create_request_event(created.get("request_id"), "dashboard_status_update", {
+                "status": "picked_up", "status_label": REQUEST_STATUS_LABELS.get("picked_up"),
+                "updated_by": usuario, "nota": orden_manual.NOTA_RECOLECCION})
+        except Exception:  # noqa: BLE001
+            pass
     if created.get("pedido_number"):
         aviso += f" en el pedido {created['pedido_number']}"
     factura = created.get("factura") or {}
@@ -2691,8 +2719,9 @@ def close_pedido_manually():
     if not pedido_id:
         return jsonify({"error": "Missing pedido_id"}), 400
     # Facturar crea un borrador en Alegra: es de quien gestiona Facturación (docx de
-    # perfiles). Cerrar sin facturar es de quien gestiona Pedidos.
-    if not P.puede(access.perfil_actual(), "facturacion" if facturar else "pedidos", P.GESTION):
+    # perfiles) y, desde 2026-11-09, de recepción. Cerrar sin facturar es de quien gestiona Pedidos.
+    perfil = access.perfil_actual()
+    if not (P.puede_facturar_pedido(perfil) if facturar else P.puede(perfil, "pedidos", P.GESTION)):
         return jsonify({"error": "Tu perfil no tiene permiso para esta acción."}), 403
     # Doble clic o dos pestañas: sin esto salían dos borradores en Alegra del mismo pedido.
     with _PEDIDOS_CANDADO:

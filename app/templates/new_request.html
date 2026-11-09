@@ -19,7 +19,7 @@
       <div>
         <p class="hello-label">Carga manual</p>
         <h1>Nueva Orden</h1>
-        <span>Para el cliente que llama por telefono o llega al laboratorio. Queda igual que una orden del chat: con su numero, su motorizado y su factura.</span>
+        <span>Para el cliente que llama por telefono o llega al laboratorio, la muestra que el motorizado recogio sin ruta programada y las contramuestras. Queda igual que una orden del chat: con su numero, su motorizado y su factura.</span>
       </div>
     </header>
     {% if error %}<p class="approval-notice os-spring-in error">{{ error }}</p>{% endif %}
@@ -123,20 +123,49 @@
           <ul data-picker-chips></ul>
         </div>
 
+        <div class="full-field">
+          <label>Observaciones
+            <textarea name="observations" rows="3">{{ form.get('observations', '') }}</textarea>
+          </label>
+        </div>
+        </div>
+      </section>
+
+      <section class="wizard-card">
+        <div class="step-badge">4</div>
+        <div class="section-copy"><h2>Recogida y cobro</h2><p>Si la muestra todavia hay que ir a buscarla o ya la trajo el motorizado, y si se cobra.</p></div>
         <div class="form-grid">
-          <label>Forma de pago
+          <label>Recogida
+            <select name="recogida" class="cell-select" data-recogida>
+              <option value="programar">Programar la recogida (se avisa al motorizado)</option>
+              <option value="recolectada" {{ 'selected' if form.get('recogida') == 'recolectada' else '' }}>Ya recolectada, sin ruta programada</option>
+            </select>
+          </label>
+          <label data-recolectada hidden>Fecha de recoleccion
+            <input type="date" name="collected_date" max="{{ hoy }}" value="{{ form.get('collected_date') or hoy }}">
+          </label>
+          <label data-recolectada hidden>Motorizado que la recogio
+            <select name="collected_courier_id" class="cell-select">
+              <option value="">El asignado a la veterinaria</option>
+              {% for m in couriers %}
+              <option value="{{ m.id }}" {{ 'selected' if form.get('collected_courier_id') == m.id|string else '' }}>{{ m.name }}</option>
+              {% endfor %}
+            </select>
+          </label>
+          <label>Cobro
+            <select name="facturacion" class="cell-select" data-facturacion>
+              <option value="facturar">Se factura (borrador en Alegra)</option>
+              <option value="contramuestra" {{ 'selected' if form.get('facturacion') == 'contramuestra' else '' }}>Contramuestra: no se factura</option>
+            </select>
+            <small class="muted-text" data-contramuestra-nota hidden>No abre pedido ni borrador de factura. El analisis es opcional: sirve para saber que examen se confirma.</small>
+          </label>
+          <label data-pago>Forma de pago
             <select name="payment_method" class="cell-select">
               {% for value, label in payment_options %}
               <option value="{{ value }}" {{ 'selected' if form.get('payment_method') == value else '' }}>{{ label }}</option>
               {% endfor %}
             </select>
           </label>
-        </div>
-        <div class="full-field">
-          <label>Observaciones
-            <textarea name="observations" rows="3">{{ form.get('observations', '') }}</textarea>
-          </label>
-        </div>
         </div>
       </section>
 
@@ -146,6 +175,6 @@
     </form>
   </main>
   <script>lucide.createIcons();</script>
-  <script src="{{ url_for('static', filename='new-request.js') }}?v=2" defer></script>
+  <script src="{{ url_for('static', filename='new-request.js') }}?v=3" defer></script>
 </body>
 </html>

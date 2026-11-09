@@ -216,16 +216,40 @@ def plan_portafolio(filas: list[dict], tests: list[dict], profiles: list[dict]) 
             "errores": errores}
 
 
+def _nombre_nuevo(nombre: str, nit: str, actual: dict, sedes_del_nit: int, veces_en_archivo: int,
+                  numero: int, avisos: list[str]) -> str | None:
+    """El nombre a ponerle al cliente, o None si no se toca (pedido de A3, 2026-11-09).
+
+    Solo cuando el NIT identifica a UN cliente y viene UNA vez en el archivo: entre sedes
+    el nombre es lo único que las distingue, y dos filas con el mismo NIT se pisarían."""
+    if not nit or not nombre or nombre == (actual.get("clinic_name") or "").strip():
+        return None
+    if sedes_del_nit != 1:
+        return None  # se cruzó por nombre (o es una sede): no hay otro nombre que poner
+    if veces_en_archivo > 1:
+        avisos.append(f"Fila {numero}: el NIT {nit} viene {veces_en_archivo} veces en el archivo; "
+                      "no se cambia el nombre")
+        return None
+    return nombre[:180]
+
+
 def plan_clientes(filas: list[dict], clientes: list[dict], nombre_coincide, actualizar: bool = False,
-                  motorizados: dict | None = None, asignaciones: dict | None = None) -> dict:
+                  motorizados: dict | None = None, asignaciones: dict | None = None,
+                  renombrar: bool = False) -> dict:
     """Clientes a crear y datos que la lista completa en los que ya existen.
 
     Por defecto no pisa un dato que la base ya tiene: solo rellena los vacíos. Con
     `actualizar` (casilla en la pantalla, cierre v1) también cambia los que difieren y
     muestra el antes/después. La columna Motorizado asigna por nombre (`motorizados`:
     nombre normalizado → id). Cruza por NIT y, si no hay, por nombre con la MISMA regla
-    del agente y del portal."""
+    del agente y del portal. Con `renombrar` (otra casilla) el nombre del archivo reemplaza
+    al de la base cuando el NIT no deja dudas (`_nombre_nuevo`)."""
     motorizados, asignaciones = motorizados or {}, asignaciones or {}
+    veces_nit: dict[str, int] = {}
+    for fila in filas:
+        clave = solo_digitos(fila.get("tax_id"))
+        if clave:
+            veces_nit[clave] = veces_nit.get(clave, 0) + 1
     por_nit = {}
     for cliente in clientes:
         clave = solo_digitos(cliente.get("tax_id"))
@@ -293,6 +317,10 @@ def plan_clientes(filas: list[dict], clientes: list[dict], nombre_coincide, actu
                      if (_distinto(actual, campo, valor) if actualizar else _vacio(actual, campo))}
         if courier_id and asignaciones.get(actual["id"]) != courier_id:
             faltantes["courier_id"] = courier_id
+        nuevo_nombre = renombrar and _nombre_nuevo(nombre, nit, actual, len(por_nit.get(nit) or []),
+                                                   veces_nit.get(nit, 0), numero, avisos)
+        if nuevo_nombre:
+            faltantes["clinic_name"] = nuevo_nombre
         if faltantes:
             completar.append({"id": actual["id"], "clinic_name": actual.get("clinic_name"),
                               "cambios": faltantes,

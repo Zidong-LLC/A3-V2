@@ -874,3 +874,15 @@ tenga que decir una palabra mágica… el ser humano nunca va a decir lo mismo»
 acaba de preguntar; las listas de palabras solo cubren el turno sin señal. Antes de dar por bueno un
 carril de comprensión, probarlo con el modelo real y cinco o seis fraseos que NO estén en ninguna
 lista, incluidos los de rechazo.
+
+## 2026-11-09 — Un pedido del cliente se repite con un ejemplo antes de proponer nada
+
+**Qué pasó.** A3 escribió «qué forma hay, no para dar de baja sino para eliminar registros de
+clientes». Lo leí como «borrar clientes» y propuse cambiar la regla de borrado de clientes. El usuario
+me frenó dos veces («lee bien lo que te pasé»): lo que quieren es borrar un registro puntual DE un
+cliente, una orden o un análisis que se cargó mal o de más.
+
+**Regla.** Cuando el pedido viene en palabras del cliente y admite dos lecturas, antes de proponer se
+le devuelve al usuario la lectura con un ejemplo concreto («¿es borrar a la veterinaria X, o borrar la
+orden A3-2026-050 de la veterinaria X?»). La palabra que el cliente usa para sus datos («registros»,
+«análisis») casi nunca es el nombre de una tabla: se traduce mirando qué ve él en pantalla.

@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 
 BLUEPRINTS = frozenset({"dashboard", "dashboard_results", "dashboard_client", "dashboard_anarvet",
                         "dashboard_agenda", "dashboard_import", "dashboard_users",
-                        "dashboard_maestros"})
+                        "dashboard_maestros", "dashboard_ordenes"})
 _REVALIDAR_SEGUNDOS = 300
 _CLAVES = ("dashboard_authenticated", "dashboard_username", "dashboard_user_id",
            "dashboard_role", "dashboard_full_name", "dashboard_role_checked")
@@ -150,10 +150,12 @@ def registrar(app) -> None:
     @app.context_processor
     def _perfil_en_plantillas():
         if not session.get("dashboard_authenticated"):
-            return {"puede": lambda *_a, **_k: False, "perfil_nombre": "", "usuario_nombre": ""}
+            return {"puede": lambda *_a, **_k: False, "puede_facturar_pedido": lambda: False,
+                    "perfil_nombre": "", "usuario_nombre": ""}
         perfil = session.get("dashboard_role") or "administrador"
         return {
             "puede": lambda modulo, requerido=P.CONSULTA: P.puede(perfil, modulo, requerido),
+            "puede_facturar_pedido": lambda: P.puede_facturar_pedido(perfil),
             "perfil_nombre": P.PERFILES.get(perfil, ""),
             "usuario_nombre": session.get("dashboard_full_name") or session.get("dashboard_username", ""),
         }

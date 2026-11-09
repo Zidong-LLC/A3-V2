@@ -55,7 +55,7 @@ _ENDPOINTS = {
     "dashboard.update_request_operation": ("solicitudes", "operacion", "agenda"),
     "dashboard.service_order_print_page": ("solicitudes", "pedidos", "operacion"),
     "dashboard.pedidos_page": ("pedidos", "solicitudes"),  # página única (ERR-194)
-    "dashboard.close_pedido_manually": ("pedidos", "facturacion"),  # facturar exige facturación
+    "dashboard.close_pedido_manually": ("pedidos", "facturacion"),  # facturar: puede_facturar_pedido
     "dashboard.billing_page": ("facturacion",),
     "dashboard.api_list_invoices": ("facturacion",),
     "dashboard.api_invoice_detail": ("facturacion",),
@@ -90,6 +90,7 @@ _ENDPOINTS = {
     "dashboard_maestros.courier_clients": ("motorizados", "agenda"),
     "dashboard_maestros.historial": ("clientes", "motorizados", "muestras"),
     "dashboard_maestros.municipio": ("motorizados",),
+    "dashboard_ordenes.*": ("solicitudes", "pedidos"),  # ver líneas; eliminar/quitar exige gestión
 }
 
 # Rutas para cualquier persona con sesión (o sin ella, el login).
@@ -113,6 +114,16 @@ def nivel(perfil: str | None, modulo: str) -> int:
 
 def puede(perfil: str | None, modulo: str, requerido: int = CONSULTA) -> bool:
     return nivel(perfil, modulo) >= requerido
+
+
+# Pedido de A3 (2026-11-09): recepción factura a nombre del cliente lo que carga o recibe,
+# sin entrar al módulo de Facturación (cartera y facturas siguen siendo de Contabilidad).
+_FACTURAN_PEDIDOS = frozenset({"recepcion"})
+
+
+def puede_facturar_pedido(perfil: str | None) -> bool:
+    """¿Puede armar el BORRADOR de un pedido? Nunca emite: eso se hace en Alegra."""
+    return puede(perfil, "facturacion", GESTION) or perfil in _FACTURAN_PEDIDOS
 
 
 def modulos_de(endpoint: str) -> tuple[str, ...] | None:

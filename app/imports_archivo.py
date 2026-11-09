@@ -24,7 +24,8 @@ ETIQUETAS = {"code": "Código", "price": "Precio", "name": "Nombre", "kind": "Ti
              "category": "Categoría", "species": "Especie", "sample": "Muestra", "tax_id": "NIT",
              "phone": "Teléfono", "address": "Dirección", "zone": "Zona o localidad",
              "city": "Municipio o ciudad", "email": "Correo",
-             "electronic_invoice": "Factura electrónica (sí/no)", "courier": "Motorizado"}
+             "electronic_invoice": "Factura electrónica (sí/no)", "courier": "Motorizado",
+             "clinic_name": "Nombre"}
 _SEPARADORES = ",;\t|"
 # Columnas que solo trae ese tipo: «nombre;telefono» es de motorizados, no de clientes, y
 # «codigo;nombre;precio;especie» (la exportación de precios) no es portafolio nuevo.

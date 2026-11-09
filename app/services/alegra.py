@@ -244,6 +244,7 @@ def create_invoice(
     due_date: str | None = None,
     status: str | None = None,
     anotation: str | None = None,
+    pago: dict | None = None,
 ) -> dict:
     """Crea una factura de venta. `items` son líneas ya mapeadas:
     [{"id": <alegra_item_id>, "quantity": int, "price": int}]. El mapeo del catálogo vive
@@ -251,7 +252,10 @@ def create_invoice(
     cuentas sin facturación electrónica: la emisión DIAN se habilita aparte.
 
     `anotation` es el campo «Notas» que se imprime en la factura. A3 lo usa para escribir
-    la veterinaria o el médico cuando la factura sale a Consumidor Final."""
+    la veterinaria o el médico cuando la factura sale a Consumidor Final.
+
+    `pago` es la forma de pago ({paymentMethod, paymentForm}): la cuenta real la exige y
+    sin ella rechaza la factura con «La forma de pago es obligatoria» (ERR-199)."""
     body = {
         "date": date,
         "dueDate": due_date or date,
@@ -267,4 +271,7 @@ def create_invoice(
         body["status"] = "draft"
     if anotation:
         body["anotation"] = anotation
+    for clave in ("paymentMethod", "paymentForm"):
+        if (pago or {}).get(clave):
+            body[clave] = pago[clave]
     return _request("POST", "/invoices", body)

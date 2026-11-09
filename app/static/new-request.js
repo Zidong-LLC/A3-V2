@@ -122,4 +122,24 @@
   });
 
   repintarElegidos();
+
+  // ── Recogida y cobro (pedido de A3, 2026-11-09) ───────────────────────
+  // «Ya recolectada» pide la fecha y quién la trajo; una contramuestra no se cobra, así
+  // que la forma de pago sobra.
+  var recogida = document.querySelector("[data-recogida]");
+  var cobro = document.querySelector("[data-facturacion]");
+
+  function repintarRecogida() {
+    var hecha = recogida && recogida.value === "recolectada";
+    document.querySelectorAll("[data-recolectada]").forEach(function (campo) { campo.hidden = !hecha; });
+    var contramuestra = cobro && cobro.value === "contramuestra";
+    var pago = document.querySelector("[data-pago]");
+    var nota = document.querySelector("[data-contramuestra-nota]");
+    if (pago) pago.hidden = contramuestra;
+    if (nota) nota.hidden = !contramuestra;
+  }
+
+  if (recogida) recogida.addEventListener("change", repintarRecogida);
+  if (cobro) cobro.addEventListener("change", repintarRecogida);
+  repintarRecogida();
 })();

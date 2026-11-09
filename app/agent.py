@@ -2883,7 +2883,8 @@ def _close_pedido_turn(session: dict, fields: dict, payment_method: str) -> dict
     fichas_pago = list(fields.get("_pedido_ordenes") or [])  # antes de limpiar el estado
 
     if ALEGRA_ENABLED:
-        _try_invoice_pedido(pedido_id, fields)
+        # La forma de pago es del PEDIDO y llega como parámetro; el borrador la necesita (ERR-199).
+        _try_invoice_pedido(pedido_id, {**fields, "payment_method": payment_method or fields.get("payment_method")})
 
     fields.pop("_pedido_id", None)
     fields.pop("_pedido_profiles", None)
@@ -2969,7 +2970,8 @@ def _try_invoice_pedido(pedido_id: str | None, fields: dict) -> None:
         name = fields.get("clinic_name") or fields.get("_client_display_name") or "Cliente A3"
         date = datetime.now(APP_TIMEZONE).date().isoformat()
         extra = {"email": fields.get("_client_email"), "phone": fields.get("_client_phone")}
-        result = billing.invoice_order(nit, name, lines, date, {k: v for k, v in extra.items() if v})
+        result = billing.invoice_order(nit, name, lines, date, {k: v for k, v in extra.items() if v},
+                                       payment_method=fields.get("payment_method"))
         if result and result.get("invoice_id"):
             db.mark_pedido_invoiced(pedido_id, str(result["invoice_id"]))
         else:
@@ -3000,7 +3002,8 @@ def _try_invoice_in_alegra(order_info: dict, ai_response: dict) -> None:
         name = fields.get("clinic_name") or fields.get("_client_display_name") or "Cliente A3"
         date = datetime.now(APP_TIMEZONE).date().isoformat()
         extra = {"email": fields.get("_client_email"), "phone": fields.get("_client_phone")}
-        result = billing.invoice_order(nit, name, lines, date, {k: v for k, v in extra.items() if v})
+        result = billing.invoice_order(nit, name, lines, date, {k: v for k, v in extra.items() if v},
+                                       payment_method=fields.get("payment_method"))
         if result and result.get("invoice_id"):
             db.create_request_event(request_id, "alegra_invoiced", result)
         else:

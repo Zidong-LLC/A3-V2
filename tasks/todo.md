@@ -1912,3 +1912,49 @@ Hecho:
 - [ ] Repetir un pedido corto para ver el link salir solo al cerrar
 - [ ] ERR-199: Alegra rechaza los borradores sin forma de pago — decidir qué valores mandar y arreglar
 - [x] Privacidad abierta a TODOS los contactos de WhatsApp (09/11 18:21 Bogotá): se quitó `WHATSAPP_PRIVACY_ONLY_NUMBERS` en Render. Wompi sigue en modo prueba.
+
+## Pedidos de A3 sobre la plataforma (2026-11-09, noche) — OK del usuario, en construcción
+
+Pedido del cliente: (1) que recepción programe recolecciones a mano —contramuestras que NO se facturan— y
+registre la «recolección efectiva» cuando el motorizado recoge sin ruta programada, facturando a nombre del
+cliente; (2) que la carga masiva también actualice NOMBRES; (3) eliminar registros puntuales de un cliente.
+
+Decisiones del usuario (09/11): ERR-199 sí (contraentrega = efectivo; en línea = Wompi); recepción recibe el
+botón «Facturar»; el punto 3 NO es borrar clientes: es borrar una ORDEN o UN ANÁLISIS de una orden que se
+cargó mal o de más. La regla de borrado de clientes no se toca.
+
+Qué hay hoy (verificado en el código, solo lectura):
+- «Nueva Orden» (`dashboard.new_request_page`) ya la usa recepción: exige paciente y análisis, asigna
+  motorizado, avisa y SIEMPRE abre pedido + borrador de factura. No hay «no facturar» ni «ya recolectada».
+- El borrador sale a nombre del cliente si `electronic_invoice` es sí; hoy Alegra lo rechaza (ERR-199).
+- Carga masiva: `CAMPOS_CLIENTE` no incluye el nombre; el nombre solo se usa para cruzar.
+- No existe forma de borrar una orden ni de sacarle un análisis: solo se puede marcar «Cancelada».
+
+Plan:
+- [x] 1. ERR-199: el borrador lleva forma de pago (`paymentMethod` contado + `paymentForm` efectivo /
+      transferencia / sin definir), con los valores que la cuenta real devuelve en sus facturas
+- [x] 2. «Nueva Orden»: «Contramuestra: no se factura» → orden sin pedido ni borrador, sin precios, rotulada;
+      el análisis es opcional. Sin migración: la marca va en el texto del análisis y en las observaciones
+- [x] 3. «Nueva Orden»: «Ya recolectada, sin ruta programada» con fecha y motorizado → nace «Recogida»,
+      no avisa al motorizado y se factura normal (salvo contramuestra)
+- [x] 4. Recepción puede usar «Facturar» en Pedidos (arma el borrador; nunca emite)
+- [x] 5. Carga masiva: casilla aparte «actualizar también los nombres». NIT que cruza con UN cliente y viene
+      una vez en el archivo → renombra, con antes/después en la vista previa; la ficha de datos lo sigue
+- [x] 6. Pedidos: «Eliminar» una orden y «Quitar análisis», con respaldo en el historial. Frena con
+      muestras/resultados, pedido abierto en el chat, pago en línea aprobado o factura emitida; con borrador avisa
+- [x] 7. Tests de cada punto + suite completa + bitácora (ERR-199), lección y decisión 015
+
+### Resultado (2026-11-09, noche)
+
+- Código nuevo: `app/orden_manual.py`, `app/orden_edicion.py`, `app/dashboard_ordenes.py`,
+  `app/services/ordenes_db.py`, `app/static/ordenes.js`. Sin migraciones ni variables nuevas.
+- Suite completa en verde. Verificado contra la base real en SOLO LECTURA: las consultas nuevas responden,
+  Pedidos, Nueva Orden y Cargas renderizan, y la orden de prueba pagada en línea queda frenada (409).
+- Decisión 015 con las reglas. La regla de borrado de CLIENTES no se tocó.
+
+### Pendiente de este bloque
+
+- [ ] Push + deploy (esperando OK del usuario)
+- [ ] ERR-199 contra Alegra: ver el primer borrador real, sobre todo uno con pago en línea
+- [ ] Probar en producción una contramuestra, una recolección efectiva y borrar una orden de prueba
+- [ ] Confirmar con A3 que «eliminar registros» era esto (órdenes y análisis) y no también clientes

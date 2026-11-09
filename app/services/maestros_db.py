@@ -22,6 +22,20 @@ def get_client_any(client_id: str) -> dict | None:
     return filas[0] if filas else None
 
 
+def renombrar_ficha(nombre_viejo: str | None, nombre_nuevo: str) -> None:
+    """La ficha de knowledge (correo, régimen, médicos) se cruza con el cliente por nombre.
+    Al renombrar un cliente la ficha conserva su `clinic_key` y cambia el nombre visible,
+    igual que la edición a mano (`dashboard.update_client_profile`). Sin ficha no hace nada."""
+    from app.services.db import _normalize_lookup_key
+
+    viejo = (nombre_viejo or "").strip()
+    if not viejo or not nombre_nuevo:
+        return
+    tabla = _client.table("clients_a3_knowledge")
+    tabla.update({"clinic_name": nombre_nuevo}).eq("clinic_key", _normalize_lookup_key(viejo)).execute()
+    _client.table("clients_a3_knowledge").update({"clinic_name": nombre_nuevo}).eq("clinic_name", viejo).execute()
+
+
 def courier_de_cliente(client_id: str) -> str | None:
     """Motorizado fijo del cliente, solo lectura (get_courier_for_client puede auto-asignar)."""
     filas = (_client.table("client_courier_assignment").select("courier_id")

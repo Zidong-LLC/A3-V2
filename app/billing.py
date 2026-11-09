@@ -31,6 +31,25 @@ INVOICE_STATUS_LABELS = {
 }
 
 
+# Forma de pago del borrador (ERR-199). Son los valores que la cuenta real de A3 devuelve
+# en sus facturas: `paymentMethod` dice contado o crédito y `paymentForm`, el medio.
+# Decisión del usuario (2026-11-09): contraentrega es efectivo y «en línea» es el link de
+# Wompi. Es un borrador: Contabilidad lo ajusta al revisarlo si el cliente pagó distinto.
+_PAGO_EFECTIVO = {"paymentMethod": "CASH", "paymentForm": "CASH"}
+_PAGO_EN_LINEA = {"paymentMethod": "CASH", "paymentForm": "DEBIT_TRANSFER"}
+_PAGO_SIN_DEFINIR = {"paymentMethod": "CASH", "paymentForm": "INSTRUMENT_NOT_DEFINED"}
+
+
+def invoice_payment(payment_method: str | None) -> dict:
+    """Forma de pago de Alegra para lo que eligió el cliente al cerrar el pedido."""
+    valor = (payment_method or "").strip().lower()
+    if "linea" in valor or "línea" in valor or "transfer" in valor:
+        return dict(_PAGO_EN_LINEA)
+    if "contra" in valor or "efectivo" in valor:
+        return dict(_PAGO_EFECTIVO)
+    return dict(_PAGO_SIN_DEFINIR)
+
+
 def _money(value) -> int:
     try:
         return int(round(float(value or 0)))
@@ -173,6 +192,7 @@ def invoice_order(
     date: str,
     client_extra: dict | None = None,
     client_row: dict | None = None,
+    payment_method: str | None = None,
 ) -> dict | None:
     """Asegura el contacto y los ítems en Alegra y crea la factura (borrador). Devuelve
     {contact_id, invoice_id, number, total} o None si no hay líneas. Propaga AlegraError:
@@ -211,7 +231,8 @@ def invoice_order(
             invoice_item["discount"] = line["discount"]
         invoice_items.append(invoice_item)
 
-    invoice = alegra.create_invoice(contact_id, invoice_items, date, anotation=nota)
+    invoice = alegra.create_invoice(contact_id, invoice_items, date, anotation=nota,
+                                    pago=invoice_payment(payment_method))
     return {
         "contact_id": contact_id,
         "invoice_id": invoice.get("id"),

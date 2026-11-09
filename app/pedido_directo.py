@@ -21,20 +21,29 @@ def _facturar(pedido_id: str) -> dict:
     return facturar_pedido.facturar(db.get_pedido(pedido_id) or {"id": pedido_id})
 
 
-def registrar(*, client_id: str, chat_id: str, canal_pedido: str, session: dict, fields: dict) -> dict | None:
+def registrar(*, client_id: str, chat_id: str, canal_pedido: str, session: dict, fields: dict,
+              facturar: bool = True, columnas: dict | None = None,
+              avisar_motorizado: bool = True) -> dict | None:
     """Lo mismo que devuelve `db.create_request`, más `pedido_number` y `factura`; None si la
-    orden no se pudo crear. Si falla abrir el pedido, la orden entra suelta como antes."""
+    orden no se pudo crear. Si falla abrir el pedido, la orden entra suelta como antes.
+
+    `facturar=False` es la contramuestra: no abre pedido, así que nada la factura. `columnas`
+    y `avisar_motorizado` son de la recolección ya hecha (ver `db.create_request`)."""
+    pedido = None
     try:
-        pedido = db.create_pedido(client_id, chat_id, entry_channel=canal_pedido)
+        if facturar:
+            pedido = db.create_pedido(client_id, chat_id, entry_channel=canal_pedido)
     except Exception as exc:  # noqa: BLE001
         logger.warning("pedido directo: no se pudo abrir el pedido (%s); la orden va suelta", exc)
-        pedido = None
     pedido_id = (pedido or {}).get("id")
     creada = None
+    manual = {"columnas": columnas} if columnas else {}
+    if not avisar_motorizado:
+        manual["avisar_motorizado"] = False
     try:
         creada = db.create_request(
             chat_id=chat_id, session=session, pedido_id=pedido_id,
-            ai_response={"intent": "route_scheduling", "captured_fields": fields})
+            ai_response={"intent": "route_scheduling", "captured_fields": fields}, **manual)
     finally:
         if pedido_id:
             db.close_pedido(pedido_id, fields.get("payment_method"))

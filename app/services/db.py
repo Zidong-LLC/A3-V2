@@ -2374,10 +2374,15 @@ _ALLOWED_ENTRY_CHANNELS = {"telegram", "chatwoot", "whatsapp", "portal"}
 
 
 def create_request(chat_id: str, session: dict, ai_response: dict,
-                   pedido_id: str | None = None) -> str | None:
+                   pedido_id: str | None = None, columnas: dict | None = None,
+                   avisar_motorizado: bool = True) -> str | None:
     """Crea la orden. `pedido_id` la asocia a un pedido (decisión 011); si es None la orden
     queda suelta y se comporta exactamente como antes — así entran las del portal y las
-    históricas."""
+    históricas.
+
+    `columnas` pisa lo calculado (estado, motorizado, fecha) y `avisar_motorizado=False`
+    calla el aviso: es la carga manual de una recogida que YA se hizo (`app/orden_manual.py`).
+    El chat y el portal no los usan."""
     intent = ai_response["intent"]
     fields = ai_response.get("captured_fields", {})
     client_id = session.get("client_id")
@@ -2420,6 +2425,8 @@ def create_request(chat_id: str, session: dict, ai_response: dict,
 
     if pedido_id:
         request_data["pedido_id"] = pedido_id
+    if columnas:
+        request_data.update(columnas)
 
     result = _client.table("requests").insert(request_data).execute()
     if not result.data:
@@ -2432,7 +2439,7 @@ def create_request(chat_id: str, session: dict, ai_response: dict,
 
     # Aviso al motorizado por Chatwoot (decision 2026-08-31; pedido de A3 en llamadas 1-4).
     # Va DESPUES del insert para llevar el numero de orden real. Nunca frena la orden.
-    if request_data.get("assigned_courier_id"):
+    if avisar_motorizado and request_data.get("assigned_courier_id"):
         from app.courier_notify import notify_assignment
         notify_assignment(request_data["assigned_courier_id"],
                           order_number=order_number or "",

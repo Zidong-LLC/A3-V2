@@ -21,6 +21,7 @@ def _pedido_sin_red(monkeypatch):
                         lambda *a, **k: {"id": "ped-1", "pedido_number": "P-2026-001"})
     monkeypatch.setattr("app.pedido_directo.db.close_pedido", lambda *a, **k: None)
     monkeypatch.setattr("app.pedido_directo.config.ALEGRA_ENABLED", False)
+    monkeypatch.setattr("app.dashboard.db.list_couriers", lambda *a, **k: [])
 
 CLIENTE = {
     "id": "cli-1", "clinic_name": "Emergencias Veterinarias", "tax_id": "900123456",

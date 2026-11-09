@@ -35,12 +35,12 @@ def _tipos_permitidos() -> dict:
     return {t: n for t, n in TIPOS.items() if P.puede(perfil, P.MODULO_DE_CARGA[t], P.GESTION)}
 
 
-def _armar_plan(tipo: str, filas: list[dict], actualizar: bool = False) -> dict:
+def _armar_plan(tipo: str, filas: list[dict], actualizar: bool = False, renombrar: bool = False) -> dict:
     if tipo == "clientes":
         couriers = db.list_active_couriers()
         return imports.plan_clientes(filas, db.list_clients_basic(), db.client_name_matches, actualizar,
                                      {imports.norm(c.get("name")): c["id"] for c in couriers},
-                                     maestros_db.asignaciones())
+                                     maestros_db.asignaciones(), renombrar=renombrar)
     if tipo == "motorizados":
         return imports_aplicar.plan_motorizados(filas, db.list_couriers())
     tests, profiles = db.list_catalog_tests(limit=2000), db.list_catalog_profiles(limit=2000)
@@ -56,15 +56,18 @@ def _pagina(**extra):
 
 
 def _vista_previa(tipo, nombre, encabezados, filas_brutas, mapa, actualizar):
+    # «Actualizar nombres» es una casilla aparte (pedido de A3, 2026-11-09): que un archivo
+    # con los nombres en otro formato no renombre a todos por marcar solo «actualizar».
+    renombrar = request.form.get("renombrar") == "on"
     tabla = {"encabezados": encabezados, "filas": filas_brutas, "archivo": nombre}
     contexto = {"tipo": tipo, "tabla_json": json.dumps(tabla), "encabezados": encabezados,
                 "mapa": mapa, "campos": archivo.CAMPOS[tipo], "actualizar": actualizar, "archivo": nombre,
-                "ejemplo": filas_brutas[:3]}
+                "renombrar": renombrar, "ejemplo": filas_brutas[:3]}
     falta = archivo.faltantes(mapa, tipo)
     if falta:
         return _pagina(mapeo=contexto, falta=falta)
     filas = archivo.filas_con_mapa(filas_brutas, mapa)
-    plan = _armar_plan(tipo, filas, actualizar)
+    plan = _armar_plan(tipo, filas, actualizar, renombrar)
     usadas = set(mapa.values())
     plan.update({"leidas": len(filas), "archivo": nombre, "titulo": TIPOS[tipo], "actualizar_activo": actualizar,
                  "ignorados": [h for i, h in enumerate(encabezados) if i not in usadas and h]})

@@ -33,7 +33,7 @@ def _invoice_with(fields: dict) -> dict | None:
     """Corre `_try_invoice_in_alegra` con Alegra mockeada y devuelve el `extra` que recibió."""
     captured = {}
 
-    def fake_invoice_order(nit, name, lines, date, extra):
+    def fake_invoice_order(nit, name, lines, date, extra, payment_method=None):
         captured["extra"] = extra
         captured["nit"] = nit
         return {"invoice_id": "inv-1"}

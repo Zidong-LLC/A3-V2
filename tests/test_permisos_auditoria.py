@@ -22,8 +22,17 @@ def sin_pedido(monkeypatch):
     return leidos
 
 
-def test_recepcion_no_puede_facturar_un_pedido(sin_pedido):
-    r = _cliente("recepcion").post("/api/dashboard/pedido-close", json={"pedido_id": "p1", "invoice": True})
+def test_recepcion_factura_un_pedido_sin_entrar_a_facturacion(sin_pedido):
+    """Pedido de A3 (2026-11-09): «que en recepción puedan facturar a nombre del cliente».
+    Arma el BORRADOR del pedido; el módulo de Facturación (cartera) sigue cerrado para ella."""
+    c = _cliente("recepcion")
+    r = c.post("/api/dashboard/pedido-close", json={"pedido_id": "p1", "invoice": True})
+    assert r.status_code == 404 and sin_pedido == ["p1"]  # pasó el permiso; el pedido no existe
+    assert c.get("/facturacion").status_code == 403
+
+
+def test_digitacion_sigue_sin_poder_facturar(sin_pedido):
+    r = _cliente("digitacion").post("/api/dashboard/pedido-close", json={"pedido_id": "p1", "invoice": True})
     assert r.status_code == 403
     assert sin_pedido == []  # ni siquiera se lee el pedido
 

@@ -84,3 +84,46 @@ def test_la_auxiliar_administrativa_ve_pedidos_aunque_no_tenga_solicitudes():
     assert "Pedido P-2026-007" in html
     assert 'data-pedido-close="p-nuevo"' in html  # factura desde acá, como antes
     assert 'class="cell-select request-courier-select"' not in html
+
+
+# ── Pedidos de A3 del 2026-11-09: eliminar, quitar un análisis, contramuestra y recepción ──
+
+def test_quien_gestiona_ve_eliminar_y_quitar_analisis_en_cada_orden():
+    html = _pagina("recepcion")
+
+    assert 'data-orden-eliminar="r1"' in html and 'data-orden-lineas="r1"' in html
+    assert 'data-orden-eliminar="r2"' in html, "también las órdenes sin pedido"
+    assert "ordenes.js" in html
+
+
+def test_quien_solo_consulta_no_ve_eliminar_ni_quitar():
+    for rol in ("procesamiento", "auxiliar_administrativa"):
+        html = _pagina(rol)
+        assert "data-orden-eliminar=" not in html and "data-orden-lineas=" not in html
+
+
+def test_recepcion_ve_el_boton_facturar_y_digitacion_no():
+    assert 'data-pedido-close="p-nuevo"' in _pagina("recepcion")
+    html = _pagina("digitacion")
+    assert 'data-pedido-close="' not in html and "Lo factura Facturación" in html
+
+
+def test_la_contramuestra_se_ve_rotulada_como_no_facturable():
+    from app.main import app
+    from tests.test_dashboard import _base_context
+
+    filas = FILAS + [{"id": "r9", "pedido_id": None, "order_number": "A3-2026-120", "patient_name": "Nina",
+                      "service_area": "route_scheduling", "status": "assigned", "requested_at": "2026-11-09T10:00",
+                      "clients": {"clinic_name": "Vet C"}, "exam_type": "Contramuestra: Creatinina"}]
+    app.config["TESTING"] = True
+    c = app.test_client()
+    with c.session_transaction() as s:
+        s.update({"dashboard_authenticated": True, "dashboard_username": "u", "dashboard_role": "administrador"})
+    contexto = _base_context(requests=filas, couriers_options=[], request_status_options=[])
+    with patch("app.dashboard.build_dashboard_context", return_value=contexto), \
+         patch("app.dashboard.db.list_pedidos_for_dashboard", return_value=[]):
+        html = c.get("/pedidos").get_data(as_text=True)
+    fila = html.split('data-orden-row="r9"', 1)[1].split("</tr>", 1)[0]
+    assert "No se factura" in fila and "Contramuestra: Creatinina" in fila
+    otra = html.split('data-orden-row="r2"', 1)[1].split("</tr>", 1)[0]
+    assert "No se factura" not in otra
