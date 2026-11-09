@@ -46,6 +46,22 @@ ALERT_TELEGRAM_BOT_TOKEN = os.environ.get("ALERT_TELEGRAM_BOT_TOKEN", "")
 # (respuesta inmediata mensaje a mensaje, modo de los tests). MAX_WAIT es el tope duro.
 MESSAGE_DEBOUNCE_SECONDS = float(os.environ.get("MESSAGE_DEBOUNCE_SECONDS", "5"))
 MESSAGE_DEBOUNCE_MAX_WAIT = float(os.environ.get("MESSAGE_DEBOUNCE_MAX_WAIT", "20"))
+# Autorización de datos antes de conversar por WhatsApp (propuesta del 28/09).
+WHATSAPP_PRIVACY_ENABLED = os.environ.get("WHATSAPP_PRIVACY_ENABLED", "true").strip().lower() == "true"
+# Modo prueba: con números acá (separados por coma), solo a ellos se les pide la autorización.
+WHATSAPP_PRIVACY_ONLY_NUMBERS = {"".join(ch for ch in n if ch.isdigit())
+                                 for n in os.environ.get("WHATSAPP_PRIVACY_ONLY_NUMBERS", "").split(",")} - {""}
+# Wompi (pago en línea por pedido). Apagado hasta tener las llaves; sandbox por defecto.
+WOMPI_ENABLED = os.environ.get("WOMPI_ENABLED", "false").lower() in ("1", "true", "yes")
+WOMPI_PRIVATE_KEY = os.environ.get("WOMPI_PRIVATE_KEY", "")
+# Modo prueba: con NIT acá (separados por coma), solo esos clientes reciben el link. Evita
+# que un cliente real reciba un link del sandbox, que no cobra.
+WOMPI_ONLY_NITS = {"".join(ch for ch in n.split("-")[0] if ch.isdigit())
+                   for n in os.environ.get("WOMPI_ONLY_NITS", "").split(",")} - {""}
+WOMPI_EVENTS_SECRET = os.environ.get("WOMPI_EVENTS_SECRET", "")
+WOMPI_BASE_URL = os.environ.get("WOMPI_BASE_URL", "https://sandbox.wompi.co/v1").rstrip("/")
+PRIVACY_POLICY_URL = os.environ.get(
+    "PRIVACY_POLICY_URL", "https://a3laboratorio.co/politica-de-tratamiento-de-datos-personales/")
 
 # FSM en modo BLOQUEO (3.2): repara estados incoherentes además de loggearlos. Apagado
 # por defecto: se enciende cuando los logs del observador acumulen evidencia limpia.

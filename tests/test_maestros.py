@@ -162,3 +162,71 @@ def test_filtro_de_zona_del_traslado_ignora_tildes(monkeypatch):
     monkeypatch.setattr(maestros_db, "_client", base)
     assert [f["id"] for f in maestros_db.recogidas_pendientes("m1", zona="bogota")] == ["r1"]
     assert [f["id"] for f in maestros_db.recogidas_pendientes("m1", zona="SOACHA")] == ["r2"]
+
+
+# ── Reasignación por clientes elegidos (propuesta del 28/09) ─────────────────────────
+
+@pytest.fixture
+def seleccion(monkeypatch, auditoria):
+    estado = {"trasladar": None}
+    monkeypatch.setattr("app.services.db.get_courier", lambda cid: {"id": cid, "name": cid, "is_active": cid != "baja"})
+    monkeypatch.setattr("app.services.maestros_db.historia_motorizado",
+                        lambda cid: {"recogidas": 2, "clientes": 3, "localidades": 0, "zonas": 0})
+    monkeypatch.setattr("app.services.maestros_db.clientes_de_motorizado",
+                        lambda cid: [{"id": "c1", "nombre": "Norte"}, {"id": "c2", "nombre": "Sur"}, {"id": "c3", "nombre": "Oeste"}])
+    monkeypatch.setattr("app.services.maestros_db.recogidas_pendientes", lambda o, f, z: [
+        {"id": "r1", "client_id": "c1", "order_number": "A-1", "pickup_address": "Cl 1", "scheduled_pickup_date": "2026-11-10"},
+        {"id": "r3", "client_id": "c3", "order_number": "A-3", "pickup_address": "Cl 3", "scheduled_pickup_date": "2026-11-10"}])
+
+    def trasladar(o, d, c, l, ids, client_ids=None):
+        estado["trasladar"] = (o, d, c, l, ids, client_ids)
+        return {"clientes": len(client_ids or []), "localidades": 0, "zonas": 0, "recogidas": len(ids)}
+
+    monkeypatch.setattr("app.services.maestros_db.trasladar", trasladar)
+    monkeypatch.setattr("app.dashboard_maestros.notify_assignment", lambda courier, **k: True)
+    return estado
+
+
+def test_clientes_elegidos_primero_muestra_el_plan(client, seleccion):
+    r = client.post("/api/dashboard/courier-transfer", json={"origen": "jef", "destino": "ale", "client_ids": ["c1", "c2"]})
+    assert r.status_code == 200 and r.get_json()["plan"]["clientes"] == 2 and seleccion["trasladar"] is None
+
+
+def test_solo_pasan_los_clientes_marcados(client, seleccion, auditoria):
+    r = client.post("/api/dashboard/courier-transfer", json={"origen": "jef", "destino": "ale", "client_ids": ["c2", "c1"], "confirmar": True})
+    assert r.status_code == 200 and seleccion["trasladar"][5] == ["c1", "c2"]
+    assert auditoria[0][3]["clientes_elegidos"] == ["c1", "c2"]
+
+
+def test_un_cliente_de_otro_motorizado_no_se_mueve(client, seleccion):
+    client.post("/api/dashboard/courier-transfer", json={"origen": "jef", "destino": "ale", "client_ids": ["c1", "ajeno"], "confirmar": True})
+    assert seleccion["trasladar"][5] == ["c1"]
+
+
+def test_sin_ningun_cliente_valido_no_hace_nada(client, seleccion):
+    r = client.post("/api/dashboard/courier-transfer", json={"origen": "jef", "destino": "ale", "client_ids": ["ajeno"], "confirmar": True})
+    assert r.status_code == 400 and seleccion["trasladar"] is None
+    assert client.post("/api/dashboard/courier-transfer", json={"origen": "jef", "destino": "ale", "client_ids": []}).status_code == 400
+
+
+def test_con_clientes_elegidos_solo_se_mueven_sus_recogidas(client, seleccion):
+    client.post("/api/dashboard/courier-transfer", json={
+        "origen": "jef", "destino": "ale", "client_ids": ["c1"], "recogidas": "pendientes", "confirmar": True})
+    assert seleccion["trasladar"][4] == ["r1"], "la recogida de c3 se queda con su motorizado"
+
+
+def test_no_se_traslada_a_un_motorizado_inactivo(client, seleccion):
+    r = client.post("/api/dashboard/courier-transfer", json={"origen": "jef", "destino": "baja", "client_ids": ["c1"], "confirmar": True})
+    assert r.status_code == 400 and "inactivo" in r.get_json()["error"] and seleccion["trasladar"] is None
+
+
+def test_lista_de_clientes_del_motorizado(client, seleccion):
+    r = client.get("/api/dashboard/courier-clients?courier_id=jef")
+    assert r.status_code == 200 and [c["id"] for c in r.get_json()["clientes"]] == ["c1", "c2", "c3"]
+    assert client.get("/api/dashboard/courier-clients").status_code == 400
+
+
+def test_procesamiento_no_ve_la_lista_de_clientes_del_motorizado(client, seleccion):
+    with client.session_transaction() as s:
+        s["dashboard_role"] = "procesamiento"
+    assert client.get("/api/dashboard/courier-clients?courier_id=jef").status_code == 403

@@ -90,6 +90,15 @@ def courier_transfer():
     destino_row = db.get_courier(destino)
     if not db.get_courier(origen) or not destino_row:
         return jsonify({"error": "Motorizado no encontrado"}), 404
+    if destino_row.get("is_active") is False:
+        return jsonify({"error": "El motorizado de destino está inactivo"}), 400
+    # Clientes puntuales (propuesta del 28/09): solo cuentan los que hoy son de este motorizado.
+    elegidos = None
+    if isinstance(p.get("client_ids"), list):
+        propios = {c["id"] for c in maestros_db.clientes_de_motorizado(origen)}
+        elegidos = sorted({str(i) for i in p["client_ids"]} & propios)
+        if not elegidos:
+            return jsonify({"error": "Marca al menos un cliente de este motorizado"}), 400
     modo = p.get("recogidas") or "ninguna"
     fecha = str(p.get("fecha") or "").strip()[:10] or None
     if modo == "dia":
@@ -99,23 +108,37 @@ def courier_transfer():
             return jsonify({"error": "Elige la fecha del reemplazo"}), 400
     recogidas = [] if modo == "ninguna" else maestros_db.recogidas_pendientes(
         origen, fecha if modo == "dia" else None, str(p.get("zona") or "").strip() or None)
+    if elegidos is not None:  # con clientes elegidos, solo se mueven las recogidas de esos clientes
+        recogidas = [r for r in recogidas if r.get("client_id") in set(elegidos)]
     historia = maestros_db.historia_motorizado(origen)
-    plan = {"clientes": historia["clientes"] if p.get("clientes") else 0,
+    plan = {"clientes": len(elegidos) if elegidos is not None else (historia["clientes"] if p.get("clientes") else 0),
             "localidades": historia["localidades"] if p.get("localidades") else 0,
             "zonas": historia["zonas"] if p.get("localidades") else 0,
             "recogidas": len(recogidas)}
     if not p.get("confirmar"):
         return jsonify({"ok": True, "plan": plan, "destino": destino_row.get("name")})
+    extra = {"client_ids": elegidos} if elegidos is not None else {}
     hecho = maestros_db.trasladar(origen, destino, bool(p.get("clientes")), bool(p.get("localidades")),
-                                  [r["id"] for r in recogidas])
+                                  [r["id"] for r in recogidas], **extra)
     avisos = sum(bool(notify_assignment(destino, order_number=r.get("order_number") or "",
                                         clinic=(r.get("clients") or {}).get("clinic_name") or "",
                                         address=r.get("pickup_address") or "",
                                         fecha=r.get("scheduled_pickup_date") or "", reasignada=True))
                  for r in recogidas)
     audit_db.registrar("courier", origen, "transfer", {"destino": destino, "modo": modo, "fecha": fecha,
-                                                       "zona": p.get("zona") or None, **hecho})
+                                                       "zona": p.get("zona") or None,
+                                                       **({"clientes_elegidos": elegidos} if elegidos is not None else {}),
+                                                       **hecho})
     return jsonify({"ok": True, "hecho": hecho, "avisos": avisos})
+
+
+@dashboard_maestros.get("/api/dashboard/courier-clients")
+@_login_required
+def courier_clients():
+    courier_id = (request.args.get("courier_id") or "").strip()
+    if not courier_id:
+        return jsonify({"error": "Elige un motorizado"}), 400
+    return jsonify({"ok": True, "clientes": maestros_db.clientes_de_motorizado(courier_id)})
 
 
 @dashboard_maestros.get("/api/dashboard/historial")

@@ -1848,3 +1848,51 @@ zona y factura electrónica se ignoraban.
 - [x] Pregunta del cliente: lista sin encabezado («1101 | 14000») se reconoce por el contenido; «Vlr»/«precio
       público» son precio; «1101 - Cuadro Hemático» separa el código (`app/imports_contenido.py`, 10 tests)
 - [ ] Push + deploy (esperando OK)
+
+## Propuesta de evolución A3 (PDF 2026-09-28, 40 h) — estado al 2026-11-09
+
+Pendientes que dependen de A3 o que se dejaron para más adelante:
+
+- [ ] **Pedirle a A3 un correo para Chatwoot** (pedido del usuario: que no se olvide). Sin eso las invitaciones
+      de agentes no llegan y hay que generar los enlaces a mano. Hace falta una cuenta y su contraseña de
+      aplicación; se carga en el grupo `chatwoot-config` de Render: `MAILER_SENDER_EMAIL`, `SMTP_ADDRESS`
+      (`smtp.gmail.com`), `SMTP_PORT` (587), `SMTP_USERNAME`, `SMTP_PASSWORD`, y se reinician web y worker.
+- [ ] Emisión final en Alegra (3 h): la dejó para más adelante el usuario. Choca con la regla de solo borradores.
+- [ ] A3 aprueba el texto de privacidad definitivo.
+- [ ] A3 asigna motorizado a los municipios en Motorizados → Cobertura (hoy ninguno tiene; Cesar atiende a la mayoría).
+- [ ] A3 completa el NIT de los 6 clientes activos que siguen sin él (la lista se saca de Clientes → filtro sin NIT).
+
+Hecho:
+
+- [x] Plantilla de carga masiva · perfiles y permisos · alta de usuarios · acceso desde el sitio A3
+- [x] Formulario de orden («Nueva Orden», ERR-149): falta que A3 confirme que era este
+- [x] Limpieza de clientes (ERR-188); Mascolab cerrado: son análisis distintos (decisión 014)
+- [x] Municipios: Soacha, Chía y Sibaté en cobertura y mapa; el bot y el portal asignan por la misma cascada
+- [x] Privacidad en WhatsApp: botones Sí/No, evidencia en `privacy_consents` (migración 040), contrato B0
+- [x] Reasignación por clientes elegidos, con búsqueda y solo los que son de ese motorizado
+- [x] ERR-197: los códigos con guion cobraban el análisis equivocado
+- [ ] Push, migración 040 y deploy (esperando OK); prueba real de los botones por WhatsApp
+- [ ] Pruebas integradas y salida (3 h): al final
+
+### Wompi (11 h) — análisis, sin construir todavía
+
+- **Modalidad:** link de pago por API (`POST /v1/payment_links`, `single_use`, `amount_in_cents`, `expires_at`).
+  La URL es corta (`checkout.wompi.co/l/<id>`) y sirve para WhatsApp. El link no admite referencia propia: se
+  cruza por `payment_link_id`, que llega en el evento, contra el número del pedido guardado de nuestro lado.
+- **Webhook:** `POST /webhooks/wompi`, verifica el checksum con el secreto de eventos, responde 200 e ignora
+  repetidos; Wompi reintenta a los 30 min, 3 h y 24 h. Estados: PENDING, APPROVED, DECLINED, VOIDED, ERROR.
+- **Datos:** tabla nueva de pagos (pedido, link, monto, estado, transacción); estado visible en Pedidos.
+- **Flujo:** toca el paso B13. «Pago en línea» genera el link y se lo manda al cliente; si Wompi falla, deriva a
+  Contabilidad como hoy. Al aprobarse avisa al cliente y a Contabilidad. El borrador de Alegra sigue siendo borrador.
+- **Falta:** llaves de prueba de comercios.wompi.co (`pub_test_`, `prv_test_`, `test_events_`) y dos definiciones:
+  cobrar por pedido o por orden, y si se cobra el valor estimado.
+
+### Avance del 09/11 (tarde)
+
+- [x] Clientes sin NIT revisados en plataforma, Anarvet, facturas y contactos de Alegra: 4 borrados (inactivos,
+      de prueba de junio, sin movimiento; respaldo en `data/backups/clientes-sin-nit-20261109/`), 1 completado
+      desde su contacto de Alegra. Quedan 6 ACTIVOS con informes en Anarvet: pedir el NIT a A3.
+- [x] Privacidad: modo prueba `WHATSAPP_PRIVACY_ONLY_NUMBERS` para probar con un número antes de abrirlo a todos
+- [x] Wompi construido y apagado: `app/pagos.py`, `app/services/wompi.py`, migración 041, 13 tests
+- [ ] Wompi: cargar llaves de prueba en Render, aplicar la 041, configurar la URL de eventos y probar en sandbox
+- [ ] Wompi: mostrar el estado del pago en la pantalla de Pedidos

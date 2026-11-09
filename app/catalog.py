@@ -64,6 +64,8 @@ GENERIC_DESCRIPTORS = frozenset({
 })
 
 _SPLIT = re.compile(r"\s*(?:,|;|/|\+|\by\b|\be\b|\bmas\b|\bmás\b)\s*")
+# «2457-1» es OTRO análisis que «2457» (Mascolab: Tiempo Real y Punto Final, otro precio).
+_CODIGO_CON_GUION = re.compile(r"(?<![\d-])\d{3,4}-\d{1,2}(?![\d-])")
 
 
 def split_items(text: str) -> list[str]:
@@ -236,8 +238,13 @@ def _resolve_one(text: str, rows: list[dict], species: str | None) -> ResolveRes
 
     by_code = {str(r.get("code")): r for r in rows if r.get("code")}
 
-    # 1) Código exacto mencionado en el texto.
-    codes = [by_code[t] for t in user_tokens if t in by_code]
+    # 1) Código exacto mencionado en el texto. Los que llevan guion se miran en el texto
+    # crudo porque `_norm` lo parte: «2457-1» se leía como 2457 y cobraba Punto Final
+    # ($157.000) en vez de Tiempo Real ($224.000), en 46 códigos (ERR-197).
+    con_guion = [c for c in _CODIGO_CON_GUION.findall(text) if c in by_code]
+    tapados = {c.split("-")[0] for c in con_guion}
+    codes = [by_code[c] for c in con_guion] + [by_code[t] for t in user_tokens
+                                               if t in by_code and t not in tapados]
     if codes:
         return ResolveResult(EXACT, _dedupe(codes))
 

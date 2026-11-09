@@ -14,7 +14,7 @@ _FILAS_A_MIRAR = 30
 _MINIMO = 0.6  # proporción de celdas (no vacías) que deben coincidir para asignar el rol
 _CORREO = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _DIRECCION = re.compile(r"(#|\bn[°º]|^(cl|cll|calle|cra|kr|cr|carrera|av|avenida|dg|diag|diagonal|tv|transv)\b)", re.IGNORECASE)
-_CODIGO_AL_INICIO = re.compile(r"^\s*(\d{3,5})\s*[-–:.)]?\s*(.*)$")
+_CODIGO_AL_INICIO = re.compile(r"^\s*(\d{3,5}(?:-\d{1,2}(?=\s|$))?)\s*[-–:.)]?\s*(.*)$")
 
 
 def _rol(valor: str) -> str | None:
@@ -28,7 +28,7 @@ def _rol(valor: str) -> str | None:
         return "telefono"
     if re.fullmatch(r"\d{8,11}", digitos) and re.fullmatch(r"[\d.\-\s]+", v):
         return "nit"
-    if re.fullmatch(r"\d{3,5}", v):
+    if re.fullmatch(r"\d{3,5}(-\d{1,2})?", v):  # «2457-1» también es un código
         return "codigo"
     if ("$" in v or re.search(r"\d[.,]\d{3}\b", v)) and precio(v) is not None:
         return "precio"

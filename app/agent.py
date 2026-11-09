@@ -5,7 +5,7 @@ import contextvars
 from typing import Callable
 from datetime import datetime
 
-from app import billing, catalog, opciones_cerradas, pedidos_abandonados, state
+from app import billing, catalog, opciones_cerradas, pagos, pedidos_abandonados, state
 from app.text import (
     tokenize as _tokenize, as_text_items as _as_text_items, money as _money, catalog_item_key as _catalog_item_key,
     strip_price_text as _strip_price_text, ACCENT_TRANSLATION as _ACCENT_TRANSLATION,
@@ -2795,6 +2795,7 @@ def _close_pedido_turn(session: dict, fields: dict, payment_method: str) -> dict
         logger.warning("pedidos: no se pudo cerrar el pedido %s: %s", pedido_id, exc)
         ordenes = []
     cuerpo = _pedido_summary(ordenes, fields, payment_method)
+    fichas_pago = list(fields.get("_pedido_ordenes") or [])  # antes de limpiar el estado
 
     if ALEGRA_ENABLED:
         _try_invoice_pedido(pedido_id, fields)
@@ -2804,9 +2805,18 @@ def _close_pedido_turn(session: dict, fields: dict, payment_method: str) -> dict
     fields.pop("_pedido_ordenes", None)
     fields.pop("_pedido_awaiting_payment", None)
     fields["_pedido_cerrado"] = True
+    # Pago en línea con Wompi (propuesta del 28/09): el link por el total va en el mismo
+    # mensaje. Apagado, o si falla, el cierre queda exactamente como antes.
+    despedida = "Quedamos atentos. 🙂"
+    if "linea" in _tokenize(str(payment_method)):
+        total = sum(int(o.get("total") or 0) for o in fichas_pago)
+        enlace = pagos.link_para_pedido(pedido_id, total, fields.get("clinic_name") or "", fields.get("tax_id"))
+        if enlace:
+            despedida = (f"Puedes pagar en línea de forma segura aquí:\n{enlace}\n\n"
+                         "Apenas se apruebe el pago te confirmamos por este chat. 🙂")
     return {
         _TURN_RESOLVED: True,
-        "reply": f"{cuerpo}\n\nQuedamos atentos. 🙂",
+        "reply": f"{cuerpo}\n\n{despedida}",
         # El pedido se cierra en fase terminal, pero sin crear una orden nueva: las órdenes
         # ya se registraron una por una al confirmarlas.
         _SKIP_REQUEST_CREATION: True,

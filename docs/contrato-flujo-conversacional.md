@@ -36,6 +36,20 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
 
 ## Bloques del flujo
 
+### B0 · Autorización de datos (solo WhatsApp)
+- **Qué hace:** antes del menú, un mensaje con la política de tratamiento de datos de A3 y los
+  botones «Sí» y «No». Con «Sí» sigue todo como siempre: el saludo con las 4 opciones. Con «No» avisa
+  que no puede seguir y, si la persona vuelve a escribir, pregunta otra vez.
+- **Dónde:** `app/privacidad.py`, llamado desde `_process_chatwoot` antes del agente. Evidencia en
+  `privacy_consents` (migración 040): se le preguntó, aceptó o rechazó, con la respuesta, la versión y
+  el enlace de la política.
+- **Reglas:** la autorización es por número, no por conversación. Un «sí» sin pregunta previa no
+  autoriza. Lo que no se entienda se vuelve a preguntar. Estos mensajes no entran al historial del
+  agente, así el primer turno real sigue viendo una conversación vacía. Si la verificación falla, el
+  bot sigue atendiendo y llega el aviso técnico.
+- **Estado:** pedido directo del usuario (2026-11-09, propuesta del 28/09). Pendiente de la prueba
+  real por WhatsApp y de que A3 apruebe el texto.
+
 ### B1 · Bienvenida y clasificación de intención
 - **Qué hace:** saluda como A3 (tono colombiano cercano), ofrece las 4 opciones y clasifica
   qué quiere el usuario (recogida / resultados / pagos / cliente nuevo).
@@ -270,6 +284,12 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
   línea en blanco; la oferta del pedido dice «¿Deseas cargar otra orden para otro paciente, o
   continuamos con el pago?» (opción 2: «Continuar con el pago») y la pregunta del pago va en dos
   líneas. Tests: `tests/test_formato_mensajes_whatsapp.py`.
+
+- **Ajuste 2026-11-09 (propuesta del 28/09, OK del usuario): pago en línea con Wompi.** Al cerrar el
+  pedido con «pago en línea», el mismo mensaje del resumen lleva un link de un solo uso por el total
+  (`app/pagos.py`). Wompi confirma por `/webhooks/wompi` y el bot avisa al cliente; Contabilidad lo ve
+  como nota interna. Apagado (`WOMPI_ENABLED=false`) o si Wompi falla, el cierre queda como antes.
+  Estado: construido y con tests, sin probar contra Wompi (faltan las llaves).
 
 ### B14 · Multi-orden (otra orden en la misma conversación)
 - **Qué hace:** tras registrar una orden, si el usuario pide "otra orden", arrastra datos

@@ -87,6 +87,7 @@ _ENDPOINTS = {
     "dashboard_maestros.client_ficha": ("clientes",),
     "dashboard_maestros.courier_delete": ("motorizados",),
     "dashboard_maestros.courier_transfer": ("motorizados", "agenda"),
+    "dashboard_maestros.courier_clients": ("motorizados", "agenda"),
     "dashboard_maestros.historial": ("clientes", "motorizados", "muestras"),
     "dashboard_maestros.municipio": ("motorizados",),
 }

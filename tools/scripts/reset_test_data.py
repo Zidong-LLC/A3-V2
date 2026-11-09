@@ -25,7 +25,7 @@ db = create_client(url, key)
 
 # lab_results y pedidos se sumaron al esquema después de la versión original: sin
 # borrarlos primero, la FK de requests frena todo (medido 2026-08-17).
-tablas = ["lab_results", "request_events", "requests", "pedidos",
+tablas = ["privacy_consents", "lab_results", "request_events", "requests", "pedidos",
           "conversation_messages", "telegram_sessions"]
 
 for tabla in tablas:

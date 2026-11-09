@@ -52,6 +52,25 @@ def send_message(conversation_id: str, text: str) -> None:
         })
 
 
+def send_private_note(conversation_id: str, text: str) -> None:
+    """Nota interna: la ve el personal en la conversación, nunca el cliente."""
+    _post(f"/conversations/{conversation_id}/messages",
+          {"content": text, "message_type": "outgoing", "private": True})
+
+
+def send_options(conversation_id: str, text: str, options: list[dict]) -> None:
+    """Mensaje con botones: en WhatsApp, hasta 3 opciones salen como botones de respuesta.
+    Cada opción es {"title": ..., "value": ...}; el título no puede pasar de 20 caracteres
+    y lo que vuelve al tocarlo es un mensaje normal con ese título."""
+    _post(f"/conversations/{conversation_id}/messages", {
+        "content": text,
+        "content_type": "input_select",
+        "content_attributes": {"items": options},
+        "message_type": "outgoing",
+        "private": False,
+    })
+
+
 def send_document(conversation_id: str, filename: str, content: bytes, caption: str | None = None) -> None:
     """Adjunta un archivo a la conversación. Chatwoot solo acepta adjuntos por
     multipart, así que no puede pasar por `_post`, que manda JSON."""

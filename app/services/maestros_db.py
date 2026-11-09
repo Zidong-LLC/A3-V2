@@ -62,7 +62,7 @@ def recogidas_pendientes(courier_id: str, fecha: str | None = None, zona: str | 
     """Recogidas sin recoger de un motorizado; con fecha, solo las de ese día; con zona,
     solo las de clientes de esa zona o municipio."""
     q = (_client.table("requests")
-         .select("id, order_number, scheduled_pickup_date, pickup_address, clients(clinic_name, zone, city)")
+         .select("id, client_id, order_number, scheduled_pickup_date, pickup_address, clients(clinic_name, zone, city)")
          .eq("assigned_courier_id", courier_id).in_("status", list(PENDIENTES)))
     if fecha:
         q = q.eq("scheduled_pickup_date", fecha)
@@ -74,9 +74,35 @@ def recogidas_pendientes(courier_id: str, fecha: str | None = None, zona: str | 
     return filas
 
 
-def trasladar(origen: str, destino: str, clientes: bool, localidades: bool, recogidas: list[str]) -> dict:
+def clientes_de_motorizado(courier_id: str) -> list[dict]:
+    """Clientes con ese motorizado fijo, para elegir cuáles pasan a otro. Pagina de a 1000."""
+    filas, desde = [], 0
+    while True:
+        lote = (_client.table("client_courier_assignment")
+                .select("client_id, clients(id, clinic_name, tax_id, zone, city)")
+                .eq("courier_id", courier_id).order("client_id").range(desde, desde + 999).execute().data or [])
+        filas += lote
+        if len(lote) < 1000:
+            break
+        desde += 1000
+    clientes = [{"id": f["client_id"], "nombre": (f.get("clients") or {}).get("clinic_name") or "Sin nombre",
+                 "nit": (f.get("clients") or {}).get("tax_id") or "",
+                 "zona": (f.get("clients") or {}).get("zone") or (f.get("clients") or {}).get("city") or ""}
+                for f in filas]
+    return sorted(clientes, key=lambda c: norm(c["nombre"]))
+
+
+def trasladar(origen: str, destino: str, clientes: bool, localidades: bool, recogidas: list[str],
+              client_ids: list[str] | None = None) -> dict:
+    """Mueve lo pedido de un motorizado a otro. Con `client_ids` pasan solo esos clientes
+    y únicamente si hoy son de `origen`; de a 100 para no pasarse del largo de la URL."""
     hecho = {"clientes": 0, "localidades": 0, "zonas": 0, "recogidas": 0}
-    if clientes:
+    if client_ids is not None:
+        for i in range(0, len(client_ids), 100):
+            hecho["clientes"] += len(_client.table("client_courier_assignment").update({"courier_id": destino})
+                                     .eq("courier_id", origen).in_("client_id", client_ids[i:i + 100])
+                                     .execute().data or [])
+    elif clientes:
         hecho["clientes"] = len(_client.table("client_courier_assignment").update({"courier_id": destino})
                                 .eq("courier_id", origen).execute().data or [])
     if localidades:

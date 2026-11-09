@@ -27,7 +27,8 @@ from app.dashboard_import import dashboard_import
 from app.dashboard_users import dashboard_users
 from app.dashboard_maestros import dashboard_maestros
 from app.dashboard_sistema import dashboard_sistema
-from app import access
+from app import access, privacidad
+from app.pagos import pagos_bp
 from app.portal import portal_bp
 from app.text import money, short_datetime
 
@@ -63,6 +64,7 @@ app.register_blueprint(dashboard_import)
 app.register_blueprint(dashboard_users)
 app.register_blueprint(dashboard_maestros)
 app.register_blueprint(dashboard_sistema)
+app.register_blueprint(pagos_bp)
 access.registrar(app)
 app.register_blueprint(portal_bp)
 
@@ -233,15 +235,22 @@ def chatwoot_webhook():
     # tipo del inbox en conversation.channel (p. ej. "Channel::Whatsapp").
     canal_inbox = str(conversacion.get("channel") or "").lower()
     canal = "whatsapp" if "whatsapp" in canal_inbox else "chatwoot"
+    # El número del remitente identifica a quién autorizó el tratamiento de datos.
+    telefono = str(_como_dict(data.get("sender")).get("phone_number")
+                   or _como_dict(_como_dict(conversacion.get("meta")).get("sender")).get("phone_number") or "")
 
     app.logger.info("chatwoot_webhook: conv=%s canal=%s content=%r", conversation_id, canal, content[:80])
     _debouncer.submit(f"chatwoot:{conversation_id}", content,
-                      lambda combined: _process_chatwoot(conversation_id, combined, canal))
+                      lambda combined: _process_chatwoot(conversation_id, combined, canal, telefono))
     return jsonify({"ok": True})
 
 
-def _process_chatwoot(conversation_id: str, content: str, canal: str = "chatwoot") -> None:
+def _process_chatwoot(conversation_id: str, content: str, canal: str = "chatwoot", telefono: str = "") -> None:
     inicio = time.monotonic()
+    # Antes de cualquier otra cosa, la autorización de datos (solo WhatsApp).
+    if privacidad.atender(conversation_id, content, canal, telefono):
+        _registrar_turno(canal, conversation_id, inicio, ok=True, respondido=True)
+        return
     try:
         reply = process_turn(conversation_id, content, on_progress=_make_progress_callback(chatwoot, conversation_id), channel=canal)
     except Exception as e:

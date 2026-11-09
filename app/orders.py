@@ -387,7 +387,7 @@ def _apply_removal_with_target(fields: dict, user_message: str) -> str | None:
     if not m:
         return None
     destino = m.group(1)
-    victimas = [c for c in re.findall(r"\b\d{3,4}\b", user_message) if c != destino]
+    victimas = [c for c in _profile_codes_from_text(user_message) if c != destino]
     if not victimas:
         return None
     partes = []

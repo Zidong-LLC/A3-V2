@@ -40,6 +40,8 @@ def pytest_configure(config):
     os.environ.setdefault("SISTEMA_PASSWORD",          "test-sistema")
     # Debounce de ráfagas APAGADO en tests: los webhooks responden síncrono e inmediato.
     os.environ.setdefault("MESSAGE_DEBOUNCE_SECONDS",  "0")
+    # La autorización de datos se prueba en su propio archivo, encendiéndola a propósito.
+    os.environ.setdefault("WHATSAPP_PRIVACY_ENABLED",  "false")
     # El .env real trae ANARVET_ENABLED=true: fijarlo acá evita que /health y el sync
     # peguen a la base externa de Anarvet en los tests (misma razón que PORTAL_DEMO_MODE).
     os.environ.setdefault("ANARVET_ENABLED",           "false")

@@ -17,12 +17,21 @@
     </select></label>
     <label>Día<input class="cell-input" type="date" name="fecha" value="{{ context.today_iso or '' }}"></label>
     <label>Solo zona o municipio (opcional)<input class="cell-input" name="zona" placeholder="ej. 5 o Soacha"></label>
-    <label class="portal-check"><input type="checkbox" name="clientes"> Sus clientes</label>
+    <label>Sus clientes<select class="cell-select" name="clientes"><option value="">Ninguno</option><option value="todos">Todos</option><option value="elegir">Elegir cuáles</option></select></label>
     <label class="portal-check"><input type="checkbox" name="localidades"> Su cobertura (localidades y zonas)</label>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button type="button" class="ghost-btn" data-traslado-ver>Ver qué va a pasar</button>
       <button type="button" class="primary-btn" data-traslado-confirmar hidden>Confirmar traslado</button>
     </div>
+  </div>
+  <div data-traslado-lista hidden style="padding:0 12px 12px">
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input class="cell-input" data-traslado-buscar placeholder="Buscar por nombre, NIT o zona" style="flex:1;min-width:200px">
+      <button type="button" class="ghost-btn" data-traslado-marcar>Marcar los visibles</button>
+      <button type="button" class="ghost-btn" data-traslado-desmarcar>Desmarcar todo</button>
+      <span class="muted-text" data-traslado-cuenta></span>
+    </div>
+    <div data-traslado-clientes style="max-height:280px;overflow:auto;margin-top:8px"></div>
   </div>
   <p class="muted-text" style="padding:0 12px 12px" data-traslado-resumen></p>
 </section>

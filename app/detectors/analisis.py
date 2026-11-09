@@ -280,7 +280,8 @@ def _split_multiple_exam_items(text: str | None) -> list[str]:
 
 def _profile_codes_from_text(text: str) -> list[str]:
     codes = []
-    for code in re.findall(r"\b\d{3,4}\b", text or ""):
+    # El sufijo es parte del código: «2457-1» (Tiempo Real) no es «2457» (ERR-197).
+    for code in re.findall(r"\b\d{3,4}(?:-\d{1,2})?\b", text or ""):
         if code not in codes:
             codes.append(code)
     return codes

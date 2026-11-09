@@ -5274,3 +5274,16 @@ conversaciones" teniendolas todas delante.
   (15.000–18.000 filas por pestaña), y que `/health` no dependa de Supabase para la liveness.
 - **Lección:** un cron que corre por primera vez en producción se mide el primer día (filas, segundos,
   tuplas muertas) antes de darlo por bueno; y una vista materializada no se refresca «por si acaso».
+
+## ERR-197 — Los códigos con guion cobraban el análisis equivocado
+
+- **Fecha:** 2026-11-09 · **Estado:** RESUELTO (commit local; push + deploy pendientes de OK)
+- **Cómo se encontró:** revisando Mascolab a pedido del usuario, con el catálogo real en solo lectura.
+- **Síntoma:** escribir «2457-1» (Tiempo Real, $224.000) cargaba el 2457 (Punto Final, $157.000). Afecta
+  a los 46 códigos con guion del catálogo.
+- **Causa:** `catalog._norm` convierte el guion en espacio y `_profile_codes_from_text` solo buscaba 3 o 4
+  dígitos: el sufijo se perdía. En la carga masiva, «2457-1 Nombre» se partía en código 2457 y nombre
+  «1 Nombre», así que un precio podía caer en el código equivocado.
+- **Solución:** `catalog._resolve_one` mira primero los códigos con guion en el texto crudo; el
+  extractor de códigos y la carga masiva conservan el sufijo.
+- **Tests:** `tests/test_codigos_mascolab.py`.

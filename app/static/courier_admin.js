@@ -59,11 +59,53 @@
 
   function datos(confirmado) {
     var v = function (n) { return panel.querySelector('[name="' + n + '"]'); };
-    return { origen: v("origen").value, destino: v("destino").value, recogidas: v("recogidas").value,
-             fecha: v("fecha").value, zona: v("zona").value, clientes: v("clientes").checked,
-             localidades: v("localidades").checked, confirmar: confirmado };
+    var cuerpo = { origen: v("origen").value, destino: v("destino").value, recogidas: v("recogidas").value,
+                   fecha: v("fecha").value, zona: v("zona").value, clientes: v("clientes").value === "todos",
+                   localidades: v("localidades").checked, confirmar: confirmado };
+    if (v("clientes").value === "elegir") cuerpo.client_ids = marcados();
+    return cuerpo;
   }
-  panel.addEventListener("change", function () { confirmar.hidden = true; resumen.textContent = ""; });
+
+  // Clientes puntuales: se cargan los del motorizado de origen y se marcan los que pasan.
+  var lista = panel.querySelector("[data-traslado-lista]");
+  var cajas = panel.querySelector("[data-traslado-clientes]");
+  var buscar = panel.querySelector("[data-traslado-buscar]");
+  var cuenta = panel.querySelector("[data-traslado-cuenta]");
+  function marcados() {
+    return Array.prototype.map.call(cajas.querySelectorAll("input:checked"), function (c) { return c.value; });
+  }
+  function contar() { cuenta.textContent = marcados().length + " marcado(s)"; }
+  function cargarClientes() {
+    var modo = panel.querySelector('[name="clientes"]').value;
+    lista.hidden = modo !== "elegir";
+    if (modo !== "elegir") return;
+    cajas.textContent = "Cargando…";
+    var origen = panel.querySelector('[name="origen"]').value;
+    fetch("/api/dashboard/courier-clients?courier_id=" + encodeURIComponent(origen)).then(function (r) { return r.json(); })
+      .then(function (d) {
+        var filas = d.clientes || [];
+        cajas.innerHTML = filas.length ? filas.map(function (c) {
+          var texto = c.nombre + (c.nit ? " · " + c.nit : "") + (c.zona ? " · " + c.zona : "");
+          return '<label class="portal-check" style="display:block" data-texto="' + esc(texto.toLowerCase()) + '">' +
+                 '<input type="checkbox" value="' + esc(c.id) + '"> ' + esc(texto) + "</label>";
+        }).join("") : "Este motorizado no tiene clientes fijos.";
+        contar();
+      }).catch(function () { cajas.textContent = "No se pudo cargar la lista."; });
+  }
+  buscar.addEventListener("input", function () {
+    var q = buscar.value.trim().toLowerCase();
+    Array.prototype.forEach.call(cajas.querySelectorAll("label"), function (l) { l.hidden = q && l.dataset.texto.indexOf(q) < 0; });
+  });
+  function marcarVisibles(valor) {
+    Array.prototype.forEach.call(cajas.querySelectorAll("label"), function (l) { if (!valor || !l.hidden) l.querySelector("input").checked = valor; });
+    contar(); confirmar.hidden = true; resumen.textContent = "";
+  }
+  panel.querySelector("[data-traslado-marcar]").addEventListener("click", function () { marcarVisibles(true); });
+  panel.querySelector("[data-traslado-desmarcar]").addEventListener("click", function () { marcarVisibles(false); });
+  panel.addEventListener("change", function (e) {
+    confirmar.hidden = true; resumen.textContent = ""; contar();
+    if (e.target.name === "clientes" || e.target.name === "origen") cargarClientes();
+  });
   panel.querySelector("[data-traslado-ver]").addEventListener("click", function () {
     resumen.textContent = "Calculando…";
     enviar("/api/dashboard/courier-transfer", datos(false)).then(function (d) {

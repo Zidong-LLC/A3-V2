@@ -50,6 +50,23 @@ projects:
                 value: "8"
               - key: MESSAGE_DEBOUNCE_MAX_WAIT
                 value: "30"
+              # Autorización de datos en WhatsApp (propuesta del 28/09). Con números en
+              # ONLY_NUMBERS (separados por coma) solo se les pregunta a ellos: modo prueba.
+              - key: WHATSAPP_PRIVACY_ENABLED
+                value: "true"
+              - key: WHATSAPP_PRIVACY_ONLY_NUMBERS
+                sync: false
+              # Wompi: apagado hasta cargar las llaves. Sandbox mientras se prueba.
+              - key: WOMPI_ENABLED
+                sync: false
+              - key: WOMPI_ONLY_NITS
+                sync: false
+              - key: WOMPI_BASE_URL
+                sync: false
+              - key: WOMPI_PRIVATE_KEY
+                sync: false
+              - key: WOMPI_EVENTS_SECRET
+                sync: false
               - key: FSM_ENFORCE
                 value: "false"
 
