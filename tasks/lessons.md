@@ -862,3 +862,15 @@ números: filas leídas y escritas, segundos, tuplas muertas, y el tamaño del c
 recibe. Un proceso periódico escribe solo lo que cambió y refresca solo si escribió. Y antes de
 poner una base en producción, mirar en qué cómputo está: «plan Pro» no quiere decir que el
 proyecto no esté en Nano.
+
+## 2026-11-09 — Un arreglo no puede depender de que el cliente diga la frase esperada
+
+**Qué pasó.** Para el bucle del análisis propuesto (ERR-198) armé un atajo que aceptaba la propuesta
+si el mensaje era «ese está bien», «dale» y parecidos. El usuario lo frenó: «no hagamos que sí o sí
+tenga que decir una palabra mágica… el ser humano nunca va a decir lo mismo». Con el modelo real,
+«Va, ese me sirve» ni siquiera llega como `affirm`: llega como `provides_requested_data`.
+
+**Regla.** Aceptar o rechazar lo decide la señal del modelo, leída con el contexto de lo que el bot
+acaba de preguntar; las listas de palabras solo cubren el turno sin señal. Antes de dar por bueno un
+carril de comprensión, probarlo con el modelo real y cinco o seis fraseos que NO estén en ninguna
+lista, incluidos los de rechazo.

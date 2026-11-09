@@ -5304,7 +5304,13 @@ conversaciones" teniendolas todas delante.
 - **Solución:** `app/propuesta_analisis.py` + `agent._anclar_analisis_nombrado` al final del pipeline,
   solo mientras el análisis sea el dato que falta: si la respuesta nombra análisis del catálogo (nombre
   completo) y dice que los registró, se registran de verdad y la respuesta sale del código con su
-  oferta numerada; si solo los propone, quedan guardados como opción. Y antes del modelo: una única
-  opción propuesta + «ese está bien» / «dale» la elige.
+  oferta numerada; si solo los propone, quedan guardados como opción.
+- **Corrección del usuario el mismo día:** la primera versión elegía la propuesta con una lista de
+  palabras («ese está bien», «dale»). «El ser humano nunca va a decir lo mismo… tiene que tener
+  análisis semántico». Ahora decide la SEÑAL del modelo (`_responder_a_la_propuesta`): `affirm`, o
+  `provides_requested_data` con una sola propuesta pendiente, la aceptan; `negate` y `correction` la
+  descartan; con varias propuestas se pregunta cuál. La lista queda solo de red sin señal clara.
+  Verificado con el modelo real: «Va, ese me sirve», «Hágale pues con ese», «de una», «listo sumercé,
+  dejémoslo con ese» registran; «nah, mejor otra cosa» descarta y vuelve a preguntar.
 - **Verificación:** replay con el modelo real de los cuatro mensajes: propuesta guardada → registro con
   opciones 1 y 2 → observación numerada → resumen. `tests/test_propuesta_analisis.py` (22 casos).

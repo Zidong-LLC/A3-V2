@@ -2460,6 +2460,60 @@ def _cancelacion_a_operaciones(prev_fields: dict, fields: dict) -> dict:
     return respuesta
 
 
+def _responder_a_la_propuesta(session: dict, propuesta: list[dict], fields: dict, ai_response: dict,
+                              user_message: str) -> dict | None:
+    """El bot propuso análisis y el cliente contesta. Decide la LECTURA DEL MODELO
+    (`user_intent_signal`): «va, ese me sirve», «hágale», «de una» son `affirm` sin estar
+    en ninguna lista. La lista de palabras queda de red para el turno sin señal clara.
+
+    - Acepta y había una sola opción → se registra esa (más lo que nombre de paso).
+    - Acepta y había varias → no se adivina: se pregunta cuál, con números.
+    - Rechaza → la propuesta se descarta para que un «sí» posterior no la elija.
+    Con códigos o un pedido ambiguo en el mensaje, deciden los carriles del catálogo."""
+    if not propuesta:
+        return None
+    if (fields.get("exam_type") or fields.get("_selected_profile_code")
+            or _as_text_items(fields.get("selected_tests"))):
+        return None  # el modelo ya fijó el análisis: sigue el pipeline con eso
+    signal = ai_response.get("user_intent_signal")
+    if signal in ("negate", "correction"):  # «nah, mejor otra cosa» llega como corrección
+        fields.pop("_test_menu_options", None)
+        return None
+    # El modelo también lee «va, ese me sirve» como «me dio el dato que pedí»: con UNA
+    # propuesta pendiente y sin nombrar otro análisis, el dato es esa propuesta. Si el
+    # mensaje habla de análisis o perfiles («un perfil renal»), lo deciden los carriles.
+    tokens = set(_tokenize(user_message))
+    da_el_dato = (signal == "provides_requested_data" and len(propuesta) == 1
+                  and not (tokens & propuesta_analisis.NOMBRA_OTRO_ANALISIS))
+    acepta = signal == "affirm" or da_el_dato or (
+        signal not in ("another_order", "change_client", "off_topic")
+        and propuesta_analisis.acepta_la_propuesta(user_message))
+    if not acepta or _profile_codes_from_text(user_message):
+        return None
+    extras = []
+    try:
+        nombrado = catalog.resolve_tests(user_message, db.list_catalog_tests(limit=5000), fields.get("species"))
+    except Exception:  # noqa: BLE001 — sin catálogo decide solo la propuesta
+        nombrado = None
+    if nombrado is not None and nombrado.status == catalog.AMBIGUOUS:
+        return None
+    if nombrado is not None and nombrado.status == catalog.EXACT:
+        extras = [{"code": str(t["code"]), "name": t.get("name"), "price": int(t.get("price") or 0)}
+                  for t in nombrado.tests]
+    if len(propuesta) > 1 and not extras:
+        _store_test_menu_options(fields, propuesta)
+        lineas = [f"{i}. {t.get('code')} {t.get('name')} ({_money(t.get('price'))})"
+                  for i, t in enumerate(propuesta, start=1)]
+        return _base_route_response("¿Cuál prefieres?\n" + "\n".join(lineas)
+                                    + "\nDime el número o el nombre. Puedes elegir varios.", fields)
+    seleccion, vistos = [], set()
+    for t in (propuesta if len(propuesta) == 1 else []) + extras:
+        if str(t["code"]) not in vistos:
+            vistos.add(str(t["code"]))
+            seleccion.append(t)
+    return _capture_test_menu_selection(session, fields, seleccion)
+
+
 def _anclar_analisis_nombrado(session: dict, ai_response: dict) -> dict:
     """Con el análisis todavía sin fijar, lo que el bot NOMBRA del catálogo queda anclado
     (ERR-198, prueba real del 09/11). Si dice que lo registró, se registra de verdad y la
@@ -3480,14 +3534,12 @@ def process_turn(
     # y el cliente elige ('el primero', 'el 2', '1601', 'parcial de orina'), capturar el
     # análisis REAL del catálogo de forma determinística, sin depender del modelo (que
     # entraba en bucle y terminaba guardando el texto genérico, ej. "Orina").
+    # Lo que el bot propuso mientras preguntaba el análisis: si el cliente no lo elige por
+    # número o nombre acá abajo, lo decide la lectura del MODELO después (ERR-198).
+    _propuesta_previa = (list(prev_captured.get("_test_menu_options") or [])
+                         if _missing_route_field(session, prev_captured) == "exam_type" else [])
     if prev_captured.get("_test_menu_options"):
         _selected_tests = _select_tests_from_menu(user_message, prev_captured["_test_menu_options"])
-        # Una sola opción propuesta y el cliente la acepta («ese está bien», «dale»): es esa.
-        # Solo mientras el análisis sea lo que se está preguntando (ERR-198).
-        if (not _selected_tests and len(prev_captured["_test_menu_options"]) == 1
-                and propuesta_analisis.acepta_la_propuesta(user_message)
-                and _missing_route_field(session, prev_captured) == "exam_type"):
-            _selected_tests = list(prev_captured["_test_menu_options"])
         if _selected_tests:
             # Menú mostrado para AGREGAR a un perfil base ('qué análisis de orina tienen'
             # durante el ajuste): sumar al perfil, no reemplazarlo.
@@ -3665,6 +3717,12 @@ def process_turn(
     # agregan por sus propias vías (mensaje + catálogo) y no pasan por este filtro.
     _candado_provenancia_tests(fields, prev_captured, user_message)
     _candado_provenancia_paciente(fields, prev_captured, user_message)
+
+    # Respuesta a una PROPUESTA de análisis, señal-primero (ERR-198; regla del usuario,
+    # 2026-11-09: el cliente acepta o rechaza con sus palabras, no con una frase fija).
+    _resp_propuesta = _responder_a_la_propuesta(session, _propuesta_previa, fields, ai_response, user_message)
+    if _resp_propuesta:
+        return _persist_turn(chat_id, user_message, _resp_propuesta)
 
     # ══ Etapa 4a — CATÁLOGO Y LATERALES post-modelo (refactor de comprensión,
     # 2026-08-24, ficha ABIERTO-003): los seis carriles pre-LLM que competían por las

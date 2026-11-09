@@ -15,6 +15,11 @@ _AFIRMA = frozenset({"si", "ese", "esa", "eso", "este", "dale", "ok", "okay", "l
 _RELLENO = frozenset({"esta", "con", "el", "la", "lo", "solo", "nomas", "queda", "quedamos", "asi", "va",
                       "es", "gracias", "por", "favor", "quiero", "senor", "senora", "me", "parece", "muy"})
 
+# Con estas palabras el mensaje pide OTRA cosa del catálogo («un perfil renal», «otro examen»):
+# no es aceptar la propuesta aunque el modelo lo lea como «dio el dato pedido».
+NOMBRA_OTRO_ANALISIS = frozenset({"perfil", "perfiles", "analisis", "examen", "examenes", "prueba", "pruebas",
+                                  "otro", "otra", "otros", "otras", "panel", "quimica", "orina", "tambien"})
+
 
 def acepta_la_propuesta(texto: str) -> bool:
     """¿El mensaje es SOLO un «sí, ese»? Con algo más adentro lo lee el pipeline."""
