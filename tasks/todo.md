@@ -1907,6 +1907,7 @@ Hecho:
 
 - [x] ERR-198 desplegado (commit 0c18778): la propuesta de análisis se acepta o rechaza por la señal del modelo
 - [x] Link de Wompi enviado a mano al pedido de prueba P-2026-004 (el candado de modo prueba lo había descartado)
-- [ ] Push + deploy del fix del link (commit local 5f03ccb): NIT desde el cliente del pedido; «pago en línea» en el resumen
-- [ ] Confirmar con un pago de prueba que el aviso de Wompi valida la firma (secreto leído de una captura)
+- [x] Fix del link desplegado (ad72a9d): NIT desde el cliente del pedido; «pago en línea» en el resumen
+- [x] Pago de prueba en sandbox aprobado de punta a punta: firma válida, estado `approved`, aviso al cliente y nota interna
+- [ ] Repetir un pedido corto para ver el link salir solo al cerrar
 - [ ] ERR-199: Alegra rechaza los borradores sin forma de pago — decidir qué valores mandar y arreglar
