@@ -2863,7 +2863,7 @@ def _pedido_summary(ordenes: list[dict], fields: dict, payment_method: str) -> s
 
     encabezado = (f"Listo, cerramos el pedido con {len(ordenes)} "
                   f"{'orden' if len(ordenes) == 1 else 'órdenes'}:")
-    cierre = [f"\nForma de pago: {payment_method}"]
+    cierre = [f"\nForma de pago: {_payment_method_label(payment_method)}"]
     if total:
         cierre.append(f"TOTAL DEL PEDIDO: {_money(total)}")
     return "\n".join([encabezado, *lineas, *cierre])

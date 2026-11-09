@@ -160,3 +160,19 @@ def test_modo_prueba_solo_da_link_al_cliente_de_prueba(monkeypatch):
     assert pagos.link_para_pedido("ped-1", 71340, "Vet Real", "800111222-1") is None and creados == []
     assert pagos.link_para_pedido("ped-1", 71340, "A3", "900296338-9") == "https://checkout.wompi.co/l/L9"
     assert creados == [("ped-1", "L9", 7134000, "https://checkout.wompi.co/l/L9")]
+
+
+def test_en_modo_prueba_el_nit_sale_del_cliente_del_pedido_si_el_estado_no_lo_trae(monkeypatch):
+    """Prueba real del 09/11: al cerrar, el estado ya no traía el NIT y el link no salió."""
+    monkeypatch.setattr(pagos, "WOMPI_ENABLED", True)
+    monkeypatch.setattr(pagos, "WOMPI_ONLY_NITS", {"900296338"})
+    monkeypatch.setattr(pagos.db, "get_pedido", lambda pid: dict(PEDIDO, client_id="cli-9"))
+    monkeypatch.setattr(pagos.db, "get_client_by_id", lambda cid: {"tax_id": "900296338-9"} if cid == "cli-9" else None)
+    monkeypatch.setattr(pagos.pagos_db, "crear", lambda *a: None)
+    monkeypatch.setattr(pagos.wompi, "crear_link", lambda *a: {"id": "L9", "url": "https://checkout.wompi.co/l/L9"})
+    assert pagos.link_para_pedido("ped-1", 16000, "A3", None) == "https://checkout.wompi.co/l/L9"
+
+
+def test_el_resumen_dice_pago_en_linea_y_no_el_valor_interno(monkeypatch):
+    reply, _ = _cerrar(monkeypatch, "pago_linea", None)
+    assert "Forma de pago: pago en línea" in reply and "pago_linea" not in reply

@@ -24,11 +24,17 @@ def link_para_pedido(pedido_id: str | None, total: int, cliente: str = "", nit: 
     """URL de pago del pedido, o None si no corresponde o no se pudo crear."""
     if not WOMPI_ENABLED or not pedido_id or int(total or 0) <= 0:
         return None
-    solo_nit = "".join(ch for ch in str(nit or "").split("-")[0] if ch.isdigit())
-    if WOMPI_ONLY_NITS and solo_nit not in WOMPI_ONLY_NITS:  # modo prueba
-        return None
     try:
-        numero = (db.get_pedido(pedido_id) or {}).get("pedido_number") or "pedido"
+        pedido = db.get_pedido(pedido_id) or {}
+        if WOMPI_ONLY_NITS:  # modo prueba: solo los clientes configurados
+            # El NIT sale del cliente del PEDIDO: al cerrar, el estado de la conversación ya
+            # no siempre lo trae, y sin él el link no salía (prueba real del 09/11).
+            nit = nit or (db.get_client_by_id(pedido.get("client_id")) or {}).get("tax_id")
+            solo_nit = "".join(ch for ch in str(nit or "").split("-")[0] if ch.isdigit())
+            if solo_nit not in WOMPI_ONLY_NITS:
+                logger.info("pagos: pedido %s fuera del modo prueba de Wompi, sin link", pedido_id)
+                return None
+        numero = pedido.get("pedido_number") or "pedido"
         link = wompi.crear_link(f"A3 Laboratorio · {numero}",
                                 f"Análisis de laboratorio {numero} {cliente}".strip(), int(total) * 100)
         pagos_db.crear(pedido_id, link["id"], int(total) * 100, link["url"])
