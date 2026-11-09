@@ -1902,3 +1902,11 @@ Hecho:
 - [x] Privacidad con botones: funcionó en la prueba real (evidencia `asked` → `accepted «Sí 👍»`)
 - [x] ERR-198: propuesta del modelo sin anclar → bucle en el análisis; corregido y verificado con replay real
 - [ ] Push + deploy del fix (esperando OK) y seguir la prueba hasta el pago en línea con Wompi
+
+### Pendientes tras la prueba del usuario (09/11, noche)
+
+- [x] ERR-198 desplegado (commit 0c18778): la propuesta de análisis se acepta o rechaza por la señal del modelo
+- [x] Link de Wompi enviado a mano al pedido de prueba P-2026-004 (el candado de modo prueba lo había descartado)
+- [ ] Push + deploy del fix del link (commit local 5f03ccb): NIT desde el cliente del pedido; «pago en línea» en el resumen
+- [ ] Confirmar con un pago de prueba que el aviso de Wompi valida la firma (secreto leído de una captura)
+- [ ] ERR-199: Alegra rechaza los borradores sin forma de pago — decidir qué valores mandar y arreglar

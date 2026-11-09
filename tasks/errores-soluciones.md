@@ -5314,3 +5314,17 @@ conversaciones" teniendolas todas delante.
   dejémoslo con ese» registran; «nah, mejor otra cosa» descarta y vuelve a preguntar.
 - **Verificación:** replay con el modelo real de los cuatro mensajes: propuesta guardada → registro con
   opciones 1 y 2 → observación numerada → resumen. `tests/test_propuesta_analisis.py` (22 casos).
+
+## ERR-199 — Alegra rechaza el borrador del pedido: «La forma de pago es obligatoria»
+
+- **Fecha:** 2026-11-09 · **Estado:** ABIERTO (esperando OK del usuario: toca lo que se escribe en Alegra)
+- **Cómo se encontró:** revisando por qué no salió el link de Wompi en la prueba del usuario. El log del
+  cierre del pedido de prueba dice: `cerrado sin factura (Alegra): POST /invoices -> HTTP 400
+  {"message":"La forma de pago es obligatoria"}`.
+- **Alcance:** el borrador se arma sin forma de pago (`alegra.create_invoice` no la manda). En el cache no
+  hay ninguna factura ligada a una orden de la plataforma, así que es probable que en la cuenta real los
+  borradores no se estén creando. El pedido se cierra igual y queda en «cerrado», no en «facturado».
+- **Dato de la cuenta (solo lectura, 30 facturas recientes):** A3 usa sobre todo contado en efectivo, y
+  también transferencia y crédito.
+- **Propuesta:** mandar la forma de pago en el borrador según lo que eligió el cliente (contraentrega →
+  contado, efectivo; pago en línea → contado, transferencia) y que Contabilidad la ajuste al revisar.
