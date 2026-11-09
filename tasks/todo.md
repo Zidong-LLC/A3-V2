@@ -1954,7 +1954,7 @@ Plan:
 
 ### Pendiente de este bloque
 
-- [ ] Push + deploy (esperando OK del usuario)
+- [x] Push + deploy (09/11 19:24 Bogotá, commit 88db29a vivo en Render; /health ok y los JS nuevos servidos)
 - [ ] ERR-199 contra Alegra: ver el primer borrador real, sobre todo uno con pago en línea
 - [ ] Probar en producción una contramuestra, una recolección efectiva y borrar una orden de prueba
 - [ ] Confirmar con A3 que «eliminar registros» era esto (órdenes y análisis) y no también clientes
