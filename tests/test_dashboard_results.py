@@ -253,6 +253,7 @@ def test_upload_multiple_crea_un_resultado_por_archivo():
     client = _get_test_client()
     _login_dashboard(client)
     with patch("app.dashboard_results.get_client_by_id", return_value={"id": CLIENT_A}), \
+         patch("app.dashboard_results.portal_db.get_request_by_order_number", return_value=None), \
          patch("app.dashboard_results.storage.upload_result_pdf", return_value="ruta.pdf"), \
          patch("app.dashboard_results.portal_db.insert_lab_result",
                side_effect=lambda f: {"id": RESULT_ID, **f}) as insert, \

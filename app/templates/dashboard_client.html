@@ -65,9 +65,9 @@
   <div class="card-head">
     <div><h3>Subir informe para esta veterinaria</h3><p>El destino ya está resuelto: no hace falta el número de orden ni el NIT</p></div>
   </div>
-  <form method="post" action="{{ url_for('dashboard_results.upload_result') }}" enctype="multipart/form-data" class="portal-upload-form">
+  <form method="post" action="{{ url_for('dashboard_results.upload_result') }}" enctype="multipart/form-data" class="portal-upload-form" data-carga-lote>
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-    <input type="hidden" name="client_id" value="{{ cliente.id }}">
+    <input type="hidden" name="client_id" value="{{ cliente.id }}" data-vet-id>
     <input type="hidden" name="volver_a_ficha" value="1">
     <div class="form-grid">
       <label>Número de orden <span class="muted-text">opcional</span>
@@ -194,7 +194,8 @@
   </div>
   <script>window.addEventListener('DOMContentLoaded', function () { if (window.lucide) lucide.createIcons(); });</script>
   <script src="{{ url_for('static', filename='os-fx.js') }}?v=9" defer></script>
-  <script src="{{ url_for('static', filename='upload-multi.js') }}?v=2" defer></script>
+  <script src="{{ url_for('static', filename='upload-multi.js') }}?v=3" defer></script>
+  <script src="{{ url_for('static', filename='upload-lote.js') }}?v=1" defer></script>
   <script src="{{ url_for('static', filename='ficha_cliente.js') }}?v=1" defer></script>
 </body>
 </html>

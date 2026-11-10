@@ -886,3 +886,14 @@ cliente, una orden o un análisis que se cargó mal o de más.
 le devuelve al usuario la lectura con un ejemplo concreto («¿es borrar a la veterinaria X, o borrar la
 orden A3-2026-050 de la veterinaria X?»). La palabra que el cliente usa para sus datos («registros»,
 «análisis») casi nunca es el nombre de una tabla: se traduce mirando qué ve él en pantalla.
+
+## 2026-11-10 — El destino de un informe lo elige una persona; leer el PDF solo sirve para frenar
+
+**Qué pasó.** A3 pidió subir 400–500 informes por día sin llenar un formulario por cada uno. Propuse
+que la plataforma leyera cada PDF y decidiera sola a qué veterinaria iba. El usuario lo frenó: «no
+puede llegar un análisis a un cliente equivocado… mínimamente tiene que seleccionar de qué clínica es».
+
+**Regla.** En todo lo que llega a un cliente (informes, avisos, facturas) el destino lo decide una
+persona con un dato explícito: la veterinaria elegida. Lo automático puede FRENAR (el NIT del PDF no
+coincide, la orden es de otra clínica) pero nunca ELEGIR. Cuando el cliente pide «menos pasos», el
+recorte va en los datos accesorios (paciente, análisis), no en la elección del destino.

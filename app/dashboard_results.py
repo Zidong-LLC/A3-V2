@@ -9,11 +9,13 @@ cliente tiene chat vinculado (el fallo del aviso no revierte la publicación).
 from functools import wraps
 
 from flask import (
-    Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for,
+    Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, session,
+    url_for,
 )
 
 from datetime import datetime, timedelta
 
+from app import informe_pdf
 from app.config import ANARVET_ENABLED, APP_TIMEZONE
 from app.services import chatwoot, db, portal_db, storage, telegram
 from app.services.db import find_clients_by_tax_id, get_client_by_id
@@ -47,15 +49,15 @@ def _search_filters() -> dict:
 def _resolve_client(order_number: str, tax_id: str, client_id: str = "") -> tuple[str | None, dict | None]:
     """Resuelve el cliente destino: id explícito, número de orden o NIT.
 
-    El `client_id` llega cuando se sube desde la ficha del cliente: es unívoco, y evita
-    el problema del NIT compartido entre sedes (ERR-157), donde la búsqueda por NIT
-    devuelve varias y no resuelve."""
+    El `client_id` llega cuando la persona eligió la veterinaria (o sube desde su ficha): es
+    unívoco, y evita el problema del NIT compartido entre sedes (ERR-157), donde la búsqueda
+    por NIT devuelve varias y no resuelve. Con veterinaria elegida la orden igual se busca:
+    `_upload_one` la ata si es de esa veterinaria y frena la carga si es de otra."""
+    req = portal_db.get_request_by_order_number(order_number) if order_number else None
     if client_id and get_client_by_id(client_id):
-        return client_id, None
-    if order_number:
-        req = portal_db.get_request_by_order_number(order_number)
-        if req and req.get("client_id"):
-            return req["client_id"], req
+        return client_id, req
+    if req and req.get("client_id"):
+        return req["client_id"], req
     if tax_id:
         matches = find_clients_by_tax_id(tax_id)
         if len(matches) == 1:
@@ -96,7 +98,25 @@ def _field(name: str, index: int) -> str:
     return (request.form.get(f"{name}_{index}") or request.form.get(name) or "").strip()
 
 
-def _publish_and_notify(result: dict) -> None:
+def _avisar_por_chat(client_id: str, aviso: str) -> None:
+    """Le escribe a la veterinaria por su chat confiable, si tiene. Nunca frena la carga."""
+    try:
+        vinculo = portal_db.chat_for_client(client_id)
+        if vinculo:
+            chat_id, canal = vinculo
+            # El transporte según el canal de la sesión: whatsapp y chatwoot-web viajan
+            # ambos por Chatwoot (tapón #2 de WhatsApp — antes solo avisaba a Telegram).
+            if canal == "telegram":
+                telegram.send_message(chat_id, aviso)
+            else:
+                chatwoot.send_message(chat_id, aviso)
+    except Exception:
+        current_app.logger.warning("No se pudo avisar por chat al cliente %s", client_id, exc_info=True)
+
+
+def _publish_and_notify(result: dict, avisar_por_chat: bool = True) -> None:
+    """Publica y deja el aviso en el portal. El aviso por chat se omite en las cargas en
+    tanda: ahí sale UNO al final con la cantidad (`avisar_lote`), no uno por informe."""
     updated = portal_db.publish_lab_result(result["id"])
     if not updated:
         return
@@ -105,20 +125,10 @@ def _publish_and_notify(result: dict) -> None:
     portal_db.insert_notification(
         result["client_id"], "result_published", title, body, result_id=result["id"]
     )
-    try:
-        vinculo = portal_db.chat_for_client(result["client_id"])
-        if vinculo:
-            chat_id, canal = vinculo
-            aviso = (f"A3 Laboratorio: el resultado de {result.get('patient_name') or 'su paciente'}"
-                     f" (orden {result.get('order_number') or 's/n'}) ya está disponible en el portal.")
-            # El transporte según el canal de la sesión: whatsapp y chatwoot-web viajan
-            # ambos por Chatwoot (tapón #2 de WhatsApp — antes solo avisaba a Telegram).
-            if canal == "telegram":
-                telegram.send_message(chat_id, aviso)
-            else:
-                chatwoot.send_message(chat_id, aviso)
-    except Exception:
-        pass
+    if avisar_por_chat:
+        _avisar_por_chat(result["client_id"], (
+            f"A3 Laboratorio: el resultado de {result.get('patient_name') or 'su paciente'}"
+            f" (orden {result.get('order_number') or 's/n'}) ya está disponible en el portal."))
 
 
 ANARVET_PER_PAGE = 50
@@ -184,10 +194,20 @@ def _upload_one(file, index: int, tax_id: str, explicit_client: str) -> tuple[di
     client_id, req = _resolve_client(order_number, tax_id, explicit_client)
     if not client_id:
         return None, "No se encontró el cliente: verifique el número de orden o el NIT"
+    if req and req.get("client_id") and req["client_id"] != client_id:
+        return None, f"La orden {order_number} es de otra veterinaria: no se subió"
 
     data = _validated_pdf(file)
     if data is None:
         return None, "Archivo inválido: debe ser un PDF de máximo 10 MB"
+
+    # Red de seguridad: el informe trae impreso el NIT de su veterinaria (app/informe_pdf.py).
+    # El cliente se busca solo si el PDF muestra algún NIT contra el cual comparar.
+    texto = informe_pdf.texto_de(data)
+    if informe_pdf.nits_en_texto(texto):
+        ajeno = informe_pdf.nit_ajeno(texto, (get_client_by_id(client_id) or {}).get("tax_id"))
+        if ajeno:
+            return None, f"El informe es del NIT {ajeno}, no de esta veterinaria: no se subió"
 
     pdf_path = storage.upload_result_pdf(client_id, order_number or None, data)
     result = portal_db.insert_lab_result({
@@ -219,6 +239,9 @@ def upload_result():
     tax_id = (request.form.get("tax_id") or "").strip()
     explicit_client = (request.form.get("client_id") or "").strip()
     publicar = bool(request.form.get("publish_now"))
+    # La carga en tanda (upload-lote.js) manda un PDF por envío y pide JSON: el resumen lo
+    # arma la pantalla y el aviso por chat sale uno solo al final.
+    en_tanda = request.form.get("respuesta") == "json"
     subidos, errores = [], []
     for index, file in enumerate(files):
         result, error = _upload_one(file, index, tax_id, explicit_client)
@@ -228,8 +251,10 @@ def upload_result():
             continue
         subidos.append(result)
         if publicar:
-            _publish_and_notify(result)
+            _publish_and_notify(result, avisar_por_chat=not en_tanda)
 
+    if en_tanda:
+        return jsonify({"subidos": len(subidos), "errores": errores})
     for error in errores:
         flash(error, "error")
     if len(subidos) == 1:
@@ -239,6 +264,25 @@ def upload_result():
         flash(f"{len(subidos)} resultados subidos" + (" y compartidos con el cliente" if publicar
               else " como borrador (sin compartir)"), "ok")
     return _volver()
+
+
+@dashboard_results.post("/resultados/avisar-lote")
+@_dashboard_login_required
+def avisar_lote():
+    """Un solo aviso por chat al terminar una carga en tanda: con 50 informes de una clínica
+    le llegaban 50 mensajes seguidos. Cada informe igual tiene su aviso dentro del portal."""
+    client_id = (request.form.get("client_id") or "").strip()
+    try:
+        cantidad = int(request.form.get("cantidad") or 0)
+    except ValueError:
+        cantidad = 0
+    if not client_id or not 0 < cantidad <= 5000 or not get_client_by_id(client_id):
+        return jsonify({"error": "Datos del aviso inválidos"}), 400
+    _avisar_por_chat(client_id, (
+        "A3 Laboratorio: el resultado de su paciente ya está disponible en el portal."
+        if cantidad == 1 else
+        f"A3 Laboratorio: {cantidad} resultados nuevos ya están disponibles en el portal."))
+    return jsonify({"ok": True})
 
 
 @dashboard_results.post("/resultados/<uuid:result_id>/publicar")

@@ -11,3 +11,5 @@ tzdata>=2024.1
 playwright==1.55.0
 # Cargas masivas desde Excel (.xlsx), cierre v1 (2026-10-19).
 openpyxl==3.1.5
+# Leer el NIT impreso en los informes que se suben (app/informe_pdf.py, 2026-11-10).
+pypdf==6.16.2

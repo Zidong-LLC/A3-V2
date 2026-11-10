@@ -1956,5 +1956,56 @@ Plan:
 
 - [x] Push + deploy (09/11 19:24 Bogotá, commit 88db29a vivo en Render; /health ok y los JS nuevos servidos)
 - [ ] ERR-199 contra Alegra: ver el primer borrador real, sobre todo uno con pago en línea
+      (10/11: 9 borradores reales de contraentrega creados con forma de pago CASH y estado `draft`,
+      verificados por GET; falta ver uno con pago en línea)
 - [ ] Probar en producción una contramuestra, una recolección efectiva y borrar una orden de prueba
 - [ ] Confirmar con A3 que «eliminar registros» era esto (órdenes y análisis) y no también clientes
+
+## Prueba de A3 del 10/11: aviso al mensajero, carga de informes y resultados de Varvet — PROPUESTA, esperando OK
+
+Reporte del cliente por WhatsApp (10/11): (1) creó una solicitud y al mensajero no le llegó nada, ni a su
+propio celular cargado como mensajero, ni a Cesar; (2) «¿cada resultado necesita el formulario? subimos
+400–500 por día»; (3) subió 6 resultados a Varvet y no aparecen en el portal de esa veterinaria.
+
+Diagnóstico (solo lectura: base real, Chatwoot y Alegra por GET; no se modificó nada):
+
+- **Mensajero:** el aviso solo sale si la tarjeta tiene «Chat de avisos» (n° de conversación de Chatwoot,
+  ERR-179). Ninguno de los 11 motorizados lo tiene; el teléfono solo no dispara nada. Los 8 originales tienen
+  teléfonos de relleno (Cesar = `0006ab874ea22`). El canal de WhatsApp en Chatwoot tiene 0 plantillas
+  aprobadas: sin plantilla, WhatsApp no deja escribirle primero a nadie fuera de la ventana de 24 h.
+- **Formulario:** la carga múltiple existe, pero es por veterinaria y el servidor corta en 64 MB (unos 20 PDFs
+  de 3 MB). Los PDFs de A3 (impresos desde Anarvet) traen en texto el NIT y el nombre de la veterinaria, el
+  n° de solicitud de Anarvet (8 dígitos, el `codigo` del espejo), paciente y propietario: se pueden
+  identificar solos. El número del nombre del archivo («1109272288 Skay») NO es el de la solicitud.
+- **Varvet:** los 6 informes están guardados y bien asignados, pero como BORRADOR (`published=false`): la
+  casilla «Compartir con el cliente al subir» viene desmarcada. Además quedaron sin atar a las 6 solicitudes
+  del portal (A3-2026-013 a 018, mismos pacientes), así que la solicitud no mostraría «Resultado disponible».
+- **Efecto de probar en producción:** las 9 órdenes de hoy abrieron 9 borradores en la cuenta real de Alegra
+  (11479–11481 y 11483–11488). Todos `draft`, sin sello DIAN. A3 los borra desde Alegra si eran prueba.
+- **Capacidad:** cada PDF pesa 2–3 MB → 500 por día ≈ 1,2 GB diarios en Supabase Storage. Confirmar plan.
+
+Decisión del usuario (10/11): NO asignar informes solos. La persona elige la veterinaria (obligatorio) y
+sube todos sus PDFs de una; la clínica ve en su portal de quién es cada uno. «Compartir» marcado por
+defecto. Motorizados: en espera, A3 está definiendo cómo lo quiere.
+
+- [x] 1. Resultados: buscador de veterinaria obligatorio en el formulario (reemplaza el campo NIT); sin
+      veterinaria elegida no se sube nada. «Compartir con el cliente al subir» marcado por defecto
+- [x] 2. Subida en tandas (`app/static/upload-lote.js`): un PDF por envío, de a 2, con barra de progreso;
+      que uno falle no frena al resto. Rompe el tope de 64 MB (~20 informes). Vale para Resultados y la ficha
+- [x] 3. La tabla por archivo queda plegada y opcional (el paciente sale del nombre del archivo)
+- [x] 4. Red de seguridad (`app/informe_pdf.py`): si el PDF muestra el NIT de OTRA veterinaria, no se
+      sube; una orden de otra veterinaria tampoco. Sin NIT legible manda la elección de la persona
+- [x] 5. Un solo aviso por chat a la clínica por tanda («N resultados nuevos»), no uno por informe
+- [x] 6. Tests + suite completa + bitácora (ERR-200) y lección
+- [x] Espacio de Supabase: plan Pro (cómputo Micro), 100 GB de archivos incluidos; hoy 16,5 MB (6 PDFs,
+      2,8 MB promedio). Recomprimir las imágenes bajaría ~58 % (medido, no aplicado)
+
+### Resultado (10/11)
+
+- Suite completa: 2198 passed. 20 tests nuevos. Pantalla probada en Chromium con la red simulada.
+- Dependencia nueva: `pypdf==6.16.2` (el deploy reconstruye la imagen).
+- [ ] Push + deploy (esperando OK)
+- [ ] Compartir los 6 informes de Varvet que quedaron en borrador (A3 desde el Historial, o nosotros con OK)
+- [ ] A3 borra desde Alegra los 9 borradores de prueba si no los quiere (11479–11481 y 11483–11488)
+- [ ] Decidir: recomprimir los PDFs al subir (~58 % menos) y el formato A3-2026-013 en el chat (`results_lookup`)
+- [ ] Motorizados: A3 está definiendo cómo quiere el aviso

@@ -5344,3 +5344,37 @@ conversaciones" teniendolas todas delante.
   cuenta. Se siguió a la cuenta. Con contraentrega da igual (los dos son `CASH`); el caso a mirar en el
   primer borrador real es el de pago en línea.
 - **Tests:** `tests/test_forma_de_pago_alegra.py` (15 casos).
+
+---
+
+## ERR-200 — Los informes subidos a Varvet no aparecían en su portal y la carga diaria no era viable
+
+- **Fecha:** 2026-11-10 · **Estado:** CORREGIDO en código (OK del usuario el 10/11). Falta push + deploy.
+- **Síntoma (prueba de A3, 10/11):** subieron 6 informes a Varvet y la veterinaria no los veía en su
+  portal. Además: «¿cada resultado necesita el formulario? Subimos 400–500 por día».
+- **Causa raíz:** (1) en Resultados la casilla «Compartir con el cliente al subir» venía DESMARCADA (en la
+  ficha venía marcada): los 6 quedaron como borrador (`published=false`), bien asignados a Varvet;
+  (2) la carga múltiple mandaba todo en un envío y el servidor corta en 64 MB (~20 PDFs de 2,8 MB);
+  (3) el destino se escribía a mano (orden o NIT) y con veterinaria elegida la orden ni se miraba.
+- **Decisión del usuario:** la plataforma NO asigna informes por su cuenta. La persona elige la
+  veterinaria (obligatorio) y sube todos sus PDFs de una; la clínica ve de quién es cada uno.
+- **Solución:**
+  - Resultados: buscador de veterinaria obligatorio en el formulario (reemplaza el campo NIT); si cambia
+    el texto, la elección se borra. «Compartir» marcado por defecto.
+  - `app/static/upload-lote.js`: un PDF por envío, de a 2, con barra de progreso y resumen de los que
+    fallaron. Sin veterinaria elegida no sube nada. Vale en Resultados y en la ficha.
+  - La tabla por archivo queda plegada y opcional; el nombre del archivo ahora entiende el formato
+    actual de orden (A3-2026-013; antes lo partía en «A3-2026» + paciente «013 …»).
+  - Red de seguridad `app/informe_pdf.py` (pypdf, nueva dependencia): si el PDF muestra junto a «Nit»
+    el NIT de OTRA veterinaria, ese archivo no se sube. Sin NIT legible decide la persona. El NIT de A3
+    del encabezado se ignora. Probado con los 6 PDFs reales de Varvet (~40 ms cada uno).
+  - Con veterinaria elegida la orden se busca: si es de esa veterinaria se ata el informe (la solicitud
+    del portal muestra «Resultado disponible»); si es de otra, no se sube.
+  - Un solo aviso por chat por tanda (`POST /resultados/avisar-lote`, «N resultados nuevos»); el aviso
+    dentro del portal sigue saliendo por informe. Antes, 50 informes eran 50 mensajes seguidos.
+- **Tests:** `tests/test_informe_pdf.py` (11), `tests/test_resultados_lote.py` (9); suite completa
+  2198 passed. Pantalla probada en Chromium con la red simulada (sin escribir en producción).
+- **Pendiente:** compartir los 6 informes de Varvet (Historial → «Compartir»). Ojo: el cliente «A3» de
+  prueba recibe el freno si se le sube un informe de Varvet — es el control funcionando.
+- **Visto de paso, sin tocar (flujo conversacional):** `app/results_lookup.py::_ORDER_RE` tampoco
+  entiende el formato A3-2026-013: en el chat «A3-2026-013» se lee como «A3-2026».

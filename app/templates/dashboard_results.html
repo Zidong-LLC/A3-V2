@@ -69,19 +69,25 @@
       </section>
 
       <section class="card">
-        <div class="card-head"><h3>Subir informe de resultados</h3><p>PDF de máximo 10 MB. Identifique el destino por número de orden o por NIT; al compartir, el cliente lo ve en su portal y recibe aviso por Telegram si tiene chat vinculado.</p></div>
-        <form method="post" action="{{ url_for('dashboard_results.upload_result') }}" enctype="multipart/form-data" class="portal-upload-form">
+        <div class="card-head"><h3>Subir informe de resultados</h3><p>Elegí la veterinaria y cargá todos sus PDFs de una (máximo 10 MB cada uno). Van solo a esa veterinaria: si un PDF trae el NIT de otra, no se sube. Al compartir, la clínica los ve en su portal y recibe un aviso por chat.</p></div>
+        <form method="post" action="{{ url_for('dashboard_results.upload_result') }}" enctype="multipart/form-data" class="portal-upload-form" data-carga-lote>
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          {# Sin veterinaria elegida no se sube nada (pedido de A3, 10/11): upload-lote.js lo frena. #}
+          <input type="hidden" name="client_id" value="{{ preset_client.id if preset_client else '' }}" data-vet-id>
           {% if preset_client %}
-          <input type="hidden" name="client_id" value="{{ preset_client.id }}">
-          <section class="approval-notice ok">Subiendo para <strong>{{ preset_client.clinic_name }}</strong>{% if preset_client.tax_id %} (NIT {{ preset_client.tax_id }}){% endif %} — no hace falta el número de orden ni el NIT. <a href="{{ url_for('dashboard_results.results_page') }}">Cambiar de cliente</a></section>
+          <section class="approval-notice ok">Subiendo para <strong>{{ preset_client.clinic_name }}</strong>{% if preset_client.tax_id %} (NIT {{ preset_client.tax_id }}){% endif %}. <a href="{{ url_for('dashboard_results.results_page') }}">Cambiar de cliente</a></section>
           {% endif %}
           <div class="form-grid">
-            <label>Número de orden (A3-XXXXX)
-              <input name="order_number" type="text" placeholder="A3-00042">
+            {% if not preset_client %}
+            <label>Veterinaria <span class="muted-text">obligatoria</span>
+              <span class="client-finder">
+                <input class="cell-input" id="elegir-vet" type="search" autocomplete="off" placeholder="Nombre o NIT de la veterinaria…">
+                <ul class="client-finder-list" id="elegir-vet-lista" hidden></ul>
+              </span>
             </label>
-            <label>NIT del cliente (si no hay orden)
-              <input name="tax_id" type="text" placeholder="900123456">
+            {% endif %}
+            <label>Número de orden <span class="muted-text">opcional</span>
+              <input name="order_number" type="text" placeholder="A3-00042">
             </label>
             <label>Paciente
               <input name="patient_name" type="text" placeholder="Se toma de la orden si se omite">
@@ -97,7 +103,7 @@
             </label>
           </div>
           <div class="portal-upload-actions">
-            <label class="portal-check"><input type="checkbox" name="publish_now" value="1"> Compartir con el cliente al subir</label>
+            <label class="portal-check"><input type="checkbox" name="publish_now" value="1" checked> Compartir con el cliente al subir</label>
             <button type="submit" class="primary-btn"><i data-lucide="upload"></i>Subir resultado</button>
           </div>
         </form>
@@ -184,13 +190,13 @@
     })();
   </script>
   <script src="{{ url_for('static', filename='os-fx.js') }}?v=1" defer></script>
-  <script src="{{ url_for('static', filename='upload-multi.js') }}?v=2" defer></script>
+  <script src="{{ url_for('static', filename='upload-multi.js') }}?v=3" defer></script>
+  <script src="{{ url_for('static', filename='upload-lote.js') }}?v=1" defer></script>
 
   <script>
-  // Buscador de veterinaria: escribe y elegí; la ficha resuelve el destino sin escribir NIT.
-  (function () {
-    var caja = document.getElementById('buscar-vet');
-    var lista = document.getElementById('buscar-vet-lista');
+  // Dos buscadores con la misma lista: el de arriba abre la ficha; el del formulario elige
+  // a qué veterinaria van los informes (sin elegir no se sube, ver upload-lote.js).
+  function buscadorDeVeterinarias(caja, lista, alElegir) {
     if (!caja || !lista) return;
     var timer = null;
 
@@ -214,6 +220,13 @@
         a.innerHTML = '<strong>' + esc(f.nombre) + '</strong><span>' +
           (f.nit ? 'NIT ' + esc(f.nit) : 'sin NIT') + (f.zona ? ' · ' + esc(f.zona) : '') +
           (f.activo ? '' : ' · inactivo') + '</span>';
+        if (alElegir) {
+          a.addEventListener('click', function (e) {
+            e.preventDefault();
+            lista.hidden = true;
+            alElegir(f);
+          });
+        }
         li.appendChild(a);
         lista.appendChild(li);
       });
@@ -222,6 +235,8 @@
 
     caja.addEventListener('input', function () {
       clearTimeout(timer);
+      // Si cambia el texto, la veterinaria elegida deja de valer: hay que volver a elegir.
+      if (alElegir) alElegir(null);
       var q = caja.value.trim();
       if (q.length < 2) { lista.hidden = true; return; }
       timer = setTimeout(function () {
@@ -234,6 +249,19 @@
 
     document.addEventListener('click', function (e) {
       if (!lista.contains(e.target) && e.target !== caja) lista.hidden = true;
+    });
+  }
+
+  buscadorDeVeterinarias(document.getElementById('buscar-vet'), document.getElementById('buscar-vet-lista'));
+
+  (function () {
+    var caja = document.getElementById('elegir-vet');
+    var destino = document.querySelector('[data-vet-id]');
+    if (!caja || !destino) return;
+    buscadorDeVeterinarias(caja, document.getElementById('elegir-vet-lista'), function (f) {
+      if (!f) { destino.value = ''; return; }
+      destino.value = f.id;
+      caja.value = f.nombre + (f.nit ? ' · NIT ' + f.nit : '');
     });
   })();
   </script>

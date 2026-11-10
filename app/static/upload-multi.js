@@ -10,14 +10,15 @@
  * queda editable antes de guardar.
  */
 (function () {
-  var ORDEN = /A3[-\s]?(\d{3,6})/i;
+  // Formato actual (A3-2026-013) y el viejo (A3-00042).
+  var ORDEN = /A3[-\s]?(\d{4}[-\s]\d{3,6}|\d{3,6})/i;
 
   function desdeNombre(nombre) {
     var limpio = nombre.replace(/\.pdf$/i, "").replace(/[_]+/g, " ").trim();
     var orden = "";
     var match = limpio.match(ORDEN);
     if (match) {
-      orden = "A3-" + match[1];
+      orden = "A3-" + match[1].replace(/\s/, "-");
       limpio = limpio.replace(match[0], "").replace(/^[\s\-–—]+|[\s\-–—]+$/g, "");
     }
     return { orden: orden, paciente: limpio };
@@ -44,10 +45,14 @@
       return;
     }
 
-    var titulo = document.createElement("p");
+    // Plegada: con cien informes no tiene que parecer un formulario para llenar. El paciente
+    // ya sale del nombre del archivo; abrirla es solo para corregir algo puntual.
+    var detalle = document.createElement("details");
+    var titulo = document.createElement("summary");
     titulo.className = "muted-text";
-    titulo.textContent = archivos.length + " informes. Revisa los datos de cada uno antes de subir.";
-    tabla.appendChild(titulo);
+    titulo.textContent = archivos.length + " informes. El paciente se toma del nombre de cada archivo" +
+      " (opcional: tocá acá para revisar o completar datos).";
+    detalle.appendChild(titulo);
 
     var tablaHtml = document.createElement("table");
     tablaHtml.innerHTML =
@@ -70,7 +75,8 @@
     var envoltorio = document.createElement("div");
     envoltorio.className = "table-wrap";
     envoltorio.appendChild(tablaHtml);
-    tabla.appendChild(envoltorio);
+    detalle.appendChild(envoltorio);
+    tabla.appendChild(detalle);
     tabla.hidden = false;
     apagarCamposSueltos(form, true);
   }
