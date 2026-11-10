@@ -5378,3 +5378,24 @@ conversaciones" teniendolas todas delante.
   prueba recibe el freno si se le sube un informe de Varvet — es el control funcionando.
 - **Visto de paso, sin tocar (flujo conversacional):** `app/results_lookup.py::_ORDER_RE` tampoco
   entiende el formato A3-2026-013: en el chat «A3-2026-013» se lee como «A3-2026».
+
+---
+
+## ERR-201 — Al motorizado no le llegaba nada al crear una solicitud
+
+- **Fecha:** 2026-11-10 · **Estado:** CORREGIDO en código (pedido del usuario, decisiones del 10/11).
+  Falta deploy y la prueba real.
+- **Síntoma (prueba de A3, 10/11):** «yo realicé una solicitud, ¿cómo se le notifica al mensajero?»,
+  «con el mensajero Cesar no le llegó nada al celular», ni al número propio cargado como mensajero.
+- **Causa raíz:** el aviso de ERR-179 solo sale si la tarjeta tiene «Chat de avisos» (número de
+  conversación de Chatwoot) y ninguna lo tenía; el teléfono solo no dispara nada. Además WhatsApp no
+  deja escribirle primero a alguien sin plantilla aprobada por Meta (A3 no tiene ninguna) salvo dentro
+  de las 24 h desde su último mensaje. Hasta hoy los 8 motorizados tenían teléfonos de relleno; A3 ya
+  cargó los reales.
+- **Solución (idea del usuario):** el motorizado le escribe primero al WhatsApp de A3. `app/motorizado_chat.py`
+  lo reconoce por el celular de su tarjeta (10 últimos dígitos), vincula sola la conversación en la
+  tarjeta, le manda sus recogidas pendientes y le deja marcarlas como recogidas con un botón de
+  confirmación. Va antes de la autorización de datos (B0) y no pasa por el agente. Contrato: bloque B00.
+- **Límite que sigue:** el aviso de asignación solo llega si el motorizado escribió en las últimas 24 h
+  (se le pide que escriba cada mañana). Para avisarle sin que escriba hace falta la plantilla de Meta.
+- **Tests:** `tests/test_motorizado_chat.py` (19). Suite completa 2217 passed.

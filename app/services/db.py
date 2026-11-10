@@ -1968,7 +1968,7 @@ def _auto_assign_courier(client_id: str) -> dict | None:
 def list_active_couriers(limit: int = 500) -> list[dict]:
     result = (
         _client.table("couriers")
-        .select("id, name, phone, availability, is_active, color")
+        .select("id, name, phone, availability, is_active, color, chatwoot_conversation_id")
         .eq("is_active", True)
         .order("name")
         .limit(limit)

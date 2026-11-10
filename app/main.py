@@ -28,7 +28,7 @@ from app.dashboard_users import dashboard_users
 from app.dashboard_maestros import dashboard_maestros
 from app.dashboard_ordenes import dashboard_ordenes
 from app.dashboard_sistema import dashboard_sistema
-from app import access, privacidad
+from app import access, motorizado_chat, privacidad
 from app.pagos import pagos_bp
 from app.portal import portal_bp
 from app.text import money, short_datetime
@@ -249,6 +249,11 @@ def chatwoot_webhook():
 
 def _process_chatwoot(conversation_id: str, content: str, canal: str = "chatwoot", telefono: str = "") -> None:
     inicio = time.monotonic()
+    # Un motorizado (su celular está en la tarjeta) no es cliente: ve y marca sus recogidas,
+    # sin autorización de datos ni agente (pedido del usuario, 10/11).
+    if motorizado_chat.atender(conversation_id, content, canal, telefono):
+        _registrar_turno(canal, conversation_id, inicio, ok=True, respondido=True)
+        return
     # Antes de cualquier otra cosa, la autorización de datos (solo WhatsApp).
     if privacidad.atender(conversation_id, content, canal, telefono):
         _registrar_turno(canal, conversation_id, inicio, ok=True, respondido=True)

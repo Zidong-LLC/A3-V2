@@ -36,6 +36,24 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
 
 ## Bloques del flujo
 
+### B00 · Motorizados por WhatsApp (antes de todo)
+- **Qué hace:** si el número que escribe al WhatsApp de A3 es el celular de un motorizado activo
+  (tarjeta en Motorizados), el bot no lo atiende como cliente ni le pide la autorización de datos.
+  Le manda sus recogidas pendientes (atrasadas, hoy, mañana, próximas: orden, veterinaria, dirección)
+  o le dice que no tiene. Su conversación queda guardada sola como «Chat de avisos» de la tarjeta,
+  así los avisos de asignación le llegan ahí (WhatsApp solo deja escribirle 24 h después de su
+  último mensaje: se le pide que escriba cada mañana).
+- **Marcar recogida:** nombra la orden («la 13» o «A3-2026-013») → el bot pregunta con el botón
+  «Recogí A3-2026-013» → con ese botón la orden pasa a `picked_up` (evento con `source:
+  whatsapp_motorizado`). Una orden nombrada al pasar nunca cambia de estado sin el botón. No le
+  avisa nada al cliente.
+- **Dónde:** `app/motorizado_chat.py`, llamado desde `_process_chatwoot` antes de B0.
+- **Reglas:** se comparan los 10 últimos dígitos del celular. Si no se puede consultar la base, el
+  mensaje sigue el flujo de siempre; si falla después de reconocerlo, se disculpa y no cae al flujo
+  de clientes. Un número cargado como motorizado ya no puede probar el flujo de cliente.
+- **Estado:** pedido directo del usuario (2026-11-10): sin autorización de datos, ver y marcar
+  recogida, el número de prueba de A3 queda como motorizado. ⏳ POR CONFIRMAR en la prueba real.
+
 ### B0 · Autorización de datos (solo WhatsApp)
 - **Qué hace:** antes del menú, un mensaje con la política de tratamiento de datos de A3 y los
   botones «Sí» y «No». Con «Sí» sigue todo como siempre: el saludo con las 4 opciones. Con «No» avisa

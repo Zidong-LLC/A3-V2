@@ -2004,8 +2004,33 @@ defecto. Motorizados: en espera, A3 está definiendo cómo lo quiere.
 
 - Suite completa: 2198 passed. 20 tests nuevos. Pantalla probada en Chromium con la red simulada.
 - Dependencia nueva: `pypdf==6.16.2` (el deploy reconstruye la imagen).
-- [ ] Push + deploy (esperando OK)
+- [x] Push (10/11, 254a7af en origin/master, OK del usuario)
+- [ ] Deploy en Render (autoDeploy apagado; el disparo por API desde la sesión fue bloqueado por permisos)
 - [ ] Compartir los 6 informes de Varvet que quedaron en borrador (A3 desde el Historial, o nosotros con OK)
 - [ ] A3 borra desde Alegra los 9 borradores de prueba si no los quiere (11479–11481 y 11483–11488)
 - [ ] Decidir: recomprimir los PDFs al subir (~58 % menos) y el formato A3-2026-013 en el chat (`results_lookup`)
 - [ ] Motorizados: A3 está definiendo cómo quiere el aviso
+
+## Motorizados por WhatsApp (pedido del usuario, 10/11) — HECHO (OK del usuario con decisiones)
+
+Decisiones del usuario: sin autorización de datos para motorizados; ver Y marcar «recogida»; el
+313 462 6834 de prueba queda como motorizado.
+
+- [x] Construido: `app/motorizado_chat.py` + una línea en `main.py` + contrato B00. 19 tests, suite
+      2217 passed. Mensaje real de Cesar armado en solo lectura (6 recogidas de Varvet para el 11/11)
+- [ ] Deploy (manual en Render) y prueba real: Cesar u otro motorizado escribe «hola» al WhatsApp de A3
+- [ ] Idea para después: «Recogí todas las de Varvet» cuando hay varias órdenes en la misma dirección
+
+Propuesta original:
+
+Idea del usuario: el motorizado le escribe primero al WhatsApp de A3; si el número es de un motorizado, el
+bot no lo atiende como cliente: le manda sus recogidas asignadas (o le dice que no tiene). Eso abre la
+ventana de 24 h de WhatsApp, así los avisos de asignación le llegan sin plantilla de Meta.
+
+- [ ] 1. `app/motorizado_chat.py` (nuevo): si el remitente de WhatsApp coincide con el celular de un
+      motorizado activo → vincula la conversación en su tarjeta («Chat de avisos», automático) y responde
+      con sus recogidas pendientes (reusa `maestros_db.recogidas_pendientes`), agrupadas por fecha
+- [ ] 2. `app/main.py::_process_chatwoot`: una línea antes de B0; si es motorizado no entra al agente
+- [ ] 3. Contrato: bloque nuevo antes de B0. Tests + suite + bitácora
+- Ojo: el 313 462 6834 (el de prueba de A3) está cargado como motorizado: desde ese número ya no se
+  probaría el flujo de cliente mientras siga en la lista
