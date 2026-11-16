@@ -2037,26 +2037,27 @@ ventana de 24 h de WhatsApp, así los avisos de asignación le llegan sin planti
 - Ojo: el 313 462 6834 (el de prueba de A3) está cargado como motorizado: desde ese número ya no se
   probaría el flujo de cliente mientras siga en la lista
 
-## Pruebas de A3 del 12/11 (PDF «PRUEBAS A3 LABORATORIO CLÍNICO VETERINARIO») — DIAGNÓSTICO, esperando OK
+## Pruebas de A3 del 12/11 (PDF «PRUEBAS A3 LABORATORIO CLÍNICO VETERINARIO») — HECHO (OK del usuario el 16/11: «soluciona todos estos problemas»)
 
-Verificado el 16/11 en solo lectura (base real, pantallas por GET, Alegra por GET). Nada modificado.
+Verificado el 16/11 en solo lectura (base real, pantallas por GET, Alegra por GET). En la bitácora quedaron
+como ERR-204 (bot y asesor) y ERR-205 (pantallas); el pago en línea es el ERR-203 de la otra sesión.
 
 Errores reales:
-- [ ] ERR-202 · El bot se metió en la conversación que atendía la asesora: «Médico veterinario» (y también
+- [x] ERR-204 · El bot se metió en la conversación que atendía la asesora: «Médico veterinario» (y también
       «Clínica o centro veterinario», las dos opciones del guion de A3) coinciden con clientes reales
       («Centro Medico Veterinario…») y `_reidentifies_after_escalation` reabre el silencio. No hay ningún
-      temporizador. Toca el flujo: avisar y esperar OK. Decisión de A3: cuándo vuelve el bot tras derivar
-- [ ] ERR-203 · Alegra rechaza el borrador con «pago en línea» («La forma de pago no es válida»): P-2026-015 y
+      temporizador. HECHO: `app/asesor.py` (contrato B000), palabra propia para reabrir y derivación que vence a las 12 h
+- [x] ERR-203 · Alegra rechaza el borrador con «pago en línea» («La forma de pago no es válida»): P-2026-015 y
       P-2026-016 quedaron «cerrado» sin factura. Los dos campos de pago van cruzados al escribir; con
       contraentrega no se notaba (los dos son CASH). También fallaría el pedido abandonado («sin definir»).
-      La prueba real es «Facturar» en P-2026-016: avisar antes (crea un borrador en la cuenta real)
+      HECHO: constantes `_PAGO_*` corregidas. Falta la prueba real: «Facturar» en P-2026-016 tras el deploy
 
 Existe pero no lo encontraron:
-- [ ] Cliente «en revisión»: se aprueba en Clientes → buscar → columna «Aprobación» (la n.º 21 de 26). No hay
+- [x] Cliente «en revisión»: se aprueba en Clientes → buscar → columna «Aprobación» (la n.º 21 de 26). No hay
       aviso ni bloque de pendientes. Hasta aprobarlo queda inactivo y por eso no entra al portal (el portal
-      entra con nombre + NIT, no hay usuario que activar). Propuesta: bloque «Clientes por aprobar» arriba
-- [ ] Contramuestra A3-2026-022: sí quedó con motorizado (Alexander) y está en la Agenda del viernes 13/11
-      (miraron el jueves). Propuesta: mostrar motorizado y fecha en «Órdenes sin pedido» de Pedidos
+      entra con nombre + NIT, no hay usuario que activar). HECHO: bloque «Clientes por aprobar» arriba
+- [x] Contramuestra A3-2026-022: sí quedó con motorizado (Alexander) y está en la Agenda del viernes 13/11
+      (miraron el jueves). HECHO: Motorizado y Fecha programada ya no se pueden ocultar en Pedidos
 
 Preguntas para responderle a A3:
 - [ ] 2.1 Costo de WhatsApp: desde el 01/10/2026 Meta cobra por mensaje también los de servicio (dentro de
@@ -2065,6 +2066,16 @@ Preguntas para responderle a A3:
 - [ ] 2.2 Control del mensajero: Agenda + estado e historial de cada orden (quién y cuándo marcó «recogida»)
 - Sin probar todavía por A3: la carga de resultados en tanda (siguen los 6 de Varvet en borrador) y ningún
   motorizado real escribió al WhatsApp (solo quedó vinculado el número de prueba)
+
+### Resultado (16/11)
+
+- Suite completa: 2305 passed. 26 tests nuevos (`tests/test_asesor.py`, forma de pago).
+- Variable nueva opcional: `ASESOR_ACTIVO_HORAS` (12 por defecto). Sin migraciones.
+- [ ] Push + deploy (sale junto con 038952f de la otra sesión)
+- [ ] «Facturar» en P-2026-016 después del deploy y mirar en el log que NO diga «se reintenta como efectivo»
+- [ ] Prueba real del bot con asesor: derivar, que el asesor tome la conversación y conteste; el bot debe callar
+- [ ] Aprobar o rechazar los 2 clientes pendientes (St. Francis y Dra. Adriana Milena Rodriguez): decide A3
+- [ ] Responderle a A3 las preguntas 2.1 (costo de WhatsApp) y 2.2 (control del mensajero)
 
 ## Cobro, emisión y errores menores (2026-11-16, OK del usuario)
 

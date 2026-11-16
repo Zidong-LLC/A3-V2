@@ -34,13 +34,17 @@ INVOICE_STATUS_LABELS = {
 }
 
 
-# Forma de pago del borrador (ERR-199). Son los valores que la cuenta real de A3 devuelve
-# en sus facturas: `paymentMethod` dice contado o crédito y `paymentForm`, el medio.
+# Forma de pago del borrador (ERR-199, corregido en ERR-204). Al ESCRIBIR, Alegra espera
+# `paymentForm` = la forma (CASH contado / CREDIT crédito) y `paymentMethod` = el medio
+# (CASH, DEBIT_TRANSFER, INSTRUMENT_NOT_DEFINED…). Al LEER los devuelve con los nombres al
+# revés (180 facturas reales, 2026-11-16): por copiar la lectura, el medio viajaba en
+# `paymentForm` y Alegra contestaba «La forma de pago no es válida» en todo pago en línea
+# (12/11). Con contraentrega no se notaba: los dos valen CASH.
 # Decisión del usuario (2026-11-09): contraentrega es efectivo y «en línea» es el link de
 # Wompi. Es un borrador: Contabilidad lo ajusta al revisarlo si el cliente pagó distinto.
-_PAGO_EFECTIVO = {"paymentMethod": "CASH", "paymentForm": "CASH"}
-_PAGO_EN_LINEA = {"paymentMethod": "CASH", "paymentForm": "DEBIT_TRANSFER"}
-_PAGO_SIN_DEFINIR = {"paymentMethod": "CASH", "paymentForm": "INSTRUMENT_NOT_DEFINED"}
+_PAGO_EFECTIVO = {"paymentForm": "CASH", "paymentMethod": "CASH"}
+_PAGO_EN_LINEA = {"paymentForm": "CASH", "paymentMethod": "DEBIT_TRANSFER"}
+_PAGO_SIN_DEFINIR = {"paymentForm": "CASH", "paymentMethod": "INSTRUMENT_NOT_DEFINED"}
 
 
 def invoice_payment(payment_method: str | None) -> dict:

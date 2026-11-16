@@ -150,6 +150,19 @@ def clear_client_from_session(chat_id: str) -> None:
 
 # ── Messages ──────────────────────────────────────────────────────────────────
 
+def last_message_at(chat_id: str) -> str | None:
+    """Fecha (ISO, UTC) del último mensaje guardado de la conversación, o None si no hay."""
+    result = (
+        _client.table("conversation_messages")
+        .select("created_at")
+        .eq("external_chat_id", chat_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return result.data[0]["created_at"] if result.data else None
+
+
 def get_recent_messages(chat_id: str, limit: int = 8) -> list[dict]:
     result = (
         _client.table("conversation_messages")

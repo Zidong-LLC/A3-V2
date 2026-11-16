@@ -5430,4 +5430,63 @@ conversaciones" teniendolas todas delante.
   en efectivo con el medio real en las notas; un error de red no se reintenta; (3) esos pedidos nunca
   recibieron link de pago, porque el link solo se creaba al cerrar por el chat: ahora el portal y «Nueva
   Orden» lo piden al crear la orden; (4) Pedidos muestra el estado del pago y deja copiar o generar el link.
-- **Tests:** `tests/test_cobro_pedidos.py` (36 casos).
+- **Causa raíz corregida (misma fecha, sesión del PDF):** las tres constantes `_PAGO_*` ahora mandan
+  `paymentForm: CASH` (la forma, siempre contado) y el medio en `paymentMethod` (`CASH`,
+  `DEBIT_TRANSFER`, `INSTRUMENT_NOT_DEFINED`). Respaldo en datos: 180 facturas reales leídas por GET
+  devuelven `paymentMethod` ∈ {CASH, CREDIT} y `paymentForm` ∈ {CASH, DEBIT_TRANSFER,
+  INSTRUMENT_NOT_DEFINED}, o sea, los nombres al revés de como se escriben. La documentación oficial
+  (developer.alegra.com/reference/post_invoices, esquema de Colombia) lo confirma: `paymentForm` «indica
+  la forma de pago… Admite los valores: CASH para efectivo y CREDIT para crédito» y `paymentMethod`
+  «indica el medio de pago», obligatorio con forma CASH y facturación electrónica. La página no lista los
+  medios (remite a un catálogo): `DEBIT_TRANSFER` es el que la propia cuenta usa en 34 facturas. El
+  reintento como efectivo queda de red. No se pudo sondear la cuenta real desde la sesión (bloqueado). **Falta** confirmarlo con el primer borrador real de pago en línea («Facturar» en
+  P-2026-016): si el log no muestra «se reintenta como efectivo», quedó bien.
+- **Tests:** `tests/test_cobro_pedidos.py` (36 casos) y `tests/test_forma_de_pago_alegra.py` (16).
+
+---
+
+## ERR-204 — El bot respondió encima de la asesora que atendía al cliente
+
+- **Fecha:** 2026-11-16 (prueba de A3 del 12/11) · **Estado:** CORREGIDO en código (OK del usuario). Falta
+  desplegar y la prueba real.
+- **Síntoma:** cliente nuevo derivado a un asesor. La asesora pregunta «¿Médico veterinario o Clínica o
+  centro veterinario?», el cliente contesta «Médico veterinario» y el bot repite «Como aún no estás
+  registrado, el alta la debe hacer atención al cliente…». A3 pregunta cada cuánto retoma el bot.
+- **Causa raíz:** (1) no había ninguna regla de convivencia con el asesor: el bot no miraba si una persona
+  ya atendía la conversación. (2) Tras derivar, el silencio se rompía si el mensaje «parecía» un cliente
+  registrado (`_reidentifies_after_escalation`, ERR-088), y alcanzaba con que el buscador devolviera algo:
+  «Médico veterinario» devuelve «Centro Medico Veterinario», «PetVet Centro Medico Veterinario»… Las dos
+  opciones del guion de A3 despertaban al bot (verificado con la base real). (3) La derivación no vencía
+  nunca: esa conversación venía derivada desde una prueba del 03/11 y por eso el «Hola» del 12/11 no tuvo
+  saludo («Seguimos donde íbamos: No encuentro ningún cliente…»).
+- **Solución:**
+  - `app/asesor.py` (contrato B000): con la conversación de Chatwoot abierta, asignada a un asesor y vista
+    por alguien de A3 en las últimas 12 h (`ASESOR_ACTIVO_HORAS`), el bot no responde. Vuelve cuando el
+    asesor la resuelve (el próximo mensaje abre una conversación nueva) o a las 12 h sin que nadie la mire.
+    Sale del mismo webhook; el motorizado sigue recibiendo su lista siempre.
+  - Reabrir tras derivar exige nombrar a la clínica con una palabra propia (`nombre_concuerda`, ERR-187).
+  - La derivación vence a las 12 h del último mensaje guardado: el siguiente mensaje recibe el saludo y la
+    conversación arranca de cero. Es un `return` pre-LLM nuevo (baseline 13 → 14 en
+    `tests/test_pipeline_invariants.py`): decide por estado + tiempo, sin leer la oración, y no le saca
+    ningún turno al modelo — ese turno ya terminaba antes, en silencio.
+- **Límite:** `agent_last_seen_at` es «alguien de A3 abrió la conversación», no «respondió». Si un asesor
+  la deja abierta en su pantalla, el bot sigue callado; se corta resolviéndola en Chatwoot.
+- **Tests:** `tests/test_asesor.py` (25). Suite completa 2305 passed.
+
+---
+
+## ERR-205 — A3 no encontró dónde aprobar un cliente nuevo ni cómo asignar mensajero a una contramuestra
+
+- **Fecha:** 2026-11-16 (prueba de A3 del 12/11) · **Estado:** CORREGIDO en código. Falta desplegar.
+- **Síntoma:** «Cliente enviado a revisión… pero no hay una sección donde se revise»; el cliente nuevo no
+  entra al portal; la contramuestra A3-2026-022 «no aparece fuera de Pedidos ni deja asignar mensajero».
+- **Causa raíz:** las dos cosas existían pero escondidas. «Aprobar» era la columna 21 de 26 de la tabla de
+  Clientes (paginada de a 15, sin aviso de pendientes); hasta aprobarlo el cliente queda inactivo y el portal
+  no lo deja entrar. En Pedidos, Motorizado y Fecha programada eran columnas ocultables y A3 tenía a la
+  vista solo las obligatorias. La contramuestra sí tenía motorizado (Alexander) y estaba en la Agenda del
+  viernes 13/11; miraron el jueves.
+- **Solución:** bloque «Clientes por aprobar (N)» arriba de Clientes con Aprobar/Rechazar; los avisos dicen
+  dónde se aprueba y que, aprobado, entra al portal con nombre y NIT. En Pedidos, Motorizado y Fecha
+  programada pasan a obligatorias (no se pueden ocultar; `columns-config.js` las fuerza aunque la
+  preferencia guardada no las tenga).
+- **Verificación:** con la base real en solo lectura el bloque muestra los 2 pendientes de hoy.

@@ -3,7 +3,7 @@ import time
 import logging
 import contextvars
 from typing import Callable
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app import billing, catalog, opciones_cerradas, pagos, pedidos_abandonados, menu_opcion, propuesta_analisis, state
 from app.text import (
@@ -24,8 +24,9 @@ from app.species import (
     apply_implied_animal_fields as _apply_implied_animal_fields,
 )
 from app.breeds import resolve_breed as _resolve_breed
-from app.config import ALEGRA_ENABLED, APP_TIMEZONE, FSM_ENFORCE, PEDIDOS_ENABLED
+from app.config import ALEGRA_ENABLED, APP_TIMEZONE, ASESOR_ACTIVO_HORAS, FSM_ENFORCE, PEDIDOS_ENABLED
 from app.services import ai, db, alegra
+from app.verificacion_cliente import nombre_concuerda
 from app.rules import TERMINAL_PHASES, calculate_custom_profile_total, calculate_profile_adjusted_total
 from app.detectors import (
     _looks_off_topic_smalltalk,
@@ -706,9 +707,46 @@ def _reidentifies_after_escalation(user_message: str) -> bool:
     if not name or len(_tokenize(name)) == 0 or len(name.strip()) < 3:
         return False
     try:
-        return bool(db.find_client_matches(name, limit=3))
+        coincidencias = db.find_client_matches(name, limit=6)
     except Exception:
         return False
+    # Tiene que NOMBRAR a la clínica con una palabra propia de su nombre (misma vara que el
+    # portal y los resultados, ERR-187). El buscador solo no alcanza: «Médico veterinario»
+    # —la respuesta a la pregunta de la asesora— devolvía «Centro Medico Veterinario…» y el
+    # bot contestaba encima de ella (prueba de A3 del 12/11).
+    return any(nombre_concuerda(name, c.get("clinic_name")) for c in coincidencias)
+
+
+def _derivacion_vencida(chat_id: str) -> bool:
+    """¿La derivación quedó vieja? Pasadas `ASESOR_ACTIVO_HORAS` desde el último mensaje
+    guardado, el silencio deja de valer: nadie retomó esa conversación por acá y el cliente
+    que vuelve días después merece el saludo, no el vacío. Si un asesor la está atendiendo,
+    el turno ni llega hasta acá (`app/asesor.py`). Ante la duda, False: sigue el silencio."""
+    try:
+        ultimo = db.last_message_at(chat_id)
+        if not ultimo:
+            return False
+        momento = datetime.fromisoformat(str(ultimo).replace("Z", "+00:00"))
+        if momento.tzinfo is None:
+            momento = momento.replace(tzinfo=timezone.utc)
+        return (datetime.now(timezone.utc) - momento).total_seconds() > ASESOR_ACTIVO_HORAS * 3600
+    except Exception:
+        return False
+
+
+def _reinicio_tras_derivacion() -> dict:
+    """La conversación arranca de cero, con el saludo y el menú de siempre."""
+    return {
+        "reply": WELCOME_MESSAGE,
+        "phase": "fase_0_bienvenida",
+        "intent": "unknown",
+        "service_area": "unknown",
+        "requires_handoff": False,
+        "handoff_area": None,
+        "captured_fields": {},
+        "confidence": 1.0,
+        "pending_intents": [],
+    }
 
 
 def _escalate_unfound_client(fields: dict, reply: str = CLIENT_NOT_FOUND_MESSAGE) -> dict:
@@ -3432,6 +3470,10 @@ def process_turn(
     # con un identificador que exista en la base. Cualquier otro mensaje mantiene el
     # silencio, para no pisar al humano que ya tomó la conversación tras el handoff.
     if prev_fields.get("_escalated_unfound_client"):
+        # Derivación vieja y sin atender por acá: empieza de cero con el saludo (12/11: una
+        # conversación derivada nueve días antes seguía muda ante un «Hola»).
+        if _derivacion_vencida(chat_id):
+            return _persist_turn(chat_id, user_message, _reinicio_tras_derivacion())
         if not _reidentifies_after_escalation(user_message):
             return None
         reopened = {k: v for k, v in prev_fields.items()

@@ -907,3 +907,28 @@ Cuatro días después no se pudo saber si fue el medio de pago, un ítem inactiv
 **Regla.** Todo camino que termina en «no se pudo» escribe el motivo completo en el log y, si es de dinero,
 también en la base. Y cuando se arregla algo con un valor que no se pudo probar (acá, el medio de pago en
 línea), se anota qué mirar en el primer caso real y se mira: no alcanza con que el caso común funcione.
+
+## 2026-11-16 — Lo que una API devuelve no es lo que acepta; y «el buscador encontró algo» no es identificar
+
+**Qué pasó.** Dos errores de la prueba de A3 del 12/11 nacieron de dar por bueno un dato sin el caso que lo
+desmiente. (1) ERR-199 copió los campos de pago como Alegra los DEVUELVE; al escribir van con los nombres al
+revés y todo pago en línea rebotó. La prueba con contraentrega no lo mostró: los dos campos valen `CASH`.
+(2) El bot reabría una conversación derivada si el buscador de clientes devolvía cualquier cosa: «Médico
+veterinario» devuelve «Centro Medico Veterinario…» y el bot contestó encima de la asesora.
+
+**Regla.** Un valor para ESCRIBIR en un servicio externo se prueba con el caso en que los campos difieren,
+no con el simétrico; si no se puede probar, queda anotado qué mirar en el primer caso real. Y un buscador
+difuso nunca decide solo: para dar a alguien por identificado hace falta una palabra propia del nombre o el
+NIT (`nombre_concuerda`). Antes de dar por buena una regla de «silencio», probar las frases que dice el
+asesor, no solo las del cliente.
+
+## 2026-11-16 — Dos sesiones en la misma carpeta: mirar `git status` antes de editar y avisar
+
+**Qué pasó.** Mientras arreglaba el PDF de A3, otra sesión trabajaba en el mismo repo sin commitear (cobro,
+emisión, Alegra) y un script suyo truncó la bitácora de 5.400 líneas a 34. Se detectó por un `wc -l` y se
+recuperó desde git.
+
+**Regla.** Al retomar una sesión larga, `git status` y `ListAgents` antes de tocar nada. Si hay otra sesión
+en el repo: avisarle qué archivos y funciones se van a editar, editar con cambios chicos (nunca reescribir
+un archivo entero) y no restaurar ni commitear lo ajeno: se le avisa a quien lo cambió. Los archivos de
+`tasks/` se agregan al final con append, y después se cuenta que no hayan perdido líneas.

@@ -1,16 +1,26 @@
 """ERR-199 (2026-11-09): Alegra rechazaba el borrador del pedido con «La forma de pago es
 obligatoria». Ahora el borrador lleva la forma de pago que eligió el cliente. Decisión del
-usuario: contraentrega es efectivo; «en línea» es el link de Wompi. Los valores son los que
-la cuenta real devuelve en sus propias facturas (`paymentMethod` contado/crédito,
-`paymentForm` el medio)."""
+usuario: contraentrega es efectivo; «en línea» es el link de Wompi.
+
+ERR-204 (2026-11-16): los dos campos iban cruzados. Al escribir, `paymentForm` es la forma
+(contado/crédito) y `paymentMethod` el medio; la cuenta los DEVUELVE con los nombres al revés
+y de ahí salió el error. El 12/11 Alegra rechazó todo pago en línea con «La forma de pago no
+es válida»: el medio (DEBIT_TRANSFER) viajaba donde va la forma."""
 import pytest
 
 from app import billing, facturar_pedido
 from app.services import alegra
 
-EFECTIVO = {"paymentMethod": "CASH", "paymentForm": "CASH"}
-EN_LINEA = {"paymentMethod": "CASH", "paymentForm": "DEBIT_TRANSFER"}
-SIN_DEFINIR = {"paymentMethod": "CASH", "paymentForm": "INSTRUMENT_NOT_DEFINED"}
+EFECTIVO = {"paymentForm": "CASH", "paymentMethod": "CASH"}
+EN_LINEA = {"paymentForm": "CASH", "paymentMethod": "DEBIT_TRANSFER"}
+SIN_DEFINIR = {"paymentForm": "CASH", "paymentMethod": "INSTRUMENT_NOT_DEFINED"}
+
+
+def test_la_forma_siempre_es_contado_y_el_medio_va_en_su_campo():
+    """Lo que Alegra rechazó el 12/11: un medio de pago en el campo de la forma."""
+    for pago in (billing._PAGO_EFECTIVO, billing._PAGO_EN_LINEA, billing._PAGO_SIN_DEFINIR):
+        assert pago["paymentForm"] == "CASH"
+    assert billing._PAGO_EN_LINEA["paymentMethod"] == "DEBIT_TRANSFER"
 
 
 @pytest.mark.parametrize("elegido,esperado", [
@@ -29,7 +39,7 @@ def test_el_borrador_viaja_con_forma_de_pago_y_sigue_siendo_borrador(monkeypatch
     alegra.create_invoice(7, [{"id": 1, "quantity": 1, "price": 16000}], "2026-11-09", pago=EN_LINEA)
     metodo, ruta, cuerpo = cuerpos[0]
     assert (metodo, ruta) == ("POST", "/invoices")
-    assert cuerpo["paymentMethod"] == "CASH" and cuerpo["paymentForm"] == "DEBIT_TRANSFER"
+    assert cuerpo["paymentForm"] == "CASH" and cuerpo["paymentMethod"] == "DEBIT_TRANSFER"
     assert cuerpo["status"] == "draft", "nunca se emite: la forma de pago no cambia el guardrail"
 
 

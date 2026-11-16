@@ -289,7 +289,7 @@ def test_si_alegra_rechaza_el_medio_de_pago_el_borrador_sale_como_efectivo_con_l
     cuerpos = _factura(monkeypatch, [RECHAZO, {"id": "55"}])
     r = billing.invoice_order("900123456", "Vet", LINEA, "2026-11-16", client_row={}, payment_method="pago_linea")
     assert r["invoice_id"] == "55"
-    assert cuerpos[0]["pago"]["paymentForm"] == "DEBIT_TRANSFER"
+    assert cuerpos[0]["pago"] == {"paymentForm": "CASH", "paymentMethod": "DEBIT_TRANSFER"}
     assert cuerpos[1]["pago"] == {"paymentMethod": "CASH", "paymentForm": "CASH"}
     assert cuerpos[1]["nota"] == "Pago en línea (Wompi)", "Contabilidad ve el medio real al revisar"
 

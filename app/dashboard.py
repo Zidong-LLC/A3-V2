@@ -1681,6 +1681,10 @@ def build_dashboard_context(billing_period: str = "auto") -> dict:
         "discount_tiers_rows": [{"min_tests": m, "pct": p} for m, p in pricing.get_discount_tiers()],
         "sample_requirements": sorted({row["sample"] for row in analysis_rows if row.get("sample") and row.get("sample") != "Sin muestra definida"}),
         "approval_rows": approval_rows,
+        # Altas cargadas en «Nuevo Cliente» que esperan aprobación: van en un bloque arriba de
+        # Clientes. El botón vivía solo en la columna 21 de 26 de la tabla y A3 no lo encontró
+        # (pruebas del 12/11: «no hay una sección donde se revise el cliente»).
+        "clientes_por_aprobar": _build_request_approval_rows(pending_reviews),
         "reviewed_approval_rows": reviewed_rows,
         "operation_center": operation_center,
         "client_type_options": CLIENT_TYPE_OPTIONS,
@@ -1811,7 +1815,9 @@ def new_client_page():
 
         db.create_pending_client_review(client_payload=client_payload, review_payload=review_payload)
         db.upsert_client_profile(profile_payload)
-        return redirect(url_for("dashboard.clients_page", notice="Cliente enviado a revision", notice_type="ok"))
+        return redirect(url_for("dashboard.clients_page", notice_type="ok", notice=(
+            "Cliente enviado a revision. Queda inactivo hasta aprobarlo: "
+            "use «Aprobar» en «Clientes por aprobar», aqui arriba.")))
 
     return render_template("new_client.html", error=None, form={}, **template_context)
 
@@ -1971,7 +1977,8 @@ def approval_decision():
     reason = (request.form.get("reason") or "").strip()
     if decision == "approve":
         ok = db.approve_pending_client(request_id)
-        message = "Cliente aprobado" if ok else "No fue posible aprobar el cliente"
+        message = ("Cliente aprobado: ya esta activo y puede entrar al portal con su nombre y su NIT"
+                   if ok else "No fue posible aprobar el cliente")
     else:
         ok = db.reject_pending_client(request_id, reason or "Rechazado desde dashboard")
         message = "Cliente rechazado" if ok else "No fue posible rechazar el cliente"

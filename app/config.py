@@ -46,6 +46,9 @@ ALERT_TELEGRAM_BOT_TOKEN = os.environ.get("ALERT_TELEGRAM_BOT_TOKEN", "")
 # (respuesta inmediata mensaje a mensaje, modo de los tests). MAX_WAIT es el tope duro.
 MESSAGE_DEBOUNCE_SECONDS = float(os.environ.get("MESSAGE_DEBOUNCE_SECONDS", "5"))
 MESSAGE_DEBOUNCE_MAX_WAIT = float(os.environ.get("MESSAGE_DEBOUNCE_MAX_WAIT", "20"))
+# Horas que el bot se queda callado después de la última señal de un asesor (app/asesor.py) y
+# tras las cuales una derivación sin atender deja de silenciarlo (pruebas de A3 del 12/11).
+ASESOR_ACTIVO_HORAS = float(os.environ.get("ASESOR_ACTIVO_HORAS", "12"))
 # Autorización de datos antes de conversar por WhatsApp (propuesta del 28/09).
 WHATSAPP_PRIVACY_ENABLED = os.environ.get("WHATSAPP_PRIVACY_ENABLED", "true").strip().lower() == "true"
 # Modo prueba: con números acá (separados por coma), solo a ellos se les pide la autorización.

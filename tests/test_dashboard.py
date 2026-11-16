@@ -502,7 +502,10 @@ def test_new_client_form_creates_pending_review(monkeypatch):
         response = client.post("/clientes/nuevo", data=payload)
 
     assert response.status_code == 302
-    assert response.headers["Location"].endswith("/clientes?notice=Cliente+enviado+a+revision&notice_type=ok")
+    # El aviso dice además dónde se aprueba (pruebas de A3 del 12/11: no encontraron la revisión).
+    destino = response.headers["Location"]
+    assert "/clientes?" in destino and "notice_type=ok" in destino
+    assert "Cliente+enviado+a+revision" in destino and "Clientes+por+aprobar" in destino
     create_review.assert_called_once()
     review_payload = create_review.call_args.kwargs["client_payload"]
     assert review_payload["clinic_name"] == "Clinica Revision"

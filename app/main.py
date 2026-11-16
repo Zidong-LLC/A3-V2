@@ -29,7 +29,7 @@ from app.dashboard_maestros import dashboard_maestros
 from app.dashboard_ordenes import dashboard_ordenes
 from app.dashboard_cobro import dashboard_cobro
 from app.dashboard_sistema import dashboard_sistema
-from app import access, motorizado_chat, privacidad
+from app import access, asesor, motorizado_chat, privacidad
 from app.pagos import pagos_bp
 from app.portal import portal_bp
 from app.text import money, short_datetime
@@ -243,18 +243,28 @@ def chatwoot_webhook():
     telefono = str(_como_dict(data.get("sender")).get("phone_number")
                    or _como_dict(_como_dict(conversacion.get("meta")).get("sender")).get("phone_number") or "")
 
-    app.logger.info("chatwoot_webhook: conv=%s canal=%s content=%r", conversation_id, canal, content[:80])
+    # ¿La está atendiendo una persona de A3? Sale del mismo aviso de Chatwoot (app/asesor.py).
+    con_asesor = asesor.atendiendo(conversacion)
+
+    app.logger.info("chatwoot_webhook: conv=%s canal=%s asesor=%s content=%r",
+                    conversation_id, canal, con_asesor, content[:80])
     _debouncer.submit(f"chatwoot:{conversation_id}", content,
-                      lambda combined: _process_chatwoot(conversation_id, combined, canal, telefono))
+                      lambda combined: _process_chatwoot(conversation_id, combined, canal, telefono, con_asesor))
     return jsonify({"ok": True})
 
 
-def _process_chatwoot(conversation_id: str, content: str, canal: str = "chatwoot", telefono: str = "") -> None:
+def _process_chatwoot(conversation_id: str, content: str, canal: str = "chatwoot", telefono: str = "",
+                      con_asesor: bool = False) -> None:
     inicio = time.monotonic()
     # Un motorizado (su celular está en la tarjeta) no es cliente: ve y marca sus recogidas,
     # sin autorización de datos ni agente (pedido del usuario, 10/11).
     if motorizado_chat.atender(conversation_id, content, canal, telefono):
         _registrar_turno(canal, conversation_id, inicio, ok=True, respondido=True)
+        return
+    # Mientras un asesor atiende la conversación el bot no habla: ni autorización de datos ni
+    # agente (prueba de A3 del 12/11: el bot contestó encima de la asesora).
+    if con_asesor:
+        app.logger.info("chatwoot_webhook: conv=%s la atiende un asesor; el bot no responde", conversation_id)
         return
     # Antes de cualquier otra cosa, la autorización de datos (solo WhatsApp).
     if privacidad.atender(conversation_id, content, canal, telefono):

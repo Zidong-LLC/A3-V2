@@ -66,7 +66,11 @@ AGENT = APP / "agent.py"
 # bienvenida (2/4/reconsiderar — respuesta a un menú mostrado, como 18/19), "dije/dicho"
 # con lista de coincidencias en pantalla, y las selecciones de menús por número/código:
 # todos deciden por ESTADO + dato exacto, no por interpretación de la oración.
-PRE_LLM_RETURNS_BASELINE = 13
+# 13 -> 14 el 2026-11-16 (ERR-204, OK del usuario): el saludo cuando la derivación por «no te
+# encuentro» quedó vieja (más de ASESOR_ACTIVO_HORAS sin mensajes). Decide por ESTADO + tiempo,
+# sin leer la oración, dentro del guard de ERR-088. No le saca ningún turno al modelo: ese
+# turno ya terminaba antes del modelo, en silencio (`return None`); ahora saluda.
+PRE_LLM_RETURNS_BASELINE = 14
 
 
 def _process_turn_ast() -> tuple[ast.FunctionDef, int]:

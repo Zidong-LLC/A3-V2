@@ -54,6 +54,19 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
 - **Estado:** pedido directo del usuario (2026-11-10): sin autorización de datos, ver y marcar
   recogida, el número de prueba de A3 queda como motorizado. ⏳ POR CONFIRMAR en la prueba real.
 
+### B000 · Un asesor está atendiendo: el bot no habla (Chatwoot)
+- **Qué hace:** si la conversación de Chatwoot está **abierta**, **asignada a un asesor** y alguien de
+  A3 la miró en las últimas 12 h (`ASESOR_ACTIVO_HORAS`), el bot no responde nada: ni autorización de
+  datos ni agente. Lo lee del mismo aviso de Chatwoot que trae el mensaje del cliente (`status`,
+  `meta.assignee`, `agent_last_seen_at`); no consulta nada.
+- **Cuándo vuelve el bot:** cuando el asesor marca la conversación como **resuelta** (el próximo
+  mensaje del cliente abre una conversación nueva, sin asesor) o cuando pasan las 12 h sin que nadie
+  de A3 la mire. Derivar a un EQUIPO no silencia: hasta que una persona la toma, nadie atiende.
+- **Dónde:** `app/asesor.py`, llamado desde `chatwoot_webhook` / `_process_chatwoot`, después de B00
+  (el motorizado siempre recibe su lista) y antes de B0.
+- **Estado:** OK del usuario (2026-11-16) tras la prueba de A3 del 12/11, donde el bot contestó encima
+  de la asesora (ERR-204). ⏳ POR CONFIRMAR en la prueba real.
+
 ### B0 · Autorización de datos (solo WhatsApp)
 - **Qué hace:** antes del menú, un mensaje con la política de tratamiento de datos de A3 y los
   botones «Sí» y «No». Con «Sí» sigue todo como siempre: el saludo con las 4 opciones. Con «No» avisa
@@ -99,6 +112,12 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
   `_blocked` queda reservado al cliente particular/final, donde el silencio sí es definitivo.
   Antes ambos compartían flag y el bot no volvía a hablar NUNCA: en el corpus real hay
   rachas de 9, 6 y 10 turnos al vacío, con el cliente escribiendo "El bot no esta activo".
+- **Ajuste 2026-11-16 (ERR-204, OK del usuario):** (1) para reabrir, el mensaje tiene que nombrar a
+  la clínica con una palabra PROPIA de su nombre (`nombre_concuerda`, la vara de ERR-187): «Médico
+  veterinario» o «Clínica o centro veterinario» —las respuestas a la pregunta de la asesora— ya no
+  reabren, aunque el buscador devuelva «Centro Medico Veterinario…». (2) La derivación **vence**:
+  pasadas 12 h desde el último mensaje guardado, el siguiente mensaje recibe el saludo con el menú y
+  la conversación arranca de cero (antes seguía muda para siempre).
 - **Estado:** ✅ APROBADO (usuario, 2026-06-22) · recuperación tras escalar autorizada
   explícitamente por el usuario el 2026-08-12 y verificada con cliente simulado sobre datos
   reales. Tests: `tests/test_unfound_client_escalation_is_reversible.py`.
