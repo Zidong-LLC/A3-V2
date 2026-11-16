@@ -2071,7 +2071,7 @@ Preguntas para responderle a A3:
 
 - Suite completa: 2305 passed. 26 tests nuevos (`tests/test_asesor.py`, forma de pago).
 - Variable nueva opcional: `ASESOR_ACTIVO_HORAS` (12 por defecto). Sin migraciones.
-- [ ] Push + deploy (sale junto con 038952f de la otra sesión)
+- [x] Push + deploy (16/11 11:24 Bogotá: 8acafee vivo en Render (lleva también 038952f); /health ok, ordenes.js nuevo servido, rutas de cobro responden)
 - [ ] «Facturar» en P-2026-016 después del deploy y mirar en el log que NO diga «se reintenta como efectivo»
 - [ ] Prueba real del bot con asesor: derivar, que el asesor tome la conversación y conteste; el bot debe callar
 - [ ] Aprobar o rechazar los 2 clientes pendientes (St. Francis y Dra. Adriana Milena Rodriguez): decide A3
@@ -2095,7 +2095,7 @@ producción, emisión de Alegra, errores menores y borrar la prueba del 09/11.
 
 ### Pendiente de este bloque
 
-- [ ] Push + deploy (esperando OK del usuario)
+- [x] Push + deploy (16/11 11:24 Bogotá: 8acafee vivo en Render (lleva también 038952f); /health ok, ordenes.js nuevo servido, rutas de cobro responden)
 - [ ] ERR-203: el rechazo fue «La forma de pago no es válida» (PDF de A3 del 12/11). Las constantes del medio
       de pago y la prueba real del borrador las lleva la sesión que trabaja ese PDF; no refacturar por fuera
 - [ ] Wompi a producción: faltan las llaves de producción ROTADAS (las carga el usuario en Render),
