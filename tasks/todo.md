@@ -2098,9 +2098,14 @@ producción, emisión de Alegra, errores menores y borrar la prueba del 09/11.
 - [x] Push + deploy (16/11 11:24 Bogotá: 8acafee vivo en Render (lleva también 038952f); /health ok, ordenes.js nuevo servido, rutas de cobro responden)
 - [ ] ERR-203: el rechazo fue «La forma de pago no es válida» (PDF de A3 del 12/11). Las constantes del medio
       de pago y la prueba real del borrador las lleva la sesión que trabaja ese PDF; no refacturar por fuera
-- [ ] Wompi a producción: faltan las llaves de producción ROTADAS (las carga el usuario en Render),
-      `WOMPI_BASE_URL=https://production.wompi.co/v1`, la URL de eventos en modo producción y vaciar
-      `WOMPI_ONLY_NITS`. Antes, un pedido de prueba en sandbox para ver el link salir solo por el chat
+- [x] Wompi EN PRODUCCIÓN (16/11 13:35 Bogotá): el usuario pasó las llaves como texto; validadas en solo lectura
+      (comercio de A3 activo, llave privada OK), cargadas en Render junto con la URL de producción, se quitó el
+      candado por NIT y se desplegó. /health ok; el webhook rechaza una firma falsa
+- [ ] Wompi: primer pago REAL (lo ideal, A3 con un pedido de bajo valor): link, confirmación por el chat y
+      «Pagado en línea» en Pedidos. Si no llega la confirmación, revisar que la URL de eventos quedó GUARDADA
+- [ ] Wompi: rotar las llaves (quedaron en capturas y en el chat) y recargar las dos variables + deploy.
+      Antes, confirmar con A3 que no tienen otra integración que las use
+- [ ] Wompi: no se llegó a ver en modo prueba el link saliendo solo al cerrar por el chat
 - [ ] Emisión: A3 confirma quién emite; OK del usuario para encender la variable; primera emisión acompañada
 - [ ] Pruebas finales integradas con el modelo real (no se corrieron: gastan tokens y requieren pedido explícito)
 - [ ] Preguntar a A3 si se borran sus pruebas del 10 al 12/11 (pedidos P-2026-005 a 016) y los borradores de Alegra
