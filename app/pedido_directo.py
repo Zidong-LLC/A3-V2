@@ -8,7 +8,7 @@ se abre, recibe la orden, se cierra y se factura en el mismo momento; nunca qued
 """
 import logging
 
-from app import config, facturar_pedido
+from app import config, facturar_pedido, pagos
 from app.services import db
 
 logger = logging.getLogger(__name__)
@@ -51,4 +51,15 @@ def registrar(*, client_id: str, chat_id: str, canal_pedido: str, session: dict,
         return None
     creada["pedido_number"] = (pedido or {}).get("pedido_number")
     creada["factura"] = _facturar(pedido_id) if pedido_id else None
+    creada["pago_url"] = _link_de_pago(pedido_id, creada, fields)
     return creada
+
+
+def _link_de_pago(pedido_id: str | None, creada: dict, fields: dict) -> str | None:
+    """El bot manda el link al cerrar el pedido en el chat; acá no hay chat, así que el link
+    vuelve a quien cargó la orden (portal o recepción). None si no es pago en línea."""
+    if not pedido_id or "linea" not in str(fields.get("payment_method") or "").lower():
+        return None
+    perfil = (creada.get("event_payload") or {}).get("profile") or {}
+    return pagos.link_para_pedido(pedido_id, int(perfil.get("total_estimated") or 0),
+                                  fields.get("clinic_name") or "")

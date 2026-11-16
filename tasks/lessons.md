@@ -897,3 +897,13 @@ puede llegar un análisis a un cliente equivocado… mínimamente tiene que sele
 persona con un dato explícito: la veterinaria elegida. Lo automático puede FRENAR (el NIT del PDF no
 coincide, la orden es de otra clínica) pero nunca ELEGIR. Cuando el cliente pide «menos pasos», el
 recorte va en los datos accesorios (paciente, análisis), no en la elección del destino.
+
+## 2026-11-16 — Un fallo que solo se muestra en pantalla no existe para quien lo tiene que arreglar
+
+**Qué pasó.** Dos pedidos con pago en línea quedaron sin borrador en Alegra. El motivo lo vio en un cartel
+quien cargó la orden y se perdió: `facturar_pedido` devolvía el aviso pero no lo escribía en ningún lado.
+Cuatro días después no se pudo saber si fue el medio de pago, un ítem inactivo o un contacto que faltaba.
+
+**Regla.** Todo camino que termina en «no se pudo» escribe el motivo completo en el log y, si es de dinero,
+también en la base. Y cuando se arregla algo con un valor que no se pudo probar (acá, el medio de pago en
+línea), se anota qué mirar en el primer caso real y se mira: no alcanza con que el caso común funcione.

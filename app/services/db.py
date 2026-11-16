@@ -1169,6 +1169,11 @@ _INVOICE_ORDER_FIELDS = {
 }
 
 
+_INVOICE_LIST_COLUMNS = ("alegra_invoice_id, number, client_nit, client_name, document_type, number_template, "
+                         "status, subtotal, tax, total, balance, total_paid, is_stamped, invoice_date, due_date, "
+                         "request_id, origin, synced_at")
+
+
 def upsert_invoices_cache(rows: list[dict]) -> int:
     """Inserta/actualiza filas de facturas en el cache (clave alegra_invoice_id)."""
     if not rows:
@@ -1216,9 +1221,10 @@ def list_cached_invoices(
     order_desc: bool = True,
 ) -> tuple[list[dict], int]:
     """Lista facturas del cache con filtros, orden y paginación del lado servidor.
-    Devuelve (filas, total)."""
+    Devuelve (filas, total). Sin la columna `raw` (el JSON completo de Alegra): con 100
+    filas por página pesaba varios cientos de KB; el detalle la lee `get_cached_invoice`."""
     f = filters or {}
-    query = _client.table("invoices_cache").select("*", count="exact")
+    query = _client.table("invoices_cache").select(_INVOICE_LIST_COLUMNS, count="exact")
     if f.get("status"):
         query = query.eq("status", f["status"])
     if f.get("document_type"):
@@ -1293,6 +1299,26 @@ def list_all_cached_invoices(columns: str = "*", limit: int = 10000, desde: str 
         if len(batch) < PAGE:
             break
     return rows
+
+
+def facturas_de_pedidos(invoice_ids: list) -> dict:
+    """{id de Alegra: {status, number, is_stamped}} para el encabezado de cada pedido."""
+    ids = [str(i) for i in invoice_ids if i]
+    if not ids:
+        return {}
+    filas = (_client.table("invoices_cache").select("alegra_invoice_id, status, number, is_stamped")
+             .in_("alegra_invoice_id", ids).execute()).data or []
+    return {str(f["alegra_invoice_id"]): f for f in filas}
+
+
+def marcar_factura_emitida(invoice_id: str, factura: dict) -> None:
+    """Pone al día el caché de UNA factura recién emitida. Si todavía no está en el caché no
+    hace nada: la sincronización la trae completa."""
+    numero = (factura.get("numberTemplate") or {}).get("fullNumber") or factura.get("number")
+    cambios = {"status": str(factura.get("status") or "open").lower(), "is_stamped": True}
+    if numero:
+        cambios["number"] = str(numero)
+    _client.table("invoices_cache").update(cambios).eq("alegra_invoice_id", str(invoice_id)).execute()
 
 
 def get_cached_invoice(invoice_id: str) -> dict | None:

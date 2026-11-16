@@ -294,3 +294,36 @@ def test_cartera_del_cliente_compara_el_nit_exacto_y_no_por_subcadena():
         consulta.in_.assert_any_call("client_nit", ["1117504844"])
         consulta.ilike.assert_not_called()
         assert dbs.list_cartera(client_nit="1-R") == []
+
+
+# ── Listas de 100 (pedido del usuario del 29/10: «que cargue 100 y pase de página») ──
+
+def test_facturas_y_cartera_muestran_de_a_cien():
+    from app import dashboard
+
+    assert dashboard.INVOICES_PER_PAGE == 100 and dashboard.CARTERA_PER_PAGE == 100
+
+
+def test_la_cartera_se_pagina_y_ya_no_corta_en_los_25_de_mayor_saldo():
+    from app import dashboard
+
+    clientes = [{"client_name": f"Vet {i}", "client_nit": str(i), "por_cobrar": 1000 - i, "vence_primero": None}
+                for i in range(230)]
+    with patch("app.dashboard.db.list_cartera", return_value=[]), \
+         patch("app.dashboard.db.cartera_totales", return_value={}), \
+         patch("app.dashboard.db.cartera_por_cliente", return_value=clientes):
+        primera = dashboard._build_cartera_context(1)
+        tercera = dashboard._build_cartera_context(3)
+        fuera = dashboard._build_cartera_context(99)
+    assert len(primera["cartera_clientes"]) == 100 and primera["cartera_pages"] == 3
+    assert [c["client_name"] for c in tercera["cartera_clientes"]][:1] == ["Vet 200"] and len(tercera["cartera_clientes"]) == 30
+    assert fuera["cartera_page"] == 3, "una página que no existe cae en la última"
+    assert primera["cartera_clientes_total"] == 230
+
+
+def test_la_lista_de_facturas_no_trae_el_json_completo_de_alegra():
+    from app.services import db
+
+    assert "raw" not in [c.strip() for c in db._INVOICE_LIST_COLUMNS.split(",")]
+    for columna in ("alegra_invoice_id", "number", "client_name", "status", "total", "balance", "invoice_date"):
+        assert columna in db._INVOICE_LIST_COLUMNS

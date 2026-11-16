@@ -8,11 +8,14 @@ Fuente de verdad del total: `event_payload["profile"]["price_adjustment"]["total
 que A3 persiste y muestra en el dashboard. Las líneas se arman para que el total cuadre.
 """
 
+import logging
 import re
 
 from app.rules import calculate_custom_profile_total, is_convenio_test
 from app.services import alegra
 
+
+logger = logging.getLogger(__name__)
 
 # Contacto genérico de la cuenta real de A3 (id=1 en Alegra). A él salen las facturas de
 # los clientes que NO llevan factura electrónica; su nombre va en las notas.
@@ -231,8 +234,23 @@ def invoice_order(
             invoice_item["discount"] = line["discount"]
         invoice_items.append(invoice_item)
 
-    invoice = alegra.create_invoice(contact_id, invoice_items, date, anotation=nota,
-                                    pago=invoice_payment(payment_method))
+    pago = invoice_payment(payment_method)
+    try:
+        invoice = alegra.create_invoice(contact_id, invoice_items, date, anotation=nota, pago=pago)
+    except alegra.AlegraError as exc:
+        # Solo ante un rechazo de validación (400: no se creó nada) y si el medio no era
+        # efectivo. El 12/11 los dos pedidos con pago en línea quedaron sin borrador; el
+        # efectivo es el par que la cuenta aceptó siempre. El medio real va en las notas
+        # para que Contabilidad lo corrija al revisar. Un error de red NO se reintenta:
+        # la factura pudo haberse creado.
+        if "HTTP 400" not in str(exc) or pago == _PAGO_EFECTIVO:
+            raise
+        logger.warning("billing: Alegra rechazó el borrador con %s (%s); se reintenta como efectivo",
+                       pago, str(exc)[:300])
+        medio = "Pago en línea (Wompi)" if pago == _PAGO_EN_LINEA else "Medio de pago por definir"
+        invoice = alegra.create_invoice(contact_id, invoice_items, date,
+                                        anotation=" · ".join(t for t in (nota, medio) if t),
+                                        pago=dict(_PAGO_EFECTIVO))
     return {
         "contact_id": contact_id,
         "invoice_id": invoice.get("id"),

@@ -6,6 +6,7 @@ Vivía dentro del botón «Facturar» de Pedidos; se separó para que lo usen ta
 del portal y de «Nueva Orden», que antes no abrían pedido y nunca se facturaban (ERR-194).
 Quien llama decide si Alegra está habilitado (el dashboard lo lee de su propio módulo).
 """
+import logging
 from datetime import datetime
 
 from app import billing
@@ -13,7 +14,21 @@ from app.config import APP_TIMEZONE
 from app.services import db
 
 
-def _cerrado(aviso: str) -> dict:
+logger = logging.getLogger(__name__)
+
+
+def _cerrado(aviso: str, pedido: dict | None = None, ordenes: dict | None = None) -> dict:
+    """El pedido queda cerrado sin factura. El motivo se escribe en el log y en la primera
+    orden del pedido: el 12/11 dos pedidos quedaron sin borrador y el porqué solo se mostró
+    en pantalla a quien los cargó."""
+    numero = (pedido or {}).get("pedido_number") or (pedido or {}).get("id")
+    logger.warning("facturar_pedido: %s cerrado sin factura: %s", numero, aviso)
+    try:
+        primera = next(iter(ordenes or {}), None)
+        if primera:
+            db.create_request_event(primera, "alegra_failed", {"pedido": numero, "motivo": aviso})
+    except Exception:  # noqa: BLE001 — la traza no puede romper el cierre
+        pass
     return {"status": "cerrado", "invoice": None, "warning": aviso}
 
 
@@ -21,6 +36,7 @@ def facturar(pedido: dict) -> dict:
     """{status: 'facturado'|'cerrado', invoice: número o None, warning: texto o None}.
     No lanza: si Alegra falla el pedido queda cerrado y el aviso dice por qué."""
     pedido_id = pedido.get("id")
+    ordenes = {}
     try:
         lineas = []
         ordenes = {o["id"]: o for o in db.list_pedido_requests(pedido_id)}
@@ -28,11 +44,11 @@ def facturar(pedido: dict) -> dict:
             paciente = (ordenes.get(request_id) or {}).get("patient_name")
             lineas.extend(billing.build_invoice_lines(perfil, paciente))
         if not lineas:
-            return _cerrado("El pedido no tiene líneas facturables; quedó cerrado.")
+            return _cerrado("El pedido no tiene líneas facturables; quedó cerrado.", pedido, ordenes)
         cliente = db.get_client_by_id(pedido.get("client_id")) or {}
         nit = cliente.get("tax_id")
         if not nit:
-            return _cerrado("El cliente no tiene NIT; el pedido quedó cerrado sin facturar.")
+            return _cerrado("El cliente no tiene NIT; el pedido quedó cerrado sin facturar.", pedido, ordenes)
         factura = billing.invoice_order(
             nit, cliente.get("clinic_name") or "Cliente A3", lineas,
             datetime.now(APP_TIMEZONE).date().isoformat(),
@@ -44,6 +60,6 @@ def facturar(pedido: dict) -> dict:
             db.mark_pedido_invoiced(pedido_id, str(factura["invoice_id"]))
             return {"status": "facturado", "invoice": factura.get("number") or factura["invoice_id"],
                     "warning": None}
-        return _cerrado("Alegra no devolvió factura; el pedido quedó cerrado.")
+        return _cerrado("Alegra no devolvió factura; el pedido quedó cerrado.", pedido, ordenes)
     except Exception as exc:  # noqa: BLE001
-        return _cerrado(f"Cerrado, pero la factura falló: {str(exc)[:120]}")
+        return _cerrado(f"Cerrado, pero la factura falló: {str(exc)[:300]}", pedido, ordenes)

@@ -96,6 +96,9 @@ ALEGRA_BASE_URL = os.environ.get("ALEGRA_BASE_URL", "https://api.alegra.com/api/
 # Solo se pone true al migrar a la cuenta real del cliente y autorizar emisión. Ver
 # docs/guardrails-entorno-y-datos.md.
 ALEGRA_PRODUCTION = os.environ.get("ALEGRA_PRODUCTION", "false").lower() in ("1", "true", "yes")
+# Emisión ante la DIAN desde la plataforma (decisión 016). APAGADA por defecto: aun encendida,
+# solo emite una persona de Facturación con el botón «Emitir» de un pedido (app/emision.py).
+ALEGRA_EMISSION_ENABLED = os.environ.get("ALEGRA_EMISSION_ENABLED", "false").lower() in ("1", "true", "yes")
 # Jerarquía PEDIDO → ÓRDENES → ANÁLISIS (decisión 011): la forma de pago no es un dato de
 # cada orden sino del PEDIDO — se pregunta UNA vez al cerrar y se emite UNA factura con todas
 # las órdenes. ENCENDIDO por defecto (2026-08-14): es lo acordado con A3, no un experimento,

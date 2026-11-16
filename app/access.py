@@ -21,7 +21,7 @@ log = logging.getLogger(__name__)
 
 BLUEPRINTS = frozenset({"dashboard", "dashboard_results", "dashboard_client", "dashboard_anarvet",
                         "dashboard_agenda", "dashboard_import", "dashboard_users",
-                        "dashboard_maestros", "dashboard_ordenes"})
+                        "dashboard_maestros", "dashboard_ordenes", "dashboard_cobro"})
 _REVALIDAR_SEGUNDOS = 300
 _CLAVES = ("dashboard_authenticated", "dashboard_username", "dashboard_user_id",
            "dashboard_role", "dashboard_full_name", "dashboard_role_checked")

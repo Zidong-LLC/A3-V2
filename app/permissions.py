@@ -91,6 +91,8 @@ _ENDPOINTS = {
     "dashboard_maestros.historial": ("clientes", "motorizados", "muestras"),
     "dashboard_maestros.municipio": ("motorizados",),
     "dashboard_ordenes.*": ("solicitudes", "pedidos"),  # ver líneas; eliminar/quitar exige gestión
+    "dashboard_cobro.pedido_pago_link": ("pedidos", "facturacion"),
+    "dashboard_cobro.pedido_emitir": ("facturacion",),  # emitir a la DIAN: solo Facturación
 }
 
 # Rutas para cualquier persona con sesión (o sin ella, el login).

@@ -72,6 +72,10 @@ projects:
 
               # ── Guardrails de seguridad: se despliegan APAGADOS, a propósito ──
               # ALEGRA_PRODUCTION=false ⇒ solo borradores, NUNCA emisión a la DIAN.
+              # Emisión ante la DIAN desde la plataforma (decisión 016): APAGADA. Encenderla es una
+              # decisión de A3 y del usuario; aun encendida solo emite una persona con el botón.
+              - key: ALEGRA_EMISSION_ENABLED
+                value: "false"
               - key: ALEGRA_PRODUCTION
                 value: "false"
               # PORTAL_DEMO_MODE=false ⇒ el portal exige nombre + NIT reales.

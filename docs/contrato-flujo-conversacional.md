@@ -73,6 +73,10 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
   qué quiere el usuario (recogida / resultados / pagos / cliente nuevo).
 - **Dónde:** `WELCOME_MESSAGE`, `process_turn` (fase_0 → fase_1).
 - **Estado:** ✅ APROBADO (usuario, 2026-06-22) — andaba bien; falta re-verificar en el último test.
+- **Ajuste 2026-11-16 (ERR-202, pedido del usuario):** si el cliente escribe la opción 1 con un
+  error de tipeo («Programar rita») y el modelo no la clasifica (`unknown`), el bot sigue como si
+  hubiera elegido la 1 y pide la identificación, en vez de derivar a un asesor. Es una red para
+  cuando el modelo no entendió; lo que el modelo sí clasifica no cambia (`app/menu_opcion.py`).
 
 ### B2 · Identificación del cliente (por nombre o NIT)
 - **Qué hace:** pide NIT o nombre, busca en la base, y si hay varias coincidencias muestra

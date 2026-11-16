@@ -7,10 +7,12 @@
 ## ⛔ Cuenta real de Alegra y datos (NO NEGOCIABLE)
 
 > Leer `docs/guardrails-entorno-y-datos.md` antes de tocar facturación o datos.
-> - **Alegra apunta a la CUENTA REAL del cliente** (desde 2026-08-27). **NUNCA emitir a la
->   DIAN**: la plataforma solo crea BORRADORES y A3 los revisa y emite desde Alegra.
->   `ALEGRA_PRODUCTION=false`. No crear facturas ni contactos sin avisar antes; verificar en
->   solo lectura. No borrar ni modificar lo que ya existe en la cuenta.
+> - **Alegra apunta a la CUENTA REAL del cliente** (desde 2026-08-27). **NADA emite solo a la
+>   DIAN**: el bot, el portal y los crons solo crean BORRADORES (`ALEGRA_PRODUCTION=false`).
+>   Emitir es un acto de una persona con el botón «Emitir a la DIAN» y solo con
+>   `ALEGRA_EMISSION_ENABLED=true`, que nace apagado (decisión 016). **Nunca emitir para probar**
+>   ni encender esa variable sin OK explícito. No crear facturas ni contactos sin avisar antes;
+>   verificar en solo lectura. No borrar ni modificar lo que ya existe en la cuenta.
 > - **A nombre de quién factura** lo decide `clients.electronic_invoice`: si es `false`, va a
 >   Consumidor Final con el nombre en las notas (`app/billing.py::invoice_target`).
 > - **La base ya existe y está completa** (Supabase, 861 clientes tras la limpieza del 29/10 —ERR-188—, catálogo con precios
@@ -145,9 +147,10 @@ espejo de Anarvet (decisión 013), consulta de resultados por chat CON envío de
 avisos automáticos (motorizado por Chatwoot, cliente por su canal) y facturación en
 borradores por pedido. WhatsApp: el código está listo (migración 031, ERR-177); solo
 falta la cuenta Business de A3 y conectar el número a Chatwoot.
-Fuera de alcance: workflow de contabilidad automatizado (emisión DIAN), pasarela de
-pago, adjuntos en el chat, audio/voz, roles adicionales (decisiones del 27-28/08,
-comunicadas en el acta data/acta-cierre-a3-20260831.pdf).
+Desde la propuesta del 28/09 (en curso, noviembre): autorización de datos por WhatsApp, pago en
+línea con Wompi por pedido y emisión ante la DIAN con botón (decisión 016, apagada por defecto).
+Fuera de alcance: emisión AUTOMÁTICA a la DIAN, adjuntos en el chat, audio/voz, roles
+adicionales (acta data/acta-cierre-a3-20260831.pdf).
 
 ---
 

@@ -99,6 +99,12 @@ def assign_team(conversation_id: str, handoff_area: str) -> None:
     """Asigna la conversación al equipo del área. Si no hay equipo configurado NO se asigna,
     pero queda registrado: antes retornaba mudo y la conversación se quedaba sin dueño sin
     que nadie se enterara (regla de app/services/CLAUDE.md — nunca fallar en silencio)."""
+    # El bot atiende en «pendiente»; al derivar, la conversación pasa a «abierta» para que
+    # el equipo la vea en su bandeja sin tener que buscarla (OK del usuario, 2026-11-16).
+    try:
+        _post(f"/conversations/{conversation_id}/toggle_status", {"status": "open"})
+    except Exception as exc:  # noqa: BLE001 — asignar al equipo importa más que el estado
+        logger.warning("Chatwoot: no se pudo abrir la conversación %s: %s", conversation_id, exc)
     team_id = _TEAM_MAP.get(handoff_area)
     if not team_id:
         logger.warning(

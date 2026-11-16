@@ -13,10 +13,14 @@
 NIT 900296338, Colombia, Responsable de IVA). Todo lo que se cree ahí lo ve el contador de
 A3 y convive con sus 660+ facturas reales. Por eso:
 
-- **NUNCA emitir una factura electrónica a la DIAN desde la plataforma.** `ALEGRA_PRODUCTION`
-  queda en `false`. Protección técnica: `app/services/alegra.py::create_invoice` se llama
-  **sin `status`**, así Alegra la deja en BORRADOR. **No agregar un `status` de emisión.**
-  Quien emite es A3, revisando el borrador desde Alegra.
+- **NADA emite solo a la DIAN.** El bot, el portal, «Nueva Orden» y los crons solo crean
+  BORRADORES: `ALEGRA_PRODUCTION` queda en `false` y `create_invoice` manda `status: draft`.
+  **No agregar un `status` de emisión** en ningún camino automático.
+- **Emitir es un acto de una persona (decisión 016, 2026-11-16).** Existe el botón «Emitir a
+  la DIAN» sobre un pedido con borrador, para quien gestiona Facturación, y solo funciona con
+  `ALEGRA_EMISSION_ENABLED=true`. Nace APAGADO. Encenderlo requiere el OK explícito del
+  usuario. **Nunca emitir para «probar»**: una factura emitida es real y solo se corrige con
+  nota crédito. El único punto del código que emite es `app/emision.py`.
 - **No crear facturas ni contactos «porque sí».** Para verificar, usar **solo lectura**
   (`ping`, `/company`, listar contactos/ítems/facturas). Si hace falta probar el camino de
   escritura, **avisar antes y esperar el OK** — cada borrador queda en la cuenta del cliente.
@@ -63,5 +67,6 @@ un dato sin verificarlo.** Antes de concluir "no hay X", consultarlo en solo lec
 
 ## 4. Resumen de una línea
 
-> Esto es una PRUEBA. No se emite nada real a DIAN ni a clientes reales. La base (800
-> clientes con NIT + catálogo con precios reales) ya existe: verificar, no asumir.
+> La cuenta de Alegra es REAL. La plataforma crea borradores; a la DIAN solo emite una persona
+> con el botón y la variable encendida, nunca una prueba. La base (clientes con NIT + catálogo
+> con precios reales) ya existe: verificar, no asumir.

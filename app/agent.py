@@ -5,7 +5,7 @@ import contextvars
 from typing import Callable
 from datetime import datetime
 
-from app import billing, catalog, opciones_cerradas, pagos, pedidos_abandonados, propuesta_analisis, state
+from app import billing, catalog, opciones_cerradas, pagos, pedidos_abandonados, menu_opcion, propuesta_analisis, state
 from app.text import (
     tokenize as _tokenize, as_text_items as _as_text_items, money as _money, catalog_item_key as _catalog_item_key,
     strip_price_text as _strip_price_text, ACCENT_TRANSLATION as _ACCENT_TRANSLATION,
@@ -2061,6 +2061,24 @@ def _recover_doctor_from_text(ai_response: dict, prev_fields: dict, user_message
     if match:
         fields["requesting_doctor"] = f"Dr. {match.group(1).strip().title()}"
         ai_response["captured_fields"] = fields
+    return ai_response
+
+
+def _rescatar_opcion_programar(session: dict, history: list[dict], prev_captured: dict,
+                               ai_response: dict, user_message: str) -> dict:
+    """«Programar rita» al menú de bienvenida derivaba a un asesor (prueba del 29/10; OK del
+    usuario el 2026-11-16). Solo cuando el modelo NO clasificó (`unknown`), en el punto del
+    menú, sin cliente identificado y con la opción 1 escrita o casi (`app/menu_opcion.py`):
+    sigue como si hubiera elegido la 1. Lo que el modelo sí entendió no se toca."""
+    if session.get("client_id") or ai_response.get("intent") not in (None, "", "unknown"):
+        return ai_response
+    if not _menu_choice_context(session, history, prev_captured):
+        return ai_response
+    if not menu_opcion.parece_programar(user_message):
+        return ai_response
+    ai_response.update(intent="route_scheduling", service_area="route_scheduling",
+                       requires_handoff=False, handoff_area=None, phase="fase_1_clasificacion",
+                       reply=CLIENT_IDENTIFICATION_REQUIRED_MESSAGE)
     return ai_response
 
 
@@ -5030,6 +5048,7 @@ def process_turn(
     fields = ai_response.get("captured_fields", fields)
     ai_response = _recover_doctor_from_text(ai_response, prev_captured, user_message, history)
     fields = ai_response.get("captured_fields", fields)
+    ai_response = _rescatar_opcion_programar(session, history, prev_captured, ai_response, user_message)
     ai_response = _apply_handoff_guardrails(ai_response)
     ai_response = _avoid_redundant_client_identity_question(session, ai_response)
     ai_response = _avoid_forbidden_route_question(session, ai_response)

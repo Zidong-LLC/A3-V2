@@ -10,6 +10,23 @@ def crear(pedido_id: str, link_id: str, centavos: int, url: str) -> None:
     }).execute()
 
 
+def por_pedidos(pedido_ids: list) -> dict:
+    """{pedido_id: su pago más reciente}. Un pedido puede tener varios links (uno vencido o
+    rechazado y otro nuevo): manda el último, salvo que haya uno aprobado."""
+    ids = [str(i) for i in pedido_ids if i]
+    if not ids:
+        return {}
+    filas = (_client.table("pedido_payments")
+             .select("pedido_id, status, amount_in_cents, url, created_at, updated_at")
+             .in_("pedido_id", ids).order("created_at").execute()).data or []
+    ultimo: dict = {}
+    for fila in filas:
+        previo = ultimo.get(fila["pedido_id"])
+        if not previo or previo.get("status") != "approved":
+            ultimo[fila["pedido_id"]] = fila
+    return ultimo
+
+
 def por_link(link_id: str | None) -> dict | None:
     if not link_id:
         return None

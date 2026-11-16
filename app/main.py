@@ -27,6 +27,7 @@ from app.dashboard_import import dashboard_import
 from app.dashboard_users import dashboard_users
 from app.dashboard_maestros import dashboard_maestros
 from app.dashboard_ordenes import dashboard_ordenes
+from app.dashboard_cobro import dashboard_cobro
 from app.dashboard_sistema import dashboard_sistema
 from app import access, motorizado_chat, privacidad
 from app.pagos import pagos_bp
@@ -65,6 +66,7 @@ app.register_blueprint(dashboard_import)
 app.register_blueprint(dashboard_users)
 app.register_blueprint(dashboard_maestros)
 app.register_blueprint(dashboard_ordenes)
+app.register_blueprint(dashboard_cobro)
 app.register_blueprint(dashboard_sistema)
 app.register_blueprint(pagos_bp)
 access.registrar(app)

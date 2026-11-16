@@ -41,6 +41,40 @@
     });
   }
 
+  function banderaPedido(pedidoId, texto, mal) {
+    var flag = document.querySelector('[data-pedido-flag="' + pedidoId + '"]');
+    if (flag) { flag.textContent = texto; flag.style.color = mal ? "var(--danger)" : ""; }
+    else if (mal) window.alert(texto);
+  }
+
+  // Link de pago en línea: devuelve el vigente o crea uno, y lo deja copiado.
+  document.addEventListener("click", function (e) {
+    var pago = e.target.closest("[data-pago-link]");
+    if (!pago) return;
+    pago.disabled = true;
+    enviar("/api/dashboard/pedido-pago-link", { pedido_id: pago.dataset.pagoLink })
+      .then(function (d) {
+        var listo = function () { pago.textContent = "Link copiado"; pago.disabled = false; };
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(d.url).then(listo, function () { window.prompt("Link de pago del pedido:", d.url); listo(); });
+        else { window.prompt("Link de pago del pedido:", d.url); listo(); }
+      })
+      .catch(function (err) { pago.disabled = false; window.alert(err.message); });
+  });
+
+  // Emitir a la DIAN: no se deshace, así que se confirma dos veces y con el pedido a la vista.
+  document.addEventListener("click", function (e) {
+    var emitir = e.target.closest("[data-pedido-emitir]");
+    if (!emitir) return;
+    var cual = "el pedido " + emitir.dataset.pedidoNumero + " de " + emitir.dataset.pedidoCliente;
+    if (!window.confirm("Vas a EMITIR ante la DIAN la factura de " + cual + ".\n\nUna factura emitida no se puede deshacer: solo se corrige con una nota crédito en Alegra.\n\n¿Ya revisaste el borrador?")) return;
+    if (!window.confirm("Última confirmación: ¿emitir la factura de " + cual + "?")) return;
+    emitir.disabled = true;
+    banderaPedido(emitir.dataset.pedidoEmitir, "Emitiendo…", false);
+    enviar("/api/dashboard/pedido-emitir", { pedido_id: emitir.dataset.pedidoEmitir })
+      .then(function (d) { banderaPedido(emitir.dataset.pedidoEmitir, "Emitida " + (d.numero || ""), false); setTimeout(function () { window.location.reload(); }, 1500); })
+      .catch(function (err) { emitir.disabled = false; banderaPedido(emitir.dataset.pedidoEmitir, err.message, true); });
+  });
+
   document.addEventListener("click", function (e) {
     var ver = e.target.closest("[data-orden-lineas]");
     if (ver) {

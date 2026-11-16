@@ -22,10 +22,10 @@ from app.config import (
     DASHBOARD_ADMIN_USER,
     DISCOUNT_TIERS,
 )
-from app import billing_charts, client_filters, facturar_pedido, facturas_panel, orden_manual, panel_laboratorio, pedido_directo, pedidos_vista
+from app import billing_charts, client_filters, emision, facturar_pedido, facturas_panel, orden_manual, panel_laboratorio, pedido_directo, pedidos_vista
 from app import access, municipios
 from app import permissions as P
-from app.services import audit_db, db, alegra, maestros_db
+from app.services import audit_db, db, alegra, maestros_db, pagos_db
 from app import anarvet_sync, dashboard_metrics, orders, pricing, rules, territory, billing, zone_routing
 from app.courier_notify import notify_assignment
 from app.alerts import notify_error
@@ -1292,7 +1292,8 @@ def _suggest_courier_for_location(form, couriers: list[dict]) -> dict:
     }
 
 
-INVOICES_PER_PAGE = 15
+INVOICES_PER_PAGE = 100  # eran 15: A3 revisa el día entero de un vistazo
+CARTERA_PER_PAGE = 100
 INVOICE_STATUS_OPTIONS = [{"value": key, "label": label} for key, label in {
     "draft": "Borrador", "open": "Abierta", "closed": "Pagada", "void": "Anulada",
 }.items()]
@@ -1323,9 +1324,10 @@ def _invoice_cache_payload(row: dict, raw: dict) -> dict:
     }
 
 
-def _build_cartera_context(top: int = 25) -> dict:
+def _build_cartera_context(page: int = 1) -> dict:
     """Cartera para el módulo Facturación: cuánto se facturó, cuánto entró y cuánto falta
-    cobrar, con el detalle por cliente. Sale del cache; los pagos se registran en Alegra."""
+    cobrar, con el detalle por cliente. Sale del cache; los pagos se registran en Alegra.
+    De a `CARTERA_PER_PAGE` clientes, del que más debe al que menos."""
     rows = _safe_fetch(lambda: db.list_cartera(), [])
     totales = db.cartera_totales(rows)
     por_cliente = db.cartera_por_cliente(rows)
@@ -1333,10 +1335,14 @@ def _build_cartera_context(top: int = 25) -> dict:
     for item in por_cliente:
         vence = item.get("vence_primero")
         item["dias_mora"] = (hoy - date.fromisoformat(vence)).days if vence else 0
+    paginas = max((len(por_cliente) + CARTERA_PER_PAGE - 1) // CARTERA_PER_PAGE, 1)
+    page = min(max(int(page or 1), 1), paginas)
     return {
         "cartera_totales": totales,
-        "cartera_clientes": por_cliente[:top],
+        "cartera_clientes": por_cliente[(page - 1) * CARTERA_PER_PAGE: page * CARTERA_PER_PAGE],
         "cartera_clientes_total": len(por_cliente),
+        "cartera_page": page,
+        "cartera_pages": paginas,
         "cartera_deudores": sum(1 for c in por_cliente if c["por_cobrar"] > 0),
     }
 
@@ -1913,6 +1919,8 @@ def new_request_page():
             pass
     if created.get("pedido_number"):
         aviso += f" en el pedido {created['pedido_number']}"
+    if created.get("pago_url"):
+        aviso += f" · link de pago para el cliente: {created['pago_url']}"
     factura = created.get("factura") or {}
     if factura.get("invoice"):
         aviso += f" · borrador de factura {factura['invoice']} en Alegra"
@@ -3109,8 +3117,12 @@ def _render_dashboard(active_tab: str):
     if active_tab == "pedidos":
         # Solo se consulta en su pestaña: son dos queries y no hacen falta en el resto.
         # Página única (ERR-194): cada pedido con sus órdenes editables adentro.
+        pedidos = _safe_fetch(db.list_pedidos_for_dashboard, [])
         context["pedidos_vista"] = pedidos_vista.agrupar(
-            _safe_fetch(db.list_pedidos_for_dashboard, []), context.get("requests") or [])
+            pedidos, context.get("requests") or [],
+            _safe_fetch(lambda: pagos_db.por_pedidos([p.get("id") for p in pedidos]), {}),
+            _safe_fetch(lambda: db.facturas_de_pedidos([p.get("alegra_invoice_id") for p in pedidos]), {}))
+        context["emision_activa"] = emision.activa()
     if active_tab == "clientes":
         # La búsqueda y los filtros corren ACÁ, sobre los 992 clientes, y recién después se
         # corta la página: hacerlo en el navegador solo miraba las 15 filas visibles y
@@ -3158,7 +3170,7 @@ def _render_dashboard(active_tab: str):
             vista = "facturas"
         context["billing_view"] = vista
         if vista == "cartera":
-            context.update(_build_cartera_context())
+            context.update(_build_cartera_context(request.args.get("page", 1, type=int)))
         else:
             try:
                 page = max(1, int(request.args.get("page", 1)))

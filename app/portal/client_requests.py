@@ -228,6 +228,12 @@ def client_new_request():
             f"Paciente {fields['patient_name']} — {fields['exam_type']}",
             request_id=created.get("request_id"),
         )
+        if created.get("pago_url"):  # pago en línea: el link queda a la vista y en sus avisos
+            portal_db.insert_notification(
+                session["portal_client_id"], "request_created",
+                f"Paga en línea tu orden {order_number or ''}".strip(), created["pago_url"],
+                request_id=created.get("request_id"))
+            flash(f"Puedes pagar en línea aquí: {created['pago_url']}", "ok")
         flash(
             f"Solicitud registrada con número de orden {order_number}"
             if order_number else "Solicitud registrada",

@@ -5399,3 +5399,35 @@ conversaciones" teniendolas todas delante.
 - **Límite que sigue:** el aviso de asignación solo llega si el motorizado escribió en las últimas 24 h
   (se le pide que escriba cada mañana). Para avisarle sin que escriba hace falta la plantilla de Meta.
 - **Tests:** `tests/test_motorizado_chat.py` (19). Suite completa 2217 passed.
+
+## ERR-202 — «Programar rita» en el menú derivó a un asesor
+
+- **Fecha:** reportado 2026-10-29, corregido 2026-11-16 · **Estado:** CORREGIDO en código, falta desplegar
+- **Síntoma:** al menú de bienvenida el cliente contestó «Programar rita» (por «ruta») y el bot lo pasó a
+  un asesor.
+- **Causa raíz:** las opciones 2 y 4 del menú tienen regla; la 1 y la 3 las clasifica solo el modelo. Con el
+  error de tipeo el modelo devolvió `unknown` y pidió derivar, y `_apply_handoff_guardrails` lo cumplió.
+- **Solución:** `_rescatar_opcion_programar` (antes de los guardrails de derivación). Solo actúa si el modelo
+  devolvió `unknown`, en el punto del menú, sin cliente identificado y con un mensaje de hasta 4 palabras
+  que trae una palabra de la opción 1 bien escrita o casi (`app/menu_opcion.py`, parecido ≥ 0,84 en palabras
+  de 5 letras o más). Sigue como opción 1 y pide la identificación. No agrega salidas antes del modelo.
+- **Tests:** `tests/test_menu_opcion.py` (21 casos). Contrato: nota en B1.
+
+## ERR-203 — Pedidos con «pago en línea» quedaron sin borrador, sin link y sin el motivo guardado
+
+- **Fecha:** 2026-11-16 (pedidos del 12/11) · **Estado:** CORREGIDO en código, falta desplegar y ver un
+  borrador real de pago en línea
+- **Síntoma:** P-2026-015 (portal) y P-2026-016 («Nueva Orden»), los dos con pago en línea, quedaron
+  «cerrado sin facturar». Los 10 pedidos de contraentrega de esos días sí tienen borrador.
+- **Causa del rechazo (confirmada con el PDF de pruebas de A3 del 12/11):** Alegra contestó
+  `HTTP 400 {"message":"La forma de pago no es válida"}`. Al ESCRIBIR, Alegra espera `paymentForm` =
+  contado/crédito y `paymentMethod` = el medio; al LEER los devuelve al revés, y ERR-199 se guió por la
+  lectura. Con contraentrega no se notó porque los dos valores son `CASH`. Las constantes `_PAGO_*` de
+  `app/billing.py` las corrige la sesión que trabaja ese PDF (misma fecha).
+- **Lo que se arregló acá:** (1) el motivo de un pedido sin factura ya no se pierde: queda en el log y como
+  evento `alegra_failed` en su primera orden (antes solo se mostraba en pantalla a quien cargó la orden);
+  (2) red: si Alegra rechaza el borrador con un 400 y el medio no era efectivo, se reintenta como contado
+  en efectivo con el medio real en las notas; un error de red no se reintenta; (3) esos pedidos nunca
+  recibieron link de pago, porque el link solo se creaba al cerrar por el chat: ahora el portal y «Nueva
+  Orden» lo piden al crear la orden; (4) Pedidos muestra el estado del pago y deja copiar o generar el link.
+- **Tests:** `tests/test_cobro_pedidos.py` (36 casos).

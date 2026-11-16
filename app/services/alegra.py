@@ -217,6 +217,31 @@ def get_invoice(invoice_id: int | str) -> dict:
     return result if isinstance(result, dict) else {}
 
 
+def stamp_invoice(invoice_id: int | str) -> str:
+    """EMITE ante la DIAN una factura que ya existe (borrador o abierta). Devuelve el mensaje
+    de Alegra; AlegraError con el motivo si no la emitió. Es el único punto del código que
+    emite, y solo lo llama `app/emision.py`.
+
+    `POST /invoices/stamp` acepta hasta 10 ids y contesta una fila por factura: con 200 trae
+    `success`; con 400, `code` y `message` (documentación de Alegra, 2026-11)."""
+    try:
+        respuesta = _request("POST", "/invoices/stamp", {"ids": [str(invoice_id)]})
+    except AlegraError as exc:
+        texto = str(exc)
+        try:  # el cuerpo del 400 trae el motivo por factura
+            cuerpo = json.loads(texto.split(": ", 1)[1])
+            fila = (cuerpo.get("data") or [cuerpo])[0]
+            texto = str(fila.get("message") or texto)
+        except (IndexError, ValueError, AttributeError, TypeError):
+            pass
+        raise AlegraError(texto) from exc
+    filas = respuesta.get("data") if isinstance(respuesta, dict) else None
+    fila = next((f for f in filas or [] if str(f.get("id")) == str(invoice_id)), None)
+    if not fila or not fila.get("success"):
+        raise AlegraError(str((fila or {}).get("message") or "Alegra no confirmó la emisión"))
+    return str(fila.get("message") or "Factura emitida")
+
+
 def get_invoice_pdf_url(invoice: dict) -> str | None:
     """Resuelve la URL del PDF desde el objeto factura de Alegra, si está disponible.
 

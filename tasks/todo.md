@@ -2005,7 +2005,8 @@ defecto. Motorizados: en espera, A3 está definiendo cómo lo quiere.
 - Suite completa: 2198 passed. 20 tests nuevos. Pantalla probada en Chromium con la red simulada.
 - Dependencia nueva: `pypdf==6.16.2` (el deploy reconstruye la imagen).
 - [x] Push (10/11, 254a7af en origin/master, OK del usuario)
-- [ ] Deploy en Render (autoDeploy apagado; el disparo por API desde la sesión fue bloqueado por permisos)
+- [x] Deploy en Render: 254a7af live (10/11 19:38 UTC, lo disparó el usuario). /health ok,
+      upload-lote.js servido, rutas nuevas responden (con login)
 - [ ] Compartir los 6 informes de Varvet que quedaron en borrador (A3 desde el Historial, o nosotros con OK)
 - [ ] A3 borra desde Alegra los 9 borradores de prueba si no los quiere (11479–11481 y 11483–11488)
 - [ ] Decidir: recomprimir los PDFs al subir (~58 % menos) y el formato A3-2026-013 en el chat (`results_lookup`)
@@ -2018,7 +2019,8 @@ Decisiones del usuario: sin autorización de datos para motorizados; ver Y marca
 
 - [x] Construido: `app/motorizado_chat.py` + una línea en `main.py` + contrato B00. 19 tests, suite
       2217 passed. Mensaje real de Cesar armado en solo lectura (6 recogidas de Varvet para el 11/11)
-- [ ] Deploy (manual en Render) y prueba real: Cesar u otro motorizado escribe «hola» al WhatsApp de A3
+- [ ] Push de e8b0fae (bloqueado por permisos en la sesión) + deploy manual en Render
+- [ ] Prueba real: Cesar u otro motorizado escribe «hola» al WhatsApp de A3
 - [ ] Idea para después: «Recogí todas las de Varvet» cuando hay varias órdenes en la misma dirección
 
 Propuesta original:
@@ -2034,3 +2036,60 @@ ventana de 24 h de WhatsApp, así los avisos de asignación le llegan sin planti
 - [ ] 3. Contrato: bloque nuevo antes de B0. Tests + suite + bitácora
 - Ojo: el 313 462 6834 (el de prueba de A3) está cargado como motorizado: desde ese número ya no se
   probaría el flujo de cliente mientras siga en la lista
+
+## Pruebas de A3 del 12/11 (PDF «PRUEBAS A3 LABORATORIO CLÍNICO VETERINARIO») — DIAGNÓSTICO, esperando OK
+
+Verificado el 16/11 en solo lectura (base real, pantallas por GET, Alegra por GET). Nada modificado.
+
+Errores reales:
+- [ ] ERR-202 · El bot se metió en la conversación que atendía la asesora: «Médico veterinario» (y también
+      «Clínica o centro veterinario», las dos opciones del guion de A3) coinciden con clientes reales
+      («Centro Medico Veterinario…») y `_reidentifies_after_escalation` reabre el silencio. No hay ningún
+      temporizador. Toca el flujo: avisar y esperar OK. Decisión de A3: cuándo vuelve el bot tras derivar
+- [ ] ERR-203 · Alegra rechaza el borrador con «pago en línea» («La forma de pago no es válida»): P-2026-015 y
+      P-2026-016 quedaron «cerrado» sin factura. Los dos campos de pago van cruzados al escribir; con
+      contraentrega no se notaba (los dos son CASH). También fallaría el pedido abandonado («sin definir»).
+      La prueba real es «Facturar» en P-2026-016: avisar antes (crea un borrador en la cuenta real)
+
+Existe pero no lo encontraron:
+- [ ] Cliente «en revisión»: se aprueba en Clientes → buscar → columna «Aprobación» (la n.º 21 de 26). No hay
+      aviso ni bloque de pendientes. Hasta aprobarlo queda inactivo y por eso no entra al portal (el portal
+      entra con nombre + NIT, no hay usuario que activar). Propuesta: bloque «Clientes por aprobar» arriba
+- [ ] Contramuestra A3-2026-022: sí quedó con motorizado (Alexander) y está en la Agenda del viernes 13/11
+      (miraron el jueves). Propuesta: mostrar motorizado y fecha en «Órdenes sin pedido» de Pedidos
+
+Preguntas para responderle a A3:
+- [ ] 2.1 Costo de WhatsApp: desde el 01/10/2026 Meta cobra por mensaje también los de servicio (dentro de
+      las 24 h), con 1.000 gratis por número al mes según varias fuentes. Afecta a TODO el bot, no solo a los
+      motorizados. Confirmar en la tarifa oficial de Meta y que haya medio de pago cargado
+- [ ] 2.2 Control del mensajero: Agenda + estado e historial de cada orden (quién y cuándo marcó «recogida»)
+- Sin probar todavía por A3: la carga de resultados en tanda (siguen los 6 de Varvet en borrador) y ningún
+  motorizado real escribió al WhatsApp (solo quedó vinculado el número de prueba)
+
+## Cobro, emisión y errores menores (2026-11-16, OK del usuario)
+
+Pedido del usuario sobre la lista de pendientes: pago en la pantalla de Pedidos, Chatwoot, Wompi a
+producción, emisión de Alegra, errores menores y borrar la prueba del 09/11.
+
+- [x] Prueba del 09/11 borrada (P-2026-004, su orden, el pago y la conversación de prueba), con respaldo en
+      `data/backups/prueba-20261109/`. No se tocó nada de lo que cargó A3 del 10 al 12/11
+- [x] Pedidos muestra el estado del pago en línea y deja copiar o generar el link
+- [x] El portal y «Nueva Orden» piden el link de pago al crear una orden con pago en línea (antes solo el chat)
+- [x] Chatwoot: una conversación derivada pasa a «abierta» además de asignarse al equipo
+- [x] Emisión ante la DIAN construida y APAGADA (`ALEGRA_EMISSION_ENABLED=false`, decisión 016)
+- [x] ERR-203: el motivo de un borrador fallido queda escrito; respaldo en efectivo si Alegra rechaza el medio
+- [x] Facturación y Cartera de a 100 con Anterior/Siguiente; la lista ya no trae el JSON completo de Alegra
+- [x] ERR-202: «Programar rita» ya no deriva a un asesor
+- [x] Suite completa en verde; pantallas verificadas contra la base real en solo lectura
+
+### Pendiente de este bloque
+
+- [ ] Push + deploy (esperando OK del usuario)
+- [ ] ERR-203: el rechazo fue «La forma de pago no es válida» (PDF de A3 del 12/11). Las constantes del medio
+      de pago y la prueba real del borrador las lleva la sesión que trabaja ese PDF; no refacturar por fuera
+- [ ] Wompi a producción: faltan las llaves de producción ROTADAS (las carga el usuario en Render),
+      `WOMPI_BASE_URL=https://production.wompi.co/v1`, la URL de eventos en modo producción y vaciar
+      `WOMPI_ONLY_NITS`. Antes, un pedido de prueba en sandbox para ver el link salir solo por el chat
+- [ ] Emisión: A3 confirma quién emite; OK del usuario para encender la variable; primera emisión acompañada
+- [ ] Pruebas finales integradas con el modelo real (no se corrieron: gastan tokens y requieren pedido explícito)
+- [ ] Preguntar a A3 si se borran sus pruebas del 10 al 12/11 (pedidos P-2026-005 a 016) y los borradores de Alegra
