@@ -21,10 +21,22 @@ emite solo lo que el cliente confirmó, no todo.
 | Sin forma de pago (cerrado por inactividad) u otra | **No**: queda en borrador para revisar |
 | Sin borrador (falló Alegra, cliente sin NIT) | **No** |
 
+## Quién elige: A3, desde Facturación
+
+Pedido del usuario (mismo día): que A3 lo maneje sin depender de soporte. En Facturación hay un
+recuadro «Emisión a la DIAN» con tres modos (tabla `emision_ajustes`, migración 042):
+
+- **Manual** (como nace): nada se emite solo; una persona usa el botón «Emitir» de cada pedido.
+- **Automática solo para algunos clientes**: para probar con uno o pocos clientes elegidos.
+- **Automática para todos**.
+
+Lo cambian solo los perfiles que gestionan Facturación (Administrador y Auxiliar administrativa);
+cada cambio queda en `audit_log`. Si la tabla no se puede leer, el modo es manual.
+
 ## Candados
 
-- Dos interruptores, los dos en `false` en `render.yaml`: `ALEGRA_EMISSION_ENABLED` (la emisión,
-  decisión 016) y `ALEGRA_AUTO_EMISSION` (que corra sola).
+- Interruptor general `ALEGRA_EMISSION_ENABLED` en Render (decisión 016), en `false` en
+  `render.yaml`: apagado, no se emite nada, ni con el botón ni solo. La pantalla lo avisa.
 - Emite por la única puerta, `emision.emitir`: relee la factura en Alegra (tiene que ser borrador
   con total), candado contra doble emisión y `audit_log` de cada intento.
 - Corre en segundo plano (`app/emision_automatica.py`): el portal y el aviso de Wompi no esperan.
@@ -33,10 +45,11 @@ emite solo lo que el cliente confirmó, no todo.
 
 ## Para encenderla (en este orden)
 
-1. **Primera emisión acompañada:** `ALEGRA_EMISSION_ENABLED=true`, y una persona de A3 emite con el
-   botón UNA factura real que quieran emitir. Se verifica en Alegra y que el correo llegue al cliente
-   (la propuesta pide «validar envío por correo»).
-2. Si salió bien: `ALEGRA_AUTO_EMISSION=true` y desplegar.
-3. Para apagar: `ALEGRA_AUTO_EMISSION=false` y desplegar (el botón sigue).
+1. Aplicar la migración 042 y encender `ALEGRA_EMISSION_ENABLED=true` (OK explícito del usuario).
+   El modo queda en Manual: solo emite el botón.
+2. **Primera emisión acompañada:** una persona de A3 emite con el botón UNA factura real que quieran
+   emitir. Se verifica en Alegra y que el correo llegue al cliente («validar envío por correo»).
+3. A3 pasa a «solo algunos clientes» para probar, y después a «todos» cuando quiera.
+4. Para frenar todo: modo Manual en la pantalla; en una emergencia, `ALEGRA_EMISSION_ENABLED=false`.
 
 Una factura emitida no se deshace: se corrige con nota crédito en Alegra.

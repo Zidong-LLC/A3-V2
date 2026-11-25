@@ -102,10 +102,6 @@ ALEGRA_PRODUCTION = os.environ.get("ALEGRA_PRODUCTION", "false").lower() in ("1"
 # Emisión ante la DIAN desde la plataforma (decisión 016). APAGADA por defecto: aun encendida,
 # solo emite una persona de Facturación con el botón «Emitir» de un pedido (app/emision.py).
 ALEGRA_EMISSION_ENABLED = os.environ.get("ALEGRA_EMISSION_ENABLED", "false").lower() in ("1", "true", "yes")
-# Emisión AUTOMÁTICA de los pedidos confirmados (decisión 017, 2026-11-25): contraentrega al
-# armar el borrador, pago en línea al aprobarse en Wompi. APAGADA por defecto y además exige
-# ALEGRA_EMISSION_ENABLED. Ver app/emision_automatica.py.
-ALEGRA_AUTO_EMISSION = os.environ.get("ALEGRA_AUTO_EMISSION", "false").lower() in ("1", "true", "yes")
 # Jerarquía PEDIDO → ÓRDENES → ANÁLISIS (decisión 011): la forma de pago no es un dato de
 # cada orden sino del PEDIDO — se pregunta UNA vez al cerrar y se emite UNA factura con todas
 # las órdenes. ENCENDIDO por defecto (2026-08-14): es lo acordado con A3, no un experimento,

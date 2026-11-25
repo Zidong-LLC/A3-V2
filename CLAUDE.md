@@ -11,9 +11,9 @@
 >   DIAN**: el bot, el portal y los crons solo crean BORRADORES (`ALEGRA_PRODUCTION=false`).
 >   Emitir es un acto de una persona con el botón «Emitir a la DIAN» y solo con
 >   `ALEGRA_EMISSION_ENABLED=true`, que nace apagado (decisión 016). Desde el 25/11 existe además
->   la emisión AUTOMÁTICA de pedidos confirmados (decisión 017), con su propio interruptor
->   `ALEGRA_AUTO_EMISSION`, también apagado. **Nunca emitir para probar** ni encender ninguna de
->   las dos variables sin OK explícito. No crear facturas ni contactos sin avisar antes;
+>   la emisión AUTOMÁTICA de pedidos confirmados (decisión 017): el modo (manual / algunos
+>   clientes / todos) lo elige A3 en Facturación y nace en manual. **Nunca emitir para probar**
+>   ni encender `ALEGRA_EMISSION_ENABLED` ni cambiar ese modo sin OK explícito. No crear facturas ni contactos sin avisar antes;
 >   verificar en solo lectura. No borrar ni modificar lo que ya existe en la cuenta.
 > - **A nombre de quién factura** lo decide `clients.electronic_invoice`: si es `false`, va a
 >   Consumidor Final con el nombre en las notas (`app/billing.py::invoice_target`).

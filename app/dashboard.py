@@ -25,7 +25,7 @@ from app.config import (
 from app import billing_charts, client_filters, emision, facturar_pedido, facturas_panel, orden_manual, panel_laboratorio, pedido_directo, pedidos_vista
 from app import access, municipios
 from app import permissions as P
-from app.services import audit_db, db, alegra, maestros_db, pagos_db
+from app.services import audit_db, db, alegra, emision_ajustes_db, maestros_db, pagos_db
 from app import anarvet_sync, dashboard_metrics, orders, pricing, rules, territory, billing, zone_routing
 from app.courier_notify import notify_assignment
 from app.alerts import notify_error
@@ -3121,6 +3121,12 @@ def _render_dashboard(active_tab: str):
     context["summary"] = summary
     if active_tab == "dashboard":
         context["actividad_lab"] = panel_laboratorio.resumen(_leer_en_paralelo)
+    if active_tab == "facturacion":
+        # Modo de emisión a la DIAN (decisión 017): lo elige A3 en esta pantalla.
+        ajustes = emision_ajustes_db.leer()
+        context["emision_ajustes"] = ajustes
+        context["emision_clientes"] = _safe_fetch(lambda: emision_ajustes_db.clientes(ajustes["client_ids"]), [])
+        context["emision_activa"] = emision.activa()
     if active_tab == "pedidos":
         # Solo se consulta en su pestaña: son dos queries y no hacen falta en el resto.
         # Página única (ERR-194): cada pedido con sus órdenes editables adentro.

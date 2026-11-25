@@ -1,0 +1,116 @@
+{# Modo de emisión a la DIAN (decisión 017, 2026-11-25). A3 elige acá si las facturas de los
+   pedidos confirmados se emiten solas: para nadie (manual), solo para algunos clientes (para
+   probar) o para todos. Lo guarda `dashboard_cobro.emision_ajustes`. #}
+{% set aj = context.emision_ajustes or {'modo': 'manual', 'client_ids': []} %}
+{% set gestiona = puede('facturacion', 2) %}
+<section class="card emision-card" id="emision">
+  <div class="card-head"><div>
+    <h3><i data-lucide="send"></i> Emisión a la DIAN</h3>
+    <p>Elige a quién se le emite la factura sola. En los modos automáticos solo se emite lo que el cliente
+      confirmó: <strong>contraentrega</strong> apenas se arma el borrador y <strong>pago en línea</strong> cuando
+      Wompi aprueba el pago. Los pedidos sin forma de pago (cerrados por inactividad) siempre quedan en borrador
+      para revisarlos.</p>
+  </div></div>
+
+  {% for categoria, mensaje in get_flashed_messages(with_categories=true, category_filter=['emision_ok', 'emision_error']) %}
+    <p class="approval-notice {{ 'error' if categoria == 'emision_error' else 'ok' }}">{{ mensaje }}</p>
+  {% endfor %}
+  {% if not context.emision_activa %}
+    <p class="approval-notice error">El interruptor general de emisión está <strong>apagado</strong> en el servidor:
+      mientras siga así no se emite nada, ni con el botón ni de forma automática. Pídelo a soporte para encenderlo.</p>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('dashboard_cobro.emision_ajustes') }}" class="emision-form" id="emision-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label class="emision-opcion"><input type="radio" name="modo" value="manual" {{ 'checked' if aj.modo == 'manual' }} {{ 'disabled' if not gestiona }}>
+      <span><strong>Manual</strong><small>Nada se emite solo. Una persona de Facturación emite con el botón «Emitir» de cada pedido.</small></span></label>
+    <label class="emision-opcion"><input type="radio" name="modo" value="clientes" {{ 'checked' if aj.modo == 'clientes' }} {{ 'disabled' if not gestiona }}>
+      <span><strong>Automática solo para algunos clientes</strong><small>Para probar: se emite sola la factura de los clientes que elijas abajo; el resto, manual.</small></span></label>
+    <label class="emision-opcion"><input type="radio" name="modo" value="todos" {{ 'checked' if aj.modo == 'todos' }} {{ 'disabled' if not gestiona }}>
+      <span><strong>Automática para todos</strong><small>Toda factura de un pedido confirmado se emite sola.</small></span></label>
+
+    <div class="emision-clientes" id="emision-clientes" {{ 'hidden' if aj.modo != 'clientes' }}>
+      <strong>Clientes con emisión automática</strong>
+      <ul id="emision-elegidos">
+        {% for c in context.emision_clientes or [] %}
+        <li data-id="{{ c.id }}">{{ c.clinic_name }} · NIT {{ c.tax_id or '—' }}
+          <input type="hidden" name="client_ids" value="{{ c.id }}">
+          {% if gestiona %}<button type="button" class="ghost-btn small" data-quitar>Quitar</button>{% endif %}</li>
+        {% endfor %}
+      </ul>
+      {% if gestiona %}
+      <input class="cell-input" id="emision-buscar" placeholder="Buscar cliente por nombre o NIT" autocomplete="off">
+      <ul class="emision-sugerencias" id="emision-sugerencias"></ul>
+      {% endif %}
+    </div>
+
+    {% if gestiona %}
+      <div><button type="submit" class="primary-btn"><i data-lucide="save"></i>Guardar modo de emisión</button></div>
+    {% else %}
+      <p class="muted-text">Solo quien gestiona Facturación puede cambiar este modo.</p>
+    {% endif %}
+    {% if aj.updated_by %}<small class="muted-text">Último cambio: {{ aj.updated_by }} · {{ aj.updated_at | fecha_corta }}</small>{% endif %}
+  </form>
+</section>
+<style>
+  .emision-form { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+  .emision-opcion { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 10px; cursor: pointer; }
+  .emision-opcion small { display: block; color: #6b7280; }
+  .emision-clientes { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; background: #f9fafb; border-radius: 10px; }
+  .emision-clientes ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .emision-clientes li { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+  .emision-sugerencias li { cursor: pointer; padding: 6px 8px; border-radius: 6px; }
+  .emision-sugerencias li:hover { background: #eef2ff; }
+</style>
+{% if gestiona %}
+<script>
+  (function () {
+    var form = document.getElementById('emision-form');
+    var bloque = document.getElementById('emision-clientes');
+    var elegidos = document.getElementById('emision-elegidos');
+    var buscar = document.getElementById('emision-buscar');
+    var sugerencias = document.getElementById('emision-sugerencias');
+    var url = {{ url_for('dashboard_client.buscar_clientes') | tojson }};
+    var espera;
+    form.addEventListener('change', function (e) {
+      if (e.target.name === 'modo') bloque.hidden = e.target.value !== 'clientes';
+    });
+    elegidos.addEventListener('click', function (e) {
+      if (e.target.closest('[data-quitar]')) e.target.closest('li').remove();
+    });
+    function agregar(c) {
+      if (elegidos.querySelector('[data-id="' + c.id + '"]')) return;
+      var li = document.createElement('li');
+      li.dataset.id = c.id;
+      li.textContent = c.nombre + ' · NIT ' + (c.nit || '—') + ' ';
+      var oculto = document.createElement('input');
+      oculto.type = 'hidden'; oculto.name = 'client_ids'; oculto.value = c.id;
+      var quitar = document.createElement('button');
+      quitar.type = 'button'; quitar.className = 'ghost-btn small'; quitar.textContent = 'Quitar';
+      quitar.setAttribute('data-quitar', '');
+      li.appendChild(oculto); li.appendChild(quitar);
+      elegidos.appendChild(li);
+    }
+    buscar.addEventListener('input', function () {
+      clearTimeout(espera);
+      var q = buscar.value.trim();
+      if (q.length < 2) { sugerencias.innerHTML = ''; return; }
+      espera = setTimeout(function () {
+        fetch(url + '?q=' + encodeURIComponent(q), {credentials: 'same-origin'})
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            sugerencias.innerHTML = '';
+            (data.resultados || []).forEach(function (c) {
+              var li = document.createElement('li');
+              li.textContent = c.nombre + ' · NIT ' + (c.nit || '—');
+              li.addEventListener('click', function () { agregar(c); sugerencias.innerHTML = ''; buscar.value = ''; });
+              sugerencias.appendChild(li);
+            });
+          })
+          .catch(function () { sugerencias.innerHTML = ''; });
+      }, 250);
+    });
+    buscar.addEventListener('keydown', function (e) { if (e.key === 'Enter') e.preventDefault(); });
+  })();
+</script>
+{% endif %}

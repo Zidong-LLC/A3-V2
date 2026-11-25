@@ -96,6 +96,7 @@ _ENDPOINTS = {
     "dashboard_ordenes.*": ("solicitudes", "pedidos"),  # ver líneas; eliminar/quitar exige gestión
     "dashboard_cobro.pedido_pago_link": ("pedidos", "facturacion"),
     "dashboard_cobro.pedido_emitir": ("facturacion",),  # emitir a la DIAN: solo Facturación
+    "dashboard_cobro.emision_ajustes": ("facturacion",),  # modo de emisión (decisión 017): gestión
 }
 
 # Rutas para cualquier persona con sesión (o sin ella, el login).

@@ -2104,11 +2104,14 @@ Preguntas para responderle a A3:
       ($48.000), P-2026-017 → 30967 ($183.780, forma «sin definir»). Leídos en Alegra: los tres `draft`, sin
       rechazo ni reintento como efectivo → ERR-203 confirmado en la cuenta real
 - [x] Emisión automática de pedidos confirmados (decisión 017, OK del usuario): contraentrega al armar el
-      borrador, pago en línea al aprobarse en Wompi; sin forma de pago queda en borrador. Interruptor
-      `ALEGRA_AUTO_EMISSION` APAGADO. 18 tests; suite 2360 passed
-- [ ] Encender la emisión (decisión 017, en orden): 1) `ALEGRA_EMISSION_ENABLED=true` y primera emisión
-      con el botón, con A3 mirando, sobre una factura que quieran emitir; verificar correo al cliente.
-      2) `ALEGRA_AUTO_EMISSION=true`. Cada paso con OK explícito del usuario
+      borrador, pago en línea al aprobarse en Wompi; sin forma de pago queda en borrador
+- [x] El modo lo elige A3 en Facturación (pedido del usuario): Manual / solo algunos clientes / todos,
+      tabla `emision_ajustes` (migración 042), nace en Manual, solo perfiles de Facturación, `audit_log`.
+      Reemplaza la variable `ALEGRA_AUTO_EMISSION`. 30 tests; suite 2374 passed. Verificado en local con
+      la base real (Administrador lo ve; Recepción no entra a Facturación)
+- [ ] Al subir: aplicar la migración 042 en Supabase
+- [ ] Encender `ALEGRA_EMISSION_ENABLED=true` en Render (OK explícito del usuario) → primera emisión con
+      el botón y A3 mirando; verificar correo al cliente → A3 elige el modo en Facturación
 - [ ] A3: las pantallas de Facturación y Cartera «no aportan nada distinto a Alegra». Pendiente de hablar
 - [ ] Revisar el enredo multi-orden de la prueba del 17/11 (ver ERR-206, «visto de paso»)
 - Cierre automático de pedidos: queda a la hora (decisión 011). Se discutió pasarlo a fin del día; sin decidir
