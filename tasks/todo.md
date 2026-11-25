@@ -2077,6 +2077,19 @@ Preguntas para responderle a A3:
 - [ ] Aprobar o rechazar los 2 clientes pendientes (St. Francis y Dra. Adriana Milena Rodriguez): decide A3
 - [ ] Responderle a A3 las preguntas 2.1 (costo de WhatsApp) y 2.2 (control del mensajero)
 
+## Respuesta de A3 a las pruebas (2026-11-25): privacidad y prueba del 21/11
+
+- [x] Diagnóstico de la prueba del sábado 21/11 (base real, solo lectura): conversación sin vencimiento → ERR-206
+- [x] Conversación vieja (más de 12 h) arranca de cero en cualquier estado (OK del usuario). Contrato B000a
+- [x] Solicitud fantasma A3-2026-033 borrada con respaldo (OK del usuario)
+- [x] Suite completa: 2318 passed (8 tests nuevos)
+- [ ] Commit + push + deploy (pedir OK para el push)
+- [ ] Prueba real: escribir al WhatsApp de prueba después de 12 h sin mensajes → debe llegar el menú
+- [ ] Pantalla «Autorizaciones de datos» en el dashboard (solo lectura + CSV): la evidencia está en
+      `privacy_consents` pero A3 no la ve. Esperando OK
+- [ ] Revisar el enredo multi-orden de la prueba del 17/11 (ver ERR-206, «visto de paso»)
+- Cierre automático de pedidos: queda a la hora (decisión 011). Se discutió pasarlo a fin del día; sin decidir
+
 ## Cobro, emisión y errores menores (2026-11-16, OK del usuario)
 
 Pedido del usuario sobre la lista de pendientes: pago en la pantalla de Pedidos, Chatwoot, Wompi a

@@ -174,6 +174,6 @@ def test_recien_derivado_el_bot_sigue_callado():
 
 def test_si_no_se_puede_leer_la_fecha_sigue_el_silencio():
     with patch.object(agent.db, "last_message_at", side_effect=RuntimeError("caída")):
-        assert agent._derivacion_vencida("2") is False
+        assert agent._conversacion_vencida("2") is False
     with patch.object(agent.db, "last_message_at", return_value=None):
-        assert agent._derivacion_vencida("2") is False
+        assert agent._conversacion_vencida("2") is False

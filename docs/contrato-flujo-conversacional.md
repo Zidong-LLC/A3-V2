@@ -67,6 +67,20 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
 - **Estado:** OK del usuario (2026-11-16) tras la prueba de A3 del 12/11, donde el bot contestó encima
   de la asesora (ERR-204). ⏳ POR CONFIRMAR en la prueba real.
 
+### B000a · Conversación vieja: arranca de cero (cualquier canal)
+- **Qué hace:** si el último mensaje guardado de la conversación tiene más de 12 h
+  (`ASESOR_ACTIVO_HORAS`), el mensaje que llega recibe el saludo con el menú y la sesión queda limpia:
+  sin fase, sin datos a medias, sin marcas («recién cerré una orden», «te pedí el NIT», derivaciones)
+  y sin cliente identificado (se vuelve a identificar). No llama al modelo ni crea solicitudes.
+  Las órdenes ya confirmadas no se tocan: están en la base y el pedido abierto lo cierra el barrido
+  de la hora (decisión 011). El cliente final bloqueado (`_blocked`) sigue callado.
+- **Dónde:** `app/agent.py::process_turn`, apenas después del chequeo de `_blocked`
+  (`_conversacion_vencida` + `_reinicio_por_inactividad`). Si un asesor atiende (B000), ni llega.
+- **Estado:** OK del usuario (2026-11-25) tras la prueba de A3 del 21/11: un «hola» cuatro días
+  después de un cierre automático derivó a un asesor, dejó mudo al bot y creó una solicitud
+  fantasma (ERR-206). Reemplaza el vencimiento que ERR-204 aplicaba solo a una derivación.
+  ⏳ POR CONFIRMAR en la prueba real.
+
 ### B0 · Autorización de datos (solo WhatsApp)
 - **Qué hace:** antes del menú, un mensaje con la política de tratamiento de datos de A3 y los
   botones «Sí» y «No». Con «Sí» sigue todo como siempre: el saludo con las 4 opciones. Con «No» avisa
@@ -118,6 +132,8 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
   reabren, aunque el buscador devuelva «Centro Medico Veterinario…». (2) La derivación **vence**:
   pasadas 12 h desde el último mensaje guardado, el siguiente mensaje recibe el saludo con el menú y
   la conversación arranca de cero (antes seguía muda para siempre).
+- **Ajuste 2026-11-25 (ERR-206, OK del usuario):** el vencimiento de las 12 h ya no es solo de esta
+  derivación: vale para **cualquier estado** (ver B000a). La comprobación se movió al inicio del turno.
 - **Estado:** ✅ APROBADO (usuario, 2026-06-22) · recuperación tras escalar autorizada
   explícitamente por el usuario el 2026-08-12 y verificada con cliente simulado sobre datos
   reales. Tests: `tests/test_unfound_client_escalation_is_reversible.py`.

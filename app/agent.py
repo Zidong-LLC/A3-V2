@@ -717,11 +717,13 @@ def _reidentifies_after_escalation(user_message: str) -> bool:
     return any(nombre_concuerda(name, c.get("clinic_name")) for c in coincidencias)
 
 
-def _derivacion_vencida(chat_id: str) -> bool:
-    """¿La derivación quedó vieja? Pasadas `ASESOR_ACTIVO_HORAS` desde el último mensaje
-    guardado, el silencio deja de valer: nadie retomó esa conversación por acá y el cliente
-    que vuelve días después merece el saludo, no el vacío. Si un asesor la está atendiendo,
-    el turno ni llega hasta acá (`app/asesor.py`). Ante la duda, False: sigue el silencio."""
+def _conversacion_vencida(chat_id: str) -> bool:
+    """¿La conversación quedó vieja? Pasadas `ASESOR_ACTIVO_HORAS` desde el último mensaje
+    guardado, lo que quedó a medias (una derivación, «recién cerré una orden», «te pedí el
+    NIT», datos sueltos) deja de valer: el cliente que vuelve días después merece el saludo,
+    no seguir donde quedó. ERR-204 lo hacía solo para una derivación; ERR-206 (prueba de A3
+    del 21/11) lo extiende a cualquier estado. Si un asesor la está atendiendo, el turno ni
+    llega hasta acá (`app/asesor.py`). Ante la duda, False: sigue como estaba."""
     try:
         ultimo = db.last_message_at(chat_id)
         if not ultimo:
@@ -734,7 +736,7 @@ def _derivacion_vencida(chat_id: str) -> bool:
         return False
 
 
-def _reinicio_tras_derivacion() -> dict:
+def _reinicio_por_inactividad() -> dict:
     """La conversación arranca de cero, con el saludo y el menú de siempre."""
     return {
         "reply": WELCOME_MESSAGE,
@@ -3462,6 +3464,13 @@ def process_turn(
     prev_fields = session.get("captured_fields") or {}
     if prev_fields.get("_blocked"):
         return None
+    # ERR-206: conversación vieja (más de ASESOR_ACTIVO_HORAS sin mensajes), en el estado que
+    # sea → arranca de cero con el saludo, sin restos ni cliente. El 21/11 un «hola» cuatro
+    # días después de un cierre automático cayó en «recién cerré una orden», derivó a un
+    # asesor y creó una solicitud fantasma. Decide por estado + tiempo, sin leer el mensaje.
+    if history and _conversacion_vencida(chat_id):
+        db.clear_client_from_session(chat_id)
+        return _persist_turn(chat_id, user_message, _reinicio_por_inactividad())
     # «2» a una pregunta cerrada con opciones numeradas → el texto que el flujo entiende.
     # Va antes de cualquier lectura del mensaje; la marca se borra en el mismo acto.
     user_message = opciones_cerradas.traducir(prev_fields, user_message)
@@ -3470,10 +3479,7 @@ def process_turn(
     # con un identificador que exista en la base. Cualquier otro mensaje mantiene el
     # silencio, para no pisar al humano que ya tomó la conversación tras el handoff.
     if prev_fields.get("_escalated_unfound_client"):
-        # Derivación vieja y sin atender por acá: empieza de cero con el saludo (12/11: una
-        # conversación derivada nueve días antes seguía muda ante un «Hola»).
-        if _derivacion_vencida(chat_id):
-            return _persist_turn(chat_id, user_message, _reinicio_tras_derivacion())
+        # La derivación vieja ya se reinició arriba (ERR-204 → ERR-206, para todo estado).
         if not _reidentifies_after_escalation(user_message):
             return None
         reopened = {k: v for k, v in prev_fields.items()

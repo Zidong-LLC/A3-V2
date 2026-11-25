@@ -5490,3 +5490,34 @@ conversaciones" teniendolas todas delante.
   programada pasan a obligatorias (no se pueden ocultar; `columns-config.js` las fuerza aunque la
   preferencia guardada no las tenga).
 - **Verificación:** con la base real en solo lectura el bloque muestra los 2 pendientes de hoy.
+
+---
+
+## ERR-206 — Un «hola» días después de un cierre automático derivó a un asesor y dejó mudo al bot
+
+- **Fecha:** 2026-11-25 (prueba de A3 del sábado 21/11, WhatsApp +57 311 582 4893, chat 5) · **Estado:**
+  CORREGIDO en código (OK del usuario). Falta desplegar y la prueba real.
+- **Síntoma:** A3 escribió «hola» y no recibió el menú: el bot contestó solo «Te asignaremos un asesor que
+  se comunicará contigo para ayudarte.» y no volvió a hablar. Era sábado y nadie tomó el chat. Además
+  quedó una solicitud fantasma, A3-2026-033 (un Coprológico sin paciente, intención `unknown`).
+- **Causa raíz:** la sesión de una conversación no vencía nunca. El 17/11 el barrido de la hora cerró el
+  pedido de ese chat y limpió solo las claves del pedido: la sesión quedó en fase de cierre con restos de
+  la última orden (Coprológico) y del flujo de resultados. Cuatro días después, el «hola» entró como
+  «recién cerramos una orden y esto no encaja» (`just_closed_order` + señal off_topic/unclear →
+  `_unknown_handoff_response` + `_finalize_request`): derivó, guardó `fase_7_escalado` (una derivación
+  que, a diferencia de la de ERR-204, no vencía) y creó la solicitud con los restos. La autorización de
+  datos funcionó bien: ese número ya había aceptado el 17/11 y no se le volvió a preguntar.
+- **Solución:** el vencimiento de ERR-204 se generalizó. `_conversacion_vencida` (antes
+  `_derivacion_vencida`) corre al inicio de `process_turn`, tras `_blocked`, para cualquier estado: más
+  de `ASESOR_ACTIVO_HORAS` (12) desde el último mensaje guardado → saludo, sesión limpia y sin cliente
+  (`_reinicio_por_inactividad` + `clear_client_from_session`). Es el mismo `return` pre-LLM movido, no
+  uno nuevo: el baseline de `tests/test_pipeline_invariants.py` sigue en 14. No se tocó el cierre de la
+  hora (decisión 011): las recogidas confirmadas siguen en pie.
+- **Datos:** A3-2026-033 y su evento borrados (OK del usuario), con respaldo en
+  `data/backups/fantasma-A3-2026-033-20261125/`. No tenía motorizado, fecha ni pedido.
+- **Tests:** `tests/test_conversacion_vencida.py` (8): el caso del 21/11, sin solicitud, tres estados
+  viejos, menos de 12 h sigue igual, bloqueado sigue callado, chat nuevo. Suite completa 2318 passed.
+- **Visto de paso, sin tocar:** en la prueba del 17/11 del mismo chat el flujo multi-orden se enredó
+  («otra orden» en la pregunta de observaciones cerró la orden; «sí, quiero agregar otro análisis» la
+  cerró en vez de agregar; «Agregar coprologico» pidió el nombre del paciente; un «2» saltó a
+  resultados). Pendiente de revisar como punto aparte.

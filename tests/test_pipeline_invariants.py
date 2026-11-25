@@ -70,6 +70,8 @@ AGENT = APP / "agent.py"
 # encuentro» quedó vieja (más de ASESOR_ACTIVO_HORAS sin mensajes). Decide por ESTADO + tiempo,
 # sin leer la oración, dentro del guard de ERR-088. No le saca ningún turno al modelo: ese
 # turno ya terminaba antes del modelo, en silencio (`return None`); ahora saluda.
+# 2026-11-25 (ERR-206): ese return se MOVIÓ al inicio del turno y ahora vale para cualquier estado
+# (conversación vieja → saludo). Sigue siendo uno solo: el baseline no cambia.
 PRE_LLM_RETURNS_BASELINE = 14
 
 
