@@ -13,7 +13,7 @@ PEDIDO = {"id": "ped-1", "pedido_number": "P-2026-001", "status": "abierto",
 
 @pytest.fixture
 def base(monkeypatch):
-    registro = {"cerrados": [], "limpiados": [], "telegram": [], "chatwoot": [], "historial": []}
+    registro = {"cerrados": [], "limpiados": [], "telegram": [], "chatwoot": [], "historial": [], "borradores": []}
     monkeypatch.setattr(db, "list_stale_pedidos", lambda horas=1, limit=20: [PEDIDO])
     monkeypatch.setattr(db, "list_pedido_requests", lambda pid: [{"order_number": "A3-1"}, {"order_number": "A3-2"}])
     monkeypatch.setattr(db, "close_pedido", lambda pid, pago=None: registro["cerrados"].append(pid))
@@ -21,12 +21,17 @@ def base(monkeypatch):
     monkeypatch.setattr(db, "save_message", lambda chat, texto, rol: registro["historial"].append((chat, rol, texto)))
     monkeypatch.setattr(pedidos_abandonados.telegram, "send_message", lambda chat, texto: registro["telegram"].append((chat, texto)))
     monkeypatch.setattr(pedidos_abandonados.chatwoot, "send_message", lambda chat, texto: registro["chatwoot"].append((chat, texto)))
+    # Borrador de Alegra (25/11): simulado; la Alegra real está bloqueada en conftest.
+    monkeypatch.setattr(pedidos_abandonados.config, "ALEGRA_ENABLED", True)
+    monkeypatch.setattr(db, "get_pedido", lambda pid: dict(PEDIDO, status="cerrado"))
+    monkeypatch.setattr(pedidos_abandonados.facturar_pedido, "facturar",
+                        lambda pedido: registro["borradores"].append(pedido["id"]) or {"status": "facturado"})
     return registro
 
 
 def test_cierra_limpia_la_sesion_y_avisa_por_telegram(base):
     resultado = pedidos_abandonados.cerrar_abandonados()
-    assert resultado == {"cerrados": 1, "avisados": 1, "fallidos": 0}
+    assert resultado == {"cerrados": 1, "avisados": 1, "fallidos": 0, "facturados": 1}
     assert base["cerrados"] == ["ped-1"] and base["limpiados"] == ["chat-9"]
     chat, texto = base["telegram"][0]
     assert chat == "chat-9" and "más de una hora" in texto and "2 órdenes" in texto and "quedan programadas" in texto
@@ -46,7 +51,7 @@ def test_una_sola_orden_habla_en_singular():
 
 def test_sin_ordenes_cierra_sin_avisar(base, monkeypatch):
     monkeypatch.setattr(db, "list_pedido_requests", lambda pid: [])
-    assert pedidos_abandonados.cerrar_abandonados() == {"cerrados": 1, "avisados": 0, "fallidos": 0}
+    assert pedidos_abandonados.cerrar_abandonados() == {"cerrados": 1, "avisados": 0, "fallidos": 0, "facturados": 1}
     assert base["telegram"] == [] and base["limpiados"] == ["chat-9"]
 
 
@@ -54,7 +59,7 @@ def test_si_el_aviso_falla_el_pedido_queda_cerrado_igual(base, monkeypatch):
     def explota(*_a):
         raise RuntimeError("telegram caído")
     monkeypatch.setattr(pedidos_abandonados.telegram, "send_message", explota)
-    assert pedidos_abandonados.cerrar_abandonados() == {"cerrados": 1, "avisados": 0, "fallidos": 0}
+    assert pedidos_abandonados.cerrar_abandonados() == {"cerrados": 1, "avisados": 0, "fallidos": 0, "facturados": 1}
 
 
 def test_limpiar_pedido_de_sesion_saca_solo_las_claves_del_pedido(monkeypatch):
@@ -101,3 +106,33 @@ def test_el_cron_cierra_por_la_api_con_token(monkeypatch):
     assert c.post("/api/platform/pedidos/barrido").status_code == 401
     r = c.post("/api/platform/pedidos/barrido", headers={"X-Platform-Token": "test-platform-token"})
     assert r.status_code == 200 and r.get_json()["cerrados"] == 2
+
+
+# ── Borrador de Alegra al cerrar por inactividad (decisión del usuario, 2026-11-25) ──
+
+def test_el_pedido_cerrado_solo_tambien_queda_con_su_borrador(base):
+    """A3: los pedidos de WhatsApp cerrados por inactividad quedaban para facturar uno a uno
+    (P-2026-017). Ahora salen con su borrador, igual que el portal y «Nueva Orden»."""
+    pedidos_abandonados.cerrar_abandonados()
+    assert base["borradores"] == ["ped-1"]
+    assert base["cerrados"] == ["ped-1"]  # primero se cierra, después se factura
+
+
+def test_con_alegra_apagada_no_intenta_facturar(base, monkeypatch):
+    monkeypatch.setattr(pedidos_abandonados.config, "ALEGRA_ENABLED", False)
+    assert pedidos_abandonados.cerrar_abandonados()["facturados"] == 0
+    assert base["borradores"] == [] and base["telegram"]  # el aviso al cliente sale igual
+
+
+def test_si_alegra_falla_el_pedido_queda_cerrado_y_avisado(base, monkeypatch):
+    def explota(pedido):
+        raise RuntimeError("alegra caída")
+    monkeypatch.setattr(pedidos_abandonados.facturar_pedido, "facturar", explota)
+    resultado = pedidos_abandonados.cerrar_abandonados()
+    assert resultado == {"cerrados": 1, "avisados": 1, "fallidos": 0, "facturados": 0}
+
+
+def test_si_alegra_rechaza_no_cuenta_como_facturado(base, monkeypatch):
+    monkeypatch.setattr(pedidos_abandonados.facturar_pedido, "facturar",
+                        lambda pedido: {"status": "cerrado", "invoice": None, "warning": "sin NIT"})
+    assert pedidos_abandonados.cerrar_abandonados()["facturados"] == 0

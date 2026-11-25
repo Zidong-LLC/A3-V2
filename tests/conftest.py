@@ -71,3 +71,18 @@ def _sin_intentos_de_ingreso_previos():
 
     access._fallidos.clear()
     yield
+
+
+@pytest.fixture(autouse=True)
+def _alegra_real_bloqueada(monkeypatch):
+    """El .env real trae ALEGRA_ENABLED=true y la cuenta de Alegra es la REAL de A3: ningún
+    test puede llegar a ella. Si un test se olvida de simular Alegra, falla acá en vez de
+    crear un borrador de verdad (2026-11-25, al sumar el borrador al cierre por inactividad).
+    Los tests que simulan `_request` o algo más arriba lo pisan con su propio parche."""
+    from app.services import alegra
+
+    def _bloqueada(method, path, body=None):
+        raise AssertionError(f"Un test intentó llamar a la Alegra REAL: {method} {path}")
+
+    monkeypatch.setattr(alegra, "_request", _bloqueada)
+    yield

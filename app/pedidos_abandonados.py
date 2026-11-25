@@ -6,6 +6,11 @@ avisa al cliente por su canal, y se limpian de su sesión los datos del pedido. 
 limpieza, el pedido siguiente del mismo chat arrastraba al resumen y al borrador de
 factura análisis que no eran suyos.
 
+Desde el 2026-11-25 (decisión del usuario, cambia el anexo del 26/10 de la decisión 011)
+también se arma el BORRADOR de Alegra, como en el portal y «Nueva Orden»: A3 reportó que
+esos pedidos quedaban para facturar a mano, uno a uno (P-2026-017). La forma de pago va
+«sin definir» porque el cliente no la confirmó; A3 la revisa antes de emitir.
+
 Lo dispara el cron de Render cada 15 minutos (`POST /api/platform/pedidos/barrido`) y,
 de respaldo, el inicio de cualquier turno del bot (`agent._sweep_stale_pedidos`).
 Nunca lanza: un pedido que falla no frena a los demás.
@@ -13,6 +18,7 @@ Nunca lanza: un pedido que falla no frena a los demás.
 import logging
 import threading
 
+from app import config, facturar_pedido
 from app.services import chatwoot, db, telegram
 
 logger = logging.getLogger(__name__)
@@ -49,6 +55,18 @@ def _avisar(pedido: dict, ordenes: int) -> bool:
         return False
 
 
+def _borrador(pedido: dict) -> bool:
+    """Arma el borrador del pedido recién cerrado. Nunca lanza: si Alegra falla, el pedido
+    queda «cerrado» con el motivo en su historial y se factura desde Pedidos."""
+    if not config.ALEGRA_ENABLED:
+        return False
+    try:
+        return facturar_pedido.facturar(db.get_pedido(pedido["id"]) or pedido).get("status") == "facturado"
+    except Exception:  # noqa: BLE001
+        logger.exception("pedidos: no se pudo armar el borrador del abandonado %s", pedido.get("id"))
+        return False
+
+
 def cerrar_abandonados(horas: int = HORAS) -> dict:
     """Cierra, limpia y avisa. Devuelve cuántos cerró, avisó y fallaron."""
     if not _EN_CURSO.acquire(blocking=False):
@@ -60,7 +78,7 @@ def cerrar_abandonados(horas: int = HORAS) -> dict:
 
 
 def _cerrar(horas: int) -> dict:
-    resultado = {"cerrados": 0, "avisados": 0, "fallidos": 0}
+    resultado = {"cerrados": 0, "avisados": 0, "fallidos": 0, "facturados": 0}
     try:
         pendientes = db.list_stale_pedidos(horas)
     except Exception as exc:  # noqa: BLE001
@@ -73,14 +91,17 @@ def _cerrar(horas: int) -> dict:
             db.close_pedido(pedido_id, pedido.get("payment_method"))
             if pedido.get("external_chat_id"):
                 db.limpiar_pedido_de_sesion(str(pedido["external_chat_id"]))
+            facturado = _borrador(pedido)
             # Se avisa SIEMPRE a operaciones, con o sin factura: el cliente nunca confirmó
             # la forma de pago y alguien tiene que saber que este pedido se cerró solo.
             logger.warning(
                 "pedidos: %s (%s) cerrado por inactividad tras %sh con %s orden(es) — "
-                "revisar con operaciones: el cliente no confirmó el cierre",
+                "revisar con operaciones: el cliente no confirmó el cierre (%s)",
                 pedido.get("pedido_number") or pedido_id, pedido.get("external_chat_id"), horas, len(ordenes),
+                "borrador armado" if facturado else "SIN borrador: facturar desde Pedidos",
             )
             resultado["cerrados"] += 1
+            resultado["facturados"] += facturado
             resultado["avisados"] += _avisar(pedido, len(ordenes))
         except Exception as exc:  # noqa: BLE001
             logger.warning("pedidos: no se pudo cerrar el abandonado %s: %s", pedido_id, exc)

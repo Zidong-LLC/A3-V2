@@ -2096,6 +2096,16 @@ Preguntas para responderle a A3:
 - [x] Wompi en la base (25/11): 3 pagos aprobados el 17/11 (P-018, P-019 y P-020 por WhatsApp) → el primer
       pago real y el link saliendo solo por el chat quedan confirmados. 3 links sin pagar (P-021 a P-023)
 - [ ] Push + deploy del portal junto con la pantalla (el usuario pidió subir todo junto)
+- [x] Facturación (punto 3 de A3): verificado en la base que desde el arreglo del 16/11 los 6 pedidos
+      con pago en línea (P-018 a P-023) tienen borrador automático; ningún rechazo de Alegra desde entonces
+- [x] El cierre por inactividad arma el borrador (OK del usuario; anexo 2026-11-25 de la decisión 011).
+      conftest bloquea la Alegra real en los tests. Suite 2343 passed
+- [ ] Borradores de P-2026-015, P-2026-016 (12/11, antes del arreglo) y P-2026-017 (cierre por
+      inactividad del 17/11): crearlos con «Facturar» — esperando OK (cuenta real de Alegra)
+- [ ] A3 quiere la factura EMITIDA automáticamente (la propuesta del 28/09 dice «pasar de borrador a
+      factura emitida según confirmación del pedido»). Decisión del usuario pendiente: choca con la
+      regla «nada emite solo» (decisión 016) y el acta excluye la «automatización DIAN completa»
+- [ ] A3: las pantallas de Facturación y Cartera «no aportan nada distinto a Alegra». Pendiente de hablar
 - [ ] Revisar el enredo multi-orden de la prueba del 17/11 (ver ERR-206, «visto de paso»)
 - Cierre automático de pedidos: queda a la hora (decisión 011). Se discutió pasarlo a fin del día; sin decidir
 

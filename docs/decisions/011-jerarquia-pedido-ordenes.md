@@ -194,3 +194,19 @@ El reloj: un cron de Render cada 15 minutos (`POST /api/platform/pedidos/barrido
 disparo oportunista al inicio de un turno queda de respaldo. Código: `app/pedidos_abandonados.py`.
 No se factura al cerrar por inactividad (igual que antes): la factura la pide operaciones
 desde el panel cuando revisa el pedido.
+
+## Anexo 2026-11-25 — El cierre por inactividad también arma el borrador
+
+Decisión del usuario (25/11), tras el informe de A3 («quedó para manualmente, uno a uno, generar
+la factura»): el barrido de abandonados, después de cerrar el pedido, arma su **borrador** en
+Alegra con `facturar_pedido.facturar`, igual que el portal y «Nueva Orden». Reemplaza la última
+línea del anexo del 26/10 («no se factura al cerrar por inactividad»). Caso real: P-2026-017
+(WhatsApp, 17/11, 2 órdenes) quedó cerrado y sin borrador.
+
+- La forma de pago va «sin definir» (`INSTRUMENT_NOT_DEFINED`): el cliente no la confirmó. Si
+  Alegra la rechaza, `billing` reintenta como efectivo con el medio en las notas (ERR-203).
+- Sigue siendo BORRADOR: nada se emite a la DIAN (decisión 016).
+- Si Alegra falla, el pedido queda «cerrado» con el motivo en su historial y se factura desde
+  Pedidos, como antes. El log del barrido dice si quedó con borrador o no.
+- Tests: `tests/test_pedidos_abandonados.py`. `tests/conftest.py` bloquea la Alegra real en
+  toda la suite.
