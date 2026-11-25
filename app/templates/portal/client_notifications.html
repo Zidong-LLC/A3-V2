@@ -11,7 +11,8 @@
     <article class="portal-notif {{ 'unread' if not n.read_at else '' }}">
       <div class="portal-notif-body">
         <strong>{{ n.title }}</strong>
-        {% if n.body %}<p>{{ n.body }}</p>{% endif %}
+        {% if n.body and n.body.startswith('https://') %}<p><a class="primary-btn small" href="{{ n.body }}" target="_blank" rel="noopener"><i data-lucide="credit-card"></i>Pagar en línea</a></p>
+        {% elif n.body %}<p>{{ n.body }}</p>{% endif %}
         <small>{{ n.created_at | fecha_corta }}</small>
       </div>
       <div class="portal-notif-actions">

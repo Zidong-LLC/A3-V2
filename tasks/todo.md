@@ -2089,6 +2089,13 @@ Preguntas para responderle a A3:
       resumen (aceptaron / rechazaron / sin responder), buscador por número o cliente y CSV. Solo
       lectura. Verificada con la base real: los 4 números que aceptaron. 16 tests nuevos; suite 2334 passed
 - [ ] Push + deploy de la pantalla
+- [x] Wompi desde el portal (queja de A3: había que copiar el link en otra ventana): ventanita «Pagar ahora
+      con Wompi» al registrar la orden (abre en pestaña nueva; abrirla sola la bloquea el navegador),
+      columna «Pago» en Solicitudes (Pagar / Pagado) y botón en Notificaciones. Verificado con datos reales
+      (Clara Patricia: P-2026-023 pendiente con botón, P-2026-020 pagado). 5 tests; suite 2339 passed
+- [x] Wompi en la base (25/11): 3 pagos aprobados el 17/11 (P-018, P-019 y P-020 por WhatsApp) → el primer
+      pago real y el link saliendo solo por el chat quedan confirmados. 3 links sin pagar (P-021 a P-023)
+- [ ] Push + deploy del portal junto con la pantalla (el usuario pidió subir todo junto)
 - [ ] Revisar el enredo multi-orden de la prueba del 17/11 (ver ERR-206, «visto de paso»)
 - Cierre automático de pedidos: queda a la hora (decisión 011). Se discutió pasarlo a fin del día; sin decidir
 
@@ -2118,8 +2125,7 @@ producción, emisión de Alegra, errores menores y borrar la prueba del 09/11.
       candado por NIT y se desplegó. /health ok; el webhook rechaza una firma falsa
 - [ ] Wompi: primer pago REAL (lo ideal, A3 con un pedido de bajo valor): link, confirmación por el chat y
       «Pagado en línea» en Pedidos. Si no llega la confirmación, revisar que la URL de eventos quedó GUARDADA
-- [ ] Wompi: rotar las llaves (quedaron en capturas y en el chat) y recargar las dos variables + deploy.
-      Antes, confirmar con A3 que no tienen otra integración que las use
+- [x] Wompi: llaves — el usuario decidió el 25/11 que las actuales son las finales; no se rotan
 - [ ] Wompi: no se llegó a ver EN VIVO el link saliendo solo al cerrar por el chat. Sí está cubierto de punta a
       punta sin red en `tests/test_integracion_pago_en_linea.py` (orden → link → aviso firmado → Pedidos)
 - [ ] Emisión: A3 confirma quién emite; OK del usuario para encender la variable; primera emisión acompañada

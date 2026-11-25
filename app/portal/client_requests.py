@@ -8,7 +8,7 @@ from flask import abort, flash, redirect, render_template, request, session, url
 from app import pedido_directo
 from app.portal import portal_bp
 from app.portal.auth import client_required
-from app.services import db, portal_db
+from app.services import db, pagos_db, portal_db
 # La traducción de un formulario a campos de orden vive en app/orders.py: el dashboard
 # tiene su propio formulario de carga manual (2026-08-25) y ambos deben aplicar la MISMA
 # regla de dinero (ERR-097). Se reexportan para no romper los imports existentes.
@@ -141,12 +141,18 @@ def client_requests_page():
     requests_list = portal_db.list_client_requests(
         session["portal_client_id"], filters=filters
     )
+    try:  # estado del pago en línea de cada orden; si falla, la lista sale igual
+        pagos = pagos_db.por_pedidos([r.get("pedido_id") for r in requests_list])
+    except Exception:  # noqa: BLE001
+        pagos = {}
     return render_template(
         "portal/client_requests.html",
         requests=requests_list,
         filters=filters,
         status_labels=REQUEST_STATUS_LABELS,
         active_tab="solicitudes",
+        pagos=pagos,
+        pago_nuevo=session.pop("portal_pago", None),
     )
 
 
@@ -233,7 +239,11 @@ def client_new_request():
                 session["portal_client_id"], "request_created",
                 f"Paga en línea tu orden {order_number or ''}".strip(), created["pago_url"],
                 request_id=created.get("request_id"))
-            flash(f"Puedes pagar en línea aquí: {created['pago_url']}", "ok")
+            # Pedido de A3 (25/11): el link salía como texto y había que copiarlo a otra
+            # ventana. La lista lo muestra en una ventanita con el botón «Pagar ahora».
+            perfil = (created.get("event_payload") or {}).get("profile") or {}
+            session["portal_pago"] = {"url": created["pago_url"], "orden": order_number or "",
+                                      "total": int(perfil.get("total_estimated") or 0)}
         flash(
             f"Solicitud registrada con número de orden {order_number}"
             if order_number else "Solicitud registrada",
