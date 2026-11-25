@@ -97,7 +97,59 @@ def test_el_webhook_lee_la_senal_del_asesor_del_mismo_aviso(monkeypatch):
     with patch("app.main._debouncer.submit") as encolar, patch("app.main._process_chatwoot") as procesar:
         assert main.app.test_client().post("/chatwoot/webhook?token=s3creto", json=cuerpo).status_code == 200
         encolar.call_args[0][2]("Médico veterinario")
-    assert procesar.call_args[0] == ("2", "Médico veterinario", "whatsapp", "+573015462202", True)
+    assert procesar.call_args[0] == ("2", "Médico veterinario", "whatsapp", "+573015462202", True, False)
+
+
+# ── Informe de A3 del 25/11: «si la atención humana se demora, el bot se activa» ──
+
+def test_el_cliente_esperando_mas_de_una_hora_al_asesor_es_demora():
+    conv = _conversacion(visto=AHORA - 60, waiting_since=AHORA - 61 * 60)
+    assert asesor.demorado(conv, AHORA) is True
+    assert asesor.atendiendo(conv, AHORA) is False  # el bot deja de callar
+
+
+def test_esperando_menos_de_una_hora_el_bot_sigue_callado():
+    conv = _conversacion(visto=AHORA - 60, waiting_since=AHORA - 30 * 60)
+    assert asesor.demorado(conv, AHORA) is False
+    assert asesor.atendiendo(conv, AHORA) is True
+
+
+def test_si_el_asesor_ya_contesto_no_hay_demora():
+    """Chatwoot borra `waiting_since` cuando el asesor responde."""
+    assert asesor.demorado(_conversacion(waiting_since=0), AHORA) is False
+    assert asesor.demorado(_conversacion(waiting_since=None), AHORA) is False
+
+
+def test_sin_asesor_asignado_no_es_demora_del_asesor():
+    conv = _conversacion(asesor_id=None, waiting_since=AHORA - 5 * 3600)
+    assert asesor.demorado(conv, AHORA) is False
+
+
+def test_con_demora_el_bot_retoma_y_le_devuelve_la_conversacion():
+    from app import main
+
+    with patch("app.main.motorizado_chat.atender", return_value=False), \
+         patch("app.main.privacidad.atender", return_value=False), \
+         patch("app.main.retomar_tras_demora", return_value="Perdón la demora…") as retomar, \
+         patch("app.main.chatwoot") as cw, \
+         patch("app.main.process_turn") as agente:
+        main._process_chatwoot("2", "hola?", "whatsapp", "+573015462202", False, True)
+    retomar.assert_called_once_with("2", "hola?", "whatsapp")
+    cw.send_message.assert_called_once_with("2", "Perdón la demora…")
+    cw.liberar_asesor.assert_called_once()
+    assert "vuelve a asignártela" in cw.liberar_asesor.call_args[0][1]
+    agente.assert_not_called()
+
+
+def test_retomar_saluda_con_disculpas_y_el_menu_desde_cero():
+    fake_db = MagicMock()
+    fake_db.get_or_create_session.return_value = {"external_chat_id": "2", "captured_fields": {"_handoff_announced": True}}
+    with patch.object(agent, "db", fake_db):
+        reply = agent.retomar_tras_demora("2", "hola?", "whatsapp")
+    assert reply.startswith("Perdón la demora") and WELCOME_MESSAGE in reply
+    guardado = fake_db.update_session.call_args[0][1]
+    assert guardado["phase"] == "fase_0_bienvenida" and guardado["requires_handoff"] is False
+    fake_db.clear_client_from_session.assert_called_once_with("2")
 
 
 # ── Las frases de cualquiera no despiertan al bot ────────────────────────────

@@ -117,3 +117,12 @@ def assign_team(conversation_id: str, handoff_area: str) -> None:
     _post(f"/conversations/{conversation_id}/assignments", {
         "team_id": int(team_id),
     })
+
+
+def liberar_asesor(conversation_id: str, nota: str) -> None:
+    """El bot retoma una conversación que un asesor dejó esperando (informe de A3 del 25/11):
+    deja una nota interna, la desasigna y la vuelve a «pending», el estado en que atiende el
+    bot. Si el asesor quiere seguir, se la vuelve a asignar."""
+    send_private_note(conversation_id, nota)
+    _post(f"/conversations/{conversation_id}/assignments", {"assignee_id": None})
+    _post(f"/conversations/{conversation_id}/toggle_status", {"status": "pending"})

@@ -49,6 +49,9 @@ MESSAGE_DEBOUNCE_MAX_WAIT = float(os.environ.get("MESSAGE_DEBOUNCE_MAX_WAIT", "2
 # Horas que el bot se queda callado después de la última señal de un asesor (app/asesor.py) y
 # tras las cuales una derivación sin atender deja de silenciarlo (pruebas de A3 del 12/11).
 ASESOR_ACTIVO_HORAS = float(os.environ.get("ASESOR_ACTIVO_HORAS", "12"))
+# Informe de A3 del 25/11: «si la atención humana se demora, el bot se activa». Minutos que el
+# cliente espera respuesta de un asesor (`waiting_since` de Chatwoot) antes de que el bot retome.
+ASESOR_ESPERA_MINUTOS = float(os.environ.get("ASESOR_ESPERA_MINUTOS", "60"))
 # Autorización de datos antes de conversar por WhatsApp (propuesta del 28/09).
 WHATSAPP_PRIVACY_ENABLED = os.environ.get("WHATSAPP_PRIVACY_ENABLED", "true").strip().lower() == "true"
 # Modo prueba: con números acá (separados por coma), solo a ellos se les pide la autorización.

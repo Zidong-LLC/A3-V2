@@ -2133,6 +2133,23 @@ Preguntas para responderle a A3:
       6 tests nuevos; suite 2380 passed. Probado en local con la base real (solo vista previa, sin aplicar)
 - [ ] Push + deploy
 
+## Informe de A3 (25/11), punto 6: operación y mensajería (OK del usuario: «apliquemos las mejoras»)
+
+Documento: `Downloads/Resumen con resultado de revision y conclusiones.pdf` (A3; trae además
+conclusiones y brechas B1-B6 fuera de este punto).
+- Asignación de motorizado: YA es automática (21 de 22 órdenes reales desde el 10/11 la tomaron solas)
+- [x] Aviso automático al mensajero (brecha B1): ningún motorizado real tenía conversación vinculada, así que
+      el aviso no le llegaba a nadie (ventana de 24 h de WhatsApp). Ahora usa la plantilla `recogida_asignada`
+      si está APROBADA en Chatwoot (ventana abierta → texto normal; cerrada → plantilla; sin conversación →
+      se abre una y se vincula). Sin plantilla, como antes. `app/services/chatwoot_plantillas.py`
+- [ ] A3 crea la plantilla en su WhatsApp Manager: `docs/runbooks/plantilla-whatsapp-motorizado.md`
+- [x] «Si la atención humana se demora, el bot se activa»: más de 60 min (`ASESOR_ESPERA_MINUTOS`) esperando a
+      un asesor asignado → el bot retoma con disculpas y el menú, deja nota interna y libera la conversación.
+      Contrato B000 actualizado
+- [ ] Más equipos en Chatwoot: hoy solo contabilidad y operaciones; A3 tiene que decir cuáles
+- [x] Tests: 25 nuevos; suite 2401 passed. Probado contra Chatwoot real en solo lectura (sin plantilla aún)
+- [ ] Push + deploy (junto con la carga masiva)
+
 ## Cobro, emisión y errores menores (2026-11-16, OK del usuario)
 
 Pedido del usuario sobre la lista de pendientes: pago en la pantalla de Pedidos, Chatwoot, Wompi a

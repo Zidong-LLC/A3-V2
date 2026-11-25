@@ -6,9 +6,9 @@ from flask import Flask, request, jsonify, abort, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 from app.config import (
     TELEGRAM_WEBHOOK_SECRET, CHATWOOT_WEBHOOK_SECRET, FLASK_SECRET_KEY, APP_ENV,
-    MESSAGE_DEBOUNCE_SECONDS, MESSAGE_DEBOUNCE_MAX_WAIT, PLATFORM_API_TOKEN,
+    MESSAGE_DEBOUNCE_SECONDS, MESSAGE_DEBOUNCE_MAX_WAIT, PLATFORM_API_TOKEN, ASESOR_ESPERA_MINUTOS,
 )
-from app.agent import process_turn
+from app.agent import process_turn, retomar_tras_demora
 from app.alerts import notify_error
 from app.results_delivery import deliver_pending
 from app.health import check_all, check_liveness
@@ -247,16 +247,18 @@ def chatwoot_webhook():
 
     # ¿La está atendiendo una persona de A3? Sale del mismo aviso de Chatwoot (app/asesor.py).
     con_asesor = asesor.atendiendo(conversacion)
+    demorado = asesor.demorado(conversacion)  # A3, 25/11: si el asesor tarda, el bot retoma
 
     app.logger.info("chatwoot_webhook: conv=%s canal=%s asesor=%s content=%r",
                     conversation_id, canal, con_asesor, content[:80])
     _debouncer.submit(f"chatwoot:{conversation_id}", content,
-                      lambda combined: _process_chatwoot(conversation_id, combined, canal, telefono, con_asesor))
+                      lambda combined: _process_chatwoot(conversation_id, combined, canal, telefono, con_asesor,
+                                                         demorado))
     return jsonify({"ok": True})
 
 
 def _process_chatwoot(conversation_id: str, content: str, canal: str = "chatwoot", telefono: str = "",
-                      con_asesor: bool = False) -> None:
+                      con_asesor: bool = False, demorado: bool = False) -> None:
     inicio = time.monotonic()
     # Un motorizado (su celular está en la tarjeta) no es cliente: ve y marca sus recogidas,
     # sin autorización de datos ni agente (pedido del usuario, 10/11).
@@ -271,6 +273,22 @@ def _process_chatwoot(conversation_id: str, content: str, canal: str = "chatwoot
     # Antes de cualquier otra cosa, la autorización de datos (solo WhatsApp).
     if privacidad.atender(conversation_id, content, canal, telefono):
         _registrar_turno(canal, conversation_id, inicio, ok=True, respondido=True)
+        return
+    # Informe de A3 del 25/11: el cliente lleva más de ASESOR_ESPERA_MINUTOS esperando a un
+    # asesor asignado que no contesta → el bot retoma con disculpas y el menú, y le devuelve
+    # la conversación al bot en Chatwoot (sin eso, el siguiente mensaje volvería a esperar).
+    if demorado:
+        try:
+            reply = retomar_tras_demora(conversation_id, content, canal)
+            chatwoot.send_message(conversation_id, reply)
+            chatwoot.liberar_asesor(conversation_id, f"El cliente esperó más de {ASESOR_ESPERA_MINUTOS:g} min "
+                                                     "sin respuesta de un asesor: el bot retomó la conversación. "
+                                                     "Si quieres seguir atendiéndolo, vuelve a asignártela.")
+            _registrar_turno(canal, conversation_id, inicio, ok=True, respondido=True)
+        except Exception as e:  # noqa: BLE001
+            app.logger.error("Error retomando tras demora %s: %s", conversation_id, e, exc_info=True)
+            notify_error("retomar tras demora del asesor", e, f"conversación {conversation_id}")
+            _registrar_turno(canal, conversation_id, inicio, ok=False, respondido=False)
         return
     try:
         reply = process_turn(conversation_id, content, on_progress=_make_progress_callback(chatwoot, conversation_id), channel=canal)

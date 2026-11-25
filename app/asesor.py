@@ -8,13 +8,16 @@ lo atendía, el bot volvió a contestar encima. A3 preguntó cada cuánto retoma
   alguien de A3 la miró en las últimas `ASESOR_ACTIVO_HORAS` (12 por defecto).
 - El bot VUELVE cuando el asesor la marca como resuelta (el próximo mensaje del cliente abre
   una conversación nueva, sin asesor) o cuando pasan esas horas sin que nadie de A3 la mire.
+- Informe de A3 del 25/11: «si la atención humana se demora, el bot se activa». Si el cliente
+  lleva más de `ASESOR_ESPERA_MINUTOS` (60) esperando respuesta de una persona (`waiting_since`
+  de Chatwoot), `demorado` lo dice y el bot retoma (ver `main._process_chatwoot`).
 
 Todo sale del mismo aviso de Chatwoot que trae el mensaje del cliente: no se consulta nada.
 Lógica pura. Sin esos datos (o fuera de Chatwoot) responde False y el bot sigue como siempre.
 """
 import time
 
-from app.config import ASESOR_ACTIVO_HORAS
+from app.config import ASESOR_ACTIVO_HORAS, ASESOR_ESPERA_MINUTOS
 
 
 def _dict(valor) -> dict:
@@ -28,6 +31,23 @@ def _segundos(valor) -> float:
         return 0.0
 
 
+def _con_asesor(conversacion: dict) -> bool:
+    return (str(conversacion.get("status") or "").lower() == "open"
+            and bool(_dict(_dict(conversacion.get("meta")).get("assignee")).get("id")))
+
+
+def demorado(conversacion: dict | None, ahora: float | None = None) -> bool:
+    """¿Hay un asesor asignado y el cliente lleva más de ASESOR_ESPERA_MINUTOS sin respuesta
+    de una persona? Chatwoot marca `waiting_since` con el primer mensaje sin contestar y lo
+    borra cuando un asesor responde."""
+    conversacion = _dict(conversacion)
+    esperando = _segundos(conversacion.get("waiting_since"))
+    if not _con_asesor(conversacion) or esperando <= 0:
+        return False
+    ahora = time.time() if ahora is None else ahora
+    return ahora - esperando >= ASESOR_ESPERA_MINUTOS * 60
+
+
 def atendiendo(conversacion: dict | None, ahora: float | None = None) -> bool:
     """`conversacion` es el bloque `conversation` del webhook de Chatwoot.
 
@@ -36,9 +56,7 @@ def atendiendo(conversacion: dict | None, ahora: float | None = None) -> bool:
     abierto hace poco (`agent_last_seen_at`: Chatwoot lo actualiza mientras el asesor la tiene
     a la vista; las respuestas del bot por API no lo tocan)."""
     conversacion = _dict(conversacion)
-    if str(conversacion.get("status") or "").lower() != "open":
-        return False
-    if not _dict(_dict(conversacion.get("meta")).get("assignee")).get("id"):
+    if not _con_asesor(conversacion) or demorado(conversacion, ahora):
         return False
     visto = _segundos(conversacion.get("agent_last_seen_at"))
     if visto <= 0:

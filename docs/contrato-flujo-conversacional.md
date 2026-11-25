@@ -62,6 +62,12 @@ fase_0_bienvenida → fase_1_clasificacion → fase_2_recogida_datos
 - **Cuándo vuelve el bot:** cuando el asesor marca la conversación como **resuelta** (el próximo
   mensaje del cliente abre una conversación nueva, sin asesor) o cuando pasan las 12 h sin que nadie
   de A3 la mire. Derivar a un EQUIPO no silencia: hasta que una persona la toma, nadie atiende.
+- **Si el asesor se demora (2026-11-25, informe de A3, OK del usuario):** si el cliente lleva más de
+  60 min (`ASESOR_ESPERA_MINUTOS`) esperando respuesta de una persona (`waiting_since` de Chatwoot),
+  el bot retoma: «Perdón la demora 🙏 Nuestros asesores están ocupados en este momento. Mientras
+  tanto, te ayudo por acá:» + el menú, con la sesión desde cero. En Chatwoot deja una nota interna,
+  desasigna al asesor y pone la conversación en «pending». `asesor.demorado`,
+  `agent.retomar_tras_demora`, `chatwoot.liberar_asesor`.
 - **Dónde:** `app/asesor.py`, llamado desde `chatwoot_webhook` / `_process_chatwoot`, después de B00
   (el motorizado siempre recibe su lista) y antes de B0.
 - **Estado:** OK del usuario (2026-11-16) tras la prueba de A3 del 12/11, donde el bot contestó encima

@@ -751,6 +751,20 @@ def _reinicio_por_inactividad() -> dict:
     }
 
 
+DEMORA_ASESOR = ("Perdón la demora 🙏 Nuestros asesores están ocupados en este momento. "
+                 "Mientras tanto, te ayudo por acá:")
+
+
+def retomar_tras_demora(chat_id: str, user_message: str, channel: str = "whatsapp") -> str:
+    """El cliente esperó más de ASESOR_ESPERA_MINUTOS a un asesor (informe de A3 del 25/11):
+    el bot retoma desde cero, con disculpas y el menú. Quien llama libera al asesor en Chatwoot."""
+    db.get_or_create_session(chat_id, channel=channel)
+    db.clear_client_from_session(chat_id)
+    respuesta = _reinicio_por_inactividad()
+    respuesta["reply"] = f"{DEMORA_ASESOR}\n\n{WELCOME_MESSAGE}"
+    return _persist_turn(chat_id, user_message, respuesta)
+
+
 def _escalate_unfound_client(fields: dict, reply: str = CLIENT_NOT_FOUND_MESSAGE) -> dict:
     # El cliente dice no ser nuevo pero no aparece en la base: derivar a un humano
     # en vez de seguir pidiendo el identificador en bucle.
