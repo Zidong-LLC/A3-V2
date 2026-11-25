@@ -2100,11 +2100,15 @@ Preguntas para responderle a A3:
       con pago en línea (P-018 a P-023) tienen borrador automático; ningún rechazo de Alegra desde entonces
 - [x] El cierre por inactividad arma el borrador (OK del usuario; anexo 2026-11-25 de la decisión 011).
       conftest bloquea la Alegra real en los tests. Suite 2343 passed
-- [ ] Borradores de P-2026-015, P-2026-016 (12/11, antes del arreglo) y P-2026-017 (cierre por
-      inactividad del 17/11): crearlos con «Facturar» — esperando OK (cuenta real de Alegra)
-- [ ] A3 quiere la factura EMITIDA automáticamente (la propuesta del 28/09 dice «pasar de borrador a
-      factura emitida según confirmación del pedido»). Decisión del usuario pendiente: choca con la
-      regla «nada emite solo» (decisión 016) y el acta excluye la «automatización DIAN completa»
+- [x] Borradores creados con OK del usuario (25/11): P-2026-015 → 30965 ($24.640), P-2026-016 → 30966
+      ($48.000), P-2026-017 → 30967 ($183.780, forma «sin definir»). Leídos en Alegra: los tres `draft`, sin
+      rechazo ni reintento como efectivo → ERR-203 confirmado en la cuenta real
+- [x] Emisión automática de pedidos confirmados (decisión 017, OK del usuario): contraentrega al armar el
+      borrador, pago en línea al aprobarse en Wompi; sin forma de pago queda en borrador. Interruptor
+      `ALEGRA_AUTO_EMISSION` APAGADO. 18 tests; suite 2360 passed
+- [ ] Encender la emisión (decisión 017, en orden): 1) `ALEGRA_EMISSION_ENABLED=true` y primera emisión
+      con el botón, con A3 mirando, sobre una factura que quieran emitir; verificar correo al cliente.
+      2) `ALEGRA_AUTO_EMISSION=true`. Cada paso con OK explícito del usuario
 - [ ] A3: las pantallas de Facturación y Cartera «no aportan nada distinto a Alegra». Pendiente de hablar
 - [ ] Revisar el enredo multi-orden de la prueba del 17/11 (ver ERR-206, «visto de paso»)
 - Cierre automático de pedidos: queda a la hora (decisión 011). Se discutió pasarlo a fin del día; sin decidir

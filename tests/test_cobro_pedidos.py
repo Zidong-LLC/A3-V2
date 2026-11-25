@@ -237,12 +237,13 @@ def test_el_doble_clic_no_emite_dos_veces(dian):
 
 
 def test_nada_fuera_del_boton_llama_a_la_emision():
-    """La única puerta es `emision.emitir`, y solo la llama la ruta del botón."""
+    """La única puerta es `emision.emitir`: la llaman la ruta del botón y, desde el 25/11, la
+    emisión automática de pedidos confirmados (decisión 017). Nadie más."""
     import pathlib
     usos = {p.name: p.read_text(encoding="utf-8").count("stamp_invoice(") for p in pathlib.Path("app").rglob("*.py")}
     assert {n for n, veces in usos.items() if veces} == {"alegra.py", "emision.py"}
     llamadas = {p.name for p in pathlib.Path("app").rglob("*.py") if "emision.emitir(" in p.read_text(encoding="utf-8")}
-    assert llamadas == {"dashboard_cobro.py"}
+    assert llamadas == {"dashboard_cobro.py", "emision_automatica.py"}
 
 
 def test_timbrar_lee_la_respuesta_de_alegra_por_factura(monkeypatch):

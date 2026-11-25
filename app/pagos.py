@@ -10,6 +10,7 @@ import logging
 
 from flask import Blueprint, jsonify, request
 
+from app import emision_automatica
 from app.alerts import notify_error
 from app.config import WOMPI_ENABLED, WOMPI_ONLY_NITS
 from app.services import chatwoot, db, pagos_db, telegram, wompi
@@ -87,6 +88,7 @@ def procesar_evento(evento: dict) -> str:
     if estado == "approved":
         _avisar(pedido, f"Recibimos tu pago del pedido {numero} por {valor}. ¡Muchas gracias! 🙂",
                 f"Pago APROBADO en Wompi · pedido {numero} · {valor} · transacción {tx.get('id')}")
+        emision_automatica.programar(pago["pedido_id"], "pago aprobado en Wompi")  # decisión 017
     elif estado in ("declined", "error"):
         _avisar(pedido, f"El pago del pedido {numero} no fue aprobado. Puedes intentarlo de nuevo "
                         f"con el mismo enlace:\n{pago['url']}",

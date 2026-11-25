@@ -76,6 +76,10 @@ projects:
               # decisión de A3 y del usuario; aun encendida solo emite una persona con el botón.
               - key: ALEGRA_EMISSION_ENABLED
                 value: "false"
+              # Emisión AUTOMÁTICA de pedidos confirmados (decisión 017): APAGADA. Exige además la
+              # de arriba. Se enciende después de la primera emisión acompañada con A3.
+              - key: ALEGRA_AUTO_EMISSION
+                value: "false"
               - key: ALEGRA_PRODUCTION
                 value: "false"
               # PORTAL_DEMO_MODE=false ⇒ el portal exige nombre + NIT reales.

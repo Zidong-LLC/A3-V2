@@ -1,12 +1,14 @@
 """Emisión ante la DIAN del borrador de un pedido (propuesta del 28/09; decisión 016).
 
 Hasta el 2026-11-16 la plataforma solo dejaba borradores y A3 emitía desde Alegra. El usuario
-pidió sumar la emisión. Sigue habiendo una sola forma de que una factura salga a la DIAN:
-que una persona de Facturación apriete «Emitir» sobre UN pedido que ya tiene borrador.
+pidió sumar la emisión. `emitir` es la ÚNICA puerta a la DIAN y la usan dos cosas: el botón
+«Emitir» de una persona de Facturación y, desde el 2026-11-25, la emisión automática de los
+pedidos que el cliente confirmó (`app/emision_automatica.py`, decisión 017, con su propio
+interruptor apagado por defecto).
 
 Candados, todos obligatorios:
 - `ALEGRA_EMISSION_ENABLED` apagado por defecto: sin la variable, esto no hace nada.
-- Nunca corre solo: ni el bot, ni el portal, ni un cron llaman a `emitir`.
+- Solo la llaman el botón y `emision_automatica` (un test lo vigila).
 - Antes de emitir se lee la factura en Alegra: tiene que existir, ser borrador y tener total.
 - Quién y qué queda en el historial (`audit_log`), salga bien o mal.
 

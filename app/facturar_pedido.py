@@ -9,7 +9,7 @@ Quien llama decide si Alegra está habilitado (el dashboard lo lee de su propio 
 import logging
 from datetime import datetime
 
-from app import billing
+from app import billing, emision_automatica
 from app.config import APP_TIMEZONE
 from app.services import db
 
@@ -58,6 +58,8 @@ def facturar(pedido: dict) -> dict:
         )
         if factura and factura.get("invoice_id"):
             db.mark_pedido_invoiced(pedido_id, str(factura["invoice_id"]))
+            # Decisión 017: si el cliente ya confirmó cómo paga, se emite solo (apagado por defecto).
+            emision_automatica.programar(pedido_id, "borrador armado")
             return {"status": "facturado", "invoice": factura.get("number") or factura["invoice_id"],
                     "warning": None}
         return _cerrado("Alegra no devolvió factura; el pedido quedó cerrado.", pedido, ordenes)
