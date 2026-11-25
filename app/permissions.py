@@ -17,18 +17,20 @@ PERFILES = {
 
 # Orden del menú lateral; también decide a qué sección entra cada perfil al iniciar sesión.
 MODULOS = ("dashboard", "operacion", "clientes", "solicitudes", "pedidos", "facturacion",
-           "motorizados", "agenda", "muestras", "resultados", "cargas", "precios", "usuarios")
+           "motorizados", "agenda", "muestras", "resultados", "cargas", "precios", "usuarios",
+           "autorizaciones")
 
 _N, _C, _G = NINGUNO, CONSULTA, GESTION
 # Matriz del docx. «Registrar», «Consultar/actualizar» y «Gestionar» permiten modificar;
 # «Consultar» y «Solo consultar», solo ver. Precios y usuarios no están en el docx: los
-# precios mueven plata y los usuarios dan acceso, así que quedan para el Administrador.
+# precios mueven plata y los usuarios dan acceso, así que quedan para el Administrador. Lo mismo
+# la evidencia de autorización de datos (2026-11-25): números de teléfono de los clientes.
 _MATRIZ = {
-    #                           pan op  cli sol ped fac mot age mue res car pre usu
-    "recepcion":               (_G, _G, _G, _G, _G, _N, _G, _G, _G, _C, _N, _N, _N),
-    "digitacion":              (_G, _G, _C, _G, _G, _N, _N, _N, _G, _G, _G, _N, _N),
-    "auxiliar_administrativa": (_G, _N, _G, _N, _C, _G, _N, _N, _N, _N, _N, _N, _N),
-    "procesamiento":           (_G, _G, _N, _C, _C, _N, _N, _N, _G, _G, _G, _N, _N),
+    #                           pan op  cli sol ped fac mot age mue res car pre usu aut
+    "recepcion":               (_G, _G, _G, _G, _G, _N, _G, _G, _G, _C, _N, _N, _N, _N),
+    "digitacion":              (_G, _G, _C, _G, _G, _N, _N, _N, _G, _G, _G, _N, _N, _N),
+    "auxiliar_administrativa": (_G, _N, _G, _N, _C, _G, _N, _N, _N, _N, _N, _N, _N, _N),
+    "procesamiento":           (_G, _G, _N, _C, _C, _N, _N, _N, _G, _G, _G, _N, _N, _N),
 }
 
 # Ruta (endpoint de Flask) -> módulos que la habilitan; alcanza con uno. «bp.*» cubre
@@ -84,6 +86,7 @@ _ENDPOINTS = {
     "dashboard_anarvet.*": ("resultados",),
     "dashboard_import.*": ("cargas",),
     "dashboard_users.*": ("usuarios",),
+    "dashboard_privacidad.*": ("autorizaciones",),
     "dashboard_maestros.client_ficha": ("clientes",),
     "dashboard_maestros.courier_delete": ("motorizados",),
     "dashboard_maestros.courier_transfer": ("motorizados", "agenda"),

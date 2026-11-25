@@ -18,3 +18,20 @@ def registrar(contacto: str, canal: str, chat_id: str, evento: str, version: str
         "contact_key": contacto, "channel": canal, "external_chat_id": chat_id, "event": evento,
         "response_text": respuesta, "policy_version": version, "policy_url": url,
     }).execute()
+
+
+def listar(limite: int = 5000) -> list[dict]:
+    """Toda la evidencia, la más nueva primero (pantalla «Autorizaciones» del dashboard)."""
+    return (_client.table("privacy_consents").select("*")
+            .order("created_at", desc=True).limit(limite).execute().data) or []
+
+
+def clientes_por_telefono() -> dict[str, str]:
+    """Últimos 10 dígitos del teléfono → nombre de la clínica, para decir quién autorizó."""
+    filas = _client.table("clients").select("clinic_name, phone").execute().data or []
+    mapa = {}
+    for fila in filas:
+        digitos = "".join(ch for ch in str(fila.get("phone") or "") if ch.isdigit())[-10:]
+        if len(digitos) == 10 and fila.get("clinic_name"):
+            mapa.setdefault(digitos, fila["clinic_name"])
+    return mapa

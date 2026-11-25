@@ -18,7 +18,8 @@ _ETIQUETAS = {"dashboard": "Panel", "operacion": "Operación", "clientes": "Clie
               "solicitudes": "Solicitudes", "pedidos": "Pedidos", "facturacion": "Facturación",
               "motorizados": "Motorizados", "agenda": "Agenda", "muestras": "Muestras",
               "resultados": "Resultados", "cargas": "Cargas", "precios": "Precios del catálogo",
-              "usuarios": "Usuarios"}
+              "usuarios": "Usuarios",
+              "autorizaciones": "Autorizaciones de datos"}
 
 
 _login_required = access.login_requerido

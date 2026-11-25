@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#7a0d20">
+  <title>A3 CRM - Autorizaciones de datos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='os-kit.css') }}?v=9">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=23">
+  <link rel="stylesheet" href="{{ url_for('static', filename='portal.css') }}?v=10">
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js" defer></script>
+  <style>
+    .aut-resumen { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+    .aut-resumen .card { padding: 14px; margin: 0; }
+    .aut-resumen strong { display: block; font-size: 26px; }
+    .aut-buscar { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px; align-items: center; }
+    .aut-buscar .cell-input { flex: 1 1 220px; }
+    .ev-accepted { color: #166534; font-weight: 700; }
+    .ev-rejected { color: #991b1b; font-weight: 700; }
+    .ev-asked { color: #92400e; }
+  </style>
+</head>
+<body class="crm-theme" data-sidebar="expanded">
+  <div class="crm-app">
+    {% set seccion = 'autorizaciones' %}{% include '_sidebar.html' %}
+
+    <main class="crm-main os-scene">
+      <header class="top-header">
+        <div>
+          <p class="hello-label">Administración · Tratamiento de datos</p>
+          <h1>Autorizaciones de datos</h1>
+        </div>
+      </header>
+
+      {% if error %}<section class="approval-notice error">{{ error }}</section>{% endif %}
+
+      <section class="card">
+        <div class="card-head"><div>
+          <h3>Qué es esta evidencia</h3>
+          <p>Antes de atender por WhatsApp, el bot le pide a cada número que acepte la política de tratamiento de
+            datos. Cada pregunta y cada respuesta queda registrada acá con fecha y hora, número, lo que contestó,
+            la versión y el enlace de la política vigente. Los registros no se pueden editar ni borrar.</p>
+        </div></div>
+      </section>
+
+      <div class="aut-resumen">
+        <section class="card"><span>Aceptaron</span><strong class="ev-accepted">{{ resumen.aceptaron }}</strong></section>
+        <section class="card"><span>Rechazaron</span><strong class="ev-rejected">{{ resumen.rechazaron }}</strong></section>
+        <section class="card"><span>Sin responder</span><strong class="ev-asked">{{ resumen.sin_responder }}</strong></section>
+        <section class="card"><span>Números en total</span><strong>{{ resumen.contactos }}</strong></section>
+      </div>
+
+      <section class="card">
+        <form method="get" class="aut-buscar">
+          <input class="cell-input" name="q" value="{{ busqueda }}" placeholder="Buscar por número o nombre del cliente">
+          <button type="submit" class="ghost-btn"><i data-lucide="search"></i>Buscar</button>
+          {% if busqueda %}<a class="ghost-btn" href="{{ url_for('dashboard_privacidad.autorizaciones_page') }}">Ver todo</a>{% endif %}
+          <a class="primary-btn" href="{{ url_for('dashboard_privacidad.autorizaciones_csv', q=busqueda or None) }}"><i data-lucide="download"></i>Descargar CSV</a>
+        </form>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Fecha y hora (Bogotá)</th><th>Número</th><th>Cliente</th><th>Evento</th><th>Respuesta</th><th>Versión de la política</th><th>Política</th></tr></thead>
+          <tbody>
+          {% for f in filas %}
+            <tr>
+              <td>{{ f.fecha }}</td>
+              <td><strong>{{ f.numero }}</strong></td>
+              <td>{{ f.cliente or '—' }}</td>
+              <td class="ev-{{ f.clave }}">{{ f.evento }}</td>
+              <td>{{ f.respuesta or '—' }}</td>
+              <td>{{ f.version }}</td>
+              <td>{% if f.url %}<a href="{{ f.url }}" target="_blank" rel="noopener">Ver</a>{% else %}—{% endif %}</td>
+            </tr>
+          {% else %}
+            <tr><td colspan="7" class="muted-text">{{ 'No hay registros con esa búsqueda.' if busqueda else 'Todavía no hay autorizaciones registradas.' }}</td></tr>
+          {% endfor %}
+          </tbody>
+        </table></div>
+      </section>
+    </main>
+  </div>
+  <script src="{{ url_for('static', filename='os-fx.js') }}?v=9" defer></script>
+</body>
+</html>

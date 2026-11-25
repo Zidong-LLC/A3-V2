@@ -2083,10 +2083,12 @@ Preguntas para responderle a A3:
 - [x] Conversación vieja (más de 12 h) arranca de cero en cualquier estado (OK del usuario). Contrato B000a
 - [x] Solicitud fantasma A3-2026-033 borrada con respaldo (OK del usuario)
 - [x] Suite completa: 2318 passed (8 tests nuevos)
-- [ ] Commit + push + deploy (pedir OK para el push)
+- [x] Push + deploy de ERR-206 (ed931b5, OK del usuario el 25/11)
 - [ ] Prueba real: escribir al WhatsApp de prueba después de 12 h sin mensajes → debe llegar el menú
-- [ ] Pantalla «Autorizaciones de datos» en el dashboard (solo lectura + CSV): la evidencia está en
-      `privacy_consents` pero A3 no la ve. Esperando OK
+- [x] Pantalla «Autorizaciones» en el dashboard (OK del usuario): `/autorizaciones`, solo Administrador,
+      resumen (aceptaron / rechazaron / sin responder), buscador por número o cliente y CSV. Solo
+      lectura. Verificada con la base real: los 4 números que aceptaron. 16 tests nuevos; suite 2334 passed
+- [ ] Push + deploy de la pantalla
 - [ ] Revisar el enredo multi-orden de la prueba del 17/11 (ver ERR-206, «visto de paso»)
 - Cierre automático de pedidos: queda a la hora (decisión 011). Se discutió pasarlo a fin del día; sin decidir
 
