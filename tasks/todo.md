@@ -2131,7 +2131,7 @@ Preguntas para responderle a A3:
       - entre sedes que se parecen («Animal House Bochica» / «… Modelia») decide el nombre EXACTO (antes, un
         archivo sin cambios con la casilla marcada daba 90 avisos falsos; ahora 0).
       6 tests nuevos; suite 2380 passed. Probado en local con la base real (solo vista previa, sin aplicar)
-- [ ] Push + deploy
+- [x] Push + deploy (353608d live, 25/11)
 
 ## Informe de A3 (25/11), punto 6: operación y mensajería (OK del usuario: «apliquemos las mejoras»)
 
@@ -2148,7 +2148,7 @@ conclusiones y brechas B1-B6 fuera de este punto).
       Contrato B000 actualizado
 - [ ] Más equipos en Chatwoot: hoy solo contabilidad y operaciones; A3 tiene que decir cuáles
 - [x] Tests: 25 nuevos; suite 2401 passed. Probado contra Chatwoot real en solo lectura (sin plantilla aún)
-- [ ] Push + deploy (junto con la carga masiva)
+- [x] Push + deploy (353608d live, 25/11)
 
 ## Cobro, emisión y errores menores (2026-11-16, OK del usuario)
 
