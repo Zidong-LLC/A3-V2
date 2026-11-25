@@ -225,7 +225,13 @@ def _nombre_nuevo(nombre: str, nit: str, actual: dict, sedes_del_nit: int, veces
     if not nit or not nombre or nombre == (actual.get("clinic_name") or "").strip():
         return None
     if sedes_del_nit != 1:
-        return None  # se cruzó por nombre (o es una sede): no hay otro nombre que poner
+        # Una sede: el nombre es lo único que la distingue de las otras del NIT, no se cambia
+        # por carga. Antes se salteaba en silencio (A3, 25/11); ahora se avisa.
+        if sedes_del_nit > 1 and norm(nombre) != norm(actual.get("clinic_name")):
+            avisos.append(f"Fila {numero}: «{actual.get('clinic_name')}» es una de las {sedes_del_nit} sedes del "
+                          f"NIT {nit}; el nombre de una sede no se cambia por carga (pasaría a «{nombre}»). "
+                          "Cámbialo desde la ficha del cliente.")
+        return None
     if veces_en_archivo > 1:
         avisos.append(f"Fila {numero}: el NIT {nit} viene {veces_en_archivo} veces en el archivo; "
                       "no se cambia el nombre")
@@ -257,6 +263,9 @@ def plan_clientes(filas: list[dict], clientes: list[dict], nombre_coincide, actu
             por_nit.setdefault(clave, []).append(cliente)
 
     nuevos, completar, errores, avisos, vistos, iguales = [], [], [], [], set(), 0
+    # Nombres distintos que NO se cambian por la casilla sin marcar. Antes salían como
+    # «iguales» sin aviso: A3 cambió 11 nombres y la vista previa no mostró nada (25/11).
+    sin_renombrar: list[tuple[str, str]] = []
     for numero, fila in enumerate(filas, start=2):
         nombre = (fila.get("name") or "").strip()
         nit = solo_digitos(fila.get("tax_id"))
@@ -277,9 +286,16 @@ def plan_clientes(filas: list[dict], clientes: list[dict], nombre_coincide, actu
             # Sedes que comparten NIT (caso Club Animals / ERR-157). Si la fila NOMBRA una de
             # las sedes, es esa y se trata como un cliente más (se completa o actualiza).
             por_nombre = [c for c in candidatos if nombre and nombre_coincide(nombre, c.get("clinic_name"))]
+            if len(por_nombre) > 1:  # «Animal House Bochica» también se parece a «… Modelia»:
+                exactos = [c for c in por_nombre if norm(c.get("clinic_name")) == norm(nombre)]
+                por_nombre = exactos if len(exactos) == 1 else por_nombre  # el exacto decide (25/11)
             if len(por_nombre) == 1:
                 candidatos = por_nombre
             else:
+                if renombrar and nombre:  # 25/11: antes se salteaba en silencio
+                    avisos.append(f"Fila {numero}: el NIT {nit} es de {len(candidatos)} sedes y «{nombre}» "
+                                  "no coincide con ninguna: no se sabe a cuál cambiarle el nombre. "
+                                  "Cámbialo desde la ficha del cliente.")
                 # Sin sede reconocible: el correo es un dato del NIT —ahí llega la factura
                 # electrónica—, así que completa TODAS las sedes que no lo tengan. Teléfono y
                 # dirección son de cada sede: esos no se tocan.
@@ -321,6 +337,9 @@ def plan_clientes(filas: list[dict], clientes: list[dict], nombre_coincide, actu
                                                    veces_nit.get(nit, 0), numero, avisos)
         if nuevo_nombre:
             faltantes["clinic_name"] = nuevo_nombre
+        elif (not renombrar and nit and nombre and len(por_nit.get(nit) or []) == 1
+              and norm(nombre) != norm(actual.get("clinic_name"))):
+            sin_renombrar.append((actual.get("clinic_name") or "", nombre))
         if faltantes:
             completar.append({"id": actual["id"], "clinic_name": actual.get("clinic_name"),
                               "cambios": faltantes,
@@ -328,4 +347,5 @@ def plan_clientes(filas: list[dict], clientes: list[dict], nombre_coincide, actu
         else:
             iguales += 1
     return {"tipo": "clientes", "crear": nuevos, "actualizar": completar, "iguales": iguales,
-            "errores": errores + avisos}
+            "errores": errores + avisos,
+            "nombres_sin_cambiar": [{"antes": a, "despues": d} for a, d in sin_renombrar]}

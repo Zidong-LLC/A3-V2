@@ -134,6 +134,19 @@
         {% if plan.crear|length > 100 %}<p class="muted-text" style="padding:0 12px">Se muestran los primeros 100 de {{ plan.crear|length }}.</p>{% endif %}
         {% endif %}
 
+        {% if plan.nombres_sin_cambiar %}
+        {# A3 (25/11): cambió 11 nombres y la vista previa decía «sin cambios» sin explicar por qué. #}
+        <div class="approval-notice" style="margin:12px">
+          <strong>{{ plan.nombres_sin_cambiar|length }} cliente(s) tienen en el archivo un nombre distinto al registrado
+            y NO se van a cambiar,</strong> porque la casilla «Actualizar también los <strong>nombres</strong>» está sin marcar.
+          <ul>{% for n in plan.nombres_sin_cambiar[:20] %}<li>{{ n.antes }} → <strong>{{ n.despues }}</strong></li>{% endfor %}</ul>
+          {% if plan.nombres_sin_cambiar|length > 20 %}<p>… y {{ plan.nombres_sin_cambiar|length - 20 }} más.</p>{% endif %}
+          <button type="submit" form="form-columnas" class="primary-btn"
+                  onclick="var c=document.querySelector('#form-columnas [name=renombrar]'); if (c) c.checked=true;">
+            <i data-lucide="pencil-line"></i>Volver a previsualizar cambiando los nombres</button>
+        </div>
+        {% endif %}
+
         {% if plan.errores %}
         <div class="approval-notice error" style="margin:12px">
           <strong>{{ plan.errores|length }} fila(s) que no se van a tocar:</strong>

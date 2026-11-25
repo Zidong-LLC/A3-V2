@@ -9,7 +9,7 @@
   {% if falta %}
   <p class="approval-notice error" style="margin:0 12px 12px">Falta indicar: {{ falta | join(', ') }}.</p>
   {% endif %}
-  <form method="post" action="{{ url_for('dashboard_import.remapear') }}" class="portal-upload-form">
+  <form method="post" action="{{ url_for('dashboard_import.remapear') }}" class="portal-upload-form" id="form-columnas">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="tipo" value="{{ mapeo.tipo }}">
     <input type="hidden" name="tabla" value="{{ mapeo.tabla_json }}">

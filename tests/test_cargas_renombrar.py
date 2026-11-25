@@ -143,3 +143,47 @@ def test_la_pantalla_ofrece_la_casilla_de_nombres():
         s["dashboard_username"] = "admin"
     html = c.get("/cargas").get_data(as_text=True)
     assert 'name="renombrar"' in html and 'name="actualizar"' in html
+
+
+# ── Informe de A3 del 25/11: «le cambié a 11 clientes el nombre, relaciona las filas pero no
+#    identifica cambios». La casilla estaba sin marcar y la vista previa no avisaba. ─────────
+
+def test_sin_la_casilla_la_vista_previa_lista_los_nombres_distintos():
+    plan = _plan("nombre,nit\nClínica Veterinaria Los Andes SAS,900100200\n")
+    assert plan["actualizar"] == []
+    assert plan["nombres_sin_cambiar"] == [{"antes": "Vet Los Andes", "despues": "Clínica Veterinaria Los Andes SAS"}]
+
+
+def test_con_la_casilla_no_queda_nada_sin_cambiar():
+    plan = _plan("nombre,nit\nClínica Veterinaria Los Andes SAS,900100200\n", renombrar=True)
+    assert plan["nombres_sin_cambiar"] == []
+
+
+def test_mismo_nombre_con_otras_mayusculas_no_se_lista_sin_la_casilla():
+    """Un archivo con los nombres en otro formato no llena la pantalla de avisos."""
+    assert _plan("nombre,nit\nVET LOS ANDES,900100200\n")["nombres_sin_cambiar"] == []
+
+
+def test_una_sede_renombrada_avisa_en_vez_de_saltearse():
+    plan = _plan("nombre,nit\nClub Animals Norte Nuevo,900111\n", renombrar=True)
+    assert not any("clinic_name" in c["cambios"] for c in plan["actualizar"])
+    assert any("sedes del NIT 900111" in e or "es de 2 sedes" in e for e in plan["errores"])
+
+
+def test_el_nombre_exacto_elige_la_sede_aunque_se_parezca_a_otra():
+    """«Animal House Bochica» también se parecía a «Animal House Modelia»: no se elegía ninguna."""
+    clientes = CLIENTES + [
+        {"id": "b1", "clinic_name": "Animal House Bochica", "tax_id": "900693681", "phone": None, "email": None},
+        {"id": "b2", "clinic_name": "Animal House Modelia", "tax_id": "900693681", "phone": None, "email": None}]
+    enc, filas = archivo.leer_tabla("nombre,nit,telefono\nAnimal House Bochica,900693681,555\n".encode(), "x.csv")
+    filas = archivo.filas_con_mapa(filas, archivo.mapa_automatico(enc, "clientes"))
+    parecido = lambda a, b: "animal house" in imports.norm(a) and "animal house" in imports.norm(b)  # noqa: E731
+    plan = imports.plan_clientes(filas, clientes, parecido)
+    assert plan["actualizar"] == [{"id": "b1", "clinic_name": "Animal House Bochica",
+                                   "cambios": {"phone": "555"}, "antes": {"phone": None}}]
+
+
+def test_un_archivo_sin_cambios_no_genera_avisos():
+    plan = _plan("nombre,nit\nVet Los Andes,900100200-1\nClub Animals Norte,900111\nClub Animals Sur,900111\n",
+                 renombrar=True)
+    assert plan["errores"] == [] and plan["nombres_sin_cambiar"] == []

@@ -2118,6 +2118,21 @@ Preguntas para responderle a A3:
 - [ ] Revisar el enredo multi-orden de la prueba del 17/11 (ver ERR-206, «visto de paso»)
 - Cierre automático de pedidos: queda a la hora (decisión 011). Se discutió pasarlo a fin del día; sin decidir
 
+## Informe de A3 (25/11), punto 5: carga masiva y resultados
+
+- Carga de resultados en tanda: A3 confirma que FUNCIONA (PDF, ver y descargar, notificación al cliente)
+- [x] Carga masiva de clientes: «le cambié a 11 clientes el nombre, relaciona las filas pero no identifica
+      cambios». Reproducido con la base real (exportar → renombrar 11 → subir): la casilla «Actualizar
+      también los nombres» viene sin marcar y la vista previa decía «sin cambios» SIN avisar; con la casilla,
+      10 de 11 y la sede (NIT compartido) se salteaba en silencio. Arreglo en `app/imports.py`:
+      - sin la casilla, aviso aparte con la lista «antes → después» y botón «Volver a previsualizar
+        cambiando los nombres» (marca la casilla y recalcula);
+      - una sede que no se puede renombrar por carga ahora avisa;
+      - entre sedes que se parecen («Animal House Bochica» / «… Modelia») decide el nombre EXACTO (antes, un
+        archivo sin cambios con la casilla marcada daba 90 avisos falsos; ahora 0).
+      6 tests nuevos; suite 2380 passed. Probado en local con la base real (solo vista previa, sin aplicar)
+- [ ] Push + deploy
+
 ## Cobro, emisión y errores menores (2026-11-16, OK del usuario)
 
 Pedido del usuario sobre la lista de pendientes: pago en la pantalla de Pedidos, Chatwoot, Wompi a
