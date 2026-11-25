@@ -2088,14 +2088,14 @@ Preguntas para responderle a A3:
 - [x] Pantalla «Autorizaciones» en el dashboard (OK del usuario): `/autorizaciones`, solo Administrador,
       resumen (aceptaron / rechazaron / sin responder), buscador por número o cliente y CSV. Solo
       lectura. Verificada con la base real: los 4 números que aceptaron. 16 tests nuevos; suite 2334 passed
-- [ ] Push + deploy de la pantalla
+- [x] Push + deploy de la pantalla (f5d806c, 25/11)
 - [x] Wompi desde el portal (queja de A3: había que copiar el link en otra ventana): ventanita «Pagar ahora
       con Wompi» al registrar la orden (abre en pestaña nueva; abrirla sola la bloquea el navegador),
       columna «Pago» en Solicitudes (Pagar / Pagado) y botón en Notificaciones. Verificado con datos reales
       (Clara Patricia: P-2026-023 pendiente con botón, P-2026-020 pagado). 5 tests; suite 2339 passed
 - [x] Wompi en la base (25/11): 3 pagos aprobados el 17/11 (P-018, P-019 y P-020 por WhatsApp) → el primer
       pago real y el link saliendo solo por el chat quedan confirmados. 3 links sin pagar (P-021 a P-023)
-- [ ] Push + deploy del portal junto con la pantalla (el usuario pidió subir todo junto)
+- [x] Push + deploy del portal junto con la pantalla (f5d806c, 25/11)
 - [x] Facturación (punto 3 de A3): verificado en la base que desde el arreglo del 16/11 los 6 pedidos
       con pago en línea (P-018 a P-023) tienen borrador automático; ningún rechazo de Alegra desde entonces
 - [x] El cierre por inactividad arma el borrador (OK del usuario; anexo 2026-11-25 de la decisión 011).
@@ -2109,9 +2109,11 @@ Preguntas para responderle a A3:
       tabla `emision_ajustes` (migración 042), nace en Manual, solo perfiles de Facturación, `audit_log`.
       Reemplaza la variable `ALEGRA_AUTO_EMISSION`. 30 tests; suite 2374 passed. Verificado en local con
       la base real (Administrador lo ve; Recepción no entra a Facturación)
-- [ ] Al subir: aplicar la migración 042 en Supabase
-- [ ] Encender `ALEGRA_EMISSION_ENABLED=true` en Render (OK explícito del usuario) → primera emisión con
-      el botón y A3 mirando; verificar correo al cliente → A3 elige el modo en Facturación
+- [x] Migración 042 aplicada en Supabase (25/11): `emision_ajustes` con la fila en «manual»
+- [x] Deploy de todo (25/11, f5d806c live en Render; /health ok; rutas nuevas responden y piden login)
+- [ ] Encender `ALEGRA_EMISSION_ENABLED=true` en Render: el usuario decidió el 25/11 dejarlo APAGADO hasta
+      coordinar con A3 la primera emisión (con una factura que quieran emitir; verificar el correo al
+      cliente). Después A3 elige el modo en Facturación (hoy: Manual)
 - [ ] A3: las pantallas de Facturación y Cartera «no aportan nada distinto a Alegra». Pendiente de hablar
 - [ ] Revisar el enredo multi-orden de la prueba del 17/11 (ver ERR-206, «visto de paso»)
 - Cierre automático de pedidos: queda a la hora (decisión 011). Se discutió pasarlo a fin del día; sin decidir
